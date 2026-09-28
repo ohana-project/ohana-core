@@ -19,3 +19,7 @@ Use the canonical labels `needs-triage`, `needs-info`, `ready-for-agent`, `ready
 ### Domain docs
 
 This is a single-context repo with root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+## Architecture
+
+Before writing code, read `docs/architecture.md`. It is the binding blueprint for module layout, dependency rules, the request lifecycle, data access, synchronisation, background jobs, and the web client, and it includes the definition of done for every ticket. If your change needs a different structure, update that document in the same pull request and explain why; do not silently diverge from it.
