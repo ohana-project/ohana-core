@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ohana
+      POSTGRES_PASSWORD: ohana
+      POSTGRES_DB: ohana
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ohana -d ohana"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  rustfs:
+    image: rustfs/rustfs:1.0.0
+    environment:
+      RUSTFS_ACCESS_KEY: ohana-dev
+      RUSTFS_SECRET_KEY: ohana-dev-secret
+    ports:
+      - "9000:9000"
+    volumes:
+      - rustfs-data:/data
+
+volumes:
+  postgres-data:
+  rustfs-data:

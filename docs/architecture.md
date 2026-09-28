@@ -140,7 +140,7 @@ The sync conventions below are established in the foundation and must not be byp
 
 ### Testing
 
-Tests go through `buildApp` over HTTP and through `buildWorker`, against real PostgreSQL and RustFS containers that are started once per test run. Each test file creates its own spaces and members with factory helpers, so tests never depend on each other or on shared data. Access rules are always tested with pairs of members, or pairs of spaces: one actor creates something, the other must not see it. Tests do not mock the database or assert on internals.
+Tests go through `buildApp` over HTTP and through `buildWorker`, against real PostgreSQL and RustFS containers that are started once per test run. The run's global setup passes the container endpoints to the test workers through environment variables that only `src/testing` reads, and applies migrations once per run to provision the throwaway database; outside tests, migrations run only through the migrate entrypoint. Each test file creates its own spaces and members with factory helpers, so tests never depend on each other or on shared data. Access rules are always tested with pairs of members, or pairs of spaces: one actor creates something, the other must not see it. Tests do not mock the database or assert on internals.
 
 ## Web client (`apps/web`)
 
