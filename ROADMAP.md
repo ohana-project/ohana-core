@@ -37,6 +37,7 @@ This is the release direction agreed during product discovery, not a dated deliv
 - Owners can hide or show Journal, Calendar, and Wishlist without deleting their data.
 - The standard deployment exposes the API under `/api/` on the same origin as web.
 - PWA as the primary client, with a domain or subdomain using HTTPS as the standard deployment.
+- An own design system on shadcn/ui with Base UI and Tailwind CSS v4, including a frosted-glass material for floating chrome, delivered before product interfaces.
 - Russian and English localization; each member's language is stored on the server for notification text.
 - Prebuilt amd64 and arm64 images on GHCR for each tagged release, installed with the release's pinned Compose file; migrations apply automatically on upgrade.
 - On iOS, sign-in offers Home Screen installation first so the access code is redeemed in the installed app.
