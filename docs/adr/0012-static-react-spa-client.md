@@ -1,0 +1,7 @@
+# Build the web client as a static React SPA
+
+apps/web is a single-page application built with Vite, React, TanStack Router, and TanStack Query, and built into static files that the api process serves; it has no server runtime of its own. Next.js 16 with a server was the original plan and was rejected, not because it cannot build this client, but because its server capabilities have nothing to do in this architecture: [ADR-0004](0004-api-owns-domain-logic-and-data-access.md) keeps all data access in the API, and [ADR-0002](0002-offline-reading-is-a-product-requirement.md) requires offline reading, so every screen must render from locally cached data without a server anyway.
+
+A server-rendered client would add a network hop (browser → Next.js → API), a second place where member session cookies are handled, service-worker caching of server-rendered responses that is fragile in practice, an extra Node.js process on small home hosts, and an internet-facing React Server Components surface on installations that are rarely updated (compare CVE-2025-55182). None of it is offset by SSR or SEO benefits, since everything sits behind sign-in.
+
+The service worker precaches the application shell so any route, including parameterised ones, opens offline. TanStack Query, with its cache persisted to IndexedDB per member, serves cached data and exposes the synchronisation states that ADR-0002 requires. Next.js static export was considered and rejected because dynamic routes need workarounds under `output: 'export'`.

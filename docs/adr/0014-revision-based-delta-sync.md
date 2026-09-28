@@ -1,0 +1,7 @@
+# Synchronise offline data by per-space revision
+
+Offline reading ([ADR-0002](0002-offline-reading-is-a-product-requirement.md)) is served by delta synchronisation. Each space has a monotonically increasing revision counter. Every synchronised row records the revision of its latest change, and deletions leave tombstone records instead of disappearing. A client asks for changes since the last revision it has seen and stores the new revision after applying the response.
+
+The API filters every sync response for the requesting member, the same way as ordinary reads: another member's drafts and gift favorites never leave the server, reservations on the requester's own wishes are never sent to them, and data in hidden sections is omitted. Changes that remove data from a member's view, such as hiding a section, archiving, or trashing an entry, arrive as tombstones for that member. Revision columns and tombstones are part of the schema from the first migration, because retrofitting them onto existing data is costly.
+
+Refetching whole sections was rejected because it scales with history size on every open. Local-first sync engines (Electric, Zero, PowerSync) were rejected because offline access is read-only in version 1.0, and they would move authorisation filtering out of the API.

@@ -1,0 +1,5 @@
+# Use Drizzle for PostgreSQL access
+
+Use Drizzle ORM and Drizzle Kit in apps/api for PostgreSQL 18 schema declarations, type-safe queries, transactions, and SQL migration generation. The schema stays in TypeScript and migration files are reviewed as database changes. This fits the TypeScript backend, keeps SQL visible to maintainers, and avoids adding a separate database abstraction service.
+
+Drizzle is a library inside the API, not a runtime container. Migrations run as their own step, separate from serving requests, but without manual operator work: the Compose deployment includes a one-shot `migrate` service from the same image, which applies pending migrations and exits, and the api and worker start only after it completes successfully. Migrating at API startup was rejected because the worker could start against an unmigrated schema and a failed migration would look like a crashing API. The API and worker share the generated schema and database access package. The official documentation and the checked library ID are recorded in [the foundation research](../research/foundation-constraints.md#backend-options).

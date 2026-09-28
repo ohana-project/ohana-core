@@ -1,0 +1,11 @@
+# Shared spaces include private user state from the first release
+
+Version 1.0 serves adult couples and allows additional adult relatives to join a space. Content is shared within a space by default, with personal journal drafts and private gift favorites supported from the start: a user can bookmark a partner's wishlist idea without exposing the bookmark to other members. Drafts are limited to journal entries in version 1.0; these exceptions require an explicit distinction between shared content and user-private state.
+
+Personal state belongs to the independent member model, not to an installation-wide shared identity. It is hidden from other members using their own accounts. Trusted administrative code issuers can restore the full account, including this private state; a separate private-data password is outside version 1.0.
+
+Journal entries support text and attached images in version 1.0. Publication shares an entry for reading, while editing its content remains the author's right; being another member or an owner does not by itself confer that editing right. Removal and retention follow [ADR-0007](0007-retain-published-content-and-recover-deleted-entries.md); image preservation follows [ADR-0008](0008-preserve-original-images.md).
+
+The initial deployment is operated by a trusted person for their own family circles, without mandatory end-to-end encryption. Privacy from other members is an application access rule, not a promise of secrecy from someone with access to server-side data. Hosting for unrelated families is a high-priority later direction; child access is also deferred beyond the first release.
+
+In version 1.0, wishes belong to individual members and are visible to the other members of that space. Each member maintains their own wishes; other members can privately bookmark them as gift ideas. Because relatives share a space, a member can also reserve a wish they intend to give; the reservation is visible to every member except the wish's author, so the surprise is preserved while duplicate gifts are avoided. The author can mark a wish as received.
