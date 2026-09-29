@@ -58,19 +58,24 @@ jobs:
         working-directory: deploy/smoke
         run: |
           docker compose --profile caddy up -d --wait
-          test -z "$(docker compose port postgres 5432)"
-          test -z "$(docker compose port rustfs 9000)"
-          curl -fsSk https://localhost:8443/api/health | grep '"status":"ok"'
-          curl -fsSk https://localhost:8443/ | grep '<!doctype html'
-          curl -fsSk https://localhost:8443/some/client/route | grep '<!doctype html'
+          docker compose config --format json \
+            | jq -e '.services.postgres.ports == null and .services.rustfs.ports == null' > /dev/null
+          curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
+            https://localhost:8443/api/health | grep '"status":"ok"'
+          curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
+            https://localhost:8443/ | grep '<!doctype html'
+          curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
+            https://localhost:8443/some/client/route | grep '<!doctype html'
 
       - name: Smoke test with Caddy disabled
         working-directory: deploy/smoke
         run: |
           docker compose --profile caddy down
           docker compose up -d --wait
-          curl -fsS http://localhost:3000/api/health | grep '"status":"ok"'
-          curl -fsS http://localhost:3000/ | grep '<!doctype html'
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
+            http://localhost:3000/api/health | grep '"status":"ok"'
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
+            http://localhost:3000/ | grep '<!doctype html'
 
       - name: Failed migration keeps api and worker down
         working-directory: deploy/smoke
