@@ -61,7 +61,7 @@ export function MemberLayout({
         />
         <main
           className={cn(
-            'mx-auto w-full px-(--pad) pb-[calc(var(--tabbar-h)+28px)] desktop:pb-12',
+            'mx-auto w-full px-(--pad) pb-[calc(var(--tabbar-h)+28px)] has-data-[slot=fab]:pb-[calc(var(--tabbar-h)+96px)] desktop:pb-12 desktop:has-data-[slot=fab]:pb-12',
             width === 'default' && 'max-w-[var(--content-w)]',
             width === 'narrow' && 'max-w-[var(--content-w-narrow)]',
             width === 'wide' && 'max-w-[var(--content-w-wide)]',

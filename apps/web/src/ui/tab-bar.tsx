@@ -25,7 +25,7 @@ export function TabBar({ sections, activeId, onSectionClick, className }: TabBar
       data-slot="tabbar"
       aria-label={t('layout.sections')}
       className={cn(
-        'glass-bar fixed inset-x-0 bottom-0 z-30 grid auto-flow-column auto-cols-fr gap-0 rounded-none border-0 px-2 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] desktop:hidden',
+        'glass-bar fixed inset-x-0 bottom-0 z-30 grid grid-rows-1 grid-flow-col auto-cols-fr gap-0 rounded-none border-0 px-2 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] desktop:hidden',
         className,
       )}
     >
