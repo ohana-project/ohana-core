@@ -4,11 +4,13 @@
   "scripts": {
     "lint": "biome check .",
     "setup": "pnpm install && (cp -n deploy/env.example .env || true) && docker compose -f deploy/compose.dev.yaml up -d --wait && pnpm --filter @ohana/api db:migrate",
-    "dev": "pnpm --filter @ohana/api dev",
+    "dev": "pnpm -r --parallel --stream dev",
     "format": "biome check --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "check-openapi": "pnpm --filter @ohana/api openapi:check"
+    "build": "pnpm -r build",
+    "check-openapi": "pnpm --filter @ohana/api openapi:check",
+    "check-api-client": "pnpm --filter @ohana/api-client generate && git diff --exit-code -- packages/api-client"
   },
   "license": "AGPL-3.0-only",
   "devEngines": {

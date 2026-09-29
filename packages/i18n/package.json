@@ -1,0 +1,22 @@
+{
+  "name": "@ohana/i18n",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "i18next": "^26.4.2",
+    "i18next-icu": "^2.4.4"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
+  }
+}

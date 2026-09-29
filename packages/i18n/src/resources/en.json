@@ -1,0 +1,31 @@
+{
+  "app": {
+    "title": "Ohana"
+  },
+  "language": {
+    "label": "Interface language",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "health": {
+    "title": "API health",
+    "description": "Checks that Ohana's services are reachable.",
+    "loading": "Checking the API health…",
+    "unreachable": "The API is unreachable",
+    "status": {
+      "ok": "All services are up",
+      "degraded": "Some services are down"
+    },
+    "checks": {
+      "database": "Database",
+      "storage": "File storage"
+    },
+    "state": {
+      "up": "Up",
+      "down": "Down"
+    }
+  },
+  "members": {
+    "count": "{count, plural, one {# member} other {# members}}"
+  }
+}

@@ -155,6 +155,7 @@ src/
   data/         API client wiring, session registry, sync engine, IndexedDB store
   ui/           design-system components (shadcn/Base UI, restyled)
   lib/          small framework-independent helpers
+  testing/      test setup and shared test helpers
 ```
 
 ### Rules

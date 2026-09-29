@@ -29,5 +29,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Build web app
+        run: pnpm build
+
       - name: Check OpenAPI document
         run: pnpm check-openapi
+
+      - name: Check generated API client
+        run: pnpm check-api-client
