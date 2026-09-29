@@ -1,5 +1,9 @@
+import type { paths } from '@ohana/api-client'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../data/api.ts'
+
+export type ApiHealthReport =
+  paths['/api/health']['get']['responses'][200]['content']['application/json']
 
 export function useApiHealth() {
   return useQuery({

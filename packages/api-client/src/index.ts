@@ -1,7 +1,6 @@
 import createClient from 'openapi-fetch'
 import type { components, operations, paths } from './openapi.gen.ts'
 
-export type { $defs, webhooks } from './openapi.gen.ts'
 export type { components, operations, paths }
 
 export type OhanaClient = ReturnType<typeof createClient<paths>>

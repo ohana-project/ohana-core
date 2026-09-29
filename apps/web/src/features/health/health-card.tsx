@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card'
-import { useApiHealth } from './use-api-health.ts'
+import { type ApiHealthReport, useApiHealth } from './use-api-health.ts'
 
-const checkNames = ['database', 'storage'] as const
+const checkNames: readonly (keyof ApiHealthReport['checks'])[] = ['database', 'storage']
 
 export function HealthCard() {
   const { t } = useTranslation()

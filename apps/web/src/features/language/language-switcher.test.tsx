@@ -1,18 +1,14 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AppProviders } from '../../app/providers.tsx'
 import { api } from '../../data/api.ts'
+import { renderWithProviders } from '../../testing/render.tsx'
 import { HealthCard } from '../health/health-card.tsx'
 import { LanguageSwitcher } from './language-switcher.tsx'
 
 vi.mock('../../data/api.ts', () => ({
   api: { GET: vi.fn() },
 }))
-
-function renderWithProviders(ui: React.ReactNode) {
-  return render(<AppProviders>{ui}</AppProviders>)
-}
 
 beforeEach(() => {
   window.localStorage.clear()

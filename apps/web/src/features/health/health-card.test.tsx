@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { AppProviders } from '../../app/providers.tsx'
 import { api } from '../../data/api.ts'
+import { renderWithProviders } from '../../testing/render.tsx'
 import { HealthCard } from './health-card.tsx'
 
 vi.mock('../../data/api.ts', () => ({
@@ -9,14 +9,6 @@ vi.mock('../../data/api.ts', () => ({
 }))
 
 const mockGetHealth = vi.mocked(api.GET)
-
-function renderHealthCard() {
-  return render(
-    <AppProviders>
-      <HealthCard />
-    </AppProviders>,
-  )
-}
 
 describe('HealthCard', () => {
   it('shows the ok status with per-service checks', async () => {
@@ -26,7 +18,7 @@ describe('HealthCard', () => {
       response: new Response(),
     })
 
-    renderHealthCard()
+    renderWithProviders(<HealthCard />)
 
     expect(await screen.findByText('Все сервисы работают')).toBeInTheDocument()
     expect(screen.getByText('База данных')).toBeInTheDocument()
@@ -40,7 +32,7 @@ describe('HealthCard', () => {
       response: new Response(),
     })
 
-    renderHealthCard()
+    renderWithProviders(<HealthCard />)
 
     expect(await screen.findByText('Некоторые сервисы недоступны')).toBeInTheDocument()
     expect(screen.getByText('Недоступно')).toBeInTheDocument()
@@ -49,7 +41,7 @@ describe('HealthCard', () => {
   it('shows the unreachable message when the API cannot be reached', async () => {
     mockGetHealth.mockRejectedValue(new TypeError('Failed to fetch'))
 
-    renderHealthCard()
+    renderWithProviders(<HealthCard />)
 
     expect(await screen.findByText('API недоступен')).toBeInTheDocument()
   })
