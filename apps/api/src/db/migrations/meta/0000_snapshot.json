@@ -1,5 +1,5 @@
 {
-  "id": "6a1c77fa-b961-437d-994b-b81ae99f6467",
+  "id": "3b416025-5d4b-4106-bad5-1eb989aca845",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -36,8 +36,7 @@
           "name": "revision",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": true,
-          "default": "0"
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -108,8 +107,7 @@
           "name": "revision",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": true,
-          "default": "0"
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",

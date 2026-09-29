@@ -3,7 +3,7 @@ CREATE TABLE "members" (
 	"space_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"role" text NOT NULL,
-	"revision" bigint DEFAULT 0 NOT NULL,
+	"revision" bigint NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "members_space_id_id_key" UNIQUE("space_id","id"),
@@ -13,7 +13,7 @@ CREATE TABLE "members" (
 CREATE TABLE "spaces" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
-	"revision" bigint DEFAULT 0 NOT NULL,
+	"revision" bigint NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL
 );

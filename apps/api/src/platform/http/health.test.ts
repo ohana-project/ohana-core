@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { createTestHarness, readTestEnvironment } from '../../testing/harness.ts'
+import { createDb } from '../db/index.ts'
 import { createS3Storage } from '../storage/s3.ts'
 
 describe('GET /api/health', () => {
@@ -41,6 +42,25 @@ describe('GET /api/health', () => {
       })
     } finally {
       await app.close()
+      await harness.close()
+    }
+  })
+
+  test('reports degraded when the database is unreachable', async () => {
+    const harness = await createTestHarness()
+    const unreachableDb = createDb('postgresql://ohana:ohana@127.0.0.1:59999/none')
+    const app = harness.buildTestApp({ db: unreachableDb.db })
+    await app.ready()
+    try {
+      const response = await app.inject({ method: 'GET', url: '/api/health' })
+      expect(response.statusCode).toBe(503)
+      expect(response.json()).toEqual({
+        status: 'degraded',
+        checks: { database: 'down', storage: 'up' },
+      })
+    } finally {
+      await app.close()
+      await unreachableDb.close()
       await harness.close()
     }
   })

@@ -51,8 +51,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     secretAccessKey: STORAGE_SECRET_KEY,
     bucket: STORAGE_BUCKET,
   })
-  await storage.ensureBucket()
   await waitForStorage(storageEndpoint)
+  await storage.ensureBucket()
 
   process.env.OHANA_TEST_DATABASE_URL = postgres.getConnectionUri()
   process.env.OHANA_TEST_STORAGE_ENDPOINT = storageEndpoint

@@ -1,4 +1,4 @@
-import type { Executor } from '../../platform/db/index.ts'
+import type { Tx } from '../../platform/db/index.ts'
 import { syncTombstones } from './tables.ts'
 
 export type TombstoneAudience = { kind: 'all' } | { kind: 'member'; memberId: string }
@@ -10,14 +10,14 @@ export interface TombstoneInput {
 }
 
 export async function writeTombstones(
-  executor: Executor,
+  tx: Tx,
   spaceId: string,
   revision: bigint,
   tombstones: readonly TombstoneInput[],
   now: Date,
 ): Promise<void> {
   if (tombstones.length === 0) return
-  await executor.insert(syncTombstones).values(
+  await tx.insert(syncTombstones).values(
     tombstones.map((tombstone) => ({
       spaceId,
       revision,

@@ -156,6 +156,12 @@ export function createS3Storage(config: S3StorageConfig): ObjectStorageWithSetup
 
     async ensureBucket(): Promise<void> {
       try {
+        await client.send(new HeadBucketCommand({ Bucket: bucket }))
+        return
+      } catch (error) {
+        if (!isNotFound(error)) throw toStorageError('head bucket', bucket, error)
+      }
+      try {
         await client.send(new CreateBucketCommand({ Bucket: bucket }))
       } catch (error) {
         const name = (error as { name?: string }).name

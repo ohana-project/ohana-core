@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm'
-import type { Executor } from '../../platform/db/index.ts'
+import type { Executor, Tx } from '../../platform/db/index.ts'
 import { notFound } from '../../platform/errors.ts'
 import { type Space, spaces } from './tables.ts'
 
@@ -8,10 +8,10 @@ export interface NewSpace {
   now: Date
 }
 
-export async function insertSpace(executor: Executor, data: NewSpace): Promise<Space> {
-  const inserted = await executor
+export async function insertSpace(tx: Tx, data: NewSpace): Promise<Space> {
+  const inserted = await tx
     .insert(spaces)
-    .values({ name: data.name, createdAt: data.now, updatedAt: data.now })
+    .values({ name: data.name, revision: 0n, createdAt: data.now, updatedAt: data.now })
     .returning()
   const row = inserted[0]
   if (!row) throw new Error('Inserting a space returned no row')
@@ -23,12 +23,8 @@ export async function getSpaceById(executor: Executor, id: string): Promise<Spac
   return rows[0]
 }
 
-export async function incrementSpaceRevision(
-  executor: Executor,
-  spaceId: string,
-  now: Date,
-): Promise<bigint> {
-  const rows = await executor
+export async function incrementSpaceRevision(tx: Tx, spaceId: string, now: Date): Promise<bigint> {
+  const rows = await tx
     .update(spaces)
     .set({ revision: sql`${spaces.revision} + 1`, updatedAt: now })
     .where(eq(spaces.id, spaceId))

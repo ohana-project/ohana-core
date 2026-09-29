@@ -16,7 +16,7 @@ export const members = pgTable(
       .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     name: text('name').notNull(),
     role: text('role').notNull(),
-    revision: bigint('revision', { mode: 'bigint' }).notNull().default(sql`0`),
+    revision: bigint('revision', { mode: 'bigint' }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
   },

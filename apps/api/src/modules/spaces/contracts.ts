@@ -1,4 +1,4 @@
-import { Type } from '@sinclair/typebox'
+import { type Static, Type } from '@sinclair/typebox'
 
 export const SpaceDtoSchema = Type.Object(
   {
@@ -11,17 +11,11 @@ export const SpaceDtoSchema = Type.Object(
   { additionalProperties: false },
 )
 
+export type SpaceDto = Static<typeof SpaceDtoSchema>
+
 export const CreateSpaceBodySchema = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 200 }),
   },
   { additionalProperties: false },
 )
-
-export interface SpaceDto {
-  id: string
-  name: string
-  revision: string
-  createdAt: string
-  updatedAt: string
-}

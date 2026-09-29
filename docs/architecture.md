@@ -49,7 +49,7 @@ Modules: `spaces`, `members`, `access`, `journal`, `calendar`, `wishlist`, `sync
 ### Dependency rules
 
 - Routes call services. They never query the database, and they never contain domain rules.
-- A service owns its module's tables. Other modules use its `index.ts` exports and never import another module's repository, tables, or internal files.
+- A service owns its module's tables. Other modules use its `index.ts` exports and never import another module's repository, tables, or internal files. The one exception: a module's `tables.ts` may import another module's `tables.ts` solely to declare the composite foreign keys that ADR-0016 requires. `index.ts` exports services and domain types, not repositories or table objects; test files and the test harness are not modules and may import internals directly.
 - Services receive dependencies (db, clock, storage, jobs, push, config) explicitly. There are no module-level singletons, and nothing reads `process.env` outside `platform/config`.
 - `platform/` knows nothing about domain modules. Modules depend on platform, never the reverse.
 - Dependency cycles between modules are not allowed. When two modules need each other, the shared rule moves into the lower one.

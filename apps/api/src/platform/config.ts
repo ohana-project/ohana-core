@@ -1,28 +1,30 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { type Static, Type } from '@sinclair/typebox'
+import { type Static, type TSchema, Type } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 
+const nodeEnv = Type.Union(
+  [Type.Literal('development'), Type.Literal('test'), Type.Literal('production')],
+  { default: 'development' },
+)
+const logLevel = Type.Union(
+  [
+    Type.Literal('fatal'),
+    Type.Literal('error'),
+    Type.Literal('warn'),
+    Type.Literal('info'),
+    Type.Literal('debug'),
+    Type.Literal('trace'),
+  ],
+  { default: 'info' },
+)
+const databaseUrl = Type.String({ minLength: 1 })
+
 const ConfigSchema = Type.Object({
-  nodeEnv: Type.Union(
-    [Type.Literal('development'), Type.Literal('test'), Type.Literal('production')],
-    {
-      default: 'development',
-    },
-  ),
+  nodeEnv,
   port: Type.Number({ default: 3000, minimum: 1, maximum: 65535 }),
-  logLevel: Type.Union(
-    [
-      Type.Literal('fatal'),
-      Type.Literal('error'),
-      Type.Literal('warn'),
-      Type.Literal('info'),
-      Type.Literal('debug'),
-      Type.Literal('trace'),
-    ],
-    { default: 'info' },
-  ),
-  databaseUrl: Type.String({ minLength: 1 }),
+  logLevel,
+  databaseUrl,
   storageEndpoint: Type.String({ minLength: 1 }),
   storageRegion: Type.String({ minLength: 1, default: 'us-east-1' }),
   storageAccessKey: Type.String({ minLength: 1 }),
@@ -30,7 +32,10 @@ const ConfigSchema = Type.Object({
   storageBucket: Type.String({ minLength: 1 }),
 })
 
+const MigrationConfigSchema = Type.Object({ nodeEnv, logLevel, databaseUrl })
+
 export type Config = Static<typeof ConfigSchema>
+export type MigrationConfig = Static<typeof MigrationConfigSchema>
 
 export class ConfigError extends Error {
   readonly issues: string[]
@@ -42,7 +47,7 @@ export class ConfigError extends Error {
   }
 }
 
-const environmentNames: Readonly<Record<keyof Config, string>> = {
+const configEnvironmentNames: Readonly<Record<string, string>> = {
   nodeEnv: 'NODE_ENV',
   port: 'PORT',
   logLevel: 'LOG_LEVEL',
@@ -52,6 +57,12 @@ const environmentNames: Readonly<Record<keyof Config, string>> = {
   storageAccessKey: 'STORAGE_ACCESS_KEY',
   storageSecretKey: 'STORAGE_SECRET_KEY',
   storageBucket: 'STORAGE_BUCKET',
+}
+
+const migrationEnvironmentNames: Readonly<Record<string, string>> = {
+  nodeEnv: 'NODE_ENV',
+  logLevel: 'LOG_LEVEL',
+  databaseUrl: 'DATABASE_URL',
 }
 
 async function readDotEnv(path: string): Promise<Record<string, string>> {
@@ -74,31 +85,44 @@ async function readDotEnv(path: string): Promise<Record<string, string>> {
   return values
 }
 
-export async function loadConfig(environment: NodeJS.ProcessEnv = process.env): Promise<Config> {
+async function parseConfig(
+  schema: TSchema,
+  environmentNames: Readonly<Record<string, string>>,
+  environment: NodeJS.ProcessEnv,
+): Promise<unknown> {
   const fileValues = await readDotEnv(fileURLToPath(new URL('../../../../.env', import.meta.url)))
   const raw: Record<string, unknown> = {}
   for (const [key, environmentName] of Object.entries(environmentNames)) {
     const value = environment[environmentName] ?? fileValues[environmentName]
     if (value !== undefined) raw[key] = value
   }
-  const prepared = Value.Clean(
-    ConfigSchema,
-    Value.Default(ConfigSchema, Value.Convert(ConfigSchema, raw)),
-  )
-  if (!Value.Check(ConfigSchema, prepared)) {
-    const issues = [...Value.Errors(ConfigSchema, prepared)].map(
+  const prepared = Value.Clean(schema, Value.Default(schema, Value.Convert(schema, raw)))
+  if (!Value.Check(schema, prepared)) {
+    const issues = [...Value.Errors(schema, prepared)].map(
       (error) => `${error.path.slice(1) || '(root)'}: ${error.message}`,
     )
     throw new ConfigError(issues)
   }
-  return prepared as Config
+  return prepared
 }
 
-export async function loadConfigOrExit(
+export async function loadConfig(environment: NodeJS.ProcessEnv = process.env): Promise<Config> {
+  return parseConfig(ConfigSchema, configEnvironmentNames, environment) as Promise<Config>
+}
+
+export async function loadMigrationConfig(
   environment: NodeJS.ProcessEnv = process.env,
-): Promise<Config | undefined> {
+): Promise<MigrationConfig> {
+  return parseConfig(
+    MigrationConfigSchema,
+    migrationEnvironmentNames,
+    environment,
+  ) as Promise<MigrationConfig>
+}
+
+async function loadOrExit<T>(load: () => Promise<T>): Promise<T | undefined> {
   try {
-    return await loadConfig(environment)
+    return await load()
   } catch (error) {
     if (error instanceof ConfigError) {
       console.error(error.message)
@@ -107,4 +131,12 @@ export async function loadConfigOrExit(
     }
     throw error
   }
+}
+
+export function loadConfigOrExit(): Promise<Config | undefined> {
+  return loadOrExit(loadConfig)
+}
+
+export function loadMigrationConfigOrExit(): Promise<MigrationConfig | undefined> {
+  return loadOrExit(loadMigrationConfig)
 }

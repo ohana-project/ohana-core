@@ -63,9 +63,11 @@ describe('S3 storage adapter against RustFS', () => {
     expect(missing).toBeNull()
   })
 
-  test('streaming upload handles payloads larger than a single part', async () => {
+  test('streaming upload switches to multipart for payloads larger than one part', async () => {
     const key = testKey('original')
-    const payload = randomBytes(5 * 1024 * 1024)
+    // 12 MiB with the 5 MiB default part size produces three parts, so the
+    // CreateMultipartUpload/UploadPart/CompleteMultipartUpload path runs.
+    const payload = randomBytes(12 * 1024 * 1024)
     await storage.put(key, Readable.from(chunkBuffer(payload, 1024 * 1024)))
 
     const body = await storage.get(key)

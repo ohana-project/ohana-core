@@ -11,7 +11,11 @@ export interface DatabaseHandle {
 }
 
 export function createDb(databaseUrl: string): DatabaseHandle {
-  const pool = new Pool({ connectionString: databaseUrl, max: 10 })
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 10,
+    connectionTimeoutMillis: 5_000,
+  })
   return {
     db: drizzle(pool),
     close: () => pool.end(),

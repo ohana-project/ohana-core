@@ -1,22 +1,22 @@
-import type { Executor } from '../../platform/db/index.ts'
-import { incrementSpaceRevision } from '../spaces/index.ts'
+import type { Tx } from '../../platform/db/index.ts'
+import { advanceSpaceRevision } from '../spaces/index.ts'
 import { type TombstoneInput, writeTombstones } from './repository.ts'
 
 export interface ChangePlan {
-  writes?: (revision: bigint) => Promise<unknown>
+  writes?: (tx: Tx, revision: bigint) => Promise<unknown>
   tombstones?: readonly TombstoneInput[]
 }
 
 export async function recordChanges(
-  executor: Executor,
+  tx: Tx,
   spaceId: string,
   plan: ChangePlan,
   now: Date,
 ): Promise<bigint> {
-  const revision = await incrementSpaceRevision(executor, spaceId, now)
+  const revision = await advanceSpaceRevision(tx, spaceId, now)
   if (plan.writes !== undefined) {
-    await plan.writes(revision)
+    await plan.writes(tx, revision)
   }
-  await writeTombstones(executor, spaceId, revision, plan.tombstones ?? [], now)
+  await writeTombstones(tx, spaceId, revision, plan.tombstones ?? [], now)
   return revision
 }
