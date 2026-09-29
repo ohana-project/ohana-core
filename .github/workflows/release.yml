@@ -1,0 +1,254 @@
+# Publishes a release when the maintainer pushes a semantic version tag such
+# as v1.2.0 (ADR-0018): the Ohana image is built natively for linux/amd64 and
+# linux/arm64 on GitHub-hosted runners, pushed to GHCR as one
+# multi-architecture image, and verified to start from the pulled image on
+# both architectures. The release then carries generated notes plus a
+# Compose file pinned to the release version and the environment example, so
+# operators never build anything and never pull `latest`.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify the tag and prepare the release files
+        id: meta
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          # The v*.*.* trigger also matches non-semver names such as v1.x.y;
+          # require the real thing (optional -prerelease and +build).
+          if ! printf '%s' "$tag" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+            echo "::error::${tag} is not a semantic version tag (vMAJOR.MINOR.PATCH, optional -prerelease and +build)"
+            exit 1
+          fi
+          # GHCR image names must be lowercase.
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+
+          # Pin Ohana to the release version; PostgreSQL, RustFS, and Caddy
+          # are already pinned to tested versions in deploy/compose.yaml.
+          # The line about OHANA_IMAGE only applies to the repository's own
+          # file, not to this pinned one.
+          mkdir release
+          sed -e "s|image: \${OHANA_IMAGE:?Set OHANA_IMAGE in .env}|image: ${image}:${tag}|" \
+              -e '\|^# The Ohana image comes from OHANA_IMAGE|d' \
+            deploy/compose.yaml > release/compose.yaml
+          cp deploy/env.production.example release/env.production.example
+          if grep -q 'OHANA_IMAGE' release/compose.yaml; then
+            echo '::error::the release Compose file still references OHANA_IMAGE'
+            exit 1
+          fi
+          if grep -Eq '^[[:space:]]*image:.*\$\{' release/compose.yaml; then
+            echo '::error::an image in the release Compose file is not pinned'
+            exit 1
+          fi
+          # The placeholders only satisfy interpolation; the check is about
+          # the file being a valid, fully pinned Compose file.
+          POSTGRES_PASSWORD=x STORAGE_ACCESS_KEY=x STORAGE_SECRET_KEY=x \
+            docker compose -f release/compose.yaml config --quiet
+
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+          if [[ "$tag" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: release/
+          if-no-files-found: error
+          retention-days: 1
+
+  test:
+    needs: prepare
+    uses: ./.github/workflows/tests.yml
+
+  build:
+    needs: [prepare, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare platform identifier
+        run: |
+          platform="${{ matrix.platform }}"
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the platform image by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export the digest
+        run: |
+          digest="${{ steps.build.outputs.digest }}"
+          mkdir -p "${{ runner.temp }}/digests"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download the platform digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the multi-architecture image under the version tag
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          digest_count=$(find . -maxdepth 1 -type f | wc -l)
+          if [ "$digest_count" -ne 2 ]; then
+            echo '::error::expected two platform digests, found' "$digest_count"
+            exit 1
+          fi
+          # Word splitting is intentional: each digest file name becomes one
+          # argument to imagetools create.
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${VERSION}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+
+      - name: Inspect the pushed image
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
+  smoke:
+    needs: [prepare, merge]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Download the release files
+        uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: release
+
+      - name: Pull the released image
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: docker pull "${IMAGE}:${VERSION}"
+
+      - name: Start the pinned stack from the release files
+        working-directory: release
+        run: |
+          cp env.production.example .env
+          printf '\nPOSTGRES_PASSWORD=release-smoke\nSTORAGE_ACCESS_KEY=release-smoke\nSTORAGE_SECRET_KEY=release-smoke\n' >> .env
+          docker compose up -d --wait
+
+      - name: Check the api and the web client
+        working-directory: release
+        run: |
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
+            http://localhost:3000/api/health | grep '"status":"ok"'
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
+            http://localhost:3000/ | grep '<!doctype html'
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
+            http://localhost:3000/some/client/route | grep '<!doctype html'
+          docker compose down --volumes
+
+  release:
+    needs: [prepare, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - name: Download the release files
+        uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: release
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          args=()
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$VERSION" --generate-notes "${args[@]}" \
+            release/compose.yaml release/env.production.example
