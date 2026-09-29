@@ -219,10 +219,19 @@ jobs:
         env:
           PINNED: ${{ needs.prepare.outputs.image }}:${{ needs.prepare.outputs.version }}
         run: |
+          # The count comes from the file itself, so adding a fourth Ohana
+          # service to deploy/compose.yaml does not need an edit here. The
+          # || true keeps the step alive when nothing matches, so the guard
+          # below can report why.
+          expected=$(grep -c "image: ${PINNED}" compose.yaml || true)
+          if [ "$expected" -eq 0 ]; then
+            echo '::error::the pinned Ohana image is not in the release Compose file'
+            exit 1
+          fi
           sed -i "s|image: ${PINNED}|image: ${IMAGE_REF}|g" compose.yaml
           pinned_count=$(grep -c "image: ${IMAGE_REF}" compose.yaml)
-          if [ "$pinned_count" -ne 3 ]; then
-            echo "::error::expected the three Ohana services pinned to the pulled digest, found ${pinned_count}"
+          if [ "$pinned_count" -ne "$expected" ]; then
+            echo "::error::expected ${expected} services pinned to the pulled digest, found ${pinned_count}"
             exit 1
           fi
 
@@ -231,6 +240,8 @@ jobs:
         env:
           CADDY: ${{ matrix.caddy == true }}
         run: |
+          # Assembled the way the README tells operators to.
+          cp env.production.example .env
           printf '\nPOSTGRES_PASSWORD=release-smoke\nSTORAGE_ACCESS_KEY=release-smoke\nSTORAGE_SECRET_KEY=release-smoke\n' >> .env
           if [ "$CADDY" = "true" ]; then
             # With Caddy in front, the api must stay off the host's ports.
@@ -244,6 +255,15 @@ jobs:
         with:
           base-url: ${{ matrix.caddy == true && 'https://localhost:8443' || 'http://localhost:3000' }}
           insecure: ${{ matrix.caddy == true }}
+
+      - name: With Caddy enabled, the api stays behind it
+        if: matrix.caddy == true
+        working-directory: release
+        run: |
+          if curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"; then
+            echo '::error::the api port is reachable off-loopback while Caddy is enabled'
+            exit 1
+          fi
 
       - name: Stop the stack
         working-directory: release
@@ -288,7 +308,7 @@ jobs:
           # shellcheck disable=SC2046
           docker buildx imagetools create \
             --tag "${IMAGE}:${VERSION}" \
-            $(printf "${IMAGE}@sha256:%s " *)
+            $(printf '%s@sha256:%s ' "${IMAGE}" *)
 
       - name: Inspect the pushed image
         env:
@@ -302,7 +322,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
-      packages: read
     steps:
       - name: Download the release files
         uses: actions/download-artifact@v4

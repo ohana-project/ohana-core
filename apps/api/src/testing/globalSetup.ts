@@ -4,7 +4,7 @@ import { createDb } from '../platform/db/index.ts'
 import { runMigrations } from '../platform/db/migrate.ts'
 import { createS3Storage } from '../platform/storage/s3.ts'
 
-const POSTGRES_IMAGE = 'postgres:18-alpine'
+const POSTGRES_IMAGE = 'postgres:18.6-alpine'
 const RUSTFS_IMAGE = 'rustfs/rustfs:1.0.0'
 const STORAGE_ACCESS_KEY = 'ohana-test'
 const STORAGE_SECRET_KEY = 'ohana-test-secret'
