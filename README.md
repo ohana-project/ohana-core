@@ -42,6 +42,12 @@ Your data lives in the named volumes `postgres-data` and `rustfs-data`, which up
 - **Existing reverse proxy.** Leave the `caddy` profile off and point your proxy at the published api port.
 - **External object storage.** Set `STORAGE_ENDPOINT` (with its region, keys, and bucket) to any S3-compatible endpoint instead of the bundled single-node RustFS.
 
+## Releasing
+
+Pushing a semantic version tag such as `v1.2.0` (prereleases like `v1.2.0-rc.1` are marked as such; `+build` metadata is not supported) publishes a release: the workflow runs the quality gate, builds the image natively for amd64 and arm64, verifies on both architectures that the pulled images start — with Caddy enabled and disabled — and only then tags the multi-architecture image and creates the GitHub Release with generated notes, a Compose file pinned to the release version, and the environment example attached. Nothing else publishes: ordinary pushes run CI only.
+
+One-time, at the first release: the `ghcr.io/ohana-project/ohana-core` package is created private by the first push; make it public in its package settings (Danger Zone → Change visibility) so operators can pull without credentials. The release smoke pulls anonymously, so it fails until this is done.
+
 ## Development
 
 You need Node 24 (with Corepack, for pnpm) and Docker.
