@@ -1,0 +1,31 @@
+{
+  "app": {
+    "title": "Ohana"
+  },
+  "language": {
+    "label": "Язык интерфейса",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "health": {
+    "title": "Состояние API",
+    "description": "Проверка доступности сервисов Ohana.",
+    "loading": "Проверяем состояние API…",
+    "unreachable": "API недоступен",
+    "status": {
+      "ok": "Все сервисы работают",
+      "degraded": "Некоторые сервисы недоступны"
+    },
+    "checks": {
+      "database": "База данных",
+      "storage": "Хранилище файлов"
+    },
+    "state": {
+      "up": "Доступно",
+      "down": "Недоступно"
+    }
+  },
+  "members": {
+    "count": "{count, plural, one {# участник} few {# участника} many {# участников} other {# участника}}"
+  }
+}
