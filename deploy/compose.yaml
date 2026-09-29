@@ -1,7 +1,6 @@
 # Ohana production deployment (ADR-0009, ADR-0018).
 #
-# Copy env.production.example to .env in this directory, set OHANA_IMAGE,
-# then run:
+# Copy env.production.example to .env in this directory, then run:
 #
 #   docker compose up -d                  # api published directly on $OHANA_PORT
 #   docker compose --profile caddy up -d  # Caddy terminates HTTPS in front of api
@@ -9,6 +8,10 @@
 # postgres and rustfs are reachable only on this project's internal network.
 # One Ohana image serves everything; migrate, api, and worker differ only in
 # their command.
+#
+# The Ohana image comes from OHANA_IMAGE in .env.
+# The Compose file attached to each GitHub release is this file with the
+# image pinned to the release version.
 
 x-app-env: &app-env
   NODE_ENV: production

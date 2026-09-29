@@ -1,42 +1,20 @@
 name: CI
 
+# Ordinary pushes run the quality gate and the Compose smoke test and
+# publish nothing. Only semantic version tags publish, through the separate
+# release workflow.
+
 on:
   push:
+    branches: ['**']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build web app
-        run: pnpm build
-
-      - name: Check OpenAPI document
-        run: pnpm check-openapi
-
-      - name: Check generated API client
-        run: pnpm check-api-client
+  tests:
+    uses: ./.github/workflows/tests.yml
 
   compose-smoke:
     runs-on: ubuntu-latest
