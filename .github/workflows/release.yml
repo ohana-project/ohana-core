@@ -303,12 +303,13 @@ jobs:
             echo '::error::expected two platform digests, found' "$digest_count"
             exit 1
           fi
-          # Word splitting is intentional: each digest file name becomes one
-          # argument to imagetools create.
-          # shellcheck disable=SC2046
+          sources=()
+          for digest_file in *; do
+            sources+=("${IMAGE}@sha256:${digest_file}")
+          done
           docker buildx imagetools create \
             --tag "${IMAGE}:${VERSION}" \
-            $(printf '%s@sha256:%s ' "${IMAGE}" *)
+            "${sources[@]}"
 
       - name: Inspect the pushed image
         env:
