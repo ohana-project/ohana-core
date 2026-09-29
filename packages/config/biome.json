@@ -47,6 +47,16 @@
       "linter": { "enabled": false },
       "formatter": { "enabled": false },
       "assist": { "enabled": false }
+    },
+    {
+      "includes": ["**/ui/label.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noLabelWithoutControl": "off"
+          }
+        }
+      }
     }
   ],
   "root": false

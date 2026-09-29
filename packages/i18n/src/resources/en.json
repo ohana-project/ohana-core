@@ -27,5 +27,9 @@
   },
   "members": {
     "count": "{count, plural, one {# member} other {# members}}"
+  },
+  "ui": {
+    "close": "Close",
+    "loading": "Loading…"
   }
 }

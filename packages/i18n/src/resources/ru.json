@@ -27,5 +27,9 @@
   },
   "members": {
     "count": "{count, plural, one {# участник} few {# участника} many {# участников} other {# участника}}"
+  },
+  "ui": {
+    "close": "Закрыть",
+    "loading": "Загрузка…"
   }
 }
