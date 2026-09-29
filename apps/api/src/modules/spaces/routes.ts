@@ -1,5 +1,4 @@
-import type { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox'
-import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
+import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import type { FastifyInstance } from 'fastify'
 import { adminGuard } from '../../platform/http/adminGuard.ts'
 import { CreateSpaceBodySchema, type SpaceDto, SpaceDtoSchema } from './contracts.ts'
