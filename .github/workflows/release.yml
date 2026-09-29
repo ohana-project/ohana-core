@@ -340,5 +340,8 @@ jobs:
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi
-          gh release create "$VERSION" --generate-notes "${args[@]}" \
+          # --repo keeps gh from looking for a git checkout, which this job
+          # does not have.
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" \
+            --generate-notes "${args[@]}" \
             release/compose.yaml release/env.production.example
