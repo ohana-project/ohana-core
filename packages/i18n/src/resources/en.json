@@ -45,5 +45,19 @@
     "unreachable": "Server unreachable",
     "error": "Sync failed",
     "retry": "Retry"
+  },
+  "layout": {
+    "space": "Space",
+    "userMenu": "User menu",
+    "back": "Back",
+    "sections": "Sections",
+    "adminTitle": "Admin",
+    "authNote": "The family album that is always with you"
+  },
+  "nav": {
+    "home": "Home",
+    "diary": "Journal",
+    "calendar": "Calendar",
+    "wishlist": "Wishlists"
   }
 }
