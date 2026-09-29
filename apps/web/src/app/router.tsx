@@ -1,5 +1,5 @@
 import { createRouter } from '@tanstack/react-router'
-import { routeTree } from '../routeTree.gen.ts'
+import { routeTree } from '@/routeTree.gen.ts'
 
 export function createAppRouter() {
   return createRouter({ routeTree, defaultPreload: 'intent' })

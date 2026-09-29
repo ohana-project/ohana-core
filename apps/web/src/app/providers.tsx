@@ -2,7 +2,7 @@ import { createI18n } from '@ohana/i18n'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useState } from 'react'
 import { I18nextProvider } from 'react-i18next'
-import { loadLocale } from '../lib/language.ts'
+import { loadLocale } from '@/lib/locale-storage.ts'
 
 export function AppProviders({ children }: { children: ReactNode }) {
   // Failures surface in the UI instead of hiding behind query retries;

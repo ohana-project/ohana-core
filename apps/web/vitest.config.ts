@@ -1,17 +1,12 @@
-import { fileURLToPath, URL } from 'node:url'
-import { tanstackRouter } from '@tanstack/router-plugin/vite'
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.ts'
 
-export default defineConfig({
-  plugins: [tanstackRouter(), react()],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/testing/setup.ts'],
     },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/testing/setup.ts'],
-  },
-})
+  }),
+)

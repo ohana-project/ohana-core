@@ -1,7 +1,7 @@
 import { type Locale, locales } from '@ohana/i18n'
 import { useTranslation } from 'react-i18next'
+import { storeLocale } from '@/lib/locale-storage.ts'
 import { Button } from '@/ui/button'
-import { storeLocale } from '../../lib/language.ts'
 
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()

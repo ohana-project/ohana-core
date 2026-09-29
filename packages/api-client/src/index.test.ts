@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createOhanaClient } from './index.ts'
+import { createClient, type paths } from './index.ts'
 
-describe('createOhanaClient', () => {
+describe('the generated client', () => {
   it('sends requests to the API paths as written in the OpenAPI document', async () => {
     const requests: Request[] = []
-    const client = createOhanaClient({
+    const client = createClient<paths>({
       baseUrl: 'http://ohana.test',
       fetch: async (request) => {
         requests.push(request)

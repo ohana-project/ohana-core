@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card'
 import { type ApiHealthReport, useApiHealth } from './use-api-health.ts'
 
-const checkNames: readonly (keyof ApiHealthReport['checks'])[] = ['database', 'storage']
+const healthChecks: readonly (keyof ApiHealthReport['checks'])[] = ['database', 'storage']
 
 export function HealthCard() {
   const { t } = useTranslation()
@@ -19,7 +19,7 @@ export function HealthCard() {
       <div className="flex flex-col gap-3">
         <p className="text-sm font-medium">{t(`health.status.${report.status}`)}</p>
         <ul className="flex flex-col gap-1 text-sm">
-          {checkNames.map((check) => (
+          {healthChecks.map((check) => (
             <li key={check} className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">{t(`health.checks.${check}`)}</span>
               <span>{t(`health.state.${report.checks[check]}`)}</span>
