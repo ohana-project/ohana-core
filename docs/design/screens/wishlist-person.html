@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вишлист Димы · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="wishlist" data-title="Вишлист Димы" data-back="wishlists.html">
+  <main class="content content-narrow" data-od-id="screen-wishlist-person" style="padding-top:20px">
+
+    <header class="row" data-od-id="person-head" style="gap:14px;margin-bottom:14px">
+      <span class="avatar avatar-lg" style="--hue:145">Д</span>
+      <div class="grow">
+        <h1 class="display display-lg">Дима</h1>
+        <p class="muted small" style="margin-top:2px">4 желания · обновлено вчера в 21:04</p>
+      </div>
+    </header>
+
+    <div class="venue-note" data-od-id="person-hint" style="margin-bottom:18px">
+      <svg aria-hidden="true"><use href="#i-eye-off"/></svg>
+      <p class="small" style="line-height:1.5">Дима не видит брони и ваше избранное. Бронь увидят остальные — так подарок достанется только один раз.</p>
+    </div>
+
+    <div class="stack" data-od-id="wish-items" style="gap:12px">
+
+      <!-- свободно -->
+      <div class="card list" data-od-id="wish-lantern">
+        <div class="list-row" style="min-height:0;padding:16px 14px">
+          <span class="body" style="padding-right:8px">
+            <span class="title">Налобный фонарь Petzl Actik Core</span>
+            <span class="sub">4 990 ₽ · «чтобы ходить в горы в темноте»</span>
+            <a class="wish-link" href="https://www.wildberries.ru/search?query=%D0%BD%D0%B0%D0%BB%D0%BE%D0%B1%D0%BD%D1%8B%D0%B9%20%D1%84%D0%BE%D0%BD%D0%B0%D1%80%D1%8C%20petzl%20actik" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-globe"/></svg>wildberries.ru</a>
+          </span>
+          <span class="wish-actions">
+            <button type="button" class="fav-btn" aria-pressed="false" aria-label="В избранное" data-fav>
+              <svg aria-hidden="true"><use href="#i-heart"/></svg>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" data-book>Забронировать</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- забронировано Людой -->
+      <div class="card list" data-od-id="wish-thermos">
+        <div class="list-row" style="min-height:0;padding:16px 14px">
+          <span class="body" style="padding-right:8px">
+            <span class="title">Термос Stanley Quest, 1 л</span>
+            <span class="sub">5 890 ₽</span>
+            <a class="wish-link" href="https://www.ozon.ru/search/?text=%D1%82%D0%B5%D1%80%D0%BC%D0%BE%D1%81%20stanley%20quest" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-globe"/></svg>ozon.ru</a>
+          </span>
+          <span class="wish-actions">
+            <button type="button" class="fav-btn" aria-pressed="false" aria-label="В избранное" data-fav>
+              <svg aria-hidden="true"><use href="#i-heart"/></svg>
+            </button>
+            <span class="wish-booked">
+              <span class="avatar avatar-xs" style="--hue:340">Л</span>забронировала Люда
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <!-- в избранном + забронировано мной -->
+      <div class="card list" data-od-id="wish-belt">
+        <div class="list-row" style="min-height:0;padding:16px 14px">
+          <span class="body" style="padding-right:8px">
+            <span class="title">Кожаный ремень, горький шоколад</span>
+            <span class="sub">3 200 ₽ · ателье на Гороховой</span>
+            <span class="sub">размер 95, попросил не дарить носки</span>
+          </span>
+          <span class="wish-actions">
+            <button type="button" class="fav-btn" aria-pressed="true" aria-label="Убрать из избранного" data-fav>
+              <svg aria-hidden="true"><use href="#i-heart"/></svg>
+            </button>
+            <span class="wish-booked is-mine" data-mine-pill>
+              <span class="avatar avatar-xs" style="--hue:60">А</span>вы
+            </span>
+            <button type="button" class="btn btn-secondary btn-sm" data-unbook>Снять бронь</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- свободно, без цены -->
+      <div class="card list" data-od-id="wish-standup">
+        <div class="list-row" style="min-height:0;padding:16px 14px">
+          <span class="body" style="padding-right:8px">
+            <span class="title">Билеты на стендап, 2 шт</span>
+            <span class="sub">без цены · любой вечер пятницы</span>
+          </span>
+          <span class="wish-actions">
+            <button type="button" class="fav-btn" aria-pressed="false" aria-label="В избранное" data-fav>
+              <svg aria-hidden="true"><use href="#i-heart"/></svg>
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" data-book>Забронировать</button>
+          </span>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="meta" style="margin:18px 4px 0">СПИСОК ВИДЯТ АНЯ, ДИМА, ЛЮДА И МИША</p>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  /* избранное: видно только мне */
+  document.addEventListener('click', function (e) {
+    var fav = e.target.closest('[data-fav]');
+    if (!fav) return;
+    var on = fav.getAttribute('aria-pressed') === 'true';
+    fav.setAttribute('aria-pressed', on ? 'false' : 'true');
+    OHANA_TOAST(on ? 'Убрано из избранного' : 'В избранном — видно только вам');
+  });
+
+  /* бронь: подтверждаю осознанно */
+  document.addEventListener('click', function (e) {
+    var book = e.target.closest('[data-book]');
+    if (!book) return;
+    var row = book.closest('.list-row');
+    var wishTitle = (row.querySelector('.title') || {}).textContent || '';
+    OHANA_CONFIRM({
+      title: 'Забронировать «' + wishTitle + '»?',
+      text: 'Дима не увидит бронь — сохранится сюрприз. Остальные участники будут знать, что подарок уже занят.',
+      confirmLabel: 'Забронировать'
+    }).then(function (yes) {
+      if (!yes) return;
+      var actions = row.querySelector('.wish-actions');
+      actions.innerHTML =
+        '<span class="wish-booked is-mine"><span class="avatar avatar-xs" style="--hue:60">А</span>вы</span>' +
+        '<button type="button" class="btn btn-secondary btn-sm" data-unbook>Снять бронь</button>';
+      OHANA_TOAST('Забронировано. Дима не узнает');
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    var unbook = e.target.closest('[data-unbook]');
+    if (!unbook) return;
+    var actions = unbook.closest('.wish-actions');
+    OHANA_CONFIRM({
+      title: 'Снять бронь?',
+      text: 'Желание снова станет свободным — его сможет забронировать кто-то ещё.',
+      confirmLabel: 'Снять', danger: true
+    }).then(function (yes) {
+      if (!yes) return;
+      var hasFav = actions.querySelector('[data-fav]');
+      actions.innerHTML =
+        (hasFav ? hasFav.outerHTML : '') +
+        '<button type="button" class="btn btn-primary btn-sm" data-book>Забронировать</button>';
+      OHANA_TOAST('Бронь снята');
+    });
+  });
+</script>
+</body>
+</html>

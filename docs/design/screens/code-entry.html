@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вход по коду · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+<button type="button" class="btn btn-icon" data-action="theme" style="position:fixed;top:14px;right:14px;z-index:10" aria-label="Сменить тему"></button>
+
+<div class="auth" data-od-id="screen-code-entry">
+  <div class="auth-card stack" style="gap:0">
+    <a class="btn btn-ghost" href="accounts.html" data-od-id="code-entry-back" style="align-self:flex-start;margin:0 0 20px -20px">
+      <svg aria-hidden="true" width="18" height="18"><use href="#i-chevron-left"/></svg>
+      Назад
+    </a>
+    <div class="center" style="margin-bottom:28px">
+      <span class="logo" style="justify-content:center;margin-bottom:18px">
+        <svg aria-hidden="true"><use href="#i-logo"/></svg>
+        <span class="logo-word">Ohana</span>
+      </span>
+      <h1 class="display display-xl" style="margin-bottom:10px">Код приглашения</h1>
+      <p class="muted" style="max-width:32ch;margin-inline:auto">Введите код — его выдаёт владелец пространства и показывает один раз.</p>
+    </div>
+
+    <form id="code-form" novalidate>
+      <div class="field" id="code-field">
+        <label for="code">Код из приглашения</label>
+        <input class="code-input" id="code" data-code-input inputmode="text" autocomplete="off"
+               spellcheck="false" placeholder="XXXX-XXXX" maxlength="9" aria-describedby="code-error">
+        <span class="field-error" id="code-error" role="alert">
+          <svg aria-hidden="true"><use href="#i-alert"/></svg><span id="code-error-text"></span>
+        </span>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg" style="margin-top:18px">Войти</button>
+    </form>
+
+    <div class="card card-pad" style="margin-top:30px;background:var(--surface-2);box-shadow:none;border-style:dashed" data-od-id="demo-states">
+      <p class="meta" style="margin-bottom:10px;display:flex;align-items:center;gap:6px">
+        <svg width="14" height="14" aria-hidden="true"><use href="#i-info"/></svg> ДЕМО: СОСТОЯНИЯ ВХОДА
+      </p>
+      <div class="seg" id="demo-seg" role="group" aria-label="Демо-состояния кода" style="flex-wrap:wrap">
+        <button type="button" class="is-active" data-case="ok">Корректный</button>
+        <button type="button" data-case="wrong">Неверный</button>
+        <button type="button" data-case="expired">Истёк</button>
+        <button type="button" data-case="used">Использован</button>
+      </div>
+    </div>
+
+    <p class="auth-foot" data-od-id="code-entry-help">Нет кода? Попросите новый у владельца пространства.<br>Код утерян? Владелец может перевыпустить его.</p>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+(function () {
+  var CASES = {
+    ok: '',
+    wrong: 'Такого кода нет. Проверьте символы — легко перепутать 0 и О, S и 5.',
+    expired: 'Код истёк. Попросите владельца пространства выпустить новый.',
+    used: 'Этот код уже использован. Для входа на новом устройстве нужен свежий код.'
+  };
+  var current = 'ok';
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('code-form');
+    var field = document.getElementById('code-field');
+    var input = document.getElementById('code');
+    var errText = document.getElementById('code-error-text');
+    var seg = document.getElementById('demo-seg');
+
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-case]');
+      if (!b) return;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('is-active', x === b); });
+      current = b.dataset.case;
+      if (current === 'ok') {
+        input.value = 'SASF-KQLV';
+        field.classList.remove('invalid');
+      } else {
+        input.value = 'SASF-KQLV';
+        errText.textContent = CASES[current];
+        field.classList.add('invalid', 'shake');
+        setTimeout(function () { field.classList.remove('shake'); }, 450);
+      }
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!input.value.trim()) {
+        errText.textContent = 'Введите код из приглашения.';
+        field.classList.add('invalid', 'shake');
+        setTimeout(function () { field.classList.remove('shake'); }, 450);
+        return;
+      }
+      if (current !== 'ok') {
+        errText.textContent = CASES[current];
+        field.classList.add('invalid', 'shake');
+        setTimeout(function () { field.classList.remove('shake'); }, 450);
+        return;
+      }
+      field.classList.remove('invalid');
+      OHANA_TOAST('Код принят — добро пожаловать!');
+      setTimeout(function () { location.href = 'onboarding.html'; }, 700);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Наша семья · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="home" data-title="Наша семья" data-space="Наша семья" data-space-sub="4 участника · вы владелец">
+  <main class="content" data-od-id="screen-home">
+    <header style="margin-bottom:2px" data-od-id="home-greeting">
+      <p class="meta" style="margin-bottom:6px">ПОНЕДЕЛЬНИК, 28 СЕНТЯБРЯ</p>
+      <h1 class="display display-xl">Добрый вечер, Аня</h1>
+    </header>
+
+    <div class="home-grid">
+      <div class="stack col-diary" style="gap:12px" data-od-id="home-diary">
+        <div class="sec-head">
+          <h2>Свежее в дневнике</h2>
+          <a class="sec-link" href="diary.html">Весь дневник</a>
+        </div>
+
+        <a class="card card-pad entry-card" href="diary-entry.html" data-od-id="home-entry-hike">
+          <div class="row" style="gap:10px;align-items:flex-start">
+            <span class="avatar" style="--hue:145;width:34px;height:34px;font-size:13.5px">Д</span>
+            <span class="grow" style="min-width:0">
+              <span class="title" style="font-weight:600;display:block">Дима <span class="muted" style="font-weight:400">· 21 сентября</span></span>
+            </span>
+            <span class="meta">ФОТО ×3</span>
+          </div>
+          <h3 class="display" style="font-size:18.5px;margin-top:10px">Поход к Чёртову креслу</h3>
+          <p class="muted small" style="margin-top:4px">12 километров, черника у самой тропы и Миша, который донёс рюкзак до самого подъёма к смотровой…</p>
+          <div class="photo-strip">
+            <img src="../assets/img/hike-ridge.jpg" alt="Хребет над озером" width="1600" height="1067">
+            <img src="../assets/img/hike-forest.jpg" alt="Тропа в лесу" width="1600" height="1066">
+            <img src="../assets/img/hike-lake.jpg" alt="Озеро с горами" width="1600" height="1067">
+          </div>
+        </a>
+
+        <a class="card card-pad entry-card" href="diary-entry.html" data-od-id="home-entry-cook">
+          <div class="row" style="gap:10px;align-items:flex-start">
+            <span class="avatar" style="--hue:340;width:34px;height:34px;font-size:13.5px">Л</span>
+            <span class="grow" style="min-width:0">
+              <span class="title" style="font-weight:600;display:block">Люда <span class="muted" style="font-weight:400">· 14 сентября</span></span>
+            </span>
+            <span class="meta">ФОТО ×2</span>
+          </div>
+          <h3 class="display" style="font-size:18.5px;margin-top:10px">Вареники с бабушкой</h3>
+          <p class="muted small" style="margin-top:4px">Тесто как у мамы, вчера получилось с первого раза. Миша лепил «улиток» и съел четыре штуки, ещё горячими…</p>
+          <div class="photo-strip">
+            <img src="../assets/img/cook-flour.jpg" alt="Руки в муке раскатывают тесто" width="1600" height="1600">
+            <img src="../assets/img/cook-kitchen.jpg" alt="Кухня во время готовки" width="1600" height="1067">
+          </div>
+        </a>
+      </div>
+
+      <div class="stack" style="gap:12px" data-od-id="home-events">
+        <div class="sec-head">
+          <h2>Ближайшие события</h2>
+          <a class="sec-link" href="calendar.html">Весь календарь</a>
+        </div>
+        <div class="card list">
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:color-mix(in oklch, var(--warn) 16%, transparent);color:var(--warn)">
+              <svg aria-hidden="true"><use href="#i-gift"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">День рождения Люды</span>
+              <span class="sub">19 октября · весь день · каждый год</span>
+            </span>
+            <span class="trailing"><span class="pill pill-warn">скоро</span></span>
+          </a>
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+              <svg aria-hidden="true"><use href="#i-clock"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Миша — зубной врач</span>
+              <span class="sub">завтра, 14:30 · ул. Полевая, 12</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+              <svg aria-hidden="true"><use href="#i-users"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Ужин у бабушки</span>
+              <span class="sub">в субботу, 18:00 · все участники</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+        </div>
+
+        <div class="venue-note" style="margin-top:10px" data-od-id="home-note">
+          <svg aria-hidden="true"><use href="#i-gift"/></svg>
+          <div>
+            <p class="small" style="font-weight:600;color:var(--fg)">До дня рождения Люды — три недели</p>
+            <p class="small" style="color:var(--muted);margin-top:2px">В её списке уже четыре идеи. Забронируйте подарок тайно, пока его не заняли.</p>
+            <a class="sec-link" href="wishlists.html" style="display:inline-flex;margin-top:8px">Открыть вишлисты</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+</body>
+</html>

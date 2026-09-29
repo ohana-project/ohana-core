@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Календарь · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="calendar" data-title="Календарь">
+  <template data-topbar-actions>
+    <a class="btn btn-primary btn-sm d-only" href="event-editor.html" data-hotkey="n">
+      <svg width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg>Событие
+    </a>
+  </template>
+
+  <main class="content content-wide" data-od-id="screen-calendar" style="padding-top:20px">
+    <div class="cal-head" data-od-id="cal-head">
+      <h2 class="display" style="font-size:22px">Сентябрь 2026</h2>
+      <div class="cal-nav d-only">
+        <button type="button" class="btn btn-secondary btn-sm" data-demo-month>Сегодня</button>
+        <button type="button" class="btn btn-icon btn-sm" aria-label="Предыдущий месяц" data-demo-month>
+          <svg aria-hidden="true"><use href="#i-chevron-left"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon btn-sm" aria-label="Следующий месяц" data-demo-month>
+          <svg aria-hidden="true"><use href="#i-chevron-right"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="cal-split" id="cal-split" data-od-id="cal-split">
+
+      <section id="view-month" aria-label="Календарь на месяц" data-od-id="cal-month">
+        <div class="card cal-card">
+          <div class="cal-dow" aria-hidden="true">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+          </div>
+          <div class="cal-grid">
+            <div class="cal-day out"><span class="d">31</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">1</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">2</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">3</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">4</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day has-ev past" data-label="5 сентября" data-od-id="cal-day-sep-5">
+              <span class="d">5</span>
+              <span class="cal-dots" aria-hidden="true"><i class="allday past"></i></span>
+            </div>
+            <div class="cal-day"><span class="d">6</span><span class="cal-dots" aria-hidden="true"></span></div>
+
+            <div class="cal-day"><span class="d">7</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">8</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">9</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">10</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">11</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day has-ev past" data-label="12 сентября" data-od-id="cal-day-sep-12">
+              <span class="d">12</span>
+              <span class="cal-dots" aria-hidden="true"><i class="past"></i></span>
+            </div>
+            <div class="cal-day"><span class="d">13</span><span class="cal-dots" aria-hidden="true"></span></div>
+
+            <div class="cal-day"><span class="d">14</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">15</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">16</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">17</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">18</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">19</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">20</span><span class="cal-dots" aria-hidden="true"></span></div>
+
+            <div class="cal-day"><span class="d">21</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">22</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">23</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">24</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day"><span class="d">25</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day has-ev past" data-label="26 сентября" data-od-id="cal-day-sep-26">
+              <span class="d">26</span>
+              <span class="cal-dots" aria-hidden="true"><i class="past"></i></span>
+            </div>
+            <div class="cal-day"><span class="d">27</span><span class="cal-dots" aria-hidden="true"></span></div>
+
+            <div class="cal-day is-today"><span class="d">28</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day has-ev" data-label="29 сентября" data-od-id="cal-day-sep-29">
+              <span class="d">29</span>
+              <span class="cal-dots" aria-hidden="true"><i></i><i></i></span>
+            </div>
+            <div class="cal-day"><span class="d">30</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day out"><span class="d">1</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day out"><span class="d">2</span><span class="cal-dots" aria-hidden="true"></span></div>
+            <div class="cal-day out has-ev" data-label="3 октября" data-od-id="cal-day-oct-3">
+              <span class="d">3</span>
+              <span class="cal-dots" aria-hidden="true"><i></i></span>
+            </div>
+            <div class="cal-day out has-ev" data-label="4 октября" data-od-id="cal-day-oct-4">
+              <span class="d">4</span>
+              <span class="cal-dots" aria-hidden="true"><i></i></span>
+            </div>
+          </div>
+        </div>
+        <p class="field-hint" style="margin-top:12px;padding:0 4px">Часовой пояс пространства: Москва (UTC+3)</p>
+      </section>
+
+      <aside id="view-agenda" class="cal-side" aria-label="Предстоящие события" data-od-id="cal-agenda">
+        <p class="agenda-label">Сегодня · 28 сентября</p>
+        <div class="card list">
+          <div class="list-row" style="min-height:56px">
+            <span class="body">
+              <span class="sub" style="margin:0">Событий нет — хороший день, чтобы дописать поход в дневник</span>
+            </span>
+          </div>
+        </div>
+
+        <p class="agenda-label">Завтра · 29 сентября</p>
+        <div class="card list">
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+              <svg aria-hidden="true"><use href="#i-clock"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Миша — зубной врач</span>
+              <span class="sub">14:30 · ул. Полевая, 12 · напоминание за день</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+        </div>
+
+        <p class="agenda-label">Октябрь</p>
+        <div class="card list">
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+              <svg aria-hidden="true"><use href="#i-clock"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Ужин у бабушки</span>
+              <span class="sub">сб, 3 октября · 18:00 · каждый месяц</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+              <svg aria-hidden="true"><use href="#i-repeat"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Воскресная прогулка</span>
+              <span class="sub">вс, 4 октября · 10:00 · каждую неделю</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <a class="list-row" href="event.html" style="min-height:64px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:color-mix(in oklch, var(--warn) 16%, transparent);color:var(--warn)">
+              <svg aria-hidden="true"><use href="#i-gift"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">День рождения Люды</span>
+              <span class="sub">пн, 19 октября · весь день · каждый год</span>
+            </span>
+            <span class="trailing"><span class="pill pill-warn">скоро</span></span>
+          </a>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <a class="fab" href="event-editor.html" aria-label="Новое событие" data-od-id="cal-fab">
+    <svg aria-hidden="true"><use href="#i-plus"/></svg>
+  </a>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  document.querySelectorAll('[data-demo-month]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      OHANA_TOAST('В прототипе показан сентябрь 2026 года', 'ok');
+    });
+  });
+
+  /* события по дням — для шторки при тапе на дату */
+  var DAY_EVENTS = {
+    '5 сентября': [
+      { i: 'sun', warn: true, t: 'Дача', s: 'Весь день · вся семья · прошла', href: 'home.html', past: true }
+    ],
+    '12 сентября': [
+      { i: 'users', t: 'Собрание', s: 'Вечер · вся семья · прошло', href: 'home.html', past: true }
+    ],
+    '26 сентября': [
+      { i: 'user', t: 'Бассейн', s: 'Утро · Миша · прошло', href: 'home.html', past: true }
+    ],
+    '29 сентября': [
+      { i: 'clock', t: 'Миша — зубной врач', s: '14:30 · ул. Полевая, 12 · напоминание за день', href: 'event.html' },
+      { i: 'phone', t: 'Аня — созвон со школой', s: '19:00 · онлайн', href: 'event.html' }
+    ],
+    '3 октября': [
+      { i: 'users', t: 'Ужин у бабушки', s: '18:00 · каждый месяц', href: 'event.html' }
+    ],
+    '4 октября': [
+      { i: 'repeat', t: 'Воскресная прогулка', s: '10:00 · каждую неделю', href: 'event.html' }
+    ]
+  };
+
+  function pluralEv(n) { return n === 1 ? 'событие' : n < 5 ? 'события' : 'событий'; }
+
+  function evRow(e) {
+    var chip = e.warn
+      ? 'background:color-mix(in oklch, var(--warn) 16%, transparent);color:var(--warn)'
+      : 'background:var(--surface-2)';
+    return '<a class="list-row" href="' + e.href + '" style="min-height:64px' + (e.past ? ';opacity:.62' : '') + '">' +
+      '<span class="leading" style="width:38px;height:38px;border-radius:12px;' + chip + '">' +
+      '<svg aria-hidden="true"><use href="#i-' + e.i + '"/></svg></span>' +
+      '<span class="body"><span class="title">' + e.t + '</span><span class="sub">' + e.s + '</span></span>' +
+      '<span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span></a>';
+  }
+
+  document.querySelectorAll('.cal-day.has-ev').forEach(function (cell) {
+    var label = cell.getAttribute('data-label');
+    var evs = DAY_EVENTS[label] || [];
+    var busy = false;
+    cell.setAttribute('role', 'button');
+    cell.setAttribute('tabindex', '0');
+    cell.setAttribute('aria-label', label + ', ' + evs.length + ' ' + pluralEv(evs.length));
+    function openDay() {
+      if (busy) return;
+      busy = true;
+      setTimeout(function () { busy = false; }, 380);
+      OHANA_SHEET(
+        '<div class="sheet-grab"></div>' +
+        '<h2 class="sheet-title">' + label + '</h2>' +
+        '<p class="sheet-sub">' + evs.length + ' ' + pluralEv(evs.length) + '</p>' +
+        '<div class="card list">' + evs.map(evRow).join('') + '</div>');
+    }
+    cell.addEventListener('click', function () {
+      openDay();
+    });
+    cell.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDay(); }
+    });
+  });
+</script>
+</body>
+</html>

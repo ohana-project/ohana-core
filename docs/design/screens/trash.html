@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Корзина · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="diary" data-title="Корзина" data-back="diary.html">
+  <main class="content content-narrow" data-od-id="screen-trash" style="padding-top:26px">
+    <header style="margin-bottom:18px">
+      <h1 class="display display-xl" style="margin-bottom:6px">Корзина</h1>
+      <p class="muted">Записи и события хранятся здесь 30 дней, затем удаляются окончательно.</p>
+    </header>
+
+    <div id="trash-list" class="stack" style="gap:12px">
+      <div class="card list" data-od-id="trash-row-1">
+        <div class="list-row" style="min-height:64px">
+          <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+            <svg aria-hidden="true"><use href="#i-file-text"/></svg>
+          </span>
+          <div class="body" style="min-width:0">
+            <span class="title" style="display:block">Черновик: список дел на дачу</span>
+            <span class="sub">удалён 12 сентября · исчезнет окончательно 12 октября</span>
+          </div>
+          <span class="trailing">
+            <button type="button" class="btn btn-secondary btn-sm" data-restore>Восстановить</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="card list" data-od-id="trash-row-2">
+        <div class="list-row" style="min-height:64px">
+          <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+            <svg aria-hidden="true"><use href="#i-calendar"/></svg>
+          </span>
+          <div class="body" style="min-width:0">
+            <span class="title" style="display:block">Событие: поездка к морю</span>
+            <span class="sub">удалено 15 сентября · исчезнет окончательно 15 октября</span>
+          </div>
+          <span class="trailing">
+            <button type="button" class="btn btn-secondary btn-sm" data-restore>Восстановить</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="banner" data-od-id="trash-note">
+        <svg aria-hidden="true"><use href="#i-info"/></svg>
+        <p>Восстановить запись можно в один шаг. После окончательного удаления вернуть её сможет только свежая копия резервной копии сервера.</p>
+      </div>
+    </div>
+
+    <div class="empty" id="trash-empty" hidden data-od-id="trash-empty">
+      <span class="empty-ico"><svg aria-hidden="true"><use href="#i-trash"/></svg></span>
+      <h3>Корзина пуста</h3>
+      <p>Здесь появятся удалённые записи и события — у семьи будет 30 дней, чтобы передумать.</p>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-restore]');
+    if (!btn) return;
+    var row = btn.closest('.card');
+    row.style.transition = 'opacity .25s, transform .25s';
+    row.style.opacity = '0';
+    row.style.transform = 'translateY(6px)';
+    setTimeout(function () {
+      row.remove();
+      var list = document.getElementById('trash-list');
+      if (!list.querySelector('.card')) {
+        list.querySelectorAll('.banner').forEach(function (b) { b.remove(); });
+        list.hidden = true;
+        document.getElementById('trash-empty').hidden = false;
+      }
+    }, 260);
+    OHANA_TOAST('Восстановлено — запись снова в дневнике');
+  });
+});
+</script>
+</body>
+</html>

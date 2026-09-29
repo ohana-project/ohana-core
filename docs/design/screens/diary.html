@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дневник · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="diary" data-title="Дневник">
+  <template data-topbar-actions>
+    <a class="btn btn-primary btn-sm d-only" href="diary-editor.html" data-hotkey="n">
+      <svg width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg>Новая запись
+    </a>
+  </template>
+
+  <main class="content" data-od-id="screen-diary">
+    <div class="diary-grid">
+      <div class="diary-main" data-od-id="diary-feed">
+        <p class="month-label">Сентябрь 2026</p>
+
+        <a class="card card-pad entry-card" href="diary-entry.html" data-od-id="diary-entry-hike">
+          <div class="entry-meta" style="margin:0 0 10px">
+            <span class="avatar" style="--hue:145;width:34px;height:34px;font-size:13.5px">Д</span>
+            <span class="small" style="font-weight:600">Дима</span>
+            <span class="meta">21 СЕНТЯБРЯ · ФОТО ×3</span>
+          </div>
+          <h3 class="display" style="font-size:19px">Поход к Чёртову креслу</h3>
+          <p class="muted small" style="margin-top:5px">12 километров, черника у самой тропы и Миша, который донёс рюкзак до самого подъёма к смотровой. На вершине ветер такой, что смех улетал в долину.</p>
+          <div class="photo-strip">
+            <img src="../assets/img/hike-ridge.jpg" alt="Хребет над озером" width="1600" height="1067">
+            <img src="../assets/img/hike-forest.jpg" alt="Тропа в лесу" width="1600" height="1066">
+            <img src="../assets/img/hike-lake.jpg" alt="Озеро с горами" width="1600" height="1067">
+          </div>
+        </a>
+
+        <a class="card card-pad entry-card" href="diary-entry.html" data-od-id="diary-entry-cook">
+          <div class="entry-meta" style="margin:0 0 10px">
+            <span class="avatar" style="--hue:340;width:34px;height:34px;font-size:13.5px">Л</span>
+            <span class="small" style="font-weight:600">Люда</span>
+            <span class="meta">14 СЕНТЯБРЯ · ФОТО ×2</span>
+          </div>
+          <h3 class="display" style="font-size:19px">Вареники с бабушкой</h3>
+          <p class="muted small" style="margin-top:5px">Тесто как у мамы, вчера получилось с первого раза. Миша лепил «улиток» и съел четыре штуки, ещё горячими.</p>
+          <div class="photo-strip">
+            <img src="../assets/img/cook-flour.jpg" alt="Руки в муке раскатывают тесто" width="1600" height="1600">
+            <img src="../assets/img/cook-kitchen.jpg" alt="Кухня во время готовки" width="1600" height="1067">
+          </div>
+        </a>
+
+        <a class="card card-pad entry-card" href="diary-entry.html" data-od-id="diary-entry-dog">
+          <div class="entry-meta" style="margin:0 0 10px">
+            <span class="avatar" style="--hue:25;width:34px;height:34px;font-size:13.5px">М</span>
+            <span class="small" style="font-weight:600">Миша</span>
+            <span class="meta">6 СЕНТЯБРЯ · ФОТО ×1</span>
+          </div>
+          <h3 class="display" style="font-size:19px">У нас появился Бублик</h3>
+          <p class="muted small" style="margin-top:5px">Он рыжий, как баранка, и спит в коридоре носками к двери. Первое дело Бублика — съесть мишин носок. Второе — извиниться.</p>
+          <div class="photo-strip">
+            <img src="../assets/img/dog.jpg" alt="Рыжий пёс Бублик" width="1600" height="2565">
+          </div>
+        </a>
+
+        <p class="month-label">Август 2026</p>
+
+        <a class="card card-pad entry-card" href="diary-entry.html" data-od-id="diary-entry-birthday">
+          <div class="entry-meta" style="margin:0 0 10px">
+            <span class="avatar" style="--hue:60;width:34px;height:34px;font-size:13.5px">А</span>
+            <span class="small" style="font-weight:600">Аня</span>
+            <span class="meta">30 АВГУСТА · ФОТО ×1</span>
+          </div>
+          <h3 class="display" style="font-size:19px">Мишке шесть!</h3>
+          <p class="muted small" style="margin-top:5px">Задували свечи во дворе, и соседский кот пришёл на запах торта. Желание Миша загадал «чтобы Бублик научился давать лапу».</p>
+          <div class="photo-strip">
+            <img src="../assets/img/birthday.jpg" alt="Праздничное конфетти и свечи" width="1600" height="1067">
+          </div>
+        </a>
+      </div>
+
+      <aside class="diary-aside stack" style="gap:12px" data-od-id="diary-aside">
+        <div class="sec-head" style="margin:6px 0"><h2>Только для вас</h2></div>
+        <div class="card list">
+          <a class="list-row" href="drafts.html" style="min-height:60px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+              <svg aria-hidden="true"><use href="#i-file-text"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Мои черновики <span class="count-badge">1</span></span>
+              <span class="sub">«Осенний пикник» · правки вчера в 21:10</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <a class="list-row" href="trash.html" style="min-height:60px">
+            <span class="leading" style="width:38px;height:38px;border-radius:12px;background:color-mix(in oklch, var(--danger) 10%, transparent);color:var(--danger)">
+              <svg aria-hidden="true"><use href="#i-trash"/></svg>
+            </span>
+            <span class="body">
+              <span class="title">Корзина <span class="count-badge">2</span></span>
+              <span class="sub">записи удалятся окончательно 12 октября</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+        </div>
+        <p class="small muted" style="padding:0 4px">Черновики видны только автору. Корзина хранит записи 30 дней.</p>
+      </aside>
+    </div>
+  </main>
+
+  <a class="fab" href="diary-editor.html" aria-label="Новая запись" data-od-id="diary-fab">
+    <svg aria-hidden="true"><use href="#i-plus"/></svg>
+  </a>
+</div>
+
+<script src="../assets/ohana.js"></script>
+</body>
+</html>

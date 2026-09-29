@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Установите Ohana · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+<button type="button" class="btn btn-icon" data-action="theme" style="position:fixed;top:14px;right:14px;z-index:10" aria-label="Сменить тему"></button>
+
+<div class="auth" data-od-id="screen-install">
+  <div class="auth-card stack" style="gap:0">
+    <div class="center" style="margin-bottom:26px">
+      <span class="logo" style="justify-content:center;margin-bottom:18px">
+        <svg aria-hidden="true"><use href="#i-logo"/></svg>
+        <span class="logo-word">Ohana</span>
+      </span>
+      <h1 class="display display-xl" style="margin-bottom:10px">Установите Ohana<br>на экран «Домой»</h1>
+      <p class="muted" style="max-width:34ch;margin-inline:auto">Как приложение оно быстрее, работает офлайн и присылает напоминания о событиях семьи.</p>
+    </div>
+
+    <div class="card card-pad" data-od-id="install-steps">
+      <div class="row-between" style="margin-bottom:16px">
+        <div class="seg" role="tablist" aria-label="Платформа" data-seg>
+          <button type="button" class="is-active" role="tab" aria-selected="true" data-platform="ios">iPhone</button>
+          <button type="button" role="tab" aria-selected="false" data-platform="android">Android</button>
+        </div>
+        <span class="meta">Safari · Chrome</span>
+      </div>
+
+      <ol class="list" id="steps-ios" style="list-style:none;margin:0;padding:0">
+        <li class="list-row" style="padding-inline:4px">
+          <span class="leading num" style="width:28px;height:28px;border-radius:999px;background:var(--surface-2);font-size:13px">1</span>
+          <span class="body"><span class="title">Откройте ohana.family в Safari</span>
+          <span class="sub">и нажмите «Поделиться»&nbsp;<svg width="14" height="14" style="display:inline-block;vertical-align:-2px" aria-hidden="true"><use href="#i-share"/></svg></span></span>
+        </li>
+        <li class="list-row" style="padding-inline:4px">
+          <span class="leading num" style="width:28px;height:28px;border-radius:999px;background:var(--surface-2);font-size:13px">2</span>
+          <span class="body"><span class="title">«На экран “Домой”»</span>
+          <span class="sub">пункт в списке кнопки «Поделиться»</span></span>
+        </li>
+        <li class="list-row" style="padding-inline:4px">
+          <span class="leading num" style="width:28px;height:28px;border-radius:999px;background:var(--surface-2);font-size:13px">3</span>
+          <span class="body"><span class="title">Нажмите «Добавить»</span>
+          <span class="sub">иконка Ohana появится рядом с вашими приложениями</span></span>
+        </li>
+      </ol>
+
+      <ol class="list" id="steps-android" hidden style="list-style:none;margin:0;padding:0">
+        <li class="list-row" style="padding-inline:4px">
+          <span class="leading num" style="width:28px;height:28px;border-radius:999px;background:var(--surface-2);font-size:13px">1</span>
+          <span class="body"><span class="title">Откройте ohana.family в Chrome</span>
+          <span class="sub">и откройте меню&nbsp;<svg width="14" height="14" style="display:inline-block;vertical-align:-2px" aria-hidden="true"><use href="#i-more-h"/></svg></span></span>
+        </li>
+        <li class="list-row" style="padding-inline:4px">
+          <span class="leading num" style="width:28px;height:28px;border-radius:999px;background:var(--surface-2);font-size:13px">2</span>
+          <span class="body"><span class="title">«Установить приложение»</span>
+          <span class="sub">Chrome предложит установку сам</span></span>
+        </li>
+        <li class="list-row" style="padding-inline:4px">
+          <span class="leading num" style="width:28px;height:28px;border-radius:999px;background:var(--surface-2);font-size:13px">3</span>
+          <span class="body"><span class="title">Подтвердите установку</span>
+          <span class="sub">иконка Ohana появится в меню приложений</span></span>
+        </li>
+      </ol>
+    </div>
+
+    <div class="center" style="margin-top:14px">
+      <a class="btn btn-link" href="code-entry.html">Продолжить в браузере</a>
+    </div>
+    <p class="auth-foot">Установить можно в любой момент — ссылка останется в настройках.</p>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var seg = document.querySelector('[data-seg]');
+  seg.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-platform]');
+    if (!b) return;
+    seg.querySelectorAll('button').forEach(function (x) {
+      x.classList.toggle('is-active', x === b);
+      x.setAttribute('aria-selected', x === b ? 'true' : 'false');
+    });
+    document.getElementById('steps-ios').hidden = b.dataset.platform !== 'ios';
+    document.getElementById('steps-android').hidden = b.dataset.platform !== 'android';
+  });
+});
+</script>
+</body>
+</html>

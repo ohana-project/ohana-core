@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Редактор события · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="calendar" data-title="Редактирование события" data-back="event.html">
+  <template data-topbar-actions>
+    <a class="btn btn-secondary btn-sm d-only" href="event.html">Отмена</a>
+    <button type="button" class="btn btn-primary btn-sm d-only" data-save>Сохранить</button>
+  </template>
+
+  <main class="content content-narrow" data-od-id="screen-event-editor" style="padding-top:20px;padding-bottom:176px">
+
+    <section data-od-id="ee-when" style="margin-bottom:26px">
+      <div class="stack" style="gap:14px">
+        <div class="field">
+          <label for="ee-title">Название</label>
+          <input class="input" id="ee-title" value="Ужин у бабушки">
+        </div>
+
+        <div class="card list">
+          <div class="list-row" style="min-height:56px">
+            <span class="body">
+              <span class="title">Весь день</span>
+              <span class="sub">без времени начала и конца</span>
+            </span>
+            <span class="trailing">
+              <span class="switch">
+                <input type="checkbox" id="ee-allday" role="switch">
+                <i></i>
+                <label class="sr-only" for="ee-allday">Весь день</label>
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <div class="row" style="gap:12px">
+          <div class="field grow">
+            <label for="ee-start">Начало</label>
+            <input class="input" type="time" id="ee-start" value="18:00">
+          </div>
+          <div class="field grow">
+            <label for="ee-end">Конец</label>
+            <input class="input" type="time" id="ee-end" value="21:00">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="ee-date">Дата</label>
+          <input class="input" type="date" id="ee-date" value="2026-10-03">
+        </div>
+
+        <div class="field">
+          <label for="ee-tz">Часовой пояс</label>
+          <select class="input" id="ee-tz">
+            <option selected>Москва (UTC+3)</option>
+            <option>Калининград (UTC+2)</option>
+            <option>Самара (UTC+4)</option>
+            <option>Екатеринбург (UTC+5)</option>
+            <option>Новосибирск (UTC+7)</option>
+            <option>UTC</option>
+          </select>
+          <span class="field-hint">Показывается всем получателям в их поясе</span>
+        </div>
+      </div>
+    </section>
+
+    <section data-od-id="ee-repeat" style="margin-bottom:26px">
+      <h3 style="margin-bottom:10px;padding:0 4px">Повтор</h3>
+      <div class="stack" style="gap:12px">
+        <div class="field">
+          <label for="ee-repeat">Как повторять</label>
+          <select class="input" id="ee-repeat">
+            <option>Не повторять</option>
+            <option>Каждый день</option>
+            <option>Каждую неделю</option>
+            <option selected>Каждый месяц</option>
+            <option>Каждый год</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ee-until">Дата окончания</label>
+          <input class="input" type="date" id="ee-until">
+          <span class="field-hint">Необязательно — серия закончится после этой даты</span>
+        </div>
+      </div>
+    </section>
+
+    <section data-od-id="ee-remind" style="margin-bottom:26px">
+      <h3 style="margin-bottom:10px;padding:0 4px">Напоминание</h3>
+      <div class="field">
+        <label for="ee-bell">За сколько напомнить</label>
+        <select class="input" id="ee-bell">
+          <option>За 15 минут</option>
+          <option>За час</option>
+          <option selected>За 2 часа</option>
+          <option>За день</option>
+          <option>За неделю</option>
+        </select>
+        <span class="field-hint">К событию можно привязать одно напоминание</span>
+      </div>
+    </section>
+
+    <section data-od-id="ee-people" style="margin-bottom:26px">
+      <h3 style="margin-bottom:10px;padding:0 4px">Получатели</h3>
+      <div class="card list" id="ee-picks">
+        <button type="button" class="pick" aria-pressed="true" data-all>
+          <span class="leading" style="color:var(--muted);display:grid;place-items:center"><svg aria-hidden="true" width="20" height="20"><use href="#i-users"/></svg></span>
+          <span class="pick-name">Все участники</span>
+          <svg class="pick-check" aria-hidden="true" width="20" height="20"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" class="pick" aria-pressed="false">
+          <span class="avatar avatar-sm" style="--hue:60">А</span>
+          <span class="pick-name">Аня <span class="muted" style="font-weight:400">· вы</span></span>
+          <svg class="pick-check" aria-hidden="true" width="20" height="20"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" class="pick" aria-pressed="false">
+          <span class="avatar avatar-sm" style="--hue:145">Д</span>
+          <span class="pick-name">Дима</span>
+          <svg class="pick-check" aria-hidden="true" width="20" height="20"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" class="pick" aria-pressed="false">
+          <span class="avatar avatar-sm" style="--hue:340">Л</span>
+          <span class="pick-name">Люда</span>
+          <svg class="pick-check" aria-hidden="true" width="20" height="20"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" class="pick" aria-pressed="false">
+          <span class="avatar avatar-sm" style="--hue:25">М</span>
+          <span class="pick-name">Миша</span>
+          <svg class="pick-check" aria-hidden="true" width="20" height="20"><use href="#i-check"/></svg>
+        </button>
+      </div>
+      <p class="field-hint" style="margin-top:10px;padding:0 4px">Напоминание придёт только выбранным людям</p>
+    </section>
+
+  </main>
+
+  <div class="editor-bar glass" data-od-id="ee-actions">
+    <a class="btn btn-secondary grow" href="event.html">Отмена</a>
+    <button type="button" class="btn btn-primary grow" data-save>Сохранить</button>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  /* «весь день» отключает поля времени */
+  var allday = document.getElementById('ee-allday');
+  var start = document.getElementById('ee-start'), end = document.getElementById('ee-end');
+  allday.addEventListener('change', function () {
+    start.disabled = end.disabled = allday.checked;
+    if (allday.checked) { start.value = ''; end.value = ''; }
+    else { start.value = '18:00'; end.value = '21:00'; }
+  });
+
+  /* получатели: «все» или конкретные люди */
+  var picks = document.querySelectorAll('#ee-picks .pick');
+  var allRow = document.querySelector('#ee-picks [data-all]');
+  picks.forEach(function (p) {
+    p.addEventListener('click', function () {
+      if (p === allRow) {
+        picks.forEach(function (o) { o.setAttribute('aria-pressed', o === allRow ? 'true' : 'false'); });
+      } else {
+        allRow.setAttribute('aria-pressed', 'false');
+        p.setAttribute('aria-pressed', p.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      }
+    });
+  });
+
+  /* сохранение */
+  document.querySelectorAll('[data-save]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var title = document.getElementById('ee-title').value.trim();
+      if (!title) {
+        var f = document.getElementById('ee-title').closest('.field');
+        f.classList.add('invalid', 'shake');
+        setTimeout(function () { f.classList.remove('shake'); }, 450);
+        return;
+      }
+      OHANA_TOAST('Изменения сохранены для всей серии');
+      setTimeout(function () { location.href = 'event.html'; }, 900);
+    });
+  });
+</script>
+</body>
+</html>

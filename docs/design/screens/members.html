@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Участники · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-title="Участники" data-back="home.html">
+  <template data-topbar-actions>
+    <a class="btn btn-primary btn-sm d-only" href="invite.html">
+      <svg width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg>Пригласить
+    </a>
+  </template>
+
+  <main class="content content-narrow" data-od-id="screen-members" style="padding-top:20px">
+
+    <header class="row-between" data-od-id="members-head" style="margin-bottom:18px">
+      <div>
+        <h1 class="display display-lg">Участники</h1>
+        <p class="muted small" style="margin-top:4px">«Наша семья» · 4 активных, 1 в архиве</p>
+      </div>
+      <a class="btn btn-primary" href="invite.html">
+        <svg width="18" height="18" aria-hidden="true"><use href="#i-plus"/></svg>Пригласить
+      </a>
+    </header>
+
+    <section data-od-id="members-active" style="margin-bottom:26px">
+      <h3 style="margin-bottom:10px;padding:0 4px">Активные</h3>
+      <div class="card list">
+        <a class="list-row" href="member-card.html" style="min-height:64px">
+          <span class="avatar" style="--hue:60">А</span>
+          <span class="body">
+            <span class="title">Аня <span class="muted" style="font-weight:400">· вы</span></span>
+            <span class="sub">владелец · iPhone, сейчас</span>
+          </span>
+          <span class="trailing"><span class="pill">ВЛАДЕЛЕЦ</span><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+        </a>
+        <a class="list-row" href="member-card.html" style="min-height:64px">
+          <span class="avatar" style="--hue:145">Д</span>
+          <span class="body">
+            <span class="title">Дима</span>
+            <span class="sub">обычный · вчера в 21:04</span>
+          </span>
+          <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+        </a>
+        <a class="list-row" href="member-card.html" style="min-height:64px">
+          <span class="avatar" style="--hue:340">Л</span>
+          <span class="body">
+            <span class="title">Люда</span>
+            <span class="sub">обычный · сегодня в 9:12</span>
+          </span>
+          <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+        </a>
+        <a class="list-row" href="member-card.html" style="min-height:64px">
+          <span class="avatar" style="--hue:25">М</span>
+          <span class="body">
+            <span class="title">Миша</span>
+            <span class="sub">обычный · позавчера</span>
+          </span>
+          <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+        </a>
+      </div>
+    </section>
+
+    <section data-od-id="members-archived">
+      <h3 style="margin-bottom:10px;padding:0 4px">Архив</h3>
+      <div class="card list">
+        <a class="list-row" href="member-card.html#archived" style="min-height:64px;opacity:.72">
+          <span class="avatar" style="--hue:200">П</span>
+          <span class="body">
+            <span class="title">Пётр</span>
+            <span class="sub">в архиве с 3 сентября · записи сохранены</span>
+          </span>
+          <span class="trailing">
+            <span class="pill pill-neutral">АРХИВ</span>
+            <svg aria-hidden="true"><use href="#i-chevron-right"/></svg>
+          </span>
+        </a>
+      </div>
+      <p class="field-hint" style="margin:10px 4px 0">Архивный не входит в пространство: дневник, события и вишлист остаются, но скрываются из списков</p>
+    </section>
+
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+</body>
+</html>

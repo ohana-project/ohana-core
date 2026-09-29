@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Ohana">
+  <title>Ohana</title>
+  <defs>
+    <path id="petal" d="M0 0C-19 0-62.5-44-62.5-104C-62.5-144-34.5-176 0-176C34.5-176 62.5-144 62.5-104C62.5-44 19 0 0 0Z" transform="translate(-28 -18) rotate(15)"/>
+    <clipPath id="petal-overlap">
+      <rect x="-256" y="-256" width="256" height="256"/>
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="#F5D8D5"/>
+  <g transform="translate(257 267.5)" fill="#F5D8D5" stroke="#4A1A48" stroke-width="16.5" stroke-linejoin="round">
+    <use href="#petal"/>
+    <use href="#petal" transform="rotate(72)"/>
+    <use href="#petal" transform="rotate(144)"/>
+    <use href="#petal" transform="rotate(216)"/>
+    <use href="#petal" transform="rotate(288)"/>
+    <use href="#petal" clip-path="url(#petal-overlap)"/>
+    <path d="M0 30C-8 24-34 8-34-10c0-13 10-22 21-22 6 0 10 3 13 8 3-5 7-8 13-8 11 0 21 9 21 22C34 8 8 24 0 30Z" transform="scale(1.2)"/>
+  </g>
+</svg>

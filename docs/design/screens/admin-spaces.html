@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Пространства · Админка Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<header class="admin-top" data-od-id="admin-top">
+  <span class="logo"><svg aria-hidden="true"><use href="#i-logo"/></svg><span class="admin-word">Ohana · Админка</span></span>
+  <span class="grow"></span>
+  <button type="button" class="btn btn-icon btn-sm" data-action="theme" aria-label="Тема"></button>
+</header>
+
+<main class="admin-main" data-od-id="screen-admin-spaces">
+
+  <header class="row-between" data-od-id="admin-spaces-head" style="margin-bottom:20px">
+    <div>
+      <h1 class="display display-lg">Пространства</h1>
+      <p class="muted small" style="margin-top:4px">3 пространства на ohana.smirova.ru · хранение корзины: 30 дней</p>
+    </div>
+    <button type="button" class="btn btn-primary" data-new-space>
+      <svg width="18" height="18" aria-hidden="true"><use href="#i-plus"/></svg>Новое пространство
+    </button>
+  </header>
+
+  <div class="card list" id="space-list" data-od-id="admin-space-list">
+    <a class="list-row" href="admin-space.html" style="min-height:68px">
+      <span class="avatar-stack" aria-hidden="true">
+        <span class="avatar" style="--hue:60">А</span><span class="avatar" style="--hue:145">Д</span><span class="avatar" style="--hue:340">Л</span>
+      </span>
+      <span class="body">
+        <span class="title">Наша семья</span>
+        <span class="sub">4 участника · 128 записей · создано 12 августа</span>
+      </span>
+      <span class="trailing"><span class="pill pill-ok">АКТИВНОЕ</span><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+    </a>
+    <a class="list-row" href="admin-space.html" style="min-height:68px">
+      <span class="avatar-stack" aria-hidden="true">
+        <span class="avatar" style="--hue:60">А</span><span class="avatar" style="--hue:200">В</span><span class="avatar" style="--hue:90">П</span>
+      </span>
+      <span class="body">
+        <span class="title">Аня и родители</span>
+        <span class="sub">3 участника · 41 запись · создано 2 сентября</span>
+      </span>
+      <span class="trailing"><span class="pill pill-ok">АКТИВНОЕ</span><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+    </a>
+    <a class="list-row" href="admin-space.html" style="min-height:68px">
+      <span class="avatar-stack" aria-hidden="true">
+        <span class="avatar" style="--hue:25">М</span><span class="avatar" style="--hue:145">Д</span>
+      </span>
+      <span class="body">
+        <span class="title">Дача</span>
+        <span class="sub">0 участников · 0 записей · создано вчера</span>
+      </span>
+      <span class="trailing"><span class="pill pill-neutral">ПУСТОЕ</span><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+    </a>
+  </div>
+
+  <p class="meta" style="margin-top:16px">ПРОСТРАНСТВА НЕЗАВИСИМЫ: УЧАСТНИКИ, КОДЫ И ДАННЫЕ НЕ ПЕРЕСЕКАЮТСЯ</p>
+</main>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-new-space]')) return;
+    var ov = OHANA_SHEET(
+      '<div class="sheet-grab"></div>' +
+      '<h2 class="sheet-title">Новое пространство</h2>' +
+      '<p class="sheet-sub">Семья получит код приглашения после создания</p>' +
+      '<div class="field" style="margin-bottom:18px">' +
+      '<label for="ns-name">Название</label>' +
+      '<input class="input" id="ns-name" placeholder="Например: «Бабушка и внуки»">' +
+      '<span class="field-error">Придумайте название — его увидят участники</span>' +
+      '</div>' +
+      '<button type="button" class="btn btn-primary btn-lg" data-space-create>Создать</button>');
+    ov.querySelector('[data-space-create]').addEventListener('click', function () {
+      var name = ov.querySelector('#ns-name');
+      var f = name.closest('.field');
+      if (!name.value.trim()) {
+        f.classList.add('invalid', 'shake');
+        setTimeout(function () { f.classList.remove('shake'); }, 450);
+        return;
+      }
+      var row = document.createElement('a');
+      row.className = 'list-row';
+      row.style.minHeight = '68px';
+      row.href = 'admin-space.html';
+      row.innerHTML =
+        '<span class="avatar" style="--hue:170">' + name.value.trim()[0].toUpperCase() + '</span>' +
+        '<span class="body"><span class="title">' + name.value.replace(/</g, '&lt;') + '</span>' +
+        '<span class="sub">0 участников · создано только что</span></span>' +
+        '<span class="trailing"><span class="pill pill-ok">АКТИВНОЕ</span><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>';
+      document.getElementById('space-list').prepend(row);
+      OHANA_CLOSE(ov);
+      OHANA_TOAST('Пространство создано — выпустите первый код');
+    });
+  });
+</script>
+</body>
+</html>
