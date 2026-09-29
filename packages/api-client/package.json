@@ -1,0 +1,23 @@
+{
+  "name": "@ohana/api-client",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "vitest run",
+    "generate": "openapi-typescript ../../apps/api/openapi.json -o src/openapi.gen.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.2"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  }
+}
