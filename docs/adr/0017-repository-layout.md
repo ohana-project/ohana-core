@@ -7,7 +7,7 @@ The repository is a pnpm workspace with a small, fixed layout:
 - `packages/api-client`: types and a fetch client generated from the committed `openapi.json` ([ADR-0013](0013-typebox-openapi-api-contract.md)). CI fails when the committed document differs from what the route schemas produce.
 - `packages/i18n`: translation catalogues shared by the web client and the worker, using i18next with ICU plural rules.
 - `packages/config`: shared TypeScript and lint configuration.
-- `deploy/`: the Compose file, Caddyfile, and environment example.
+- `deploy/`: the production Compose file with the Caddy configuration inline (so releases attach only the Compose file and the environment example, [ADR-0018](0018-release-and-distribution.md)), the development Compose file, and the environment examples.
 
 For local development, `deploy/compose.dev.yaml` runs only PostgreSQL and RustFS; the web client and API run on the host with `pnpm dev` for fast reloads, and the Vite dev server proxies `/api` to the API to keep the production same-origin shape. A single `pnpm setup` installs dependencies, starts those services, and applies migrations.
 

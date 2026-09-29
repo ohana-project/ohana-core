@@ -41,6 +41,11 @@ services:
     environment:
       RUSTFS_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?Set STORAGE_ACCESS_KEY in .env}
       RUSTFS_SECRET_KEY: ${STORAGE_SECRET_KEY:?Set STORAGE_SECRET_KEY in .env}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     volumes:
       - rustfs-data:/data
     restart: unless-stopped
@@ -52,6 +57,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rustfs:
+        condition: service_healthy
     restart: "no"
 
   api:
@@ -61,6 +68,8 @@ services:
       PORT: 3000
       WEB_DIST: /app/web
     ports:
+      # With the caddy profile enabled, set OHANA_PORT to 127.0.0.1:3000 in
+      # .env so the api is reachable only through Caddy.
       - "${OHANA_PORT:-3000}:3000"
     healthcheck:
       test:
@@ -77,6 +86,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rustfs:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
@@ -88,6 +99,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rustfs:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
@@ -95,6 +108,10 @@ services:
   caddy:
     profiles: [caddy]
     image: caddy:2.10.2
+    environment:
+      # Compose defaults it because an empty value would disable the
+      # Caddyfile's own fallback.
+      CADDY_ADDRESS: ${CADDY_ADDRESS:-localhost}
     ports:
       - "${OHANA_HTTP_PORT:-80}:80"
       - "${OHANA_HTTPS_PORT:-443}:443"
@@ -112,9 +129,9 @@ services:
 configs:
   caddyfile:
     # The $$ renders a literal $ so Compose leaves the Caddy placeholder alone.
-    # Empty CADDY_ADDRESS serves localhost with a locally issued certificate;
-    # a domain enables automatic Let's Encrypt HTTPS; an http:// prefix serves
-    # plain HTTP for installations that terminate TLS elsewhere.
+    # localhost serves HTTPS with a locally issued certificate; a domain
+    # enables automatic Let's Encrypt HTTPS; an http:// prefix serves plain
+    # HTTP for installations that terminate TLS elsewhere.
     content: |
       {$$CADDY_ADDRESS:localhost} {
         reverse_proxy api:3000
