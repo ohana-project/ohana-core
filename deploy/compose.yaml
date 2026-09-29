@@ -12,6 +12,9 @@
 # The Ohana image comes from OHANA_IMAGE in .env.
 # The Compose file attached to each GitHub release is this file with the
 # image pinned to the release version.
+# Editing carefully: the release workflow (.github/workflows/release.yml)
+# rewrites the `image:` lines that read OHANA_IMAGE and deletes this whole
+# paragraph; rewording any of it breaks the release pinning.
 
 x-app-env: &app-env
   NODE_ENV: production
@@ -25,7 +28,7 @@ x-app-env: &app-env
 
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18.6-alpine
     environment:
       POSTGRES_USER: ohana
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
