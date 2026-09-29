@@ -2,6 +2,7 @@ import { createI18n } from '@ohana/i18n'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useState } from 'react'
 import { I18nextProvider } from 'react-i18next'
+import { ThemeProvider } from '@/app/theme.tsx'
 import { loadLocale } from '@/lib/locale-storage.ts'
 
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -24,8 +25,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
   }, [i18n])
 
   return (
-    <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </I18nextProvider>
+    <ThemeProvider>
+      <I18nextProvider i18n={i18n}>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </I18nextProvider>
+    </ThemeProvider>
   )
 }

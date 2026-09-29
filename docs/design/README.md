@@ -35,10 +35,10 @@ All values are OKLch. Derived colours are made only with `color-mix(in oklch, â€
 | `fg` | `oklch(25% 0.028 20)` | `oklch(93% 0.012 20)` | main text, berry ink |
 | `muted` | `oklch(46% 0.026 20)` | `oklch(70% 0.022 20)` | secondary text |
 | `border` | `oklch(89.5% 0.018 20)` | `oklch(32% 0.02 15)` | hairlines, dividers |
-| `accent` | `oklch(45% 0.13 10)` | `oklch(72% 0.13 10)` | blackberry: primary action, links, active navigation |
+| `accent` | `oklch(45% 0.13 10)` | `oklch(74% 0.13 10)` | blackberry: primary action, links, active navigation |
 | `accent-fg` | `oklch(99% 0.005 15)` | `oklch(21% 0.05 10)` | text on the accent |
-| `ok` | `oklch(52% 0.1 150)` | `oklch(76% 0.11 150)` | up to date, success |
-| `warn` | `oklch(54% 0.11 70)` | `oklch(80% 0.12 85)` | offline, warnings |
+| `ok` | `oklch(50% 0.1 150)` | `oklch(76% 0.11 150)` | up to date, success |
+| `warn` | `oklch(51% 0.11 70)` | `oklch(80% 0.12 85)` | offline, warnings |
 | `danger` | `oklch(52% 0.17 32)` | `oklch(70% 0.14 32)` | errors, deletion |
 | `ring` | = `accent` | = `accent` | focus ring |
 
@@ -106,7 +106,7 @@ Shell sizes: sidebar 232px, top bar 56px, tab bar 64px. Content width is 1104px,
 
 Glass is only for **floating** chrome: top bar, tab bar, sheets, dialogs, popovers, toasts, the FAB, the offline banner, and the mobile editor bar. It is never used behind long-form text, in the sidebar, or on static cards and badges.
 
-- **Glass**: `backdrop-filter: blur(24px) saturate(1.5)` over `surface` at 76%, a 1px `fg` 9% hairline, `shadow-3`, and an inset top highlight of white 28%. The top bar, tab bar, and editor bar keep only the inset highlight.
+- **Glass**: `backdrop-filter: blur(24px) saturate(1.5)` over `surface` at 82% (92% in dark, so muted text keeps AA over black and white backdrops), a 1px `fg` 9% hairline, `shadow-3`, and an inset top highlight of white 28%. The top bar, tab bar, and editor bar keep only the inset highlight.
 - **Liquid glass** (popovers, toasts, FAB): `blur(20px) saturate(1.7)` over `surface` at 52% (48% in dark), a vertical white sheen, inner highlights, and a gradient rim drawn with `mask-composite`.
 - **Overlay scrim**: `scrim` with `blur(12px) saturate(1.25)`.
 
@@ -233,6 +233,8 @@ Rules for `apps/web`:
 - The theme is `data-theme="light" | "dark"` on `<html>`. It is persisted per device and follows `prefers-color-scheme` until the member chooses.
 - Fonts come from the `@fontsource` packages, and icons from the Hugeicons React package.
 - A preview route shows every shared component in both themes and both languages.
+
+Three token values moved from the prototype for WCAG AA, kept in the same commit as the contrast test that requires them (`apps/web/src/ui/styles/contrast.test.ts`): light `ok` is 50% (not 52%) and light `warn` is 51% (not 54%), because those pills' text must hold 4.5:1 over their tints, and dark `accent` is 74% (not 72%), because the primary pill's text must hold 4.5:1 over `accent-soft` on surface. The glass fill is 82% in light and 92% in dark (not the prototype's 76%) for the same reason: muted text on the glass bars must keep 4.5:1 over the worst-case backdrops.
 
 ## Licences
 
