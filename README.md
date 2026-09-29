@@ -1,12 +1,12 @@
 # Ohana
 
-Ohana is a self-hosted place for a family's shared memory and plans: a journal, a calendar, and wishlists that the whole household reads and writes together, in Russian or English. It is designed for small home servers — one command installs it from prebuilt images, and it stays readable on poor connections.
+Ohana is a self-hosted place where a couple or family keeps its shared memory and plans: one space with a journal, a calendar, and wishlists, readable together even on poor connections, in Russian or English. It is designed for small home servers — one command installs it from prebuilt images.
 
 The project is under active development toward version 1.0; see the [roadmap](ROADMAP.md) for direction and [GitHub Issues](https://github.com/ohana-project/ohana-core/issues) for the current state.
 
 ## Installing
 
-You need a Linux machine on `amd64` or `arm64` (a Raspberry Pi 5 works) with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin. Nothing is ever built: releases carry prebuilt multi-architecture images.
+You need a Linux machine on `amd64` or `arm64` (a Raspberry Pi 5 works) with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin. Installing builds nothing: releases carry prebuilt multi-architecture images.
 
 1. Download `compose.yaml` and `env.production.example` from the [latest release](https://github.com/ohana-project/ohana-core/releases/latest) into one directory, and rename the latter to `.env`.
 2. Fill in the required values in `.env`. Every setting is documented in the file itself.

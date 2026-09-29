@@ -1,0 +1,28 @@
+name: Check serving
+description: >
+  Checks that a base URL serves the api health endpoint, the web client,
+  and the SPA history fallback. Used by CI and by the release smoke.
+inputs:
+  base-url:
+    description: The origin to check, for example http://localhost:3000.
+    required: true
+  insecure:
+    description: Whether to allow self-signed certificates (curl -k).
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Check the api health endpoint, the web client, and the history fallback
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base-url }}
+        INSECURE: ${{ inputs.insecure }}
+      run: |
+        curl_args=(-fsS --retry 5 --retry-all-errors --retry-delay 1)
+        if [ "$INSECURE" = "true" ]; then
+          curl_args+=(-k)
+        fi
+        curl "${curl_args[@]}" "$BASE_URL/api/health" | grep '"status":"ok"' > /dev/null
+        curl "${curl_args[@]}" "$BASE_URL/" | grep '<!doctype html' > /dev/null
+        # Any client-side route: proves the SPA history fallback serves the app.
+        curl "${curl_args[@]}" "$BASE_URL/some/client/route" | grep '<!doctype html' > /dev/null

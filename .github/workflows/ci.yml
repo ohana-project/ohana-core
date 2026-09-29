@@ -12,12 +12,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  # Superseded branch and pull request runs are cancelled; runs for main
+  # always finish, so every merge keeps its own recorded signal.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml
 
   compose-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -39,13 +46,15 @@ jobs:
           docker compose --profile caddy up -d --wait
           docker compose config --format json \
             | jq -e '.services.postgres.ports == null and .services.rustfs.ports == null' > /dev/null
-          curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
-            https://localhost:8443/api/health | grep '"status":"ok"'
-          curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
-            https://localhost:8443/ | grep '<!doctype html'
-          curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
-            https://localhost:8443/some/client/route | grep '<!doctype html'
-          # The api must stay behind Caddy, not be reachable over plain HTTP.
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: https://localhost:8443
+          insecure: 'true'
+
+      - name: The api stays behind Caddy
+        working-directory: deploy/smoke
+        run: |
           if curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"; then
             echo '::error::the api port is reachable off-loopback while Caddy is enabled'
             exit 1
@@ -57,12 +66,10 @@ jobs:
           docker compose --profile caddy down
           sed -i 's/^OHANA_PORT=127.0.0.1:3000/OHANA_PORT=3000/' .env
           docker compose up -d --wait
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
-            http://localhost:3000/api/health | grep '"status":"ok"'
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
-            http://localhost:3000/ | grep '<!doctype html'
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
-            http://localhost:3000/some/client/route | grep '<!doctype html'
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://localhost:3000
 
       - name: Failed migration keeps api and worker down
         working-directory: deploy/smoke
