@@ -30,6 +30,20 @@
   },
   "ui": {
     "close": "Close",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "retry": "Retry",
+    "errorTitle": "Could not load",
+    "errorDescription": "Check the network and try again."
+  },
+  "sync": {
+    "first": "First sync…",
+    "updating": "Updating…",
+    "synced": "Up to date · {time}",
+    "offline": "Offline — changes are saved on this device",
+    "unreachable": "Server unreachable",
+    "error": "Sync failed",
+    "retry": "Retry"
   }
 }
