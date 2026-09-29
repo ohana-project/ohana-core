@@ -114,7 +114,7 @@ Every glass surface falls back to opaque `surface` with `shadow-3` under `prefer
 
 ## Iconography
 
-Icons are [Hugeicons](https://hugeicons.com) Free (MIT), stroke-rounded style: 24px grid, stroke 1.5, round caps and joins. The prototype set is `home, book, calendar, gift, user, users, heart, bookmark, camera, image, plus, check, x, chevron-left, chevron-right, chevron-down, more-h, sync, cloud-off, wifi-off, bell, bell-off, repeat, clock, globe, sun, moon, trash, restore, archive, copy, lock, shield, crown, download, share, search, send, edit, log-out, settings, alert, info, file-text, star, eye, eye-off, install, cake, phone, mail, server`. New icons come from the same library and style; emoji are never used as icons.
+Icons are [Hugeicons](https://hugeicons.com) Free (MIT), stroke-rounded style: 24px grid, stroke 1.5, round caps and joins. The prototype set is `home, book, calendar, gift, user, users, heart, bookmark, camera, image, plus, check, x, chevron-left, chevron-right, chevron-down, more-h, sync, cloud-off, wifi-off, bell, bell-off, repeat, clock, globe, sun, moon, trash, restore, archive, copy, lock, shield, crown, download, share, search, send, edit, log-out, settings, alert, info, file-text, star, eye, eye-off, install, cake, phone, mail, server`. New icons come from the same library and style; emoji are never used as icons. One deliberate substitution: the prototype reuses the `phone` glyph for `install`, so the implementation gives `install` the phone-with-arrow icon instead.
 
 The **mark** is a five-petal flower with a heart, ink `#4A1A48` on rose `#F5D8D5`, on a rounded square (`ohana-icon.svg`). A round-plate variant with a thicker stroke is used at small sizes such as the top bar.
 

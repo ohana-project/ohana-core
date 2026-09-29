@@ -148,8 +148,8 @@ Tests go through `buildApp` over HTTP and through `buildWorker`, against real Po
 
 ```
 src/
-  app/          router, providers, root layouts (member, admin)
-  routes/       TanStack Router file routes
+  app/          router, providers, theme provider, and the assembled shells in app/layouts/ (member, admin, auth)
+  routes/       TanStack Router file routes; /design previews the design system
   features/
     <feature>/  components, hooks, and queries for one area (journal, calendar, wishlist, sign-in, admin, …)
   data/         API client wiring, session registry, sync engine, IndexedDB store
@@ -157,6 +157,7 @@ src/
     styles/     design tokens and glass materials, exposed to Tailwind through @theme
   lib/          small framework-independent helpers
   testing/      test setup and shared test helpers
+e2e/            Playwright specs (pnpm --filter @ohana/web test:e2e)
 ```
 
 ### Rules
