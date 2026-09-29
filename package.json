@@ -1,0 +1,27 @@
+{
+  "name": "ohana-core",
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "biome check .",
+    "setup": "pnpm install && (cp -n deploy/env.example .env || true) && docker compose -f deploy/compose.dev.yaml up -d --wait && pnpm --filter @ohana/api db:migrate",
+    "dev": "pnpm --filter @ohana/api dev",
+    "format": "biome check --write .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "check-openapi": "pnpm --filter @ohana/api openapi:check"
+  },
+  "license": "AGPL-3.0-only",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.0.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14"
+  },
+  "packageManager": "pnpm@11.20.0"
+}

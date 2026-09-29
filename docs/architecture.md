@@ -49,7 +49,7 @@ Modules: `spaces`, `members`, `access`, `journal`, `calendar`, `wishlist`, `sync
 ### Dependency rules
 
 - Routes call services. They never query the database, and they never contain domain rules.
-- A service owns its module's tables. Other modules use its `index.ts` exports and never import another module's repository, tables, or internal files.
+- A service owns its module's tables. Other modules use its `index.ts` exports and never import another module's repository, tables, or internal files. The one exception: a module's `tables.ts` may import another module's `tables.ts` solely to declare the composite foreign keys that ADR-0016 requires. `index.ts` exports services and domain types, not repositories or table objects; test files and the test harness are not modules and may import internals directly.
 - Services receive dependencies (db, clock, storage, jobs, push, config) explicitly. There are no module-level singletons, and nothing reads `process.env` outside `platform/config`.
 - `platform/` knows nothing about domain modules. Modules depend on platform, never the reverse.
 - Dependency cycles between modules are not allowed. When two modules need each other, the shared rule moves into the lower one.
@@ -140,7 +140,7 @@ The sync conventions below are established in the foundation and must not be byp
 
 ### Testing
 
-Tests go through `buildApp` over HTTP and through `buildWorker`, against real PostgreSQL and RustFS containers that are started once per test run. Each test file creates its own spaces and members with factory helpers, so tests never depend on each other or on shared data. Access rules are always tested with pairs of members, or pairs of spaces: one actor creates something, the other must not see it. Tests do not mock the database or assert on internals.
+Tests go through `buildApp` over HTTP and through `buildWorker`, against real PostgreSQL and RustFS containers that are started once per test run. The run's global setup passes the container endpoints to the test workers through environment variables that only `src/testing` reads, and applies migrations once per run to provision the throwaway database; outside tests, migrations run only through the migrate entrypoint. Each test file creates its own spaces and members with factory helpers, so tests never depend on each other or on shared data. Access rules are always tested with pairs of members, or pairs of spaces: one actor creates something, the other must not see it. Tests do not mock the database or assert on internals.
 
 ## Web client (`apps/web`)
 
