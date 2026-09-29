@@ -1,9 +1,7 @@
-import { buildApp } from '../app/buildApp.ts'
-import { systemClock } from '../platform/clock.ts'
+import { buildWorker } from '../app/buildWorker.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
 import { createLogger } from '../platform/logging.ts'
-import { storageFromConfig } from '../platform/storage/s3.ts'
 
 async function main(): Promise<void> {
   const config = await loadConfigOrExit()
@@ -11,20 +9,11 @@ async function main(): Promise<void> {
 
   const logger = createLogger(config)
   const { db, close } = createDb(config.databaseUrl)
-  const storage = storageFromConfig(config)
-  await storage.ensureBucket()
-
-  const app = buildApp({
-    db,
-    storage,
-    clock: systemClock,
-    logger,
-    webDist: config.webDist,
-  })
-  await app.listen({ port: config.port, host: '0.0.0.0' })
+  const worker = buildWorker({ db, logger })
+  await worker.start()
 
   const shutdown = async (): Promise<void> => {
-    await app.close()
+    await worker.stop()
     await close()
     process.exit(0)
   }

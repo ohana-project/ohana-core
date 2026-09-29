@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { DomainError } from '../platform/errors.ts'
+import { isSpaNavigation } from '../platform/http/staticFiles.ts'
 
 const frameworkErrorCodes: Record<string, string> = {
   FST_ERR_CTP_INVALID_JSON_BODY: 'invalid_json',
@@ -8,7 +9,14 @@ const frameworkErrorCodes: Record<string, string> = {
   FST_ERR_CTP_INVALID_MEDIA_TYPE: 'unsupported_media_type',
 }
 
-export function registerErrorHandler(app: FastifyInstance): void {
+export interface ErrorHandlerOptions {
+  webDist?: string
+}
+
+export function registerErrorHandler(
+  app: FastifyInstance,
+  options: ErrorHandlerOptions = {},
+): void {
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof DomainError) {
       return reply.status(error.httpStatus).send({
@@ -39,6 +47,12 @@ export function registerErrorHandler(app: FastifyInstance): void {
   })
 
   app.setNotFoundHandler((request, reply) => {
+    if (
+      options.webDist !== undefined &&
+      isSpaNavigation(request.method, request.url, request.headers.accept)
+    ) {
+      return reply.sendFile('index.html')
+    }
     return reply.status(404).send({
       error: { code: 'not_found', message: `Route ${request.method} ${request.url} was not found` },
     })

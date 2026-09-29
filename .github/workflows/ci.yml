@@ -37,3 +37,52 @@ jobs:
 
       - name: Check generated API client
         run: pnpm check-api-client
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build application image
+        run: docker build -t ohana:smoke .
+
+      - name: Prepare deployment directory
+        run: |
+          mkdir deploy/smoke
+          cp deploy/compose.yaml deploy/env.production.example deploy/smoke/
+          cd deploy/smoke
+          cp env.production.example .env
+          printf '\nOHANA_IMAGE=ohana:smoke\nPOSTGRES_PASSWORD=smoke-test-password\nSTORAGE_ACCESS_KEY=smoke-key\nSTORAGE_SECRET_KEY=smoke-secret\nOHANA_HTTP_PORT=8080\nOHANA_HTTPS_PORT=8443\n' >> .env
+
+      - name: Smoke test with Caddy enabled
+        working-directory: deploy/smoke
+        run: |
+          docker compose --profile caddy up -d --wait
+          test -z "$(docker compose port postgres 5432)"
+          test -z "$(docker compose port rustfs 9000)"
+          curl -fsSk https://localhost:8443/api/health | grep '"status":"ok"'
+          curl -fsSk https://localhost:8443/ | grep '<!doctype html'
+          curl -fsSk https://localhost:8443/some/client/route | grep '<!doctype html'
+
+      - name: Smoke test with Caddy disabled
+        working-directory: deploy/smoke
+        run: |
+          docker compose --profile caddy down
+          docker compose up -d --wait
+          curl -fsS http://localhost:3000/api/health | grep '"status":"ok"'
+          curl -fsS http://localhost:3000/ | grep '<!doctype html'
+
+      - name: Failed migration keeps api and worker down
+        working-directory: deploy/smoke
+        run: |
+          docker compose down
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=wrong-password/' .env
+          if docker compose up -d --wait; then
+            echo '::error::compose up succeeded despite a failing migration'
+            exit 1
+          fi
+          docker compose ps -a --format json \
+            | jq -e 'select(.Service == "migrate" and .State == "exited" and .ExitCode == 1)' > /dev/null
+          docker compose logs migrate | grep 'Database migration failed'
+          test -z "$(docker compose ps -q api)"
+          test -z "$(docker compose ps -q worker)"

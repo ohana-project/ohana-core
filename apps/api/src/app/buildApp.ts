@@ -5,6 +5,7 @@ import { spacesRoutes } from '../modules/spaces/routes.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
+import { registerStaticFiles } from '../platform/http/staticFiles.ts'
 import type { Logger } from '../platform/logging.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 import { registerErrorHandler } from './errorHandler.ts'
@@ -14,6 +15,7 @@ export interface AppDeps {
   storage: ObjectStorage
   clock: Clock
   logger: Logger
+  webDist?: string
 }
 
 export function buildApp(deps: AppDeps) {
@@ -22,7 +24,7 @@ export function buildApp(deps: AppDeps) {
     ajv: { customOptions: { removeAdditional: false } },
   })
 
-  registerErrorHandler(app)
+  registerErrorHandler(app, { webDist: deps.webDist })
 
   app.register(swagger, {
     openapi: {
@@ -35,6 +37,9 @@ export function buildApp(deps: AppDeps) {
 
   app.register(healthRoutes, { prefix: '/api', deps: { db: deps.db, storage: deps.storage } })
   app.register(spacesRoutes, { prefix: '/api/v1', deps: { db: deps.db, clock: deps.clock } })
+  if (deps.webDist !== undefined) {
+    app.register(registerStaticFiles, { webDist: deps.webDist })
+  }
 
   return app.withTypeProvider<TypeBoxTypeProvider>()
 }
