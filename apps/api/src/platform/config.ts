@@ -30,6 +30,7 @@ const ConfigSchema = Type.Object({
   storageAccessKey: Type.String({ minLength: 1 }),
   storageSecretKey: Type.String({ minLength: 1 }),
   storageBucket: Type.String({ minLength: 1 }),
+  webDist: Type.Optional(Type.String({ minLength: 1 })),
 })
 
 const MigrationConfigSchema = Type.Object({ nodeEnv, logLevel, databaseUrl })
@@ -57,6 +58,7 @@ const configEnvironmentNames: Readonly<Record<string, string>> = {
   storageAccessKey: 'STORAGE_ACCESS_KEY',
   storageSecretKey: 'STORAGE_SECRET_KEY',
   storageBucket: 'STORAGE_BUCKET',
+  webDist: 'WEB_DIST',
 }
 
 const migrationEnvironmentNames: Readonly<Record<string, string>> = {

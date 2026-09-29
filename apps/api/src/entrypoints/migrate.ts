@@ -12,6 +12,9 @@ async function main(): Promise<void> {
   try {
     await runMigrations(db)
     logger.info('Database migrations applied')
+  } catch (error) {
+    logger.error({ err: error }, 'Database migration failed')
+    process.exitCode = 1
   } finally {
     await close()
   }

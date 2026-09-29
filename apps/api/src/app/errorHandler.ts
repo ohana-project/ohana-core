@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { DomainError } from '../platform/errors.ts'
+import type { SpaFallback } from '../platform/http/staticFiles.ts'
 
 const frameworkErrorCodes: Record<string, string> = {
   FST_ERR_CTP_INVALID_JSON_BODY: 'invalid_json',
@@ -8,7 +9,14 @@ const frameworkErrorCodes: Record<string, string> = {
   FST_ERR_CTP_INVALID_MEDIA_TYPE: 'unsupported_media_type',
 }
 
-export function registerErrorHandler(app: FastifyInstance): void {
+export interface ErrorHandlerOptions {
+  spaFallback?: SpaFallback
+}
+
+export function registerErrorHandler(
+  app: FastifyInstance,
+  options: ErrorHandlerOptions = {},
+): void {
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof DomainError) {
       return reply.status(error.httpStatus).send({
@@ -38,7 +46,10 @@ export function registerErrorHandler(app: FastifyInstance): void {
     })
   })
 
-  app.setNotFoundHandler((request, reply) => {
+  app.setNotFoundHandler(async (request, reply) => {
+    if (options.spaFallback !== undefined && (await options.spaFallback(request, reply))) {
+      return reply
+    }
     return reply.status(404).send({
       error: { code: 'not_found', message: `Route ${request.method} ${request.url} was not found` },
     })
