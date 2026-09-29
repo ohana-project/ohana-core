@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { DomainError } from '../platform/errors.ts'
-import { isSpaNavigation } from '../platform/http/staticFiles.ts'
+import type { SpaFallback } from '../platform/http/staticFiles.ts'
 
 const frameworkErrorCodes: Record<string, string> = {
   FST_ERR_CTP_INVALID_JSON_BODY: 'invalid_json',
@@ -10,7 +10,7 @@ const frameworkErrorCodes: Record<string, string> = {
 }
 
 export interface ErrorHandlerOptions {
-  webDist?: string
+  spaFallback?: SpaFallback
 }
 
 export function registerErrorHandler(
@@ -46,12 +46,9 @@ export function registerErrorHandler(
     })
   })
 
-  app.setNotFoundHandler((request, reply) => {
-    if (
-      options.webDist !== undefined &&
-      isSpaNavigation(request.method, request.url, request.headers.accept)
-    ) {
-      return reply.sendFile('index.html')
+  app.setNotFoundHandler(async (request, reply) => {
+    if (options.spaFallback !== undefined && (await options.spaFallback(request, reply))) {
+      return reply
     }
     return reply.status(404).send({
       error: { code: 'not_found', message: `Route ${request.method} ${request.url} was not found` },

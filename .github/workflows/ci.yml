@@ -53,6 +53,7 @@ jobs:
           cd deploy/smoke
           cp env.production.example .env
           printf '\nOHANA_IMAGE=ohana:smoke\nPOSTGRES_PASSWORD=smoke-test-password\nSTORAGE_ACCESS_KEY=smoke-key\nSTORAGE_SECRET_KEY=smoke-secret\nOHANA_HTTP_PORT=8080\nOHANA_HTTPS_PORT=8443\n' >> .env
+          sed -i 's/^OHANA_PORT=3000/OHANA_PORT=127.0.0.1:3000/' .env
 
       - name: Smoke test with Caddy enabled
         working-directory: deploy/smoke
@@ -66,28 +67,51 @@ jobs:
             https://localhost:8443/ | grep '<!doctype html'
           curl -fsSk --retry 5 --retry-all-errors --retry-delay 1 \
             https://localhost:8443/some/client/route | grep '<!doctype html'
+          # The api must stay behind Caddy, not be reachable over plain HTTP.
+          if curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"; then
+            echo '::error::the api port is reachable off-loopback while Caddy is enabled'
+            exit 1
+          fi
 
       - name: Smoke test with Caddy disabled
         working-directory: deploy/smoke
         run: |
           docker compose --profile caddy down
+          sed -i 's/^OHANA_PORT=127.0.0.1:3000/OHANA_PORT=3000/' .env
           docker compose up -d --wait
           curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
             http://localhost:3000/api/health | grep '"status":"ok"'
           curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
             http://localhost:3000/ | grep '<!doctype html'
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 1 \
+            http://localhost:3000/some/client/route | grep '<!doctype html'
 
       - name: Failed migration keeps api and worker down
         working-directory: deploy/smoke
         run: |
           docker compose down
-          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=wrong-password/' .env
-          if docker compose up -d --wait; then
+          # Break the next migration by mounting a malformed journal entry and
+          # statement into the migrate service.
+          mkdir broken
+          container=$(docker create ohana:smoke)
+          docker cp "$container:/app/src/db/migrations/meta/_journal.json" broken/_journal.json
+          docker rm "$container" > /dev/null
+          node -e "const fs = require('fs'); const journal = JSON.parse(fs.readFileSync('broken/_journal.json', 'utf8')); journal.entries.push({ idx: journal.entries.length, version: journal.version, when: Date.now(), tag: '0001_broken', breakpoints: true }); fs.writeFileSync('broken/_journal.json', JSON.stringify(journal))"
+          printf 'SELECT broken;' > broken/0001_broken.sql
+          printf '%s\n' \
+            'services:' \
+            '  migrate:' \
+            '    volumes:' \
+            '      - ./broken/_journal.json:/app/src/db/migrations/meta/_journal.json:ro' \
+            '      - ./broken/0001_broken.sql:/app/src/db/migrations/0001_broken.sql:ro' \
+            > compose.broken.yaml
+          compose="docker compose -f compose.yaml -f compose.broken.yaml"
+          if $compose up -d --wait; then
             echo '::error::compose up succeeded despite a failing migration'
             exit 1
           fi
-          docker compose ps -a --format json \
+          $compose ps -a --format json \
             | jq -e 'select(.Service == "migrate" and .State == "exited" and .ExitCode == 1)' > /dev/null
-          docker compose logs migrate | grep 'Database migration failed'
-          test -z "$(docker compose ps -q api)"
-          test -z "$(docker compose ps -q worker)"
+          $compose logs migrate | grep 'Database migration failed'
+          $compose ps -a --format json \
+            | jq -e 'select((.Service == "api" or .Service == "worker") and .State == "created")' > /dev/null

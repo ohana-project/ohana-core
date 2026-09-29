@@ -2,8 +2,8 @@
 
 FROM node:24-alpine AS build
 WORKDIR /repo
-# Keep in sync with "packageManager" in package.json.
-RUN npm install --global pnpm@11.20.0
+# pnpm's version comes from the "packageManager" field in package.json.
+RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/

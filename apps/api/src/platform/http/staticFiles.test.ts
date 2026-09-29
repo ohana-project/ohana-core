@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
-import { createTestHarness, type TestHarness } from '../testing/harness.ts'
+import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 
 describe('SPA static files', () => {
   let harness: TestHarness
@@ -55,27 +55,31 @@ describe('SPA static files', () => {
   test('falls back to index.html for client-side routes', async () => {
     const app = await buildAppWithWebDist()
     try {
-      for (const headers of [{ accept: 'text/html' }, { accept: '*/*' }]) {
-        const response = await app.inject({
-          method: 'GET',
-          url: '/journal/new-entry',
-          headers,
-        })
+      for (const method of ['GET', 'HEAD'] as const) {
+        const response = await app.inject({ method, url: '/journal/new-entry' })
         expect(response.statusCode).toBe(200)
         expect(response.headers['content-type']).toContain('text/html')
-        expect(response.body).toContain('<!doctype html>')
+        if (method === 'GET') {
+          expect(response.body).toContain('<!doctype html>')
+        }
       }
     } finally {
       await app.close()
     }
   })
 
-  test('answers 404 JSON for missing assets instead of the SPA', async () => {
+  test('answers 404 JSON for dotted paths even when HTML is accepted', async () => {
     const app = await buildAppWithWebDist()
     try {
-      const response = await app.inject({ method: 'GET', url: '/assets/missing-C1234.js' })
-      expect(response.statusCode).toBe(404)
-      expect(response.json().error.code).toBe('not_found')
+      for (const url of ['/assets/missing-C1234.js', '/journal/v1.2']) {
+        const response = await app.inject({
+          method: 'GET',
+          url,
+          headers: { accept: 'text/html' },
+        })
+        expect(response.statusCode).toBe(404)
+        expect(response.json().error.code).toBe('not_found')
+      }
     } finally {
       await app.close()
     }

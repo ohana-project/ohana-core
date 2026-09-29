@@ -5,7 +5,7 @@ import { spacesRoutes } from '../modules/spaces/routes.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
-import { registerStaticFiles } from '../platform/http/staticFiles.ts'
+import { createSpaFallback, registerStaticFiles } from '../platform/http/staticFiles.ts'
 import type { Logger } from '../platform/logging.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 import { registerErrorHandler } from './errorHandler.ts'
@@ -24,7 +24,9 @@ export function buildApp(deps: AppDeps) {
     ajv: { customOptions: { removeAdditional: false } },
   })
 
-  registerErrorHandler(app, { webDist: deps.webDist })
+  registerErrorHandler(app, {
+    spaFallback: deps.webDist === undefined ? undefined : createSpaFallback(deps.webDist),
+  })
 
   app.register(swagger, {
     openapi: {
