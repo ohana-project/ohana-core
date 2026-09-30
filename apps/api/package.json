@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "tsx watch src/entrypoints/server.ts",
     "db:migrate": "tsx src/entrypoints/migrate.ts",
+    "admin:reset-password": "tsx src/entrypoints/reset-admin-password.ts",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/lib-storage": "^3.1141.0",
+    "@fastify/cookie": "^11.1.2",
     "@fastify/static": "^10.1.5",
     "@fastify/swagger": "^9.9.0",
     "@fastify/type-provider-typebox": "^6.1.0",
