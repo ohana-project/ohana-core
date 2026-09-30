@@ -16,7 +16,9 @@
  */
 
 :root {
-  --glass-a: 82%;
+  /* 90%, not 82%: danger text (the failed sync label, destructive menu
+     items) needs 4.5:1 over a black backdrop (see contrast.test.ts) */
+  --glass-a: 90%;
   --liquid-a: 52%;
   --glass-backdrop: blur(24px) saturate(1.5);
   --liquid-backdrop: blur(20px) saturate(1.7);

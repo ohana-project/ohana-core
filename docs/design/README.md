@@ -106,7 +106,7 @@ Shell sizes: sidebar 232px, top bar 56px, tab bar 64px. Content width is 1104px,
 
 Glass is only for **floating** chrome: top bar, tab bar, sheets, dialogs, popovers, toasts, the FAB, the offline banner, and the mobile editor bar. It is never used behind long-form text, in the sidebar, or on static cards and badges.
 
-- **Glass**: `backdrop-filter: blur(24px) saturate(1.5)` over `surface` at 82% (92% in dark, so muted text keeps AA over black and white backdrops), a 1px `fg` 9% hairline, `shadow-3`, and an inset top highlight of white 28%. The top bar, tab bar, and editor bar keep only the inset highlight.
+- **Glass**: `backdrop-filter: blur(24px) saturate(1.5)` over `surface` at 90% (92% in dark, so muted, accent and danger text keep AA over black and white backdrops), a 1px `fg` 9% hairline, `shadow-3`, and an inset top highlight of white 28%. The top bar, tab bar, and editor bar keep only the inset highlight.
 - **Liquid glass** (the FAB): `blur(20px) saturate(1.7)` over `surface` at 52% (48% in dark), a vertical white sheen, inner highlights, and a gradient rim drawn with `mask-composite`. It stays on the FAB because that is the one glass surface without text: over a 52% fill (48% in dark) small text cannot hold AA even at full opacity — in the dark theme the white sheen alone caps the contrast below 4.5:1 — so popovers, menus and toasts take the plain recipe instead.
 - **Overlay scrim**: `scrim` with `blur(12px) saturate(1.25)`.
 
@@ -234,7 +234,7 @@ Rules for `apps/web`:
 - Fonts come from the `@fontsource` packages, and icons from the Hugeicons React package.
 - A preview route shows every shared component in both themes and both languages.
 
-Three token values moved from the prototype for WCAG AA, kept in the same commit as the contrast test that requires them (`apps/web/src/ui/styles/contrast.test.ts`): light `ok` is 50% (not 52%) and light `warn` is 51% (not 54%), because those pills' text must hold 4.5:1 over their tints, and dark `accent` is 74% (not 72%), because the primary pill's text must hold 4.5:1 over `accent-soft` on surface. The glass fill is 82% in light and 92% in dark (not the prototype's 76%) for the same reason: muted text on the glass bars must keep 4.5:1 over the worst-case backdrops. The pill and banner fills and the hover accent (`accent-strong`: 12% darker in light, 10% lighter in dark) live as derived tokens (`--ok-fill`, `--warn-fill`, `--danger-fill`, `--banner-*`) so the components and the contrast test read the same values.
+Three token values moved from the prototype for WCAG AA, kept in the same commit as the contrast test that requires them (`apps/web/src/ui/styles/contrast.test.ts`): light `ok` is 50% (not 52%) and light `warn` is 51% (not 54%), because those pills' text must hold 4.5:1 over their tints, and dark `accent` is 74% (not 72%), because the primary pill's text must hold 4.5:1 over `accent-soft` on surface. The glass fill is 90% in light and 92% in dark (not the prototype's 76%) for the same reason: text on glass must keep 4.5:1 over the worst-case backdrops, and light `danger` (the failed sync label, destructive menu items) misses 4.5:1 over a black one below 88% (90% keeps a margin); `ok` and `warn` reach glass only as icons and need 3:1. The pill and banner fills and the hover accent (`accent-strong`: 12% darker in light, 10% lighter in dark) live as derived tokens (`--ok-fill`, `--warn-fill`, `--danger-fill`, `--banner-*`) so the components and the contrast test read the same values.
 
 ## Licences
 

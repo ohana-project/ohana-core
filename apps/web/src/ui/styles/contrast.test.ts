@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
-import { type Oklch, parse, type Rgb, rgb } from 'culori'
+import { type Oklch, oklch, parse, type Rgb, rgb } from 'culori'
 import { describe, expect, it } from 'vitest'
 
 /*
@@ -49,7 +49,8 @@ function asPercent(name: string, tokens: Tokens): number {
 function asOklch(value: string): Oklch {
   const parsed = parse(value)
   if (!parsed) throw new Error(`unparseable colour: ${value}`)
-  return parsed as Oklch
+  // named colours such as `black` parse as rgb
+  return oklch(parsed)
 }
 
 /** Converts a token value (oklch, possibly a color-mix) to sRGB. */
@@ -67,13 +68,16 @@ function asRgb(value: string, tokens: Tokens): Rgb {
     const ao = asOklch(a)
     const bo = asOklch(b)
     const t = Number(pct) / 100
-    let dh = ((ao.h ?? 0) - (bo.h ?? 0) + 540) % 360
+    // a missing hue (black, white) takes the other colour's, as in CSS
+    const ha = ao.h ?? bo.h ?? 0
+    const hb = bo.h ?? ao.h ?? 0
+    let dh = (ha - hb + 540) % 360
     if (dh > 180) dh -= 360
     return rgb({
       mode: 'oklch',
       l: ao.l * t + bo.l * (1 - t),
       c: (ao.c ?? 0) * t + (bo.c ?? 0) * (1 - t),
-      h: (bo.h ?? 0) + dh * t,
+      h: hb + dh * t,
     }) as Rgb
   }
   const parsed = rgb(parse(resolved))
@@ -161,11 +165,20 @@ describe.each(Object.entries(themes))('%s theme', (_theme, tokens) => {
 
   it('text over glass meets 4.5:1 composited on white and black backdrops', () => {
     // the recipe the overlays and bars render with — popovers, menus and
-    // toasts take the plain glass too (README "Glass")
+    // toasts take the plain glass too (README "Glass"). Text on glass:
+    // fg; muted (inactive tabs, sync labels, descriptions); accent (the
+    // active tab, the syncing label, the retry link) and accent-strong
+    // (its hover); danger (the failed sync label, destructive menu items)
     for (const backdrop of [WHITE, BLACK]) {
       const name = backdrop === WHITE ? 'white' : 'black'
-      check(color('fg'), glass(backdrop), 4.5, `fg on glass over ${name}`)
-      check(color('muted'), glass(backdrop), 4.5, `muted on glass over ${name}`)
+      for (const text of ['fg', 'muted', 'accent', 'accent-strong', 'danger']) {
+        check(color(text), glass(backdrop), 4.5, `${text} on glass over ${name}`)
+      }
+      // ok and warn reach glass only as icons (the toast check, the
+      // synced and offline sync glyphs), so they need 3:1
+      for (const icon of ['ok', 'warn']) {
+        check(color(icon), glass(backdrop), 3, `${icon} icon on glass over ${name}`)
+      }
     }
   })
 
