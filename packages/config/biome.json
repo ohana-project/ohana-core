@@ -40,7 +40,6 @@
         "**/db/migrations/**",
         "**/openapi.json",
         "**/*.gen.ts",
-        ".design/**",
         "docs/design/screens/**",
         "docs/design/assets/**"
       ],
