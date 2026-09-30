@@ -484,6 +484,25 @@ describe('no-op space updates', () => {
     }
   })
 
+  test('a patch whose padded name trims to the stored one skips the write', async () => {
+    const space = await harness.createSpace({ name: 'Наша семья' })
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/spaces/${space.id}`,
+        payload: { name: '  Наша семья  ' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toMatchObject({ name: 'Наша семья', revision: '0' })
+    } finally {
+      await app.close()
+    }
+  })
+
   test('an empty patch fails validation', async () => {
     const space = await harness.createSpace()
     const app = harness.buildTestApp()

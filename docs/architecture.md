@@ -104,6 +104,7 @@ The sync conventions below are established in the foundation and must not be byp
 - `spaces.revision` is a bigint counter.
 - A changing transaction increments the counter once with `UPDATE … RETURNING` and stamps every row it writes with the new value.
 - The row lock on the space serialises writers within a space. A client that has seen revision N therefore never misses a change committed at N or lower.
+- A use case that must read before deciding to write takes the space row lock first (`lockSpace`) and only then reads its rows; row locks on space-owned rows come after it, never before. One lock order keeps the transactions deadlock-free.
 
 **Tombstones:**
 

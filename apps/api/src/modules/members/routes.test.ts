@@ -394,4 +394,35 @@ describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
       expect(response.statusCode).toBe(401)
     })
   })
+
+  test('answers space_not_found for an unknown space', async () => {
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/spaces/00000000-0000-7000-8000-000000000000/members/00000000-0000-7000-8000-000000000001',
+        payload: { role: 'regular' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('space_not_found')
+    })
+  })
+})
+
+describe('provisioning with padded contact values', () => {
+  test('rejects a contact whose trimmed value is under the minimum', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/v1/spaces/${space.id}/members`,
+        payload: { name: 'Аня', role: 'owner', email: ' a ' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(400)
+      expect(response.json().error.code).toBe('validation_failed')
+    })
+  })
 })

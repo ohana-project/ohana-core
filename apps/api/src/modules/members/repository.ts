@@ -61,21 +61,6 @@ export async function getMemberInSpace(
   return rows[0]
 }
 
-/** Locking read for read-decide-write use cases inside one transaction. */
-export async function getMemberInSpaceForUpdate(
-  tx: Tx,
-  spaceId: string,
-  memberId: string,
-): Promise<Member | undefined> {
-  const rows = await tx
-    .select()
-    .from(members)
-    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
-    .limit(1)
-    .for('update')
-  return rows[0]
-}
-
 export async function countOwnersInSpace(executor: Executor, spaceId: string): Promise<number> {
   const rows = await executor
     .select({ count: sql<number>`count(*)::int` })

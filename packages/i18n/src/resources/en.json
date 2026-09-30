@@ -137,7 +137,7 @@
       "makeRegularConfirm": "Remove the role",
       "lastOwnerNote": "The owner role can be passed on, but not taken from the last owner",
       "noMembers": "Nobody is here yet — add the first member",
-      "tooShort": "Too short — check the value"
+      "tooShort": "At least 3 characters — check the value"
     },
     "settings": {
       "title": "Instance settings"

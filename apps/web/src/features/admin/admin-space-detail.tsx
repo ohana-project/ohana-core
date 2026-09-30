@@ -326,8 +326,15 @@ function SpaceSettingsSheet({
     })
   }
 
+  // A mid-flight request owns the sheet: closing it would leave the
+  // success/error callbacks with nowhere sensible to land.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && updateSpace.isPending) return
+    onOpenChange(next)
+  }
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{t('admin.space.settingsTitle')}</SheetTitle>
@@ -400,12 +407,14 @@ function ProvisionMemberSheet({
   const [phoneError, setPhoneError] = useState<string | undefined>()
   const [formError, setFormError] = useState<string | undefined>()
 
-  // Abandoned edits must not survive closing, whatever closed the sheet:
-  // the reset runs on the open transition, during render.
+  // Abandoned edits and stale mutation answers must not survive into the
+  // next session: everything resets on the open transition, during render,
+  // and a pending submission keeps the sheet open until it settles.
   const [lastOpen, setLastOpen] = useState(open)
   if (open !== lastOpen) {
     setLastOpen(open)
-    if (!open) {
+    if (open) {
+      provisionMember.reset()
       setName('')
       setRole('regular')
       setDisplayName('')
@@ -417,6 +426,13 @@ function ProvisionMemberSheet({
       setPhoneError(undefined)
       setFormError(undefined)
     }
+  }
+
+  // A mid-flight request owns the sheet: closing it would leave the
+  // success/error callbacks with nowhere sensible to land.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && provisionMember.isPending) return
+    onOpenChange(next)
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -461,7 +477,7 @@ function ProvisionMemberSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{t('admin.space.addMemberTitle')}</SheetTitle>
@@ -515,7 +531,7 @@ function ProvisionMemberSheet({
               }}
             />
           </Field>
-          <Field>
+          <Field data-invalid={emailError !== undefined || undefined}>
             <FieldLabel htmlFor="provision-member-email">{t('admin.space.emailLabel')}</FieldLabel>
             <Input
               id="provision-member-email"
@@ -530,7 +546,7 @@ function ProvisionMemberSheet({
             />
             {emailError !== undefined ? <FieldError>{emailError}</FieldError> : null}
           </Field>
-          <Field>
+          <Field data-invalid={phoneError !== undefined || undefined}>
             <FieldLabel htmlFor="provision-member-phone">{t('admin.space.phoneLabel')}</FieldLabel>
             <Input
               id="provision-member-phone"

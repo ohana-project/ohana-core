@@ -150,8 +150,33 @@ describe('AdminSpaceDetail', () => {
     await user.type(screen.getByLabelText('Эл. почта'), 'ab')
     await user.click(screen.getByRole('button', { name: 'Добавить' }))
 
-    expect(await screen.findByText('Слишком коротко — проверьте значение')).toBeInTheDocument()
+    expect(await screen.findByText('Минимум 3 символа — проверьте значение')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('shows a schema answer as a form-level error and clears it on edit', async () => {
+    const user = userEvent.setup()
+    apiPost.mockResolvedValue({
+      data: undefined,
+      error: { error: { code: 'validation_failed', message: 'nope' } },
+      response: new Response(null, { status: 400 }),
+    })
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
+    await user.type(screen.getByLabelText('Имя'), 'Миша')
+    await user.click(screen.getByRole('button', { name: 'Добавить' }))
+
+    expect(
+      await screen.findByText('Проверьте поля — некоторые значения не подходят'),
+    ).toBeInTheDocument()
+
+    // Editing any field clears the form-level answer.
+    await user.type(screen.getByLabelText('Имя'), '!')
+    expect(
+      screen.queryByText('Проверьте поля — некоторые значения не подходят'),
+    ).not.toBeInTheDocument()
   })
 
   it('promotes a regular member after a confirmation', async () => {

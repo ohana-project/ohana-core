@@ -109,6 +109,20 @@ describe('AdminSpacesList', () => {
     expect(apiPost).not.toHaveBeenCalled()
   })
 
+  it('forgets abandoned edits when the create sheet reopens', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpacesList />)
+
+    await screen.findByText('Наша семья')
+    await user.click(screen.getByRole('button', { name: 'Новое пространство' }))
+    await user.type(screen.getByLabelText('Название'), 'Черновик')
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.click(screen.getByRole('button', { name: 'Новое пространство' }))
+
+    expect(screen.getByLabelText('Название')).toHaveValue('')
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
   it('translates the invalid_timezone answer into the field error', async () => {
     const user = userEvent.setup()
     apiPost.mockResolvedValue({

@@ -30,9 +30,14 @@ export async function getSpaceById(executor: Executor, id: string): Promise<Spac
   return rows[0]
 }
 
-/** Locking read for read-decide-write use cases inside one transaction. */
+/**
+ * Locking read for read-decide-write use cases inside one transaction. The
+ * weaker NO KEY UPDATE strength suffices: the row's UUID key never changes,
+ * and the stronger lock would block the FOR KEY SHARE locks that foreign-key
+ * checks take in unrelated transactions.
+ */
 export async function getSpaceForUpdate(tx: Tx, id: string): Promise<Space | undefined> {
-  const rows = await tx.select().from(spaces).where(eq(spaces.id, id)).limit(1).for('update')
+  const rows = await tx.select().from(spaces).where(eq(spaces.id, id)).limit(1).for('no key update')
   return rows[0]
 }
 

@@ -9,7 +9,9 @@ import { members } from './tables.ts'
  */
 
 /** Counts members per space across the whole installation, in one grouped query. */
-export async function adminCountMembersBySpace(executor: Executor): Promise<Map<string, number>> {
+export async function countMembersPerSpaceAcrossInstallation(
+  executor: Executor,
+): Promise<Map<string, number>> {
   const rows = await executor
     .select({ spaceId: members.spaceId, count: sql<number>`count(*)::int` })
     .from(members)

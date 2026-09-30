@@ -1,12 +1,12 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { getSpace } from '../spaces/index.ts'
+import { getSpace, lockSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
-import { adminCountMembersBySpace as countAllMembersBySpace } from './admin-repository.ts'
+import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
 import {
   countOwnersInSpace,
-  getMemberInSpaceForUpdate,
+  getMemberInSpace,
   insertMember,
   listMembersInSpace,
   updateMemberRole,
@@ -29,12 +29,31 @@ export interface MemberInput {
   interfaceLanguage?: 'ru' | 'en'
 }
 
+/** The shortest contact value that survives trimming; matches the web client. */
+export const CONTACT_MIN_LENGTH = 3
+
 /** Provisions a member in the named space; the change advances the space revision. */
 export async function provisionMember(
   deps: MembersDeps,
   spaceId: string,
   input: MemberInput,
 ): Promise<Member> {
+  // The contract validates the raw value; these checks apply to the trimmed
+  // one the service actually stores, so ' a ' cannot slip under the minimum.
+  const email = input.email?.trim() || undefined
+  const phone = input.phone?.trim() || undefined
+  for (const [field, value] of [
+    ['email', email],
+    ['phone', phone],
+  ] as const) {
+    if (value !== undefined && value.length < CONTACT_MIN_LENGTH) {
+      throw new DomainError(
+        'validation_failed',
+        `The trimmed ${field} is shorter than ${CONTACT_MIN_LENGTH} characters`,
+        400,
+      )
+    }
+  }
   let created: Member | undefined
   await deps.db.transaction(async (tx) =>
     recordChanges(
@@ -45,9 +64,11 @@ export async function provisionMember(
           created = await insertMember(writeTx, spaceId, {
             name: input.name.trim(),
             role: input.role,
+            // The schema already guarantees a non-space character, so the
+            // fallback only guards callers outside HTTP.
             displayName: input.displayName?.trim() || undefined,
-            email: input.email?.trim() || undefined,
-            phone: input.phone?.trim() || undefined,
+            email,
+            phone,
             interfaceLanguage: input.interfaceLanguage,
             revision,
             now: deps.clock.now(),
@@ -71,11 +92,11 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
 /**
  * Moves a member between the owner and regular roles. The space must keep at
  * least one owner (CONTEXT.md: a space is never left without one). The
- * current role is read under a row lock before anything is written, so an
- * unchanged role is answered without spending a revision, and the
- * last-owner check runs inside the writes callback, after the revision bump
- * has taken the space row lock, so concurrent role changes cannot slip past
- * it.
+ * space row lock is taken before the member is read — the one lock order in
+ * the codebase — so an unchanged role is answered without spending a
+ * revision, the last-owner count runs serialised against concurrent role
+ * changes, and tombstone inserts that lock the space first can never
+ * deadlock against this transaction.
  */
 export async function changeMemberRole(
   deps: MembersDeps,
@@ -84,7 +105,8 @@ export async function changeMemberRole(
   role: MemberRole,
 ): Promise<Member> {
   return deps.db.transaction(async (tx) => {
-    const member = await getMemberInSpaceForUpdate(tx, spaceId, memberId)
+    await lockSpace(tx, spaceId)
+    const member = await getMemberInSpace(tx, spaceId, memberId)
     if (member === undefined) {
       throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
     }
@@ -120,5 +142,5 @@ export async function changeMemberRole(
 
 /** Counts members per space across the installation, for administrative listings. */
 export function adminCountMembersBySpace(deps: MembersDeps): Promise<Map<string, number>> {
-  return countAllMembersBySpace(deps.db)
+  return countMembersPerSpaceAcrossInstallation(deps.db)
 }
