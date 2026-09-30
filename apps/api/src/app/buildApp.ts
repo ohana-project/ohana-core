@@ -3,6 +3,8 @@ import swagger from '@fastify/swagger'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import Fastify, { type FastifyBaseLogger } from 'fastify'
 import { adminRoutes } from '../modules/admin/routes.ts'
+import { adminCountMembersBySpace } from '../modules/members/index.ts'
+import { membersRoutes } from '../modules/members/routes.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
@@ -41,7 +43,16 @@ export function buildApp(deps: AppDeps) {
 
   app.register(cookie)
   app.register(healthRoutes, { prefix: '/api', deps: { db: deps.db, storage: deps.storage } })
-  app.register(spacesRoutes, { prefix: '/api/v1', deps: { db: deps.db, clock: deps.clock } })
+  // The composition root is the one place allowed to know every module: the
+  // spaces listing needs the members module's administrative count, and the
+  // members module sits above spaces, so the counter is injected here
+  // instead of imported inside the spaces module.
+  app.register(spacesRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock },
+    countMembers: (db) => adminCountMembersBySpace({ db, clock: deps.clock }),
+  })
+  app.register(membersRoutes, { prefix: '/api/v1', deps: { db: deps.db, clock: deps.clock } })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
   if (deps.webDist !== undefined) {
     app.register(registerStaticFiles, { webDist: deps.webDist })

@@ -42,7 +42,7 @@ export interface TestHarness {
   db: Db
   clock: FixedClock
   storage: ObjectStorageWithSetup
-  createSpace(input?: { name?: string }): Promise<Space>
+  createSpace(input?: { name?: string; timezone?: string }): Promise<Space>
   createMember(
     spaceId: string,
     input?: { name?: string; role?: 'owner' | 'regular' },
@@ -69,7 +69,10 @@ export async function createTestHarness(): Promise<TestHarness> {
     clock,
     storage,
     createSpace: (input) =>
-      createSpace({ db, clock }, { name: input?.name ?? `Space ${++factoryCounter}` }),
+      createSpace(
+        { db, clock },
+        { name: input?.name ?? `Space ${++factoryCounter}`, timezone: input?.timezone },
+      ),
     createMember: (spaceId, input) =>
       db.transaction(async (tx: Tx) => {
         let created: Member | undefined

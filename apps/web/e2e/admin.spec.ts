@@ -57,10 +57,19 @@ async function mockAdminApi(page: Page, options: { signedIn?: boolean } = {}) {
     }
     return route.fulfill({ status: 204 })
   })
+  // Since ticket #8 the signed-in landing is the spaces list.
+  await page.route('**/api/v1/spaces', async (route) => {
+    if (route.request().method() !== 'GET') return route.fulfill({ status: 405 })
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    })
+  })
 }
 
 test.describe('administrative sign-in', () => {
-  test('signs in and lands on the password screen (ru)', async ({ page }) => {
+  test('signs in and lands on the spaces list (ru)', async ({ page }) => {
     await mockAdminApi(page)
     await page.goto('/admin/login')
 
@@ -68,8 +77,8 @@ test.describe('administrative sign-in', () => {
     await page.getByLabel('Пароль администратора').fill(CORRECT_PASSWORD)
     await page.getByRole('button', { name: 'Войти в админку' }).click()
 
-    await expect(page).toHaveURL(/\/admin\/password$/)
-    await expect(page.getByRole('heading', { name: 'Пароль администратора' })).toBeVisible()
+    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
   })
 
   test('rejects a wrong password with an inline error (ru)', async ({ page }) => {
@@ -107,14 +116,14 @@ test.describe('administrative sign-in', () => {
     await mockAdminApi(page, { signedIn: true })
     await page.goto('/admin/login')
 
-    await expect(page).toHaveURL(/\/admin\/password$/)
+    await expect(page).toHaveURL(/\/admin$/)
   })
 })
 
 test.describe('administrative password change', () => {
   test('changes the password and confirms with a toast (ru)', async ({ page }) => {
     await mockAdminApi(page, { signedIn: true })
-    await page.goto('/admin/password')
+    await page.goto('/admin/settings')
 
     await page.getByLabel('Текущий пароль').fill(CORRECT_PASSWORD)
     await page.getByLabel('Новый пароль', { exact: true }).fill('a-considerably-new-password')
@@ -126,7 +135,7 @@ test.describe('administrative password change', () => {
 
   test('keeps the mismatch message until the passwords match (ru)', async ({ page }) => {
     await mockAdminApi(page, { signedIn: true })
-    await page.goto('/admin/password')
+    await page.goto('/admin/settings')
 
     await page.getByLabel('Текущий пароль').fill(CORRECT_PASSWORD)
     await page.getByLabel('Новый пароль', { exact: true }).fill('a-considerably-new-password')
@@ -138,7 +147,7 @@ test.describe('administrative password change', () => {
 
   test('offers sign-out from the administrative area (ru)', async ({ page }) => {
     await mockAdminApi(page, { signedIn: true })
-    await page.goto('/admin/password')
+    await page.goto('/admin/settings')
 
     await page.getByRole('button', { name: 'Выйти из админки' }).click()
 

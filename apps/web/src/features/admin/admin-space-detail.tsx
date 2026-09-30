@@ -1,0 +1,602 @@
+import { Link } from '@tanstack/react-router'
+import { type FormEvent, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import {
+  type AdminMember,
+  adminSpaceErrorMessage,
+  CONTACT_MIN_LENGTH,
+  useAdminSpace,
+  useChangeMemberRole,
+  useProvisionMember,
+  useSpaceMembers,
+  useUpdateSpace,
+} from '@/features/admin/use-admin-spaces.ts'
+import { hueFromId, monogramOf } from '@/lib/monogram.ts'
+import { timezoneOptions } from '@/lib/timezones.ts'
+import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
+import { Badge } from '@/ui/badge.tsx'
+import { Button } from '@/ui/button.tsx'
+import { Card } from '@/ui/card.tsx'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog.tsx'
+import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { ErrorState } from '@/ui/error-state.tsx'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
+import { Icon } from '@/ui/icon.tsx'
+import { Input } from '@/ui/input.tsx'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from '@/ui/item.tsx'
+import { SectionHeader } from '@/ui/section-header.tsx'
+import { Select } from '@/ui/select.tsx'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/ui/sheet.tsx'
+import { Spinner } from '@/ui/spinner.tsx'
+import { toast } from '@/ui/toast.tsx'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group.tsx'
+
+/*
+ * The administrative space screen (docs/design/screens/admin-space.html):
+ * the space header, its members with roles, and a settings sheet for the
+ * name and default time zone. Access codes belong to ticket #9.
+ */
+
+export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
+  const { t, i18n } = useTranslation()
+  const space = useAdminSpace(spaceId)
+  const members = useSpaceMembers(spaceId)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [provisionOpen, setProvisionOpen] = useState(false)
+
+  const dateFormatter = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long' })
+
+  if (space.isPending || members.isPending) {
+    return (
+      <div className="grid place-items-center py-16">
+        <Spinner className="size-6" />
+      </div>
+    )
+  }
+  if (space.isError) {
+    return <ErrorState onRetry={() => void space.refetch()} />
+  }
+  if (members.isError) {
+    return <ErrorState onRetry={() => void members.refetch()} />
+  }
+
+  const current = space.data
+  const list = members.data
+  const owners = list.filter((member) => member.role === 'owner').length
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Link
+        to="/admin"
+        className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+      >
+        <Icon name="chevron-left" className="size-4" />
+        {t('admin.space.back')}
+      </Link>
+
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <Avatar size="lg" hue={hueFromId(current.id)}>
+            <AvatarFallback>{monogramOf(current.name)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <h1 className="text-display-lg">{current.name}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {t('admin.space.createdOn', {
+                date: dateFormatter.format(new Date(current.createdAt)),
+              })}
+              {' · '}
+              {t('admin.space.timezoneMeta', { zone: current.timezone })}
+            </p>
+          </div>
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => setSettingsOpen(true)}>
+          <Icon name="settings" className="size-4" />
+          {t('admin.space.settings')}
+        </Button>
+      </header>
+
+      <section>
+        <SectionHeader
+          title={t('admin.space.members')}
+          action={
+            <Button size="sm" onClick={() => setProvisionOpen(true)}>
+              <Icon name="plus" className="size-4" />
+              {t('admin.space.addMember')}
+            </Button>
+          }
+        />
+        {list.length === 0 ? (
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="users" />
+              </EmptyMedia>
+              <EmptyTitle>{t('admin.space.noMembers')}</EmptyTitle>
+            </Empty>
+          </Card>
+        ) : (
+          <Card className="py-0">
+            <ItemGroup>
+              {list.map((member) => (
+                <MemberRow
+                  key={member.id}
+                  member={member}
+                  spaceId={spaceId}
+                  canDemote={member.role === 'owner' && owners > 1}
+                />
+              ))}
+            </ItemGroup>
+          </Card>
+        )}
+        <p className="mt-2.5 px-1 text-sm text-muted-foreground">
+          {t('admin.space.lastOwnerNote')}
+        </p>
+      </section>
+
+      <SpaceSettingsSheet
+        spaceId={spaceId}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        initialName={current.name}
+        initialTimezone={current.timezone}
+      />
+      <ProvisionMemberSheet
+        spaceId={spaceId}
+        open={provisionOpen}
+        onOpenChange={setProvisionOpen}
+      />
+    </div>
+  )
+}
+
+function MemberRow({
+  member,
+  spaceId,
+  canDemote,
+}: {
+  member: AdminMember
+  spaceId: string
+  canDemote: boolean
+}) {
+  const { t } = useTranslation()
+  const changeRole = useChangeMemberRole(spaceId)
+  const [confirmRole, setConfirmRole] = useState<'owner' | 'regular' | undefined>()
+
+  const contacts = [member.displayName, member.email, member.phone].filter(Boolean).join(' · ')
+
+  const applyRole = () => {
+    if (confirmRole === undefined) return
+    changeRole.mutate(
+      { memberId: member.id, role: confirmRole },
+      {
+        onSuccess: () => setConfirmRole(undefined),
+        onError: (error) => toast(adminSpaceErrorMessage(error, t), 'danger'),
+      },
+    )
+  }
+
+  const dialog =
+    confirmRole === undefined
+      ? undefined
+      : confirmRole === 'owner'
+        ? {
+            title: t('admin.space.makeOwnerTitle', { name: member.name }),
+            text: t('admin.space.makeOwnerText'),
+            confirm: t('admin.space.makeOwnerConfirm'),
+          }
+        : {
+            title: t('admin.space.makeRegularTitle', { name: member.name }),
+            text: t('admin.space.makeRegularText'),
+            confirm: t('admin.space.makeRegularConfirm'),
+          }
+
+  return (
+    <Item size="lg">
+      <Avatar size="sm" hue={hueFromId(member.id)}>
+        <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
+      </Avatar>
+      <ItemContent>
+        <ItemTitle>{member.name}</ItemTitle>
+        {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
+      </ItemContent>
+      <ItemActions>
+        <Badge variant={member.role === 'owner' ? 'primary' : 'neutral'}>
+          {t(member.role === 'owner' ? 'admin.space.ownerPill' : 'admin.space.regularPill')}
+        </Badge>
+        {member.role === 'regular' ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('admin.space.makeOwner')}
+            onClick={() => setConfirmRole('owner')}
+          >
+            <Icon name="crown" className="size-4" />
+          </Button>
+        ) : canDemote ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={t('admin.space.makeRegular')}
+            onClick={() => setConfirmRole('regular')}
+          >
+            <Icon name="user" className="size-4" />
+          </Button>
+        ) : null}
+      </ItemActions>
+      {dialog !== undefined ? (
+        // A mid-flight role change owns the dialog: it cannot be dismissed
+        // until the request settles, so the callbacks land on a visible dialog.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !changeRole.isPending) setConfirmRole(undefined)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{dialog.title}</DialogTitle>
+              <DialogDescription>{dialog.text}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={changeRole.isPending}
+                onClick={() => setConfirmRole(undefined)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button onClick={applyRole} disabled={changeRole.isPending}>
+                {dialog.confirm}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </Item>
+  )
+}
+
+function SpaceSettingsSheet({
+  spaceId,
+  open,
+  onOpenChange,
+  initialName,
+  initialTimezone,
+}: {
+  spaceId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialName: string
+  initialTimezone: string
+}) {
+  const { t, i18n } = useTranslation()
+  const updateSpace = useUpdateSpace(spaceId)
+  const [name, setName] = useState(initialName)
+  const [timezone, setTimezone] = useState(initialTimezone)
+  const [nameError, setNameError] = useState<string | undefined>()
+  const zones = useMemo(
+    () => timezoneOptions(i18n.language as 'ru' | 'en', new Date()),
+    [i18n.language],
+  )
+
+  // Abandoned edits must not survive closing, and a background refetch must
+  // not interrupt typing: the reset runs on the open transition only, during
+  // render, so the first frame already shows the server's values.
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
+    if (open) {
+      setName(initialName)
+      setTimezone(initialTimezone)
+      setNameError(undefined)
+    }
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (updateSpace.isPending) return
+    if (name.trim().length === 0) {
+      setNameError(t('admin.space.nameRequired'))
+      return
+    }
+    // Only the changed fields travel; an unchanged sheet closes silently.
+    const changes: { name?: string; timezone?: string } = {}
+    if (name.trim() !== initialName) changes.name = name.trim()
+    if (timezone !== initialTimezone) changes.timezone = timezone
+    if (Object.keys(changes).length === 0) {
+      onOpenChange(false)
+      return
+    }
+    updateSpace.mutate(changes, {
+      onSuccess: () => {
+        onOpenChange(false)
+        toast(t('admin.space.savedToast'))
+      },
+      onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
+    })
+  }
+
+  // A mid-flight request owns the sheet: closing it would leave the
+  // success/error callbacks with nowhere sensible to land.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && updateSpace.isPending) return
+    onOpenChange(next)
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>{t('admin.space.settingsTitle')}</SheetTitle>
+        </SheetHeader>
+        <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+          <Field data-invalid={nameError !== undefined || undefined}>
+            <FieldLabel htmlFor="space-settings-name">{t('admin.space.nameLabel')}</FieldLabel>
+            <Input
+              id="space-settings-name"
+              value={name}
+              maxLength={200}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameError(undefined)
+              }}
+            />
+            {nameError !== undefined ? (
+              <FieldError>{nameError}</FieldError>
+            ) : (
+              <FieldDescription>{t('admin.space.nameHint')}</FieldDescription>
+            )}
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="space-settings-timezone">
+              {t('admin.space.timezoneLabel')}
+            </FieldLabel>
+            <Select
+              id="space-settings-timezone"
+              value={timezone}
+              onChange={(event) => setTimezone(event.target.value)}
+            >
+              {zones.map((zone) => (
+                <option key={zone.value} value={zone.value}>
+                  {zone.label}
+                </option>
+              ))}
+            </Select>
+            <FieldDescription>{t('admin.space.timezoneHint')}</FieldDescription>
+          </Field>
+          <SheetFooter>
+            <Button type="submit" size="lg" disabled={updateSpace.isPending}>
+              {t('admin.space.save')}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function ProvisionMemberSheet({
+  spaceId,
+  open,
+  onOpenChange,
+}: {
+  spaceId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const provisionMember = useProvisionMember(spaceId)
+  const [name, setName] = useState('')
+  const [role, setRole] = useState<'owner' | 'regular'>('regular')
+  const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [interfaceLanguage, setInterfaceLanguage] = useState<'' | 'ru' | 'en'>('')
+  const [nameError, setNameError] = useState<string | undefined>()
+  const [emailError, setEmailError] = useState<string | undefined>()
+  const [phoneError, setPhoneError] = useState<string | undefined>()
+  const [formError, setFormError] = useState<string | undefined>()
+
+  // Abandoned edits must not survive into the next session: everything
+  // resets on the open transition, during render, and a pending submission
+  // keeps the sheet open until it settles.
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
+    if (open) {
+      setName('')
+      setRole('regular')
+      setDisplayName('')
+      setEmail('')
+      setPhone('')
+      setInterfaceLanguage('')
+      setNameError(undefined)
+      setEmailError(undefined)
+      setPhoneError(undefined)
+      setFormError(undefined)
+    }
+  }
+
+  // A mid-flight request owns the sheet: closing it would leave the
+  // success/error callbacks with nowhere sensible to land.
+  const handleOpenChange = (next: boolean) => {
+    if (!next && provisionMember.isPending) return
+    onOpenChange(next)
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (provisionMember.isPending) return
+    const failures: { name?: string; email?: string; phone?: string } = {}
+    if (name.trim().length === 0) failures.name = t('admin.space.memberNameRequired')
+    if (email.trim().length > 0 && [...email.trim()].length < CONTACT_MIN_LENGTH) {
+      failures.email = t('admin.space.tooShort', { count: CONTACT_MIN_LENGTH })
+    }
+    if (phone.trim().length > 0 && [...phone.trim()].length < CONTACT_MIN_LENGTH) {
+      failures.phone = t('admin.space.tooShort', { count: CONTACT_MIN_LENGTH })
+    }
+    setNameError(failures.name)
+    setEmailError(failures.email)
+    setPhoneError(failures.phone)
+    if (
+      failures.name !== undefined ||
+      failures.email !== undefined ||
+      failures.phone !== undefined
+    ) {
+      return
+    }
+    provisionMember.mutate(
+      {
+        name: name.trim(),
+        role,
+        displayName: displayName.trim() || undefined,
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        interfaceLanguage: interfaceLanguage === '' ? undefined : interfaceLanguage,
+      },
+      {
+        onSuccess: () => {
+          onOpenChange(false)
+          toast(t('admin.space.addedToast'))
+        },
+        // A schema answer concerns the form as a whole, not one field.
+        onError: (error) => setFormError(adminSpaceErrorMessage(error, t)),
+      },
+    )
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>{t('admin.space.addMemberTitle')}</SheetTitle>
+          <SheetDescription>{t('admin.space.addMemberDescription')}</SheetDescription>
+        </SheetHeader>
+        <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+          <Field data-invalid={nameError !== undefined || undefined}>
+            <FieldLabel htmlFor="provision-member-name">
+              {t('admin.space.memberNameLabel')}
+            </FieldLabel>
+            <Input
+              id="provision-member-name"
+              value={name}
+              maxLength={200}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameError(undefined)
+                setFormError(undefined)
+              }}
+            />
+            {nameError !== undefined ? <FieldError>{nameError}</FieldError> : null}
+          </Field>
+          <Field>
+            <FieldLabel>{t('admin.space.roleLabel')}</FieldLabel>
+            <ToggleGroup
+              value={[role]}
+              onValueChange={(value) => {
+                const next = value.at(-1)
+                if (next === 'owner' || next === 'regular') setRole(next)
+                setFormError(undefined)
+              }}
+            >
+              <ToggleGroupItem value="regular">{t('admin.space.roleRegular')}</ToggleGroupItem>
+              <ToggleGroupItem value="owner">{t('admin.space.roleOwner')}</ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+          <p className="text-meta font-mono text-muted-foreground uppercase">
+            {t('admin.space.profileTitle')}
+          </p>
+          <Field>
+            <FieldLabel htmlFor="provision-member-display-name">
+              {t('admin.space.displayNameLabel')}
+            </FieldLabel>
+            <Input
+              id="provision-member-display-name"
+              value={displayName}
+              maxLength={200}
+              onChange={(event) => {
+                setDisplayName(event.target.value)
+                setFormError(undefined)
+              }}
+            />
+          </Field>
+          <Field data-invalid={emailError !== undefined || undefined}>
+            <FieldLabel htmlFor="provision-member-email">{t('admin.space.emailLabel')}</FieldLabel>
+            <Input
+              id="provision-member-email"
+              type="email"
+              value={email}
+              maxLength={200}
+              onChange={(event) => {
+                setEmail(event.target.value)
+                setEmailError(undefined)
+                setFormError(undefined)
+              }}
+            />
+            {emailError !== undefined ? <FieldError>{emailError}</FieldError> : null}
+          </Field>
+          <Field data-invalid={phoneError !== undefined || undefined}>
+            <FieldLabel htmlFor="provision-member-phone">{t('admin.space.phoneLabel')}</FieldLabel>
+            <Input
+              id="provision-member-phone"
+              type="tel"
+              value={phone}
+              maxLength={40}
+              onChange={(event) => {
+                setPhone(event.target.value)
+                setPhoneError(undefined)
+                setFormError(undefined)
+              }}
+            />
+            {phoneError !== undefined ? <FieldError>{phoneError}</FieldError> : null}
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="provision-member-language">
+              {t('admin.space.languageLabel')}
+            </FieldLabel>
+            <Select
+              id="provision-member-language"
+              value={interfaceLanguage}
+              onChange={(event) => {
+                setInterfaceLanguage(event.target.value as '' | 'ru' | 'en')
+                setFormError(undefined)
+              }}
+            >
+              <option value="">—</option>
+              <option value="ru">{t('language.ru')}</option>
+              <option value="en">{t('language.en')}</option>
+            </Select>
+          </Field>
+          {formError !== undefined ? <FieldError>{formError}</FieldError> : null}
+          <SheetFooter>
+            <Button type="submit" size="lg" disabled={provisionMember.isPending}>
+              {t('admin.space.add')}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  )
+}

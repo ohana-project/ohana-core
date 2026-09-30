@@ -1,23 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { AdminLayout } from '@/app/layouts/admin-layout.tsx'
 import { AdminSessionGate } from '@/features/admin/admin-session-gate.tsx'
-import { AdminSpacesList } from '@/features/admin/admin-spaces-list.tsx'
+import { AdminSpaceDetail } from '@/features/admin/admin-space-detail.tsx'
 import { AdminTopBarActions } from '@/features/admin/admin-top-bar-actions.tsx'
 
-/*
- * The administrative area root: the spaces list. Signed-out visitors go
- * to the sign-in screen.
- */
-function AdminSpacesPage() {
+function AdminSpacePage() {
+  const { spaceId } = Route.useParams()
   return (
     <AdminSessionGate require="signed-in" redirectTo="/admin/login">
       <AdminLayout actions={<AdminTopBarActions />}>
-        <AdminSpacesList />
+        <AdminSpaceDetail spaceId={spaceId} />
       </AdminLayout>
     </AdminSessionGate>
   )
 }
 
-export const Route = createFileRoute('/admin/')({
-  component: AdminSpacesPage,
+export const Route = createFileRoute('/admin/spaces/$spaceId')({
+  component: AdminSpacePage,
 })

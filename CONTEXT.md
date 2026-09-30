@@ -19,7 +19,7 @@ The level of authority a member has in their space: owner or regular in version 
 _Avoid_: Instance administrator (not a member role).
 
 **Owner** (RU: владелец):
-A member with the owner role, who administers their space: its members, section visibility, and access-code issuance. A space may have several owners.
+A member with the owner role, who administers their space: its members, section visibility, and access-code issuance. A space may have several owners. A space that has an owner never loses the last one: the owner role can be passed on, but not removed from the final owner.
 _Avoid_: Instance administrator, admin.
 
 **Regular member** (RU: обычный участник):
