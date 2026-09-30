@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 import { uuidv7 } from '../../platform/db/uuid.ts'
@@ -51,6 +52,11 @@ export const accessCodes = pgTable(
     unique('access_codes_code_hash_key').on(table.codeHash),
     unique('access_codes_space_id_id_key').on(table.spaceId, table.id),
     index('access_codes_member_id_idx').on(table.memberId),
+    // The database backstop for the issuance lock: a member never holds two
+    // live codes at once (ADR-0005), however the writers interleave.
+    uniqueIndex('access_codes_one_live_per_member_idx')
+      .on(table.spaceId, table.memberId)
+      .where(sql`${table.status} = 'issued'`),
     foreignKey({
       name: 'access_codes_space_id_member_id_fk',
       columns: [table.spaceId, table.memberId],

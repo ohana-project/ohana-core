@@ -6,7 +6,7 @@ import { getSpace, getSpaceInTx, lockSpace } from '../spaces/index.ts'
 import type { AccessCodeStatus } from './contracts.ts'
 import {
   deleteExpiredMemberSessionsAcrossSpaces,
-  deleteMemberSessionAcrossSpaces,
+  deleteMemberSessionByTokenHashAcrossSpaces,
   expireAccessCodeRow,
   findAccessCodeByHashAcrossSpaces,
   findMemberSessionByTokenHashAcrossSpaces,
@@ -396,6 +396,6 @@ export async function signOutMember(
 ): Promise<void> {
   if (token === undefined || token.length === 0) return
   await deps.db.transaction((tx) =>
-    deleteMemberSessionAcrossSpaces(tx, memberId, codeHashOf(token)),
+    deleteMemberSessionByTokenHashAcrossSpaces(tx, memberId, codeHashOf(token)),
   )
 }

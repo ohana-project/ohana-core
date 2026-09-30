@@ -14,7 +14,7 @@ import {
   generateAccessCode,
   normalizeAccessCode,
 } from './service.ts'
-import { accessCodes } from './tables.ts'
+import { accessCodes, memberSessions } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
 afterAll(async () => {
@@ -226,6 +226,40 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/access-codes', () => {
       // The space lock serialises the two: one lands issued, the earlier
       // one is swept to replaced.
       expect(rows.map((row) => row.status).sort()).toEqual(['issued', 'replaced'])
+    })
+  })
+
+  test('a redemption that names no live member leaves the code spendable', async () => {
+    const space = await harness.createSpace()
+    const member = await harness.createMember(space.id, { name: 'Аня' })
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const issued = await issueCode(app, cookie, space.id, member.id)
+
+      // Unreachable over HTTP today (the composite FK), but the guarantee
+      // matters: a failed redemption must roll the spend back.
+      const { redeemAccessCode } = await import('./service.ts')
+      await expect(
+        redeemAccessCode(
+          {
+            db: harness.db,
+            clock: harness.clock,
+            findMemberInSpace: async () => undefined,
+          },
+          issued.code,
+        ),
+      ).rejects.toMatchObject({ code: 'access_code_invalid' })
+
+      const rows = await harness.db
+        .select({ status: accessCodes.status })
+        .from(accessCodes)
+        .where(eq(accessCodes.id, issued.id))
+      expect(rows[0]?.status).toBe('issued')
+      const sessions = await harness.db
+        .select()
+        .from(memberSessions)
+        .where(eq(memberSessions.memberId, member.id))
+      expect(sessions).toHaveLength(0)
     })
   })
 

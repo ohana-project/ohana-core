@@ -197,7 +197,7 @@ export async function findMemberSessionByTokenHashAcrossSpaces(
   return rows[0]
 }
 
-export async function deleteMemberSessionAcrossSpaces(
+export async function deleteMemberSessionByTokenHashAcrossSpaces(
   tx: Tx,
   memberId: string,
   tokenHash: string,

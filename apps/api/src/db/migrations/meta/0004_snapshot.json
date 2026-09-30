@@ -1,5 +1,5 @@
 {
-  "id": "98469918-d2d8-475a-9771-4e86f4bfa315",
+  "id": "7ad7eee2-65ae-452e-97f5-da8d2f380802",
   "prevId": "abe1046e-2be7-4ccb-8380-b79aa90d9338",
   "version": "7",
   "dialect": "postgresql",
@@ -82,6 +82,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "access_codes_one_live_per_member_idx": {
+          "name": "access_codes_one_live_per_member_idx",
+          "columns": [
+            {
+              "expression": "space_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"access_codes\".\"status\" = 'issued'",
           "concurrently": false,
           "method": "btree",
           "with": {}

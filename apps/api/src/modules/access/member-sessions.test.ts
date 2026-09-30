@@ -525,6 +525,42 @@ describe('onboarding and profiles', () => {
     })
   })
 
+  test('sign-out refuses to spend another member’s token under a foreign cookie name', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня' })
+    const dima = await harness.createMember(space.id, { name: 'Дима' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const anyaSession = sessionFrom(
+        await redeem(app, (await issueCode(app, adminCookie, space.id, anya.id)).code),
+      )
+      const dimaSession = sessionFrom(
+        await redeem(app, (await issueCode(app, adminCookie, space.id, dima.id)).code),
+      )
+
+      // Дима's token disguised as Аня's cookie: the delete is scoped to the
+      // named member, so the token deletes nothing — not even its own
+      // session, which belongs to Дима.
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/me/session',
+        headers: {
+          'x-ohana-member': anyaSession.memberId,
+          cookie: `${memberSessionCookieName(anyaSession.memberId)}=${dimaSession.cookie.split('=')[1]}`,
+        },
+      })
+      expect(response.statusCode).toBe(204)
+      for (const session of [anyaSession, dimaSession]) {
+        const alive = await app.inject({
+          method: 'GET',
+          url: '/api/v1/me',
+          headers: memberHeaders(session),
+        })
+        expect(alive.statusCode).toBe(200)
+      }
+    })
+  })
+
   test('sign-out deletes the session and clears the cookie', async () => {
     const space = await harness.createSpace()
     const member = await harness.createMember(space.id, { name: 'Аня' })

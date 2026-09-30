@@ -34,5 +34,6 @@ ALTER TABLE "access_codes" ADD CONSTRAINT "access_codes_space_id_issuer_member_i
 ALTER TABLE "member_sessions" ADD CONSTRAINT "member_sessions_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "member_sessions" ADD CONSTRAINT "member_sessions_space_id_member_id_fk" FOREIGN KEY ("space_id","member_id") REFERENCES "public"."members"("space_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "access_codes_member_id_idx" ON "access_codes" USING btree ("member_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "access_codes_one_live_per_member_idx" ON "access_codes" USING btree ("space_id","member_id") WHERE "access_codes"."status" = 'issued';--> statement-breakpoint
 CREATE INDEX "member_sessions_expires_at_idx" ON "member_sessions" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "member_sessions_member_id_idx" ON "member_sessions" USING btree ("member_id");

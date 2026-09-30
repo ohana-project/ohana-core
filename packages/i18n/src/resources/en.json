@@ -318,7 +318,7 @@
       "excerpt": "Entry text",
       "excerptPlaceholder": "What happened around these photos?",
       "code": "Access code",
-      "codeHint": "Chosen by the owner, valid until revoked",
+      "codeHint": "Valid for 24 hours, one sign-in",
       "codeError": "No such code",
       "codeDisplay": "Access code — shown once"
     },

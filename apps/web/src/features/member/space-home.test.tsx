@@ -101,6 +101,7 @@ describe('SpaceHomeScreen', () => {
       }),
     )
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
+    expect(JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')).toEqual([])
   })
 
   it('keeps the sign-in and explains itself when sign-out fails', async () => {

@@ -69,8 +69,7 @@ export async function listSpaces(
   return rows.map((space) => ({ ...space, memberCount: counts.get(space.id) ?? 0 }))
 }
 
-/** The same read inside a caller's transaction, for multi-step use cases. */
-export async function getSpaceInTx(executor: Executor, spaceId: string): Promise<Space> {
+async function getSpaceOrThrow(executor: Executor, spaceId: string): Promise<Space> {
   const space = await getSpaceById(executor, spaceId)
   if (space === undefined) {
     throw new DomainError('space_not_found', `Space ${spaceId} does not exist`, 404)
@@ -79,7 +78,12 @@ export async function getSpaceInTx(executor: Executor, spaceId: string): Promise
 }
 
 export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space> {
-  return getSpaceInTx(deps.db, spaceId)
+  return getSpaceOrThrow(deps.db, spaceId)
+}
+
+/** The same read inside a caller's transaction, for multi-step use cases. */
+export async function getSpaceInTx(tx: Tx, spaceId: string): Promise<Space> {
+  return getSpaceOrThrow(tx, spaceId)
 }
 
 /**

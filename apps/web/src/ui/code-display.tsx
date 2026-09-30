@@ -6,7 +6,7 @@ import { Icon } from '@/ui/icon.tsx'
 import { toast } from '@/ui/toast.tsx'
 
 /*
- * Ohana code display (`.code-display` in the prototype): an invite
+ * Ohana code display (`.code-display` in the prototype): an access
  * code shown once, mono on a dashed accent fill, selectable with one
  * tap (user-select: all), with a copy action beside it.
  */
