@@ -628,6 +628,11 @@ describe('describeDevice', () => {
       { browser: 'Edge', platform: 'Windows' },
     ],
     [
+      'edge on android',
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36 EdgA/120.0.2210.84',
+      { browser: 'Edge', platform: 'Android' },
+    ],
+    [
       'safari on iphone',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
       { browser: 'Safari', platform: 'iPhone' },
@@ -815,8 +820,20 @@ describe('the device review (ADR-0005)', () => {
       expect(inside.statusCode).toBe(200)
       expect(await lastUsedAtOf()).toBe(created)
 
+      // The boundary itself is exact: a request at precisely the interval
+      // leaves the stamp (stale-before equals created, and the write is
+      // strictly `<`), one millisecond later it does not.
+      harness.clock.advance(MEMBER_SESSION_TOUCH_INTERVAL_MS / 2)
+      const boundary = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: memberHeaders(session),
+      })
+      expect(boundary.statusCode).toBe(200)
+      expect(await lastUsedAtOf()).toBe(created)
+
       // Past the interval the stamp follows the clock.
-      harness.clock.advance(MEMBER_SESSION_TOUCH_INTERVAL_MS)
+      harness.clock.advance(1)
       const later = await app.inject({
         method: 'GET',
         url: '/api/v1/me',

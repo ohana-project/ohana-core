@@ -98,9 +98,26 @@ describe('AccountsScreen', () => {
     await vi.waitFor(() =>
       expect(window.localStorage.getItem('ohana.activeMember')).toBe(DACHA_ANYA.memberId),
     )
-    // The cleared query cache refetches the device review, naming the new
-    // active member through the API client's header.
-    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledWith('/api/v1/me/sessions'))
+    // The reset refetches the mounted review under its own key's member —
+    // not under whichever member happens to be active by then.
+    await vi.waitFor(() =>
+      expect(apiGet).toHaveBeenCalledWith('/api/v1/me/sessions', {
+        params: { header: { 'x-ohana-member': FAMILY_ANYA.memberId } },
+      }),
+    )
+  })
+
+  it('queries nothing for the device review without an active member', async () => {
+    seedRegistry()
+    // A device can hold sign-ins while none is active; the screen renders,
+    // but the review stays disabled — a request naming no member could
+    // only be refused.
+    window.localStorage.removeItem('ohana.activeMember')
+    renderWithProviders(<AccountsScreen />)
+
+    await screen.findByRole('heading', { name: 'Пространства' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(apiGet).not.toHaveBeenCalled()
   })
 
   it('composes the device name in the interface language from the captured parts', async () => {

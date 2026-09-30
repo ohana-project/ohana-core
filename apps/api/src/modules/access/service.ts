@@ -118,15 +118,20 @@ function firstMatch(userAgent: string, pairs: readonly (readonly [string, string
 /**
  * Reads the browser and the platform out of a user agent. Order matters:
  * Chromium-based agents embed other browsers' fragments, so the specific
- * browser is checked first, and the iOS browsers announce themselves with
- * their own tokens (CriOS, FxiOS, EdgiOS) before the generic Safari one.
- * iPadOS 13+ Safari sends the desktop Mac agent, so such an iPad reads as
- * macOS — indistinguishable server-side and accepted as such.
+ * browser is checked first, and each platform's token comes before the
+ * generic ones (Edge ships Edg/, EdgA/ on Android, EdgiOS on iOS; Chrome
+ * on iOS is CriOS; Firefox on iOS is FxiOS). Samsung Internet and Opera on
+ * iOS are deliberately left unread: they would need vendor tokens that
+ * other agents never carry, and they then fall back to the honest
+ * engine-level answer (Chrome, Safari). iPadOS 13+ Safari sends the
+ * desktop Mac agent, so such an iPad reads as macOS — indistinguishable
+ * server-side and accepted as such.
  */
 export function describeDevice(userAgent: string | undefined): DeviceDescription {
   if (userAgent === undefined || userAgent.length === 0) return { browser: '', platform: '' }
   const browser = firstMatch(userAgent, [
     ['Edg/', 'Edge'],
+    ['EdgA/', 'Edge'],
     ['EdgiOS', 'Edge'],
     ['OPR', 'Opera'],
     ['FxiOS', 'Firefox'],

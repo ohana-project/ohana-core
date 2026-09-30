@@ -26,8 +26,15 @@ export function useMemberSessions() {
   return useQuery({
     queryKey: memberSessionsQueryKey(memberId),
     enabled: memberId !== undefined,
-    queryFn: async (): Promise<MemberSessionRow[]> => {
-      const { data, error } = await api.GET('/api/v1/me/sessions')
+    // The header is tied to the key's member, not re-read at request time:
+    // a refetch that races a switch must answer for the key's member or
+    // name no member at all.
+    queryFn: async ({ queryKey }): Promise<MemberSessionRow[]> => {
+      const id = queryKey[1]
+      if (id === undefined) return []
+      const { data, error } = await api.GET('/api/v1/me/sessions', {
+        params: { header: { 'x-ohana-member': id } },
+      })
       await assertOk({ error })
       return data ?? []
     },

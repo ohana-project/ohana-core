@@ -14,8 +14,14 @@ export function useSpaceProfiles() {
   const memberId = getActiveMemberId()
   return useQuery({
     queryKey: ['member', memberId, 'profiles'],
-    queryFn: async (): Promise<MemberMe['member'][]> => {
-      const { data, error } = await api.GET('/api/v1/members')
+    enabled: memberId !== undefined,
+    // The header is tied to the key's member, not re-read at request time.
+    queryFn: async ({ queryKey }): Promise<MemberMe['member'][]> => {
+      const id = queryKey[1]
+      if (id === undefined) return []
+      const { data, error } = await api.GET('/api/v1/members', {
+        params: { header: { 'x-ohana-member': id } },
+      })
       await assertOk({ error })
       return data ?? []
     },
