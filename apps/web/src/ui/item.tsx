@@ -85,9 +85,9 @@ const itemMediaVariants = cva(
       tone: {
         neutral: 'bg-surface-2 text-muted-foreground',
         primary: 'bg-primary-soft text-primary',
-        ok: 'bg-ok/14 text-ok',
-        warn: 'bg-warn/16 text-warn',
-        danger: 'bg-destructive/13 text-destructive',
+        ok: 'bg-(--ok-fill) text-ok',
+        warn: 'bg-(--warn-fill) text-warn',
+        danger: 'bg-(--danger-fill) text-destructive',
       },
     },
     defaultVariants: {

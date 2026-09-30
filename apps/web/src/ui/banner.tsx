@@ -23,7 +23,7 @@ export function Banner({
       role="status"
       data-slot="banner"
       className={cn(
-        'flex items-center gap-2.5 rounded-md border border-[color-mix(in_oklch,var(--warn)_35%,transparent)] bg-[color-mix(in_oklch,var(--warn)_14%,var(--surface))] px-3.5 py-2.5 text-sm font-medium text-[color-mix(in_oklch,var(--warn)_80%,var(--fg))]',
+        'flex items-center gap-2.5 rounded-md border border-(--banner-border) bg-(--banner-fill) px-3.5 py-2.5 text-sm font-medium text-(--banner-text)',
         className,
       )}
       {...props}

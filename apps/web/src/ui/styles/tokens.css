@@ -29,6 +29,17 @@
   --accent-soft: color-mix(in oklch, var(--accent) 13%, transparent);
   --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
   --scrim: color-mix(in oklch, var(--fg) 38%, transparent);
+  /* hover accent: darkens 12% in light, lightens 10% in dark (README
+     "Components", button) — shared by the button and the retry link */
+  --accent-strong: color-mix(in oklch, var(--accent) 88%, black);
+  /* component fills, read by contrast.test.ts: the pill tints and the
+     offline banner (README "Components") */
+  --ok-fill: color-mix(in oklch, var(--ok) 14%, transparent);
+  --warn-fill: color-mix(in oklch, var(--warn) 16%, transparent);
+  --danger-fill: color-mix(in oklch, var(--danger) 13%, transparent);
+  --banner-fill: color-mix(in oklch, var(--warn) 14%, var(--surface));
+  --banner-border: color-mix(in oklch, var(--warn) 35%, transparent);
+  --banner-text: color-mix(in oklch, var(--warn) 80%, var(--fg));
 
   /* the only three shadows */
   --shadow-1: 0 1px 2px color-mix(in oklch, var(--fg) 7%, transparent);
@@ -85,6 +96,7 @@
   --accent-soft: color-mix(in oklch, var(--accent) 20%, transparent);
   --fg-soft: color-mix(in oklch, var(--fg) 9%, transparent);
   --scrim: color-mix(in oklch, black 55%, transparent);
+  --accent-strong: color-mix(in oklch, var(--accent) 90%, white);
 
   --shadow-1: 0 1px 2px color-mix(in oklch, black 30%, transparent);
   --shadow-2: 0 6px 20px color-mix(in oklch, black 38%, transparent);

@@ -57,6 +57,7 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-primary-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
   --color-scrim: var(--scrim);
 
   /* the only three shadows */
@@ -210,6 +211,10 @@
       animation-duration: 0.01ms !important;
       /* biome-ignore lint/complexity/noImportantStyles: same as above */
       transition-duration: 0.01ms !important;
+      /* one run instead of none: an infinite animation (the sync
+         spinner) would otherwise restart forever at 0.01ms */
+      /* biome-ignore lint/complexity/noImportantStyles: same as above */
+      animation-iteration-count: 1 !important;
     }
   }
 }

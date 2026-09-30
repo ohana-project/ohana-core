@@ -6,10 +6,10 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/ui/icon.tsx'
 
 /*
- * Ohana toast (docs/design/README.md, "Components"): a liquid-glass
- * pill with an ok or danger icon that hides after about 3 seconds. It
- * sits above the tab bar on mobile and bottom-right on desktop. Base
- * UI owns queueing, swiping and reduced-motion behaviour.
+ * Ohana toast (docs/design/README.md, "Components"): a glass pill with
+ * an ok or danger icon that hides after about 3 seconds. It sits above
+ * the tab bar on mobile and bottom-right on desktop. Base UI owns
+ * queueing, swiping and reduced-motion behaviour.
  */
 
 export type ToastTone = 'ok' | 'danger'
@@ -54,7 +54,7 @@ function ToastList() {
             toast={item}
             swipeDirection={tone === 'danger' ? ['down', 'right'] : 'down'}
             className={cn(
-              'glass-liquid pointer-events-auto relative flex max-w-[min(92vw,480px)] items-center gap-2.5 rounded-full px-[18px] py-3 text-[14.5px] font-medium text-foreground transition-[opacity,transform] duration-(--t-base) ease-(--ease) animate-toast-in data-ending-style:translate-y-2 data-ending-style:opacity-0 data-swiping:translate-y-(--toast-swipe-movement-y)',
+              'glass pointer-events-auto relative flex max-w-[min(92vw,480px)] items-center gap-2.5 rounded-full px-[18px] py-3 text-sm font-medium text-foreground transition-[opacity,transform] duration-(--t-base) ease-(--ease) animate-toast-in data-ending-style:translate-y-2 data-ending-style:opacity-0 data-swiping:translate-y-(--toast-swipe-movement-y)',
             )}
           >
             <Icon

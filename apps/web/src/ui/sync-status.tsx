@@ -5,31 +5,26 @@ import { Icon, type IconName } from '@/ui/icon.tsx'
 
 /*
  * Ohana sync status (`.sync[data-state]` in the prototype), six
- * states: the two in-flight states spin the `sync` glyph (never a
- * ring spinner; reduced motion stops it), synced/online carry their
+ * states: the two in-flight states spin the `sync` glyph (never a ring
+ * spinner; reduced motion stops it), the settled states carry their
  * semantic colours, and the two failure states offer a retry link.
- * Compact chip by default, full form via size="lg"; below 430px the
- * top-bar chip hides its text.
+ * Compact chip by default, full form via size="lg"; the top-bar chip
+ * goes icon-only below 430px (README "Components"), the full form
+ * keeps its text.
  */
 
 export type SyncState = 'first' | 'updating' | 'synced' | 'offline' | 'unreachable' | 'error'
 
-const STATE_ICONS: Record<SyncState, IconName> = {
-  first: 'sync',
-  updating: 'sync',
-  synced: 'check',
-  offline: 'wifi-off',
-  unreachable: 'cloud-off',
-  error: 'alert',
-}
-
-const STATE_STYLES: Record<SyncState, string> = {
-  first: 'text-primary',
-  updating: 'text-primary',
-  synced: 'text-muted-foreground',
-  offline: 'text-muted-foreground',
-  unreachable: 'text-destructive',
-  error: 'text-destructive',
+const STATES: Record<
+  SyncState,
+  { icon: IconName; label: string; glyph: string; spinning?: boolean }
+> = {
+  first: { icon: 'sync', label: 'text-primary', glyph: 'text-primary', spinning: true },
+  updating: { icon: 'sync', label: 'text-primary', glyph: 'text-primary', spinning: true },
+  synced: { icon: 'check', label: 'text-muted-foreground', glyph: 'text-ok' },
+  offline: { icon: 'wifi-off', label: 'text-muted-foreground', glyph: 'text-warn' },
+  unreachable: { icon: 'cloud-off', label: 'text-destructive', glyph: 'text-destructive' },
+  error: { icon: 'alert', label: 'text-destructive', glyph: 'text-destructive' },
 }
 
 export interface SyncStatusProps {
@@ -49,23 +44,13 @@ export function SyncStatus({
   className,
 }: SyncStatusProps) {
   const { t, i18n } = useTranslation()
+  const current = STATES[state]
 
   const time = syncedAt
     ? new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }).format(
         syncedAt,
       )
     : undefined
-
-  const text: Record<SyncState, string> = {
-    first: t('sync.first'),
-    updating: t('sync.updating'),
-    synced: t('sync.synced', { time: time ?? '' }),
-    offline: t('sync.offline'),
-    unreachable: t('sync.unreachable'),
-    error: t('sync.error'),
-  }
-
-  const canRetry = (state === 'unreachable' || state === 'error') && onRetry
 
   return (
     <div
@@ -74,28 +59,30 @@ export function SyncStatus({
       data-state={state}
       data-size={size}
       className={cn(
-        'inline-flex min-h-8 items-center gap-[7px] text-[13px] text-muted-foreground',
-        size === 'lg' && 'min-h-8 gap-2 text-sm',
-        STATE_STYLES[state],
+        'inline-flex min-h-8 items-center gap-[7px] text-sm text-muted-foreground',
+        size === 'lg' && 'gap-2',
+        current.label,
         className,
       )}
     >
       <Icon
-        name={STATE_ICONS[state]}
+        name={current.icon}
         className={cn(
+          'shrink-0',
           size === 'lg' ? 'size-[18px]' : 'size-4',
-          (state === 'first' || state === 'updating') && 'animate-spin-slow text-primary',
-          state === 'synced' && 'text-ok',
-          state === 'offline' && 'text-warn',
+          current.spinning && 'animate-spin-slow',
+          current.glyph,
         )}
       />
-      <span className="max-[430px]:hidden">{text[state]}</span>
-      {canRetry && (
+      <span className={cn(size === 'default' && 'max-[430px]:sr-only')}>
+        {t(`sync.${state}`, { time: time ?? '' })}
+      </span>
+      {(state === 'unreachable' || state === 'error') && onRetry && (
         <button
           type="button"
           data-slot="sync-retry"
           onClick={onRetry}
-          className="font-medium text-primary underline decoration-1 underline-offset-[3px] transition-colors hover:text-[color-mix(in_oklch,var(--accent)_85%,black)] dark:hover:text-[color-mix(in_oklch,var(--accent)_90%,white)]"
+          className="font-medium text-primary underline decoration-1 underline-offset-[3px] transition-colors duration-(--t-fast) ease-(--ease) hover:text-accent-strong"
         >
           {t('sync.retry')}
         </button>

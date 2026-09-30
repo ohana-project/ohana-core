@@ -9,9 +9,9 @@ import { Button } from '@/ui/button'
 import { Icon } from '@/ui/icon.tsx'
 
 /*
- * Ohana dialog (docs/design/README.md, "Components"): 440px liquid
- * chrome on the glass recipe, rising 14px from 98% scale. Behaviour
- * (focus trap, Esc) is Base UI's; only the appearance is ours.
+ * Ohana dialog (docs/design/README.md, "Components"): 440px on the
+ * glass recipe, rising 14px from 98% scale. Behaviour (focus trap,
+ * Esc) is Base UI's; only the appearance is ours.
  */
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {

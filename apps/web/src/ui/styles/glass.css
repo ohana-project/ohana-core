@@ -1,42 +1,58 @@
 /*
  * Ohana glass — docs/design/README.md, section "Glass".
  *
- * `glass` is for floating chrome (sheets, dialogs); `glass-bar` for the
- * top bar, tab bar and editor bar, which keep only the inset highlight;
- * `glass-liquid` for popovers, toasts and the FAB, which draw a gradient
- * rim instead of a hairline. Every surface falls back to opaque surface
- * with shadow-3 under prefers-reduced-transparency and where
- * backdrop-filter is unsupported — including the dark theme, whose
- * liquid recipe is otherwise more translucent than the light one. The
- * fallbacks live as plain rules (not inside the utilities): they must
- * win over the layered utilities whenever their condition matches.
+ * `glass` is the recipe for floating chrome that carries text (bars,
+ * sheets, dialogs, popovers, toasts); `glass-bar` for the chrome that
+ * keeps only the inset highlight; `glass-liquid` draws the gradient rim
+ * and stays on the FAB, the one glass surface without text — over a
+ * 52% fill (48% in dark) AA small text cannot hold even at full
+ * opacity, so text-bearing overlays take the plain recipe (README
+ * "Glass", "the fallback wherever text would miss AA").
+ *
+ * The recipes read their fill alpha and blur from the custom properties
+ * below, and the flat mode at the bottom only raises them: CSS cannot
+ * OR a media query with a feature query, so both flat conditions set
+ * the same values in their own block.
  */
 
-@utility glass {
-  /* 82% in light, 92% in dark: muted text on the bars must keep 4.5:1
-     even over white and black backdrops (see contrast.test.ts). */
-  background: color-mix(in oklch, var(--surface) 82%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  backdrop-filter: blur(24px) saturate(1.5);
-  border: 1px solid color-mix(in oklch, var(--fg) 9%, transparent);
-  box-shadow:
-    var(--shadow-3),
-    inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
+:root {
+  --glass-a: 82%;
+  --liquid-a: 52%;
+  --glass-backdrop: blur(24px) saturate(1.5);
+  --liquid-backdrop: blur(20px) saturate(1.7);
+  --scrim-backdrop: blur(12px) saturate(1.25);
+  /* the inset highlight on top of shadow-3; flat mode drops it */
+  --glass-inset: inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
+  /* the gradient rim, drawn by masking a border-sized overlay; flat
+     mode removes it */
+  --liquid-rim: "";
+  /* the FAB's brighter hover fill; flat mode flattens it with the rest */
+  --fab-hover-bg:
+    linear-gradient(180deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.12) 52%, rgb(255 255 255 / 0)),
+    color-mix(in oklch, var(--surface) 64%, transparent);
+}
 
-  [data-theme="dark"] & {
-    background: color-mix(in oklch, var(--surface) 92%, transparent);
-  }
+[data-theme="dark"] {
+  --glass-a: 92%;
+  --liquid-a: 48%;
+  --fab-hover-bg:
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 52%, rgb(255 255 255 / 0)),
+    color-mix(in oklch, var(--surface) 60%, transparent);
+}
+
+@utility glass {
+  background: color-mix(in oklch, var(--surface) var(--glass-a), transparent);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  border: 1px solid color-mix(in oklch, var(--fg) 9%, transparent);
+  box-shadow: var(--shadow-3), var(--glass-inset);
 }
 
 @utility glass-bar {
-  background: color-mix(in oklch, var(--surface) 82%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  backdrop-filter: blur(24px) saturate(1.5);
+  background: color-mix(in oklch, var(--surface) var(--glass-a), transparent);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
   box-shadow: inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
-
-  [data-theme="dark"] & {
-    background: color-mix(in oklch, var(--surface) 92%, transparent);
-  }
 }
 
 @utility glass-liquid {
@@ -47,19 +63,13 @@
       rgb(255 255 255 / 0.07) 52%,
       rgb(255 255 255 / 0)
     ),
-    color-mix(in oklch, var(--surface) 52%, transparent);
-  box-shadow:
-    0 0 0 0.5px color-mix(in oklch, var(--fg) 10%, rgb(255 255 255 / 0.4)),
-    inset 0 1px 0.5px rgb(255 255 255 / 0.35),
-    inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 9%, transparent),
-    0 2px 6px -1px color-mix(in oklch, var(--fg) 12%, transparent),
-    0 14px 36px -6px color-mix(in oklch, var(--fg) 20%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.7);
-  backdrop-filter: blur(20px) saturate(1.7);
+    color-mix(in oklch, var(--surface) var(--liquid-a), transparent);
+  box-shadow: var(--liquid-shadow, 0 0 0 0.5px color-mix(in oklch, var(--fg) 10%, rgb(255 255 255 / 0.4)), inset 0 1px 0.5px rgb(255 255 255 / 0.35), inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 9%, transparent), 0 2px 6px -1px color-mix(in oklch, var(--fg) 12%, transparent), 0 14px 36px -6px color-mix(in oklch, var(--fg) 20%, transparent));
+  -webkit-backdrop-filter: var(--liquid-backdrop);
+  backdrop-filter: var(--liquid-backdrop);
 
-  /* the gradient rim, drawn by masking a border-sized overlay */
   &::after {
-    content: "";
+    content: var(--liquid-rim);
     position: absolute;
     inset: 0;
     border-radius: inherit;
@@ -92,13 +102,8 @@
         rgb(255 255 255 / 0.02) 52%,
         rgb(255 255 255 / 0)
       ),
-      color-mix(in oklch, var(--surface) 48%, transparent);
-    box-shadow:
-      0 0 0 0.5px color-mix(in oklch, var(--fg) 18%, rgb(255 255 255 / 0.12)),
-      inset 0 1px 0.5px rgb(255 255 255 / 0.14),
-      inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 22%, transparent),
-      0 2px 8px -1px color-mix(in oklch, black 35%, transparent),
-      0 14px 36px -6px color-mix(in oklch, black 45%, transparent);
+      color-mix(in oklch, var(--surface) var(--liquid-a), transparent);
+    box-shadow: var(--liquid-shadow, 0 0 0 0.5px color-mix(in oklch, var(--fg) 18%, rgb(255 255 255 / 0.12)), inset 0 1px 0.5px rgb(255 255 255 / 0.14), inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 22%, transparent), 0 2px 8px -1px color-mix(in oklch, black 35%, transparent), 0 14px 36px -6px color-mix(in oklch, black 45%, transparent));
   }
 
   [data-theme="dark"] &::after {
@@ -115,74 +120,29 @@
 /* the overlay scrim behind sheets, dialogs and the lightbox */
 @utility scrim {
   background: var(--scrim);
-  -webkit-backdrop-filter: blur(12px) saturate(1.25);
-  backdrop-filter: blur(12px) saturate(1.25);
+  -webkit-backdrop-filter: var(--scrim-backdrop);
+  backdrop-filter: var(--scrim-backdrop);
 }
 
 /*
- * The FAB is the one element that hovers to a brighter liquid mix, which
- * does not fit a stateless utility; it lives here as a component class
- * next to the recipes it is built from. Mobile only (see layout rules).
+ * The FAB is the one element that hovers to a brighter liquid mix,
+ * which does not fit a stateless utility; it applies the liquid recipe
+ * and adds the interaction states here, next to the recipes it is
+ * built from. Mobile only (see layout rules).
  */
 @layer components {
   .fab {
+    @apply glass-liquid;
     color: var(--accent);
     border: 0;
-    background:
-      linear-gradient(
-        180deg,
-        rgb(255 255 255 / 0.26),
-        rgb(255 255 255 / 0.07) 52%,
-        rgb(255 255 255 / 0)
-      ),
-      color-mix(in oklch, var(--surface) 52%, transparent);
-    box-shadow:
-      0 0 0 0.5px color-mix(in oklch, var(--fg) 10%, rgb(255 255 255 / 0.4)),
-      inset 0 1px 0.5px rgb(255 255 255 / 0.35),
-      inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 9%, transparent),
-      0 2px 6px -1px color-mix(in oklch, var(--fg) 12%, transparent),
-      0 14px 36px -6px color-mix(in oklch, var(--fg) 20%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(1.7);
-    backdrop-filter: blur(20px) saturate(1.7);
     transition:
       transform var(--t-fast) var(--ease),
       box-shadow var(--t-base) var(--ease),
       background var(--t-fast) var(--ease);
   }
 
-  .fab::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      155deg,
-      rgb(255 255 255 / 0.72),
-      rgb(255 255 255 / 0.13) 34%,
-      rgb(255 255 255 / 0) 58%,
-      color-mix(in oklch, var(--fg) 12%, transparent)
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
   .fab:hover {
-    background:
-      linear-gradient(
-        180deg,
-        rgb(255 255 255 / 0.34),
-        rgb(255 255 255 / 0.12) 52%,
-        rgb(255 255 255 / 0)
-      ),
-      color-mix(in oklch, var(--surface) 64%, transparent);
+    background: var(--fab-hover-bg);
     box-shadow:
       0 0 0 0.5px color-mix(in oklch, var(--fg) 12%, rgb(255 255 255 / 0.48)),
       inset 0 1px 0.5px rgb(255 255 255 / 0.42),
@@ -194,97 +154,39 @@
   .fab:active {
     transform: translateY(1px);
   }
-
-  [data-theme="dark"] .fab {
-    background:
-      linear-gradient(
-        180deg,
-        rgb(255 255 255 / 0.1),
-        rgb(255 255 255 / 0.02) 52%,
-        rgb(255 255 255 / 0)
-      ),
-      color-mix(in oklch, var(--surface) 48%, transparent);
-    box-shadow:
-      0 0 0 0.5px color-mix(in oklch, var(--fg) 18%, rgb(255 255 255 / 0.12)),
-      inset 0 1px 0.5px rgb(255 255 255 / 0.14),
-      inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 22%, transparent),
-      0 2px 8px -1px color-mix(in oklch, black 35%, transparent),
-      0 14px 36px -6px color-mix(in oklch, black 45%, transparent);
-  }
-
-  [data-theme="dark"] .fab::after {
-    background: linear-gradient(
-      155deg,
-      rgb(255 255 255 / 0.36),
-      rgb(255 255 255 / 0.06) 34%,
-      rgb(255 255 255 / 0) 58%,
-      color-mix(in oklch, var(--fg) 20%, transparent)
-    );
-  }
-
-  [data-theme="dark"] .fab:hover {
-    background:
-      linear-gradient(
-        180deg,
-        rgb(255 255 255 / 0.14),
-        rgb(255 255 255 / 0.04) 52%,
-        rgb(255 255 255 / 0)
-      ),
-      color-mix(in oklch, var(--surface) 60%, transparent);
-  }
 }
 
 /*
- * Glass fallbacks: opaque surface with shadow-3. Unlayered on purpose —
- * they must beat the layered utilities whenever the condition holds,
- * in both themes. glass-bar keeps its inset highlight instead of
- * shadow-3, like the prototype's bars.
+ * Flat mode: opaque surface, shadow-3, no blur, no rim. Declared last
+ * and unlayered on purpose — unlayered rules beat the layered
+ * utilities, so these win over every recipe whenever the condition
+ * holds, in both themes. glass-bar keeps its inset highlight instead
+ * of shadow-3, like the prototype's bars.
  */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass,
-  .glass-bar,
-  .glass-liquid,
-  .fab {
-    background: var(--surface);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .glass,
-  .glass-liquid,
-  .fab {
-    box-shadow: var(--shadow-3);
-  }
-
-  .glass-liquid::after,
-  .fab::after {
-    content: none;
+  :root {
+    --glass-a: 100%;
+    --liquid-a: 100%;
+    --glass-backdrop: none;
+    --liquid-backdrop: none;
+    --scrim-backdrop: none;
+    --glass-inset: 0 0 0 transparent;
+    --liquid-shadow: var(--shadow-3);
+    --liquid-rim: none;
+    --fab-hover-bg: var(--surface);
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .glass,
-  .glass-bar,
-  .glass-liquid,
-  .fab {
-    background: var(--surface);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
-  .glass,
-  .glass-liquid,
-  .fab {
-    box-shadow: var(--shadow-3);
-  }
-
-  .glass-liquid::after,
-  .fab::after {
-    content: none;
-  }
-
-  .scrim {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+  :root {
+    --glass-a: 100%;
+    --liquid-a: 100%;
+    --glass-backdrop: none;
+    --liquid-backdrop: none;
+    --scrim-backdrop: none;
+    --glass-inset: 0 0 0 transparent;
+    --liquid-shadow: var(--shadow-3);
+    --liquid-rim: none;
+    --fab-hover-bg: var(--surface);
   }
 }

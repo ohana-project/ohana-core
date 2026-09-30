@@ -6,21 +6,24 @@ import { describe, expect, it } from 'vitest'
 /*
  * WCAG AA contrast for every text-on-background pair the spec uses
  * (docs/design/README.md, "Colour"), asserted straight against
- * tokens.css in both themes. Body text needs 4.5:1, large text and
- * icons 3:1. Pills, the banner and glass are semi-transparent fills,
- * so they are composited over their backdrop before measuring.
+ * tokens.css and glass.css in both themes. Body text needs 4.5:1,
+ * large text and icons 3:1. Pills, the banner and glass are
+ * semi-transparent fills, so they are composited over their backdrop
+ * before measuring. Every percentage below is read from the CSS — the
+ * same values the components render with.
  */
 
 type Tokens = Record<string, string>
 
 // ?raw imports of .css files come back empty through the Tailwind plugin,
-// so the file is read from disk (tests always run from apps/web).
-const css = readFileSync(resolvePath('src/ui/styles/tokens.css'), 'utf8')
+// so the files are read from disk (tests always run from apps/web).
+const tokensCss = readFileSync(resolvePath('src/ui/styles/tokens.css'), 'utf8')
+const glassCss = readFileSync(resolvePath('src/ui/styles/glass.css'), 'utf8')
 
-function parseBlock(selector: string): Tokens {
+function parseBlock(css: string, selector: string): Tokens {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))
-  if (!match?.[1]) throw new Error(`tokens.css has no ${selector} block`)
+  if (!match?.[1]) throw new Error(`no ${selector} block found`)
   const tokens: Tokens = {}
   for (const m of match[1].matchAll(/--(?<name>[\w-]+)\s*:\s*(?<value>[^;]+);/g)) {
     const { name, value } = m.groups as { name: string; value: string }
@@ -31,19 +34,47 @@ function parseBlock(selector: string): Tokens {
 
 function resolve(name: string, tokens: Tokens): string {
   const value = tokens[name]
-  if (!value) throw new Error(`tokens.css has no --${name}`)
+  if (!value) throw new Error(`no --${name} token`)
   const ref = value.match(/^var\(--([\w-]+)\)$/)
   return ref?.[1] ? resolve(ref[1], tokens) : value
 }
 
-/** Converts a token value (oklch, possibly a color-mix with transparent) to sRGB. */
+/** Reads a "NN%" custom-property value, e.g. the glass fill alpha. */
+function asPercent(name: string, tokens: Tokens): number {
+  const value = resolve(name, tokens).match(/^([\d.]+)%$/)
+  if (!value?.[1]) throw new Error(`--${name} is not a plain percentage`)
+  return Number(value[1]) / 100
+}
+
+function asOklch(value: string): Oklch {
+  const parsed = parse(value)
+  if (!parsed) throw new Error(`unparseable colour: ${value}`)
+  return parsed as Oklch
+}
+
+/** Converts a token value (oklch, possibly a color-mix) to sRGB. */
 function asRgb(value: string, tokens: Tokens): Rgb {
   const resolved = value.replace(/var\(--([\w-]+)\)/g, (_, name: string) => resolve(name, tokens))
-  const mix = resolved.match(/^color-mix\(in oklch,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/)
-  if (mix?.[1] && mix[2]) {
-    const base = rgb(parse(mix[1]))
-    if (!base) throw new Error(`unparseable colour: ${mix[1]}`)
-    return { ...base, alpha: Number(mix[2]) / 100 }
+  const mix = resolved.match(/^color-mix\(in oklch,\s*(.+?)\s+([\d.]+)%,\s*(.+?)\)$/)
+  if (mix?.[1] && mix[2] && mix[3]) {
+    const [, a, pct, b] = mix
+    if (b === 'transparent') {
+      const base = rgb(parse(a))
+      if (!base) throw new Error(`unparseable colour: ${a}`)
+      return { ...base, alpha: Number(pct) / 100 }
+    }
+    // channel mix in oklch with shorter-arc hue, like the browser
+    const ao = asOklch(a)
+    const bo = asOklch(b)
+    const t = Number(pct) / 100
+    let dh = ((ao.h ?? 0) - (bo.h ?? 0) + 540) % 360
+    if (dh > 180) dh -= 360
+    return rgb({
+      mode: 'oklch',
+      l: ao.l * t + bo.l * (1 - t),
+      c: (ao.c ?? 0) * t + (bo.c ?? 0) * (1 - t),
+      h: (bo.h ?? 0) + dh * t,
+    }) as Rgb
   }
   const parsed = rgb(parse(resolved))
   if (!parsed) throw new Error(`unparseable colour: ${resolved}`)
@@ -73,39 +104,25 @@ function contrast(a: Rgb, b: Rgb): number {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-/** color-mix(in oklch, A p%, B) — channel mix in oklch with shorter-arc hue. */
-function mixTokens(aName: string, pct: number, bName: string, tokens: Tokens): Rgb {
-  const a = parse(resolve(aName, tokens)) as Oklch | undefined
-  const b = parse(resolve(bName, tokens)) as Oklch | undefined
-  if (!a || !b) throw new Error('unparseable colour in mix')
-  const t = pct / 100
-  let dh = ((a.h ?? 0) - (b.h ?? 0) + 540) % 360
-  if (dh > 180) dh -= 360
-  return rgb({
-    mode: 'oklch',
-    l: a.l * t + b.l * (1 - t),
-    c: (a.c ?? 0) * t + (b.c ?? 0) * (1 - t),
-    h: (b.h ?? 0) + dh * t,
-  }) as Rgb
-}
-
 const themes: Record<string, Tokens> = {
-  light: parseBlock(':root'),
-  dark: { ...parseBlock(':root'), ...parseBlock('[data-theme="dark"]') },
+  light: parseBlock(tokensCss, ':root'),
+  dark: { ...parseBlock(tokensCss, ':root'), ...parseBlock(tokensCss, '[data-theme="dark"]') },
 }
 
-/* pill fills from the spec's component section: ok 14%, warn 16%, danger 13% */
-const PILL_TINTS = { ok: 14, warn: 16, danger: 13 } as const
-/* glass is surface at 82% in light and 92% in dark (README "Glass") */
-const GLASS_ALPHA = { light: 0.82, dark: 0.92 } as const
+/* glass fill alphas, light and dark (glass.css) */
+const glassAlphas: Record<string, number> = {
+  light: asPercent('glass-a', parseBlock(glassCss, ':root')),
+  dark: asPercent('glass-a', { ...parseBlock(glassCss, ':root'), ...parseBlock(glassCss, '[data-theme="dark"]') }),
+}
+
 const WHITE: Rgb = { mode: 'rgb', r: 1, g: 1, b: 1, alpha: 1 }
 const BLACK: Rgb = { mode: 'rgb', r: 0, g: 0, b: 0, alpha: 1 }
 
 describe.each(Object.entries(themes))('%s theme', (_theme, tokens) => {
-  const glassAlpha = GLASS_ALPHA[_theme as keyof typeof GLASS_ALPHA]
+  const glassAlpha = glassAlphas[_theme]
   const color = (name: string) => ({ ...asRgb(resolve(name, tokens), tokens), alpha: 1 })
-  const tinted = (name: string, pct: number, base: string) =>
-    over({ ...asRgb(resolve(name, tokens), tokens), alpha: pct / 100 }, color(base))
+  const tinted = (fillName: string, base: string) =>
+    over(asRgb(resolve(fillName, tokens), tokens), color(base))
   const glass = (backdrop: Rgb) => over({ ...color('surface'), alpha: glassAlpha }, backdrop)
   const check = (fg: Rgb, bg: Rgb, min: number, label: string) => {
     const ratio = contrast(fg, bg)
@@ -128,30 +145,20 @@ describe.each(Object.entries(themes))('%s theme', (_theme, tokens) => {
   })
 
   it('pill text meets 4.5:1 over its tinted fill', () => {
-    check(
-      color('accent'),
-      over(asRgb(resolve('accent-soft', tokens), tokens), color('surface')),
-      4.5,
-      'primary pill',
-    )
-    check(color('ok'), tinted('ok', PILL_TINTS.ok, 'surface'), 4.5, 'ok pill')
-    check(color('warn'), tinted('warn', PILL_TINTS.warn, 'surface'), 4.5, 'warn pill')
-    check(color('danger'), tinted('danger', PILL_TINTS.danger, 'surface'), 4.5, 'danger pill')
-    check(
-      color('muted'),
-      over(asRgb(resolve('fg-soft', tokens), tokens), color('surface')),
-      4.5,
-      'neutral pill',
-    )
+    check(color('accent'), tinted('accent-soft', 'surface'), 4.5, 'primary pill')
+    check(color('ok'), tinted('ok-fill', 'surface'), 4.5, 'ok pill')
+    check(color('warn'), tinted('warn-fill', 'surface'), 4.5, 'warn pill')
+    check(color('danger'), tinted('danger-fill', 'surface'), 4.5, 'danger pill')
+    check(color('muted'), tinted('fg-soft', 'surface'), 4.5, 'neutral pill')
   })
 
   it('the offline banner meets 4.5:1', () => {
-    const text = mixTokens('warn', 80, 'fg', tokens)
-    const fill = over({ ...asRgb(resolve('warn', tokens), tokens), alpha: 0.14 }, color('surface'))
-    check(text, fill, 4.5, 'banner text on its warn fill')
+    check(color('banner-text'), color('banner-fill'), 4.5, 'banner text on its warn fill')
   })
 
   it('text over glass meets 4.5:1 composited on white and black backdrops', () => {
+    // the recipe the overlays and bars render with — popovers, menus and
+    // toasts take the plain glass too (README "Glass")
     for (const backdrop of [WHITE, BLACK]) {
       const name = backdrop === WHITE ? 'white' : 'black'
       check(color('fg'), glass(backdrop), 4.5, `fg on glass over ${name}`)

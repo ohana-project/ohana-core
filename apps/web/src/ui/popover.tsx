@@ -3,8 +3,9 @@ import { cn } from 'cn'
 import type * as React from 'react'
 
 /*
- * Ohana popover (docs/design/README.md, "Overlays"): liquid glass,
- * 12px radius, fast rise. The liquid recipe draws the gradient rim.
+ * Ohana popover (docs/design/README.md, "Overlays"): 12px radius, fast
+ * rise, on the plain glass recipe — liquid glass cannot hold AA for
+ * popover text in the dark theme (README "Glass").
  */
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -36,7 +37,7 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           className={cn(
-            'glass-liquid relative z-50 flex w-72 min-w-[208px] origin-(--transform-origin) flex-col gap-2.5 rounded-md p-1.5 text-sm text-popover-foreground outline-hidden transition-[opacity,transform] duration-(--t-fast) ease-(--ease) data-starting-style:translate-y-[-4px] data-starting-style:scale-[0.98] data-ending-style:translate-y-[-4px] data-ending-style:scale-[0.98]',
+            'glass relative z-50 flex w-72 min-w-[208px] origin-(--transform-origin) flex-col gap-2.5 rounded-md p-1.5 text-sm text-popover-foreground outline-hidden transition-[opacity,transform] duration-(--t-fast) ease-(--ease) data-starting-style:translate-y-[-4px] data-starting-style:scale-[0.98] data-ending-style:translate-y-[-4px] data-ending-style:scale-[0.98]',
             className,
           )}
           {...props}

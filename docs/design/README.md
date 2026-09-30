@@ -107,7 +107,7 @@ Shell sizes: sidebar 232px, top bar 56px, tab bar 64px. Content width is 1104px,
 Glass is only for **floating** chrome: top bar, tab bar, sheets, dialogs, popovers, toasts, the FAB, the offline banner, and the mobile editor bar. It is never used behind long-form text, in the sidebar, or on static cards and badges.
 
 - **Glass**: `backdrop-filter: blur(24px) saturate(1.5)` over `surface` at 82% (92% in dark, so muted text keeps AA over black and white backdrops), a 1px `fg` 9% hairline, `shadow-3`, and an inset top highlight of white 28%. The top bar, tab bar, and editor bar keep only the inset highlight.
-- **Liquid glass** (popovers, toasts, FAB): `blur(20px) saturate(1.7)` over `surface` at 52% (48% in dark), a vertical white sheen, inner highlights, and a gradient rim drawn with `mask-composite`.
+- **Liquid glass** (the FAB): `blur(20px) saturate(1.7)` over `surface` at 52% (48% in dark), a vertical white sheen, inner highlights, and a gradient rim drawn with `mask-composite`. It stays on the FAB because that is the one glass surface without text: over a 52% fill (48% in dark) small text cannot hold AA even at full opacity — in the dark theme the white sheen alone caps the contrast below 4.5:1 — so popovers, menus and toasts take the plain recipe instead.
 - **Overlay scrim**: `scrim` with `blur(12px) saturate(1.25)`.
 
 Every glass surface falls back to opaque `surface` with `shadow-3` under `prefers-reduced-transparency: reduce`, where `backdrop-filter` is unsupported, and wherever text on it would miss AA contrast.
@@ -153,8 +153,8 @@ Shared components live in `apps/web/src/ui`. The class names below refer to `ass
   | `error` | danger | Ошибка синхронизации · Повторить |
 
   «Повторить» is a link button. On mobile the top bar shows a compact chip (icon only below 430px); the full form appears on the home screen and in settings. On desktop it sits in the sidebar footer.
-- **Overlays**: the sheet is a bottom drawer with a grabber on mobile (radius `xl` on top, max 86% height) and a centred 460px modal on desktop. The dialog is 440px. The popover and menu are liquid glass with 42px items and separators. The lightbox shows a photo on a black 72% scrim with a mono caption. Dialogs trap focus and close on Esc.
-- **Toast**: liquid-glass pill with an ok or danger icon; it sits above the tab bar on mobile and bottom-right on desktop, and hides after about 3 seconds.
+- **Overlays**: the sheet is a bottom drawer with a grabber on mobile (radius `xl` on top, max 86% height) and a centred 460px modal on desktop. The dialog is 440px. The popover and menu sit on the plain glass recipe, with 42px items and separators. The lightbox shows a photo on a black 72% scrim with a mono caption. Dialogs trap focus and close on Esc.
+- **Toast**: glass pill with an ok or danger icon; it sits above the tab bar on mobile and bottom-right on desktop, and hides after about 3 seconds.
 - **Tooltip** (`[data-tip]`): inverted `fg` on `bg`, radius `sm`, `meta` size.
 - **Switch** 46×28 with an accent track when on. **Segmented control** (`.seg`): pill buttons on `surface-2`, the active one on `surface` with `shadow-1`.
 - **Banner** (`.banner`): `warn` 14% over surface, for the offline notice. **Skeleton** (`.skel`): shimmering `surface-2`. **Empty state** (`.empty`): 64px round icon plate, Literata 18px heading, short muted text, optional button.
@@ -164,7 +164,7 @@ Domain-specific pieces (entry card, photo strip and grid, upload chip, calendar 
 
 ## Layout
 
-- **Mobile (below 920px)**: a glass top bar (space switcher, title, sync chip, user menu), content, and a glass tab bar with the visible sections (Главная, Дневник, Календарь, Вишлисты). Hidden sections simply disappear from navigation, and the layout must hold with one to three sections. The content reserves space at the bottom for the tab bar and FAB.
+- **Mobile (below 920px)**: a glass top bar (space switcher, title, sync chip, user menu), content, and a glass tab bar with the visible sections (Главная, Дневник, Календарь, Вишлисты). Hidden sections simply disappear from navigation, and the layout must hold with one to four sections. The content reserves space at the bottom for the tab bar and FAB.
 - **Desktop (920px and wider)**: a solid 232px sidebar (space switcher, sections, sync in the footer), a page top bar, and two-column "feed + details" layouts (`1.6fr / 1fr` with a sticky side column; the home screen uses `1.55fr / 1fr` with the journal on the left). Keyboard shortcuts: N for a new entry, / for search.
 - **Administrative area**: a calm solid top bar with the mark and «Админка», content up to 960px, no tab bar or sidebar.
 - **Sign-in screens**: a centred column up to 420px with the logo on top and a footer note.
@@ -234,7 +234,7 @@ Rules for `apps/web`:
 - Fonts come from the `@fontsource` packages, and icons from the Hugeicons React package.
 - A preview route shows every shared component in both themes and both languages.
 
-Three token values moved from the prototype for WCAG AA, kept in the same commit as the contrast test that requires them (`apps/web/src/ui/styles/contrast.test.ts`): light `ok` is 50% (not 52%) and light `warn` is 51% (not 54%), because those pills' text must hold 4.5:1 over their tints, and dark `accent` is 74% (not 72%), because the primary pill's text must hold 4.5:1 over `accent-soft` on surface. The glass fill is 82% in light and 92% in dark (not the prototype's 76%) for the same reason: muted text on the glass bars must keep 4.5:1 over the worst-case backdrops.
+Three token values moved from the prototype for WCAG AA, kept in the same commit as the contrast test that requires them (`apps/web/src/ui/styles/contrast.test.ts`): light `ok` is 50% (not 52%) and light `warn` is 51% (not 54%), because those pills' text must hold 4.5:1 over their tints, and dark `accent` is 74% (not 72%), because the primary pill's text must hold 4.5:1 over `accent-soft` on surface. The glass fill is 82% in light and 92% in dark (not the prototype's 76%) for the same reason: muted text on the glass bars must keep 4.5:1 over the worst-case backdrops. The pill and banner fills and the hover accent (`accent-strong`: 12% darker in light, 10% lighter in dark) live as derived tokens (`--ok-fill`, `--warn-fill`, `--danger-fill`, `--banner-*`) so the components and the contrast test read the same values.
 
 ## Licences
 
