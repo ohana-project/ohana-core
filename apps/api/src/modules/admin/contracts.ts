@@ -19,11 +19,8 @@ export const AdminMarkerHeadersSchema = Type.Object({
 
 export const ChangePasswordBodySchema = Type.Object(
   {
-    currentPassword: Type.String({ minLength: 1, maxLength: 1024 }),
+    currentPassword: Type.String({ minLength: MIN_ADMIN_PASSWORD_LENGTH, maxLength: 1024 }),
     newPassword: Type.String({ minLength: MIN_ADMIN_PASSWORD_LENGTH, maxLength: 1024 }),
   },
   { additionalProperties: false },
 )
-
-export type SignInBody = { password: string }
-export type ChangePasswordBody = { currentPassword: string; newPassword: string }

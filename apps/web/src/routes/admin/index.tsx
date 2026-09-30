@@ -1,6 +1,5 @@
 import { createFileRoute, Navigate } from '@tanstack/react-router'
-import { useAdminSession } from '@/features/admin/use-admin-session.ts'
-import { Spinner } from '@/ui/spinner.tsx'
+import { AdminSessionGate } from '@/features/admin/admin-session-gate.tsx'
 
 /*
  * The administrative area root: signed-out visitors go to the sign-in
@@ -8,19 +7,10 @@ import { Spinner } from '@/ui/spinner.tsx'
  * administrator lands on the password screen.
  */
 function AdminIndexPage() {
-  const session = useAdminSession()
-
-  if (session.isPending) {
-    return (
-      <div className="grid min-h-dvh place-items-center">
-        <Spinner className="size-6" />
-      </div>
-    )
-  }
-  return session.data === 'signed-in' ? (
-    <Navigate to="/admin/password" replace />
-  ) : (
-    <Navigate to="/admin/login" replace />
+  return (
+    <AdminSessionGate require="signed-in" redirectTo="/admin/login">
+      <Navigate to="/admin/password" replace />
+    </AdminSessionGate>
   )
 }
 

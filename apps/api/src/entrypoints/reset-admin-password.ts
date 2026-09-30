@@ -9,14 +9,27 @@ function readPasswordArgument(): string | undefined {
   return index >= 0 ? process.argv[index + 1] : undefined
 }
 
+async function readPasswordStdin(): Promise<string | undefined> {
+  if (process.stdin.isTTY) return undefined
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer)
+  }
+  const password = Buffer.concat(chunks).toString('utf8').trimEnd()
+  return password.length > 0 ? password : undefined
+}
+
 async function main(): Promise<void> {
   const config = await loadConfigOrExit()
   if (config === undefined) return
 
-  const password = readPasswordArgument()
+  // The argument is convenient for one-off runs; reading the password from
+  // stdin keeps it out of the shell history and the process list.
+  const password = readPasswordArgument() ?? (await readPasswordStdin())
   if (password === undefined) {
     console.error(
       `Usage: node src/entrypoints/reset-admin-password.ts --password <new password>\n` +
+        `   or: printf '%s' '<new password>' | node src/entrypoints/reset-admin-password.ts\n` +
         `The new password must be at least ${MIN_ADMIN_PASSWORD_LENGTH} characters long.`,
     )
     process.exitCode = 1

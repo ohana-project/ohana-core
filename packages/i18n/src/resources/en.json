@@ -63,8 +63,7 @@
       "passwordLabel": "Administrator password",
       "passwordHint": "Issued at the server's first start",
       "submit": "Sign in to the admin area",
-      "footer": "Forgot the password? It lives only on your server — restore it with a console command.",
-      "wrongPassword": "Wrong password — try again"
+      "footer": "Forgot the password? It lives only on your server — restore it with a console command."
     },
     "password": {
       "title": "Administrator password",

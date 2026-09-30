@@ -54,7 +54,8 @@ export function useAdminSignIn() {
       })
       if (error !== undefined) throw new AdminApiError(extractErrorCode(error))
     },
-    onSuccess: () => queryClient.setQueryData(adminSessionQueryKey, 'signed-in'),
+    // Re-probe instead of patching the cache by hand (architecture rules).
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSessionQueryKey }),
   })
 }
 
@@ -65,7 +66,7 @@ export function useAdminSignOut() {
       const { error } = await api.DELETE('/api/v1/admin/session', { headers: adminMarker })
       if (error !== undefined) throw new AdminApiError(extractErrorCode(error))
     },
-    onSuccess: () => queryClient.setQueryData(adminSessionQueryKey, 'signed-out'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSessionQueryKey }),
   })
 }
 
