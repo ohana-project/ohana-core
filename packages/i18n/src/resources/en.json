@@ -244,8 +244,39 @@
       "eventsLink": "The whole calendar",
       "eventsEmpty": "Events will appear here — birthdays, doctors, dinners.",
       "membersSection": "Members",
+      "accounts": "Spaces",
       "signOut": "Sign out",
       "signOutFailed": "Signing out did not work — check the network and try again."
+    }
+  },
+  "accounts": {
+    "title": "Spaces",
+    "description": "The sign-ins kept on this device — one per space. Their data stays separate.",
+    "back": "Back to the app",
+    "activePill": "now",
+    "thisDevicePill": "this device",
+    "addByCode": "Add a sign-in by code",
+    "switchTo": "Switch to {name} in “{space}”",
+    "signOut": "Sign out of “{space}”",
+    "signOutTitle": "Sign out of “{space}”?",
+    "signOutText": "This space's entries, events, and wishlists disappear from the device. The space, its other members, and their data stay on the server.",
+    "signOutConfirm": "Sign out",
+    "signOutFailed": "Signing out did not work — check the network and try again.",
+    "footer": "Signing out removes the space's data from this device only. Everything stays on the server and with your family.",
+    "devices": {
+      "title": "Your devices",
+      "hint": "The devices this member has signed in from. An ended session loses access.",
+      "unknown": "Unknown device",
+      "sub": "Signed in {created} · last active {used}",
+      "revoke": "End the session",
+      "revokeTitle": "End this session?",
+      "revokeText": "{device} will lose access to “{space}”. Other devices and members are not affected.",
+      "revokeConfirm": "End session",
+      "empty": "Nothing but this device so far."
+    },
+    "errors": {
+      "member_session_not_found": "The session has already ended — refresh the list",
+      "unexpected": "That did not work — check the network and try again."
     }
   },
   "designPreview": {

@@ -7,6 +7,7 @@ import {
   removeSession,
   type StoredMemberSession,
   saveSession,
+  setActiveMemberId,
 } from '@/data/session-registry.ts'
 
 /*
@@ -78,7 +79,29 @@ export function useRedeemedSignIn() {
   }
 }
 
-/** Forgets the active sign-in after the API deletes its session. */
+/**
+ * Switches the device's active retained sign-in (ADR-0005: a client-side
+ * choice between independent sessions). Every query is reset, not merely
+ * invalidated: the cached answers belong to the previous member's space,
+ * and no screen may show them while the requests already name the next
+ * member.
+ */
+export function useSwitchMember() {
+  const queryClient = useQueryClient()
+  return (memberId: string) => {
+    if (getActiveMemberId() === memberId) return
+    setActiveMemberId(memberId)
+    void queryClient.resetQueries()
+  }
+}
+
+/**
+ * Forgets the active sign-in after the API deletes its session. Only the
+ * signed-out member's local data goes: the registry entry of that member
+ * and the cached server data it produced. Another retained sign-in (with
+ * its cookie still in the browser) becomes active; with none left the
+ * member gate sends the visitor to the code screen.
+ */
 export function useMemberSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -98,7 +121,9 @@ export function useMemberSignOut() {
     // settles. A failed request keeps the entry so the member can retry.
     onSuccess: (memberId) => {
       removeSession(memberId)
-      void queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+      // The reset refetches what is mounted under the next active member —
+      // or the signed-out probe answer when nobody is retained.
+      void queryClient.resetQueries()
     },
   })
 }
