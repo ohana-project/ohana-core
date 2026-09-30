@@ -1,0 +1,120 @@
+import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { api } from '@/data/api.ts'
+import { renderWithProviders } from '@/testing/render.tsx'
+import { CodeEntryForm } from './code-entry-form.tsx'
+
+vi.mock('@/data/api.ts', () => ({
+  api: { GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() },
+}))
+
+const apiPost = vi.mocked(api.POST)
+
+const REDEEM_RESULT = {
+  member: { id: 'm-1', name: 'Аня', role: 'regular' as const },
+  space: { id: 's-1', name: 'Наша семья' },
+  needsOnboarding: true,
+}
+
+function errorResponse(status: number, code: string) {
+  return {
+    data: undefined,
+    error: { error: { code, message: 'The code is wrong' } },
+    response: new Response(null, { status }),
+  }
+}
+
+describe('CodeEntryForm', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    apiPost.mockReset()
+  })
+
+  it('renders the reference copy', () => {
+    renderWithCodeEntryForm()
+    expect(screen.getByRole('heading', { name: 'Код входа' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Код входа')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument()
+  })
+
+  it('asks for the code before calling the API when the field is short', async () => {
+    const user = userEvent.setup()
+    renderWithCodeEntryForm()
+
+    await user.type(screen.getByLabelText('Код входа'), 'ABC')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите код входа.')
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('sends the code, stores the sign-in, and reports success', async () => {
+    apiPost.mockResolvedValue({
+      data: REDEEM_RESULT,
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    const onSignedIn = vi.fn()
+    const user = userEvent.setup()
+    renderWithCodeEntryForm(onSignedIn)
+
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/access-codes/redeem',
+      expect.objectContaining({ body: { code: 'QWEE4455' } }),
+    )
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(REDEEM_RESULT))
+    // The registry remembers the sign-in; the cookie stays with the browser.
+    expect(window.localStorage.getItem('ohana.activeMember')).toBe('m-1')
+    const sessions = JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')
+    expect(sessions).toEqual([
+      { memberId: 'm-1', spaceId: 's-1', spaceName: 'Наша семья', name: 'Аня' },
+    ])
+  })
+
+  it('marks the field invalid and explains a wrong code', async () => {
+    apiPost.mockResolvedValue(errorResponse(401, 'access_code_invalid'))
+    const user = userEvent.setup()
+    renderWithCodeEntryForm()
+
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Такого кода нет')
+    expect(screen.getByLabelText('Код входа').closest('[data-slot=field]')).toHaveAttribute(
+      'data-invalid',
+      'true',
+    )
+  })
+
+  it('explains an expired code', async () => {
+    apiPost.mockResolvedValue(errorResponse(410, 'access_code_expired'))
+    const user = userEvent.setup()
+    renderWithCodeEntryForm()
+
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Код истёк')
+  })
+
+  it('shows a network-neutral message when the API code is unknown', async () => {
+    apiPost.mockRejectedValue(new TypeError('Network unreachable'))
+    const user = userEvent.setup()
+    renderWithCodeEntryForm()
+
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
+    await user.click(screen.getByRole('button', { name: 'Войти' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Не получилось — проверьте сеть и попробуйте ещё раз.',
+    )
+  })
+})
+
+function renderWithCodeEntryForm(onSignedIn?: (result: unknown) => void) {
+  return renderWithProviders(<CodeEntryForm onSignedIn={onSignedIn ?? (() => {})} />)
+}

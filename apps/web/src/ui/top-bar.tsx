@@ -104,7 +104,7 @@ function UserMenu({ items }: { items: ShellUserMenuItem[] }) {
           <DropdownMenuItem
             key={item.id}
             variant={item.danger ? 'destructive' : 'default'}
-            onSelect={item.onSelect}
+            onClick={item.onSelect}
           >
             <Icon name={item.icon} />
             {item.label}

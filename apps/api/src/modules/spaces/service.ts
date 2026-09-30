@@ -1,5 +1,5 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db, Tx } from '../../platform/db/index.ts'
+import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import {
   getSpaceById,
@@ -69,12 +69,21 @@ export async function listSpaces(
   return rows.map((space) => ({ ...space, memberCount: counts.get(space.id) ?? 0 }))
 }
 
-export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space> {
-  const space = await getSpaceById(deps.db, spaceId)
+async function getSpaceOrThrow(executor: Executor, spaceId: string): Promise<Space> {
+  const space = await getSpaceById(executor, spaceId)
   if (space === undefined) {
     throw new DomainError('space_not_found', `Space ${spaceId} does not exist`, 404)
   }
   return space
+}
+
+export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space> {
+  return getSpaceOrThrow(deps.db, spaceId)
+}
+
+/** The same read inside a caller's transaction, for multi-step use cases. */
+export async function getSpaceInTx(tx: Tx, spaceId: string): Promise<Space> {
+  return getSpaceOrThrow(tx, spaceId)
 }
 
 /**

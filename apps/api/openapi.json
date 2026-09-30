@@ -466,6 +466,447 @@
         }
       }
     },
+    "/api/v1/access-codes/redeem": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "member",
+                    "space",
+                    "needsOnboarding"
+                  ],
+                  "properties": {
+                    "member": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "role"
+                      ],
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "owner"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "regular"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "space": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "needsOnboarding": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/access-codes": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "spaceId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "memberId",
+                      "status",
+                      "createdAt",
+                      "expiresAt",
+                      "statusChangedAt"
+                    ],
+                    "properties": {
+                      "id": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "memberId": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "status": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "issued"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "redeemed"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "expired"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "replaced"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "revoked"
+                            ]
+                          }
+                        ]
+                      },
+                      "createdAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "expiresAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "statusChangedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/members/{memberId}/access-codes": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "spaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "memberId",
+            "required": true
+          },
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "memberId",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "statusChangedAt",
+                    "code"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "memberId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "issued"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "redeemed"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "expired"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "replaced"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "revoked"
+                          ]
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "statusChangedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/access-codes/{codeId}/revoke": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "spaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "codeId",
+            "required": true
+          },
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "memberId",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "statusChangedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "memberId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "issued"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "redeemed"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "expired"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "replaced"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "revoked"
+                          ]
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "statusChangedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/session": {
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/members": {
       "get": {
         "parameters": [
@@ -899,6 +1340,382 @@
                     "updatedAt": {
                       "format": "date-time",
                       "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "member",
+                    "space",
+                    "needsOnboarding"
+                  ],
+                  "properties": {
+                    "member": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "role",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "interfaceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ru"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "en"
+                              ]
+                            }
+                          ]
+                        },
+                        "role": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "owner"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "regular"
+                              ]
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "space": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "needsOnboarding": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/onboarding": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "\\S",
+                    "type": "string"
+                  },
+                  "email": {
+                    "minLength": 3,
+                    "maxLength": 200,
+                    "pattern": "\\S",
+                    "type": "string"
+                  },
+                  "phone": {
+                    "minLength": 3,
+                    "maxLength": 40,
+                    "pattern": "\\S",
+                    "type": "string"
+                  },
+                  "interfaceLanguage": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "ru"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "en"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "member",
+                    "space",
+                    "needsOnboarding"
+                  ],
+                  "properties": {
+                    "member": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "role",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "interfaceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ru"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "en"
+                              ]
+                            }
+                          ]
+                        },
+                        "role": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "owner"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "regular"
+                              ]
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "space": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "needsOnboarding": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/members": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "role",
+                      "createdAt"
+                    ],
+                    "properties": {
+                      "id": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "phone": {
+                        "type": "string"
+                      },
+                      "interfaceLanguage": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "ru"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "en"
+                            ]
+                          }
+                        ]
+                      },
+                      "role": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "owner"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "regular"
+                            ]
+                          }
+                        ]
+                      },
+                      "createdAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      }
                     }
                   }
                 }

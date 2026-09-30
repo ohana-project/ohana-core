@@ -53,6 +53,19 @@ const MEMBERS = [
   },
 ]
 
+const CODE_ID = '01900000-0000-7000-8000-000000000003'
+
+function accessCode(status: 'issued' | 'redeemed' | 'expired' | 'replaced' | 'revoked') {
+  return {
+    id: CODE_ID,
+    memberId: DIMA_ID,
+    status,
+    createdAt: '2026-09-20T10:00:00.000Z',
+    expiresAt: '2026-09-21T10:00:00.000Z',
+    statusChangedAt: '2026-09-20T10:00:00.000Z',
+  }
+}
+
 function mockApi() {
   apiGet.mockImplementation(async (path: never) => {
     if (path === '/api/v1/spaces/{spaceId}') {
@@ -60,6 +73,9 @@ function mockApi() {
     }
     if (path === '/api/v1/spaces/{spaceId}/members') {
       return { data: MEMBERS, error: undefined, response: new Response(null, { status: 200 }) }
+    }
+    if (path === '/api/v1/spaces/{spaceId}/access-codes') {
+      return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
     }
     throw new Error(`Unexpected GET ${String(path)}`)
   })
@@ -342,5 +358,113 @@ describe('AdminSpaceDetail', () => {
     renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
 
     expect(await screen.findAllByRole('button', { name: 'Снять роль владельца' })).toHaveLength(2)
+  })
+})
+
+describe('AdminSpaceDetail access codes', () => {
+  it('lists the codes with their statuses, naming members instead of codes', async () => {
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/spaces/{spaceId}/members') {
+        return { data: MEMBERS, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/access-codes') {
+        return {
+          data: [accessCode('issued'), accessCode('redeemed'), accessCode('revoked')],
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+    })
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    expect(screen.getByText('Коды входа')).toBeInTheDocument()
+    // Three rows for the same member, one per status, plus the members row.
+    expect(await screen.findByText('Выпущен')).toBeInTheDocument()
+    expect(screen.getByText('Использован')).toBeInTheDocument()
+    expect(screen.getByText('Отозван')).toBeInTheDocument()
+    expect(screen.getAllByText('Дима')).toHaveLength(4)
+    // Only the live code offers revocation.
+    expect(screen.getAllByRole('button', { name: 'Отозвать' })).toHaveLength(1)
+  })
+
+  it('issues a code through the dialog and shows the plaintext once', async () => {
+    const user = userEvent.setup()
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/spaces/{spaceId}/members') {
+        return { data: MEMBERS, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/access-codes') {
+        return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+    })
+    apiPost.mockResolvedValue(okBody({ ...accessCode('issued'), code: 'QWEE-4455' }, 201))
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Выпустить код' }))
+    await user.selectOptions(screen.getByLabelText('Участник'), DIMA_ID)
+    await user.click(screen.getByRole('button', { name: 'Выпустить' }))
+
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/spaces/{spaceId}/members/{memberId}/access-codes',
+      expect.objectContaining({
+        params: { path: { spaceId: SPACE_ID, memberId: DIMA_ID } },
+        headers: expect.objectContaining({ 'x-ohana-admin': '1' }),
+      }),
+    )
+    // The plaintext appears once, in the dialog.
+    expect(await screen.findByText('QWEE-4455')).toBeInTheDocument()
+    expect(screen.getByText('Живёт 24 часа · один вход')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Готово' }))
+    expect(screen.queryByText('QWEE-4455')).not.toBeInTheDocument()
+  })
+
+  it('asks for a member before issuing', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Выпустить код' }))
+    await user.click(screen.getByRole('button', { name: 'Выпустить' }))
+
+    expect(await screen.findByText('Выберите участника')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('revokes a live code after a confirmation', async () => {
+    const user = userEvent.setup()
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/spaces/{spaceId}/members') {
+        return { data: MEMBERS, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/access-codes') {
+        return {
+          data: [accessCode('issued')],
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+    })
+    apiPost.mockResolvedValue(okBody({ ...accessCode('issued'), status: 'revoked' }))
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    const revokeButton = await screen.findByRole('button', { name: 'Отозвать' })
+    await user.click(revokeButton)
+    const dialog = within(await screen.findByRole('dialog'))
+    expect(dialog.getByText('Отозвать этот код?')).toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: 'Отозвать' }))
+
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/spaces/{spaceId}/access-codes/{codeId}/revoke',
+      expect.objectContaining({
+        params: { path: { spaceId: SPACE_ID, codeId: CODE_ID } },
+        headers: expect.objectContaining({ 'x-ohana-admin': '1' }),
+      }),
+    )
   })
 })

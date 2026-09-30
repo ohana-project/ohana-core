@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DesignRouteImport } from './routes/design'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as SigninRouteImport } from './routes/signin'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminPasswordRouteImport } from './routes/admin/password'
@@ -25,6 +27,16 @@ const IndexRoute = IndexRouteImport.update({
 const DesignRoute = DesignRouteImport.update({
   id: '/design',
   path: '/design',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -56,6 +68,8 @@ const AdminSpacesSpaceIdRoute = AdminSpacesSpaceIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
+  '/onboarding': typeof OnboardingRoute
+  '/signin': typeof SigninRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -65,6 +79,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
+  '/onboarding': typeof OnboardingRoute
+  '/signin': typeof SigninRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -75,6 +91,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
+  '/onboarding': typeof OnboardingRoute
+  '/signin': typeof SigninRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -86,6 +104,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design'
+    | '/onboarding'
+    | '/signin'
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
@@ -95,6 +115,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/design'
+    | '/onboarding'
+    | '/signin'
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
@@ -104,6 +126,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/design'
+    | '/onboarding'
+    | '/signin'
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
@@ -114,6 +138,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DesignRoute: typeof DesignRoute
+  OnboardingRoute: typeof OnboardingRoute
+  SigninRoute: typeof SigninRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminPasswordRoute: typeof AdminPasswordRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -135,6 +161,20 @@ declare module '@tanstack/react-router' {
       path: '/design'
       fullPath: '/design'
       preLoaderRoute: typeof DesignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -178,6 +218,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DesignRoute: DesignRoute,
+  OnboardingRoute: OnboardingRoute,
+  SigninRoute: SigninRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminPasswordRoute: AdminPasswordRoute,
   AdminSettingsRoute: AdminSettingsRoute,

@@ -1,16 +1,34 @@
 import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
+import {
+  type AccessDeps,
+  MemberHeadersSchema,
+  memberSessionGuard,
+  requireMemberActor,
+} from '../access/index.ts'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
   ChangeMemberRoleBodySchema,
+  type Me,
   type MemberDto,
   MemberDtoSchema,
   MemberParamsSchema,
+  type MemberProfileDto,
+  MemberProfileDtoSchema,
+  MeSchema,
+  OnboardingBodySchema,
   ProvisionMemberBodySchema,
   SpaceIdParamsSchema,
 } from './contracts.ts'
-import { changeMemberRole, listMembers, type MembersDeps, provisionMember } from './service.ts'
+import {
+  changeMemberRole,
+  completeOnboarding,
+  describeMember,
+  listMembers,
+  type MembersDeps,
+  provisionMember,
+} from './service.ts'
 import type { Member } from './tables.ts'
 
 function toMemberDto(member: Member): MemberDto {
@@ -29,8 +47,32 @@ function toMemberDto(member: Member): MemberDto {
   }
 }
 
+function toMemberProfileDto(member: Member): MemberProfileDto {
+  return {
+    id: member.id,
+    name: member.name,
+    displayName: member.displayName ?? undefined,
+    email: member.email ?? undefined,
+    phone: member.phone ?? undefined,
+    interfaceLanguage: member.interfaceLanguage ?? undefined,
+    role: member.role,
+    createdAt: member.createdAt.toISOString(),
+  }
+}
+
+function toMe(member: Member, spaceId: string, spaceName: string): Me {
+  return {
+    member: toMemberProfileDto(member),
+    space: { id: spaceId, name: spaceName },
+    // A member that has not completed onboarding goes there first.
+    needsOnboarding: member.onboardedAt === null,
+  }
+}
+
 export interface MembersRoutesOptions {
   deps: MembersDeps
+  /** The access module's deps, for the member session guard it publishes. */
+  access: AccessDeps
 }
 
 export const membersRoutes: FastifyPluginAsyncTypebox<MembersRoutesOptions> = async (app, opts) => {
@@ -85,6 +127,60 @@ export const membersRoutes: FastifyPluginAsyncTypebox<MembersRoutesOptions> = as
         const { spaceId, memberId } = request.params
         const member = await changeMemberRole(opts.deps, spaceId, memberId, request.body.role)
         return toMemberDto(member)
+      },
+    )
+  })
+
+  // Member-facing routes: the space always comes from the authenticated
+  // actor, never from the URL or body (architecture.md, request lifecycle).
+  await app.register((memberArea: FastifyInstance) => {
+    const scoped = memberArea.withTypeProvider<TypeBoxTypeProvider>()
+    scoped.addHook('onRequest', memberSessionGuard(opts.access))
+
+    scoped.get(
+      '/me',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          response: { 200: MeSchema },
+        },
+      },
+      async (request) => {
+        const actor = requireMemberActor(request)
+        const { member, spaceName } = await describeMember(opts.deps, actor)
+        return toMe(member, actor.spaceId, spaceName)
+      },
+    )
+
+    scoped.post(
+      '/me/onboarding',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          body: OnboardingBodySchema,
+          response: { 200: MeSchema },
+        },
+      },
+      async (request) => {
+        const actor = requireMemberActor(request)
+        await completeOnboarding(opts.deps, actor, request.body)
+        const { member, spaceName } = await describeMember(opts.deps, actor)
+        return toMe(member, actor.spaceId, spaceName)
+      },
+    )
+
+    scoped.get(
+      '/members',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          response: { 200: Type.Array(MemberProfileDtoSchema) },
+        },
+      },
+      async (request) => {
+        const actor = requireMemberActor(request)
+        const rows = await listMembers(opts.deps, actor.spaceId)
+        return rows.map(toMemberProfileDto)
       },
     )
   })

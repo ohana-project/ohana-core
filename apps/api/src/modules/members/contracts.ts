@@ -57,3 +57,51 @@ export const MemberParamsSchema = Type.Object({
   spaceId: Type.String({ format: 'uuid' }),
   memberId: Type.String({ format: 'uuid' }),
 })
+
+/*
+ * Member-facing contracts: what a signed-in member sees of a profile. The
+ * provisioned name stays visible as the fallback, contacts stay
+ * informational (CONTEXT.md, profile contact detail).
+ */
+export const MemberProfileDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    name: Type.String(),
+    displayName: Type.Optional(Type.String()),
+    email: Type.Optional(Type.String()),
+    phone: Type.Optional(Type.String()),
+    interfaceLanguage: Type.Optional(InterfaceLanguageSchema),
+    role: MemberRoleSchema,
+    createdAt: Type.String({ format: 'date-time' }),
+  },
+  { additionalProperties: false },
+)
+
+export type MemberProfileDto = Static<typeof MemberProfileDtoSchema>
+
+export const MeSchema = Type.Object(
+  {
+    member: MemberProfileDtoSchema,
+    space: Type.Object(
+      { id: Type.String({ format: 'uuid' }), name: Type.String() },
+      { additionalProperties: false },
+    ),
+    needsOnboarding: Type.Boolean(),
+  },
+  { additionalProperties: false },
+)
+
+export type Me = Static<typeof MeSchema>
+
+/** Onboarding collects the optional profile in one submission (ADR-0005). */
+export const OnboardingBodySchema = Type.Object(
+  {
+    displayName: Type.Optional(nameSchema),
+    email: contactSchema(200),
+    phone: contactSchema(40),
+    interfaceLanguage: Type.Optional(InterfaceLanguageSchema),
+  },
+  { additionalProperties: false },
+)
+
+export type OnboardingBody = Static<typeof OnboardingBodySchema>

@@ -1,6 +1,10 @@
+export { MemberProfileDtoSchema, MeSchema, OnboardingBodySchema } from './contracts.ts'
 export {
   adminCountMembersBySpace,
   changeMemberRole,
+  completeOnboarding,
+  describeMember,
+  findMemberInSpace,
   listMembers,
   type MemberInput,
   type MemberRole,

@@ -1,7 +1,7 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Executor } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { getSpace, lockSpace } from '../spaces/index.ts'
+import { getSpace, lockSpace, type SpacesDeps } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
 import { CONTACT_MIN_LENGTH } from './contracts.ts'
@@ -10,6 +10,7 @@ import {
   getMemberInSpace,
   insertMember,
   listMembersInSpace,
+  updateMemberProfile,
   updateMemberRole,
 } from './repository.ts'
 import type { Member, memberRoles } from './tables.ts'
@@ -30,29 +31,15 @@ export interface MemberInput {
   interfaceLanguage?: 'ru' | 'en'
 }
 
-/** Provisions a member in the named space; the change advances the space revision. */
+/**
+ * Provisions a member in the named space; the change advances the space revision.
+ */
 export async function provisionMember(
   deps: MembersDeps,
   spaceId: string,
   input: MemberInput,
 ): Promise<Member> {
-  // The contract validates the raw value; these checks apply to the trimmed
-  // one the service actually stores, so ' a ' cannot slip under the minimum.
-  const email = input.email?.trim() || undefined
-  const phone = input.phone?.trim() || undefined
-  for (const [field, value] of [
-    ['email', email],
-    ['phone', phone],
-  ] as const) {
-    // Code points, matching how the contract's JSON Schema minimum counts.
-    if (value !== undefined && [...value].length < CONTACT_MIN_LENGTH) {
-      throw new DomainError(
-        'validation_failed',
-        `The trimmed ${field} is shorter than ${CONTACT_MIN_LENGTH} characters`,
-        400,
-      )
-    }
-  }
+  const contacts = assertContacts(input.email, input.phone)
   let created: Member | undefined
   await deps.db.transaction(async (tx) =>
     recordChanges(
@@ -66,8 +53,8 @@ export async function provisionMember(
             // The schema already guarantees a non-space character, so the
             // fallback only guards callers outside HTTP.
             displayName: input.displayName?.trim() || undefined,
-            email,
-            phone,
+            email: contacts.email,
+            phone: contacts.phone,
             interfaceLanguage: input.interfaceLanguage,
             revision,
             now: deps.clock.now(),
@@ -79,6 +66,104 @@ export async function provisionMember(
   )
   if (created === undefined) throw new Error('Provisioning a member produced no row')
   return created
+}
+
+/**
+ * The contract validates the raw values; this check applies to the trimmed
+ * ones the service actually stores, so ' a ' cannot slip under the minimum.
+ */
+function assertContacts(
+  email: string | undefined,
+  phone: string | undefined,
+): { email: string | undefined; phone: string | undefined } {
+  const trimmedEmail = email?.trim() || undefined
+  const trimmedPhone = phone?.trim() || undefined
+  for (const [field, value] of [
+    ['email', trimmedEmail],
+    ['phone', trimmedPhone],
+  ] as const) {
+    // Code points, matching how the contract's JSON Schema minimum counts.
+    if (value !== undefined && [...value].length < CONTACT_MIN_LENGTH) {
+      throw new DomainError(
+        'validation_failed',
+        `The trimmed ${field} is shorter than ${CONTACT_MIN_LENGTH} characters`,
+        400,
+      )
+    }
+  }
+  return { email: trimmedEmail, phone: trimmedPhone }
+}
+
+/**
+ * Completes onboarding (ADR-0005): writes the whole optional profile —
+ * display name, informational contacts, interface language — and stamps
+ * the member onboarded, in one revisioned change. Absent fields clear, so
+ * resubmitting the form is always safe.
+ */
+export async function completeOnboarding(
+  deps: MembersDeps,
+  actor: { memberId: string; spaceId: string },
+  input: {
+    displayName?: string
+    email?: string
+    phone?: string
+    interfaceLanguage?: 'ru' | 'en'
+  },
+): Promise<Member> {
+  const contacts = assertContacts(input.email, input.phone)
+  let updated: Member | undefined
+  await deps.db.transaction(async (tx) =>
+    recordChanges(
+      tx,
+      actor.spaceId,
+      {
+        writes: async (writeTx, revision) => {
+          updated = await updateMemberProfile(
+            writeTx,
+            actor.spaceId,
+            actor.memberId,
+            {
+              displayName: input.displayName?.trim() || null,
+              email: contacts.email ?? null,
+              phone: contacts.phone ?? null,
+              interfaceLanguage: input.interfaceLanguage ?? null,
+              onboardedAt: deps.clock.now(),
+            },
+            revision,
+            deps.clock.now(),
+          )
+        },
+      },
+      deps.clock.now(),
+    ),
+  )
+  if (updated === undefined) throw new Error('Completing onboarding produced no row')
+  return updated
+}
+
+/**
+ * The read the access module consumes through its composition-root-wired
+ * port; the access module sits below members and never imports them.
+ */
+export function findMemberInSpace(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<Member | undefined> {
+  return getMemberInSpace(executor, spaceId, memberId)
+}
+
+/** The signed-in member together with their space, for the member shell. */
+export async function describeMember(
+  deps: MembersDeps & SpacesDeps,
+  actor: { memberId: string; spaceId: string },
+): Promise<{ member: Member; spaceName: string }> {
+  const member = await getMemberInSpace(deps.db, actor.spaceId, actor.memberId)
+  if (member === undefined) {
+    throw new DomainError('member_not_found', `Member ${actor.memberId} does not exist`, 404)
+  }
+  const space = await getSpace(deps, actor.spaceId)
+  return { member, spaceName: space.name }
 }
 
 export async function listMembers(deps: MembersDeps, spaceId: string): Promise<Member[]> {

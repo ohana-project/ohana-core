@@ -2,6 +2,14 @@ import { Link } from '@tanstack/react-router'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  type AdminAccessCode,
+  accessCodeErrorMessage,
+  type IssuedAccessCode,
+  useAccessCodes,
+  useIssueAccessCode,
+  useRevokeAccessCode,
+} from '@/features/admin/use-access-codes.ts'
+import {
   type AdminMember,
   adminSpaceErrorMessage,
   CONTACT_MIN_LENGTH,
@@ -17,6 +25,7 @@ import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
+import { CodeDisplay } from '@/ui/code-display.tsx'
 import {
   Dialog,
   DialogContent,
@@ -28,7 +37,7 @@ import {
 import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { ErrorState } from '@/ui/error-state.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
-import { Icon } from '@/ui/icon.tsx'
+import { Icon, type IconName } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
 import {
   Item,
@@ -36,6 +45,7 @@ import {
   ItemContent,
   ItemDescription,
   ItemGroup,
+  ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -54,8 +64,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group.tsx'
 
 /*
  * The administrative space screen (docs/design/screens/admin-space.html):
- * the space header, its members with roles, and a settings sheet for the
- * name and default time zone. Access codes belong to ticket #9.
+ * the space header, its members with roles, the access codes with their
+ * statuses, and a settings sheet for the name and default time zone. The
+ * plaintext code is shown once in the issue dialog — only its hash lives
+ * on the server, so the list shows statuses, not codes.
  */
 
 export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
@@ -154,6 +166,8 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
           {t('admin.space.lastOwnerNote')}
         </p>
       </section>
+
+      <AccessCodesSection spaceId={spaceId} members={list} dateFormatter={dateFormatter} />
 
       <SpaceSettingsSheet
         spaceId={spaceId}
@@ -598,5 +612,325 @@ function ProvisionMemberSheet({
         </form>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/*
+ * The access codes section (docs/design/screens/admin-space.html, «Коды
+ * входа»): the space's codes with their statuses, one issue dialog
+ * that shows the plaintext once, and a revoke confirmation. The list never
+ * shows codes — the server stores only hashes — so each row names its
+ * member instead.
+ */
+
+const statusPill: Record<
+  AdminAccessCode['status'],
+  {
+    pill:
+      | 'admin.codes.pillIssued'
+      | 'admin.codes.pillRedeemed'
+      | 'admin.codes.pillExpired'
+      | 'admin.codes.pillReplaced'
+      | 'admin.codes.pillRevoked'
+    variant: 'primary' | 'ok' | 'warn' | 'neutral' | 'danger'
+    icon: IconName
+  }
+> = {
+  issued: { pill: 'admin.codes.pillIssued', variant: 'primary', icon: 'lock' },
+  redeemed: { pill: 'admin.codes.pillRedeemed', variant: 'ok', icon: 'check' },
+  expired: { pill: 'admin.codes.pillExpired', variant: 'warn', icon: 'clock' },
+  replaced: { pill: 'admin.codes.pillReplaced', variant: 'neutral', icon: 'repeat' },
+  revoked: { pill: 'admin.codes.pillRevoked', variant: 'danger', icon: 'x' },
+}
+
+const statusSub: Record<
+  AdminAccessCode['status'],
+  | 'admin.codes.subIssued'
+  | 'admin.codes.subRedeemed'
+  | 'admin.codes.subExpired'
+  | 'admin.codes.subReplaced'
+  | 'admin.codes.subRevoked'
+> = {
+  issued: 'admin.codes.subIssued',
+  redeemed: 'admin.codes.subRedeemed',
+  expired: 'admin.codes.subExpired',
+  replaced: 'admin.codes.subReplaced',
+  revoked: 'admin.codes.subRevoked',
+}
+
+function AccessCodesSection({
+  spaceId,
+  members,
+  dateFormatter,
+}: {
+  spaceId: string
+  members: AdminMember[]
+  dateFormatter: Intl.DateTimeFormat
+}) {
+  const { t } = useTranslation()
+  const codes = useAccessCodes(spaceId)
+  const [issueOpen, setIssueOpen] = useState(false)
+
+  const memberName = (memberId: string) =>
+    members.find((member) => member.id === memberId)?.name ?? t('admin.codes.unknownMember')
+
+  return (
+    <section>
+      <SectionHeader
+        title={t('admin.codes.title')}
+        action={
+          <Button size="sm" onClick={() => setIssueOpen(true)} disabled={members.length === 0}>
+            <Icon name="plus" className="size-4" />
+            {t('admin.codes.issue')}
+          </Button>
+        }
+      />
+      {codes.isPending ? (
+        <div className="grid place-items-center py-10">
+          <Spinner className="size-6" />
+        </div>
+      ) : codes.isError ? (
+        <ErrorState onRetry={() => void codes.refetch()} />
+      ) : codes.data.length === 0 ? (
+        <Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="lock" />
+            </EmptyMedia>
+            <EmptyTitle>{t('admin.codes.empty')}</EmptyTitle>
+          </Empty>
+        </Card>
+      ) : (
+        <Card className="py-0">
+          <ItemGroup>
+            {codes.data.map((code) => (
+              <AccessCodeRow
+                key={code.id}
+                code={code}
+                spaceId={spaceId}
+                memberName={memberName(code.memberId)}
+                dateFormatter={dateFormatter}
+              />
+            ))}
+          </ItemGroup>
+        </Card>
+      )}
+      <p className="mt-2.5 px-1 text-sm text-muted-foreground">{t('admin.codes.hint')}</p>
+
+      <IssueCodeDialog
+        spaceId={spaceId}
+        members={members}
+        open={issueOpen}
+        onOpenChange={setIssueOpen}
+      />
+    </section>
+  )
+}
+
+function AccessCodeRow({
+  code,
+  spaceId,
+  memberName,
+  dateFormatter,
+}: {
+  code: AdminAccessCode
+  spaceId: string
+  memberName: string
+  dateFormatter: Intl.DateTimeFormat
+}) {
+  const { t } = useTranslation()
+  const revoke = useRevokeAccessCode(spaceId)
+  const [confirming, setConfirming] = useState(false)
+  const meta = statusPill[code.status]
+
+  const applyRevoke = () => {
+    revoke.mutate(
+      { codeId: code.id },
+      {
+        onSuccess: () => setConfirming(false),
+        onError: (error) => toast(accessCodeErrorMessage(error, t), 'danger'),
+      },
+    )
+  }
+
+  return (
+    <Item size="lg">
+      <ItemMedia variant="icon">
+        <Icon name={meta.icon} />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>{memberName}</ItemTitle>
+        <ItemDescription>
+          {t(statusSub[code.status], {
+            member: memberName,
+            date: dateFormatter.format(new Date(code.statusChangedAt)),
+          })}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Badge variant={meta.variant}>{t(meta.pill)}</Badge>
+        {code.status === 'issued' ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() => setConfirming(true)}
+          >
+            {t('admin.codes.revoke')}
+          </Button>
+        ) : null}
+      </ItemActions>
+      {confirming ? (
+        // A mid-flight revocation owns the dialog: it cannot be dismissed
+        // until the request settles, so the callbacks land on a visible dialog.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !revoke.isPending) setConfirming(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('admin.codes.revokeTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('admin.codes.revokeText', { name: memberName })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={revoke.isPending}
+                onClick={() => setConfirming(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button variant="destructive" onClick={applyRevoke} disabled={revoke.isPending}>
+                {t('admin.codes.revokeConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </Item>
+  )
+}
+
+function IssueCodeDialog({
+  spaceId,
+  members,
+  open,
+  onOpenChange,
+}: {
+  spaceId: string
+  members: AdminMember[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const issue = useIssueAccessCode(spaceId)
+  const [memberId, setMemberId] = useState<string | undefined>(undefined)
+  const [memberError, setMemberError] = useState<string | undefined>(undefined)
+  const [issued, setIssued] = useState<IssuedAccessCode | undefined>(undefined)
+  const [formError, setFormError] = useState<string | undefined>(undefined)
+
+  // Abandoned state must not survive closing: everything resets on the open
+  // transition, during render, and a pending request keeps the dialog until
+  // it settles (the code is shown once — closing must not lose it).
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
+    if (open) {
+      setMemberId(undefined)
+      setMemberError(undefined)
+      setIssued(undefined)
+      setFormError(undefined)
+    }
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && issue.isPending) return
+    onOpenChange(next)
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (issue.isPending) return
+    if (memberId === undefined) {
+      setMemberError(t('admin.codes.memberRequired'))
+      return
+    }
+    issue.mutate(
+      { memberId },
+      {
+        onSuccess: (result) => {
+          setIssued(result)
+          toast(t('admin.codes.issuedToast', { code: result.code }))
+        },
+        onError: (error) => setFormError(accessCodeErrorMessage(error, t)),
+      },
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent>
+        {issued === undefined ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('admin.codes.issueTitle')}</DialogTitle>
+              <DialogDescription>{t('admin.codes.issueDescription')}</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+              <Field data-invalid={memberError !== undefined || undefined}>
+                <FieldLabel htmlFor="issue-code-member">{t('admin.codes.memberLabel')}</FieldLabel>
+                <Select
+                  id="issue-code-member"
+                  value={memberId ?? ''}
+                  onChange={(event) => {
+                    setMemberId(event.target.value === '' ? undefined : event.target.value)
+                    setMemberError(undefined)
+                    setFormError(undefined)
+                  }}
+                >
+                  <option value="">—</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </Select>
+                {memberError !== undefined ? (
+                  <FieldError>{memberError}</FieldError>
+                ) : (
+                  <FieldDescription>{t('admin.codes.shownOnce')}</FieldDescription>
+                )}
+              </Field>
+              {formError !== undefined ? <FieldError>{formError}</FieldError> : null}
+              <DialogFooter>
+                <Button type="submit" disabled={issue.isPending}>
+                  {t('admin.codes.issueSubmit')}
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t('admin.codes.issueTitle')}</DialogTitle>
+              <DialogDescription>{t('admin.codes.shownOnce')}</DialogDescription>
+            </DialogHeader>
+            <CodeDisplay code={issued.code} />
+            <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t('admin.codes.meta')}
+            </p>
+            <DialogFooter>
+              <Button onClick={() => onOpenChange(false)} disabled={issue.isPending}>
+                {t('admin.codes.done')}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -6,3 +6,4 @@ dist/
 deploy/smoke/
 playwright-report/
 test-results/
+.agents/
