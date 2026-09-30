@@ -108,7 +108,9 @@ describe('POST /api/v1/access-codes/redeem', () => {
         .from(memberSessions)
         .where(eq(memberSessions.memberId, member.id))
       expect(rows).toHaveLength(1)
-      expect(rows[0]?.expiresAt.getTime()).toBe(harness.clock.now().getTime() + MEMBER_SESSION_TTL_MS)
+      expect(rows[0]?.expiresAt.getTime()).toBe(
+        harness.clock.now().getTime() + MEMBER_SESSION_TTL_MS,
+      )
     })
   })
 

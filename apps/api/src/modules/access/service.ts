@@ -364,10 +364,7 @@ export async function authenticateMember(
 }
 
 /** Deletes the session the token names. Other devices keep theirs. */
-export async function signOutMember(
-  deps: AccessDeps,
-  token: string | undefined,
-): Promise<void> {
+export async function signOutMember(deps: AccessDeps, token: string | undefined): Promise<void> {
   if (token === undefined || token.length === 0) return
   await deps.db.transaction((tx) => deleteMemberSessionByTokenHash(tx, codeHashOf(token)))
 }

@@ -2,10 +2,7 @@ import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import Fastify, { type FastifyBaseLogger } from 'fastify'
-import {
-  type AccessDeps,
-  accessRoutes,
-} from '../modules/access/index.ts'
+import { type AccessDeps, accessRoutes } from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
 import { adminCountMembersBySpace, findMemberInSpace } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'

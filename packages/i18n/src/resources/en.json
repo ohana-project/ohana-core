@@ -139,6 +139,37 @@
       "noMembers": "Nobody is here yet — add the first member",
       "tooShort": "At least {count, plural, one {# character} other {# characters}} — check the value"
     },
+    "codes": {
+      "title": "Invite codes",
+      "issue": "Issue a code",
+      "issueTitle": "A new invite code",
+      "issueDescription": "Pick the member — the code is shown once; pass it on in person.",
+      "memberLabel": "Member",
+      "memberRequired": "Pick a member",
+      "issueSubmit": "Issue",
+      "shownOnce": "Shown once — pass the code on in person",
+      "meta": "Lives 24 hours · one sign-in",
+      "done": "Done",
+      "issuedToast": "The code {code} is issued",
+      "empty": "No codes yet — issue the first one for a member",
+      "forMember": "for {member}",
+      "subIssued": "for {member} · issued {date}",
+      "subRedeemed": "for {member} · used {date}",
+      "subExpired": "for {member} · expired {date}",
+      "subReplaced": "for {member} · replaced {date}",
+      "subRevoked": "for {member} · revoked {date}",
+      "pillIssued": "Issued",
+      "pillRedeemed": "Used",
+      "pillExpired": "Expired",
+      "pillReplaced": "Replaced",
+      "pillRevoked": "Revoked",
+      "revoke": "Revoke",
+      "revokeTitle": "Revoke this code?",
+      "revokeText": "{name} will no longer be able to sign in with it. A revoked code is not restored — issue a new one if needed.",
+      "revokeConfirm": "Revoke",
+      "hint": "A code works once and lives 24 hours. A revoked one is not restored — issue a new one instead.",
+      "unknownMember": "unknown member"
+    },
     "settings": {
       "title": "Instance settings"
     },
@@ -152,7 +183,12 @@
       "invalid_timezone": "There is no such time zone — pick one from the list",
       "member_not_found": "The member was not found — refresh the list",
       "last_owner": "A space must keep at least one owner",
-      "unexpected": "That did not work — check the network and try again."
+      "unexpected": "That did not work — check the network and try again.",
+      "access_code_not_found": "The code was not found — refresh the list",
+      "access_code_used": "The code has already been used",
+      "access_code_expired": "The code has already expired",
+      "access_code_replaced": "The code has already been replaced",
+      "access_code_revoked": "The code has already been revoked"
     }
   },
   "nav": {
@@ -160,6 +196,56 @@
     "journal": "Journal",
     "calendar": "Calendar",
     "wishlist": "Wishlists"
+  },
+  "signin": {
+    "title": "Invitation code",
+    "description": "Type the code — an owner issues it and shows it once.",
+    "label": "Code from the invitation",
+    "submit": "Sign in",
+    "emptyCode": "Enter the code from the invitation.",
+    "successToast": "The code is accepted — welcome!",
+    "footer": "No code? Ask an owner of the space for a new one. Lost the code? An owner can reissue it.",
+    "errors": {
+      "access_code_invalid": "No such code. Check the characters — 0 and О, S and 5 are easy to mix up.",
+      "access_code_expired": "The code has expired. Ask an owner of the space to issue a new one.",
+      "access_code_used": "This code has already been used. A fresh code is needed to sign in on a new device.",
+      "access_code_replaced": "The code was replaced by a newer one — use the fresh code from the invitation.",
+      "access_code_revoked": "The code was revoked. Ask an owner of the space to issue a new one.",
+      "unexpected": "That did not work — check the network and try again."
+    }
+  },
+  "onboarding": {
+    "title": "How will the family call you?",
+    "description": "The name is visible to the members of your spaces. Everything else is optional.",
+    "displayNameLabel": "Name",
+    "displayNameHint": "This is how your family will address you",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone",
+    "contactsHint": "Optional. Visible only to your family — and nobody else.",
+    "languageLabel": "Interface language",
+    "languageHint": "You can change it later in the settings.",
+    "submit": "Continue",
+    "footer": "You are signing in to the “{space}” space"
+  },
+  "member": {
+    "errors": {
+      "unauthorized": "Your session has ended — sign in again with a code.",
+      "validation_failed": "Check the fields — some values are not acceptable.",
+      "unexpected": "That did not work — check the network and try again."
+    },
+    "home": {
+      "greetingMorning": "Good morning, {name}",
+      "greetingAfternoon": "Good afternoon, {name}",
+      "greetingEvening": "Good evening, {name}",
+      "journalSection": "Fresh from the journal",
+      "journalLink": "The whole journal",
+      "journalEmpty": "Entries will appear here — hikes, dinners, little victories.",
+      "eventsSection": "Upcoming events",
+      "eventsLink": "The whole calendar",
+      "eventsEmpty": "Events will appear here — birthdays, doctors, dinners.",
+      "membersSection": "Members",
+      "signOut": "Sign out"
+    }
   },
   "designPreview": {
     "title": "Ohana design system",

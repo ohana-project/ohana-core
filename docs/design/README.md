@@ -211,7 +211,8 @@ Each screen is implemented in the ticket that delivers its behaviour, as its own
 | [`wishlist-favorites`](screens/wishlist-favorites.html) | #19 Gift favorites and gift reservations |
 | [`calendar`](screens/calendar.html), [`event`](screens/event.html), [`event-editor`](screens/event-editor.html) | #20 One-time events (repeats: #21) |
 | [`settings`](screens/settings.html) | #22 Calendar reminders (notification settings) |
-| [`home`](screens/home.html), [`profile`](screens/profile.html) | not yet assigned |
+| [`home`](screens/home.html) | #9 Access codes and member sign-in (the home shell with section navigation; the journal and events columns fill in with #15 and #20) |
+| [`profile`](screens/profile.html) | not yet assigned |
 
 ### Known defects in the prototypes
 
@@ -222,6 +223,7 @@ Do not carry these into the implementation:
 - The launcher's sync demo colours `unreachable` as a warning; the real sync status uses `danger`, which is correct.
 - The `phone` and `install` icons use the same glyph.
 - `.dark-mode` in `ohana.css` is an unused selector.
+- The admin-space prototype's «Коды приглашения» rows print the plaintext code (MISH-QPRT) and promise a 7-day lifetime. Only the code's hash is stored and the plaintext is shown once at issuance, so the implemented rows name the member and show the status instead, and the copy follows ADR-0005's 24-hour, one-sign-in rule. The revoke dialog names the member in nominative-safe phrasing for the same reason as above.
 - The prototypes use inline styles for repeated patterns (row heights, the 38px icon tile, 34px avatars, section labels). In the implementation these are component variants, never one-off styles.
 - The admin login prototype's field hint promises «по умолчанию вход только с localhost»; no localhost-only restriction exists, so the implemented hint keeps only «Выдаётся при первом запуске сервера». Ticket #8 folded the password screen into `admin-settings`; the old `/admin/password` address redirects there.
 - The admin-spaces prototype decorates each space row with an avatar stack of the members' monograms. The administrative spaces listing carries only a member count, not the members themselves, so the implemented rows show the space's own monogram instead. The confirmation dialog's «Сделать Диму владельцем?» declines a hard-coded name; ICU interpolation cannot decline names, so the implemented copy uses nominative-safe phrasing («{name} станет владельцем?»). The regular-role pill reads «УЧАСТНИК» in the prototype; the implementation says «Обычный участник» / "Regular member", following the CONTEXT.md term instead of the ambiguous short form. The time-zone picker lists every IANA zone the runtime knows with an English city name and a current UTC offset; the prototype's short hand-picked «Москва (UTC+3)» list returns with ticket #20's event editor if a curated list proves necessary.

@@ -108,7 +108,9 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/access-codes', () => {
       const before = harness.clock.now()
       const body = await issueCode(app, cookie, space.id, member.id)
 
-      expect(body.code).toMatch(new RegExp(`^[${ACCESS_CODE_ALPHABET}]{4}-[${ACCESS_CODE_ALPHABET}]{4}$`))
+      expect(body.code).toMatch(
+        new RegExp(`^[${ACCESS_CODE_ALPHABET}]{4}-[${ACCESS_CODE_ALPHABET}]{4}$`),
+      )
       expect(body.memberId).toBe(member.id)
       expect(body.status).toBe('issued')
       const expectedExpiry = new Date(before.getTime() + ACCESS_CODE_TTL_MS)
@@ -120,7 +122,8 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/access-codes', () => {
         .from(accessCodes)
         .where(eq(accessCodes.memberId, member.id))
       expect(rows).toHaveLength(1)
-      const stored = rows[0]!
+      const stored = rows.at(0)
+      if (stored === undefined) throw new Error('The issued code row is missing')
       expect(stored.codeHash).toHaveLength(64)
       // Neither the plaintext nor its hyphenated form is stored anywhere.
       const plain = body.code.replace('-', '')
@@ -190,7 +193,9 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/access-codes', () => {
         .where(eq(accessCodes.memberId, member.id))
       const statuses = new Map(rows.map((row) => [row.status, row] as const))
       expect(rows).toHaveLength(2)
-      expect(statuses.get('replaced')?.statusChangedAt.getTime()).toBe(harness.clock.now().getTime())
+      expect(statuses.get('replaced')?.statusChangedAt.getTime()).toBe(
+        harness.clock.now().getTime(),
+      )
       expect(statuses.get('issued')?.codeHash).toBeDefined()
     })
   })

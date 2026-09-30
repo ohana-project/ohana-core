@@ -1,0 +1,214 @@
+import { expect, type Page, test } from '@playwright/test'
+
+/*
+ * The first member end-to-end flow (issue #9, ADR-0005): the access-code
+ * screen, onboarding, and the space home with its section navigation.
+ * The member endpoints are intercepted at the network level: no backend
+ * runs during e2e, the mocks stand in for the session lifecycle.
+ */
+
+const ME = '**/api/v1/me'
+const REDEEM = '**/api/v1/access-codes/redeem'
+const ONBOARDING = '**/api/v1/me/onboarding'
+const MEMBERS = '**/api/v1/members'
+const SESSION = '**/api/v1/me/session'
+
+const VALID_CODE = 'QWEE-4455'
+
+const ANYA = {
+  id: '01900000-0000-7000-8000-000000000001',
+  name: 'Аня',
+  role: 'owner',
+}
+
+const unauthorized = {
+  status: 401,
+  contentType: 'application/json',
+  body: JSON.stringify({
+    error: { code: 'unauthorized', message: 'A member session is required' },
+  }),
+}
+
+const invalidCode = {
+  status: 401,
+  contentType: 'application/json',
+  body: JSON.stringify({
+    error: { code: 'access_code_invalid', message: 'No code matches' },
+  }),
+}
+
+interface MockOptions {
+  /** needsOnboarding in the redemption answer (default true). */
+  needsOnboarding?: boolean
+}
+
+async function mockMemberApi(page: Page, options: MockOptions = {}) {
+  const needsOnboarding = options.needsOnboarding ?? true
+  let signedIn = false
+  let onboarded = false
+
+  await page.route(ME, (route) => {
+    if (route.request().method() !== 'GET') return route.fulfill({ status: 405 })
+    if (!signedIn) return route.fulfill(unauthorized)
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        member: {
+          ...ANYA,
+          ...(onboarded ? { displayName: 'Аня Смирнова' } : {}),
+        },
+        space: { id: '01900000-0000-7000-8000-00000000000a', name: 'Наша семья' },
+        needsOnboarding: signedIn && !onboarded,
+      }),
+    })
+  })
+
+  await page.route(REDEEM, (route) => {
+    const { code } = route.request().postDataJSON() as { code: string }
+    if (code.replace('-', '') !== VALID_CODE.replace('-', '')) {
+      return route.fulfill(invalidCode)
+    }
+    signedIn = true
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        member: ANYA,
+        space: { id: '01900000-0000-7000-8000-00000000000a', name: 'Наша семья' },
+        needsOnboarding,
+      }),
+      headers: {
+        // The browser stores the per-member cookie; the mock only records
+        // that the session exists.
+        'set-cookie': `ohana_member_session_${ANYA.id}=e2e-token; Path=/api; HttpOnly; Secure; SameSite=Lax`,
+      },
+    })
+  })
+
+  await page.route(ONBOARDING, (route) => {
+    onboarded = true
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        member: { ...ANYA, displayName: 'Аня Смирнова' },
+        space: { id: '01900000-0000-7000-8000-00000000000a', name: 'Наша семья' },
+        needsOnboarding: false,
+      }),
+    })
+  })
+
+  await page.route(MEMBERS, (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          ...ANYA,
+          displayName: 'Аня Смирнова',
+          email: 'anya@example.com',
+          createdAt: '2026-08-12T10:00:00.000Z',
+        },
+        {
+          id: '01900000-0000-7000-8000-000000000002',
+          name: 'Дима',
+          role: 'regular',
+          createdAt: '2026-08-13T10:00:00.000Z',
+        },
+      ]),
+    })
+  })
+
+  await page.route(SESSION, (route) => {
+    signedIn = false
+    onboarded = false
+    return route.fulfill({ status: 204 })
+  })
+}
+
+test.describe('member sign-in by access code', () => {
+  test('walks code entry, onboarding, and lands on the space home (ru)', async ({ page }) => {
+    await mockMemberApi(page)
+
+    // Without a session on this device, the landing sends the visitor to
+    // the code screen.
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/signin$/)
+    await expect(page.getByRole('heading', { name: 'Код приглашения' })).toBeVisible()
+
+    // A wrong code explains itself inline and stays on the screen.
+    await page.getByLabel('Код из приглашения').fill('ZZZZ-ZZZZ')
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page.getByRole('alert')).toContainText('Такого кода нет')
+    await expect(page).toHaveURL(/\/signin$/)
+
+    // The right code leads to onboarding.
+    await page.getByLabel('Код из приглашения').fill(VALID_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/onboarding$/)
+    await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
+
+    // Onboarding collects the optional profile and the interface language.
+    await page.getByLabel('Имя').fill('Аня Смирнова')
+    await page.getByLabel('Эл. почта').fill('anya@example.com')
+    await page.getByRole('button', { name: 'Русский' }).click()
+    await page.getByRole('button', { name: 'Продолжить' }).click()
+
+    // The space home greets the member by their display name and offers
+    // the section navigation.
+    await expect(page).toHaveURL(/\/$/)
+    await expect(
+      page.getByRole('heading', { name: /Добр(ое утро|ый день|ый вечер), Аня Смирнова/ }),
+    ).toBeVisible()
+    await expect(page.getByText('Наша семья')).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Разделы' })).toBeVisible()
+    for (const section of ['Главная', 'Дневник', 'Календарь', 'Вишлисты']) {
+      await expect(page.getByRole('button', { name: section }).first()).toBeVisible()
+    }
+    await expect(page.getByText('Свежее в дневнике')).toBeVisible()
+    await expect(page.getByText('Ближайшие события')).toBeVisible()
+
+    // The members of the space are visible with their roles.
+    await expect(page.getByText('Участники')).toBeVisible()
+    await expect(page.getByText('anya@example.com')).toBeVisible()
+    await expect(page.getByText('Дима')).toBeVisible()
+  })
+
+  test('a member that is already onboarded goes straight home', async ({ page }) => {
+    await mockMemberApi(page, { needsOnboarding: false })
+    await page.goto('/signin')
+
+    await page.getByLabel('Код из приглашения').fill(VALID_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('heading', { name: /Аня/ })).toBeVisible()
+  })
+
+  test('signing out returns to the code screen', async ({ page }) => {
+    await mockMemberApi(page)
+    await page.goto('/signin')
+    await page.getByLabel('Код из приглашения').fill(VALID_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/onboarding$/)
+    await page.getByRole('button', { name: 'Продолжить' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Выйти' }).click()
+
+    await expect(page).toHaveURL(/\/signin$/)
+    await expect(page.getByRole('heading', { name: 'Код приглашения' })).toBeVisible()
+  })
+
+  test('renders the English sign-in screen (en)', async ({ page }) => {
+    await mockMemberApi(page)
+    await page.addInitScript(() => window.localStorage.setItem('ohana.locale', 'en'))
+    await page.goto('/signin')
+
+    await expect(page.getByRole('heading', { name: 'Invitation code' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  })
+})

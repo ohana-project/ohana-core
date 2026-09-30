@@ -2,25 +2,21 @@ import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/ty
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
 import {
-  AdminMarkerHeadersSchema,
-  adminMarkerGuard,
-  adminSessionGuard,
-} from '../admin/index.ts'
-import {
   type AccessDeps,
   MemberHeadersSchema,
   memberSessionGuard,
   requireMemberActor,
 } from '../access/index.ts'
+import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
   ChangeMemberRoleBodySchema,
+  type Me,
   type MemberDto,
   MemberDtoSchema,
   MemberParamsSchema,
   type MemberProfileDto,
-  type Me,
-  MeSchema,
   MemberProfileDtoSchema,
+  MeSchema,
   OnboardingBodySchema,
   ProvisionMemberBodySchema,
   SpaceIdParamsSchema,

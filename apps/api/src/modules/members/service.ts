@@ -1,7 +1,7 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { getSpace, type SpacesDeps, lockSpace } from '../spaces/index.ts'
+import { getSpace, lockSpace, type SpacesDeps } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
 import { CONTACT_MIN_LENGTH } from './contracts.ts'

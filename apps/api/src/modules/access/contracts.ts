@@ -2,13 +2,15 @@ import { type Static, Type } from '@sinclair/typebox'
 
 /**
  * The header every member-facing request carries (architecture.md, request
- * lifecycle): the member the request names. The session cookie must be the
- * one named for that same member.
+ * lifecycle): the member the request names. Declared optional the way the
+ * administrative marker is — the guard itself rejects a missing header —
+ * so the document names the header without making clients re-declare what
+ * the API client injects on every request.
  */
 export const MEMBER_HEADER = 'x-ohana-member'
 
 export const MemberHeadersSchema = Type.Object({
-  'x-ohana-member': Type.String({ format: 'uuid' }),
+  'x-ohana-member': Type.Optional(Type.String({ format: 'uuid' })),
 })
 
 export type MemberHeaders = Static<typeof MemberHeadersSchema>
@@ -50,9 +52,12 @@ export const AccessCodeDtoSchema = Type.Object(
 export type AccessCodeDto = Static<typeof AccessCodeDtoSchema>
 
 /** The issuance response is the one place the plaintext code appears. */
-export const IssuedAccessCodeDtoSchema = Type.Composite([AccessCodeDtoSchema, Type.Object({ code: Type.String() })], {
-  additionalProperties: false,
-})
+export const IssuedAccessCodeDtoSchema = Type.Composite(
+  [AccessCodeDtoSchema, Type.Object({ code: Type.String() })],
+  {
+    additionalProperties: false,
+  },
+)
 
 export type IssuedAccessCodeDto = Static<typeof IssuedAccessCodeDtoSchema>
 

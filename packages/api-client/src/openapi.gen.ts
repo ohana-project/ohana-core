@@ -453,8 +453,8 @@ export interface paths {
         delete: {
             parameters: {
                 query?: never;
-                header: {
-                    "x-ohana-member": string;
+                header?: {
+                    "x-ohana-member"?: string;
                 };
                 path?: never;
                 cookie?: never;
@@ -650,8 +650,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: never;
-                header: {
-                    "x-ohana-member": string;
+                header?: {
+                    "x-ohana-member"?: string;
                 };
                 path?: never;
                 cookie?: never;
@@ -708,8 +708,8 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header: {
-                    "x-ohana-member": string;
+                header?: {
+                    "x-ohana-member"?: string;
                 };
                 path?: never;
                 cookie?: never;
@@ -771,8 +771,8 @@ export interface paths {
         get: {
             parameters: {
                 query?: never;
-                header: {
-                    "x-ohana-member": string;
+                header?: {
+                    "x-ohana-member"?: string;
                 };
                 path?: never;
                 cookie?: never;

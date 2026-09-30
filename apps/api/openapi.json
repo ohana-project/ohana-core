@@ -897,7 +897,7 @@
             },
             "in": "header",
             "name": "x-ohana-member",
-            "required": true
+            "required": false
           }
         ],
         "responses": {
@@ -1359,7 +1359,7 @@
             },
             "in": "header",
             "name": "x-ohana-member",
-            "required": true
+            "required": false
           }
         ],
         "responses": {
@@ -1525,7 +1525,7 @@
             },
             "in": "header",
             "name": "x-ohana-member",
-            "required": true
+            "required": false
           }
         ],
         "responses": {
@@ -1644,7 +1644,7 @@
             },
             "in": "header",
             "name": "x-ohana-member",
-            "required": true
+            "required": false
           }
         ],
         "responses": {

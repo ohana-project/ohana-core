@@ -1,0 +1,172 @@
+import { useNavigate } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
+import { MemberLayout } from '@/app/layouts/member-layout.tsx'
+import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
+import { useSpaceProfiles } from '@/features/member/use-space-profiles.ts'
+import { hueFromId, monogramOf } from '@/lib/monogram.ts'
+import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
+import { Badge } from '@/ui/badge.tsx'
+import { Card } from '@/ui/card.tsx'
+import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { ErrorState } from '@/ui/error-state.tsx'
+import { Icon } from '@/ui/icon.tsx'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item.tsx'
+import { SectionHeader } from '@/ui/section-header.tsx'
+import type { ShellSection, ShellUserMenuItem } from '@/ui/shell.ts'
+import { Spinner } from '@/ui/spinner.tsx'
+
+/*
+ * The space home (docs/design/screens/home.html): the greeting with the
+ * date meta under it, then the journal and events columns and the members
+ * of the space. Journal and calendar data land with their own tickets, so
+ * they show their empty states; the section navigation already exists.
+ */
+
+const sections: ShellSection[] = [
+  { id: 'home', label: '', icon: 'home' },
+  { id: 'journal', label: '', icon: 'book' },
+  { id: 'calendar', label: '', icon: 'calendar' },
+  { id: 'wishlist', label: '', icon: 'gift' },
+]
+
+const sectionLabels = {
+  home: 'nav.home',
+  journal: 'nav.journal',
+  calendar: 'nav.calendar',
+  wishlist: 'nav.wishlist',
+} as const
+
+const greetings = {
+  morning: 'member.home.greetingMorning',
+  afternoon: 'member.home.greetingAfternoon',
+  evening: 'member.home.greetingEvening',
+} as const
+
+function greetingKey(hour: number): keyof typeof greetings {
+  if (hour < 12) return 'morning'
+  if (hour < 18) return 'afternoon'
+  return 'evening'
+}
+
+export function SpaceHomeScreen() {
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const session = useMemberSessionStatus()
+  const signOut = useMemberSignOut()
+  const profiles = useSpaceProfiles()
+
+  if (session.me === undefined) return null
+  const me = session.me
+  const displayName = me.member.displayName ?? me.member.name
+
+  const localisedSections = sections.map((section) => ({
+    ...section,
+    label: t(sectionLabels[section.id as keyof typeof sectionLabels]),
+  }))
+
+  const userMenuItems: ShellUserMenuItem[] = [
+    {
+      id: 'sign-out',
+      label: t('member.home.signOut'),
+      icon: 'log-out',
+      danger: true,
+      onSelect: () => signOut.mutate(),
+    },
+  ]
+
+  const dateLabel = new Intl.DateTimeFormat(i18n.language, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+    .format(new Date())
+    .toLocaleUpperCase(i18n.language)
+
+  return (
+    <MemberLayout
+      space={{
+        name: me.space.name,
+        marks: [{ initials: monogramOf(displayName), hue: hueFromId(me.member.id) }],
+      }}
+      sections={localisedSections}
+      activeId="home"
+      userMenuItems={userMenuItems}
+      onSectionClick={(id) => {
+        // Journal, calendar, and wishlist screens arrive with their own
+        // tickets; until then only home is a real destination.
+        if (id === 'home') void navigate({ to: '/' })
+      }}
+    >
+      <div className="flex flex-col gap-6 pt-6">
+        <header>
+          <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+            {dateLabel}
+          </p>
+          <h1 className="mt-1 text-display-lg">
+            {t(greetings[greetingKey(new Date().getHours())], { name: displayName })}
+          </h1>
+        </header>
+
+        <section>
+          <SectionHeader title={t('member.home.journalSection')} />
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="book" />
+              </EmptyMedia>
+              <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
+            </Empty>
+          </Card>
+        </section>
+
+        <section>
+          <SectionHeader title={t('member.home.eventsSection')} />
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="calendar" />
+              </EmptyMedia>
+              <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
+            </Empty>
+          </Card>
+        </section>
+
+        <section>
+          <SectionHeader title={t('member.home.membersSection')} />
+          {profiles.isPending ? (
+            <div className="grid place-items-center py-10">
+              <Spinner className="size-6" />
+            </div>
+          ) : profiles.isError ? (
+            <ErrorState onRetry={() => void profiles.refetch()} />
+          ) : (
+            <Card className="py-0">
+              <ItemGroup>
+                {profiles.data?.map((profile) => {
+                  const profileName = profile.displayName ?? profile.name
+                  const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
+                  return (
+                    <Item key={profile.id} size="lg">
+                      <Avatar size="sm" hue={hueFromId(profile.id)}>
+                        <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
+                      </Avatar>
+                      <ItemContent>
+                        <ItemTitle>{profileName}</ItemTitle>
+                        {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
+                      </ItemContent>
+                      <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
+                        {profile.role === 'owner'
+                          ? t('admin.space.ownerPill')
+                          : t('admin.space.regularPill')}
+                      </Badge>
+                    </Item>
+                  )
+                })}
+              </ItemGroup>
+            </Card>
+          )}
+        </section>
+      </div>
+    </MemberLayout>
+  )
+}

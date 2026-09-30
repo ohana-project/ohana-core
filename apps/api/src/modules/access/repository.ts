@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, lt, lte } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { type AccessCode, type MemberSession, accessCodes, memberSessions } from './tables.ts'
+import { type AccessCode, accessCodes, type MemberSession, memberSessions } from './tables.ts'
 
 export interface NewAccessCode {
   spaceId: string
@@ -46,7 +46,11 @@ export async function redeemAccessCodeRow(
     .update(accessCodes)
     .set({ status: 'redeemed', statusChangedAt: now })
     .where(
-      and(eq(accessCodes.codeHash, codeHash), eq(accessCodes.status, 'issued'), gt(accessCodes.expiresAt, now)),
+      and(
+        eq(accessCodes.codeHash, codeHash),
+        eq(accessCodes.status, 'issued'),
+        gt(accessCodes.expiresAt, now),
+      ),
     )
     .returning()
   return updated[0]

@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { notFound } from '../../platform/errors.ts'
-import { type Member, type interfaceLanguages, type memberRoles, members } from './tables.ts'
+import { type interfaceLanguages, type Member, type memberRoles, members } from './tables.ts'
 
 export interface NewMember {
   name: string
