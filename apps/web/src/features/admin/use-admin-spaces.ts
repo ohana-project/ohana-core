@@ -11,6 +11,9 @@ import { ApiError, assertOk } from '@/data/api-error.ts'
 
 const adminMarker = { 'x-ohana-admin': '1' }
 
+/** The shortest contact value; mirrors the API contract's minLength. */
+export const CONTACT_MIN_LENGTH = 3
+
 const spacesQueryKey = ['admin', 'spaces'] as const
 
 export type AdminSpace = {

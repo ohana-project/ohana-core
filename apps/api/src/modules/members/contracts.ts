@@ -4,10 +4,13 @@ export const MemberRoleSchema = Type.Union([Type.Literal('owner'), Type.Literal(
 
 export const InterfaceLanguageSchema = Type.Union([Type.Literal('ru'), Type.Literal('en')])
 
+/** The shortest contact value, counted in code points like the JSON Schema minimum. */
+export const CONTACT_MIN_LENGTH = 3
+
 /** Any non-whitespace character somewhere in the value; whitespace-only values fail. */
 const nameSchema = Type.String({ minLength: 1, maxLength: 200, pattern: '\\S' })
 const contactSchema = (maxLength: number) =>
-  Type.Optional(Type.String({ minLength: 3, maxLength, pattern: '\\S' }))
+  Type.Optional(Type.String({ minLength: CONTACT_MIN_LENGTH, maxLength, pattern: '\\S' }))
 
 export const MemberDtoSchema = Type.Object(
   {

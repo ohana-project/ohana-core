@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type AdminMember,
   adminSpaceErrorMessage,
+  CONTACT_MIN_LENGTH,
   useAdminSpace,
   useChangeMemberRole,
   useProvisionMember,
@@ -245,14 +246,25 @@ function MemberRow({
         ) : null}
       </ItemActions>
       {dialog !== undefined ? (
-        <Dialog open onOpenChange={(open) => !open && setConfirmRole(undefined)}>
+        // A mid-flight role change owns the dialog: it cannot be dismissed
+        // until the request settles, so the callbacks land on a visible dialog.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !changeRole.isPending) setConfirmRole(undefined)
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{dialog.title}</DialogTitle>
               <DialogDescription>{dialog.text}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="secondary" onClick={() => setConfirmRole(undefined)}>
+              <Button
+                variant="secondary"
+                disabled={changeRole.isPending}
+                onClick={() => setConfirmRole(undefined)}
+              >
                 {t('ui.close')}
               </Button>
               <Button onClick={applyRole} disabled={changeRole.isPending}>
@@ -407,14 +419,13 @@ function ProvisionMemberSheet({
   const [phoneError, setPhoneError] = useState<string | undefined>()
   const [formError, setFormError] = useState<string | undefined>()
 
-  // Abandoned edits and stale mutation answers must not survive into the
-  // next session: everything resets on the open transition, during render,
-  // and a pending submission keeps the sheet open until it settles.
+  // Abandoned edits must not survive into the next session: everything
+  // resets on the open transition, during render, and a pending submission
+  // keeps the sheet open until it settles.
   const [lastOpen, setLastOpen] = useState(open)
   if (open !== lastOpen) {
     setLastOpen(open)
     if (open) {
-      provisionMember.reset()
       setName('')
       setRole('regular')
       setDisplayName('')
@@ -440,11 +451,11 @@ function ProvisionMemberSheet({
     if (provisionMember.isPending) return
     const failures: { name?: string; email?: string; phone?: string } = {}
     if (name.trim().length === 0) failures.name = t('admin.space.memberNameRequired')
-    if (email.trim().length > 0 && email.trim().length < 3) {
-      failures.email = t('admin.space.tooShort')
+    if (email.trim().length > 0 && [...email.trim()].length < CONTACT_MIN_LENGTH) {
+      failures.email = t('admin.space.tooShort', { count: CONTACT_MIN_LENGTH })
     }
-    if (phone.trim().length > 0 && phone.trim().length < 3) {
-      failures.phone = t('admin.space.tooShort')
+    if (phone.trim().length > 0 && [...phone.trim()].length < CONTACT_MIN_LENGTH) {
+      failures.phone = t('admin.space.tooShort', { count: CONTACT_MIN_LENGTH })
     }
     setNameError(failures.name)
     setEmailError(failures.email)

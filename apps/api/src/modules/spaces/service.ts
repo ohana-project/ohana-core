@@ -78,6 +78,25 @@ export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space
 }
 
 /**
+ * Takes the space row lock inside a transaction. A use case that must read
+ * before deciding to write starts here: the space lock is the first lock
+ * every writer takes, so the revision bookkeeping serialises them and no
+ * lock order can invert into a deadlock (architecture.md, "Revision
+ * bookkeeping").
+ */
+export async function lockSpace(tx: Tx, spaceId: string): Promise<void> {
+  await getSpaceForUpdateOrThrow(tx, spaceId)
+}
+
+async function getSpaceForUpdateOrThrow(tx: Tx, spaceId: string): Promise<Space> {
+  const space = await getSpaceForUpdate(tx, spaceId)
+  if (space === undefined) {
+    throw new DomainError('space_not_found', `Space ${spaceId} does not exist`, 404)
+  }
+  return space
+}
+
+/**
  * Renames the space or changes its time zone; the revision advances with
  * the change in one statement. A patch that changes nothing is answered
  * from the stored row so it does not spend a revision and force a resync.
@@ -92,10 +111,7 @@ export async function updateSpace(
   const timezone = changes.timezone !== undefined ? assertTimezone(changes.timezone) : undefined
   const name = changes.name?.trim()
   return deps.db.transaction(async (tx) => {
-    const current = await getSpaceForUpdate(tx, spaceId)
-    if (current === undefined) {
-      throw new DomainError('space_not_found', `Space ${spaceId} does not exist`, 404)
-    }
+    const current = await getSpaceForUpdateOrThrow(tx, spaceId)
     const effective: SpaceChanges = {}
     if (name !== undefined && name !== current.name) effective.name = name
     if (timezone !== undefined && timezone !== current.timezone) effective.timezone = timezone

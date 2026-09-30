@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import {
@@ -381,6 +381,34 @@ describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
     })
   })
 
+  test('keeps the last owner when two demotions race', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const dima = await harness.createMember(space.id, { name: 'Дима', role: 'owner' })
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const demote = (memberId: string) =>
+        app.inject({
+          method: 'PATCH',
+          url: `/api/v1/spaces/${space.id}/members/${memberId}`,
+          payload: { role: 'regular' },
+          headers: { cookie, ...MARKER },
+        })
+      const [first, second] = await Promise.all([demote(anya.id), demote(dima.id)])
+      // The space lock serialises the two: whichever lands second sees the
+      // last owner and is refused.
+      const statuses = [first.statusCode, second.statusCode].sort()
+      expect(statuses).toEqual([200, 409])
+      const refused = first.statusCode === 409 ? first : second
+      expect(refused.json().error.code).toBe('last_owner')
+    })
+    const owners = await harness.db
+      .select({ id: members.id, role: members.role })
+      .from(members)
+      .where(and(eq(members.spaceId, space.id), eq(members.role, 'owner')))
+    expect(owners).toHaveLength(1)
+  })
+
   test('requires administrative authentication', async () => {
     const space = await harness.createSpace()
     const member = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
@@ -411,18 +439,34 @@ describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
 })
 
 describe('provisioning with padded contact values', () => {
-  test('rejects a contact whose trimmed value is under the minimum', async () => {
+  test.each([
+    ['email', ' a '],
+    ['phone', '  1 '],
+  ] as const)('rejects a padded %s under the minimum', async (field, value) => {
     const space = await harness.createSpace()
     await withApp(async (app) => {
       const cookie = await signInAndGetCookie(app)
       const response = await app.inject({
         method: 'POST',
         url: `/api/v1/spaces/${space.id}/members`,
-        payload: { name: 'Аня', role: 'owner', email: ' a ' },
+        payload: { name: 'Аня', role: 'owner', [field]: value },
         headers: { cookie, ...MARKER },
       })
       expect(response.statusCode).toBe(400)
       expect(response.json().error.code).toBe('validation_failed')
+
+      // The refusal happens before the transaction: nothing stored, no
+      // revision spent.
+      const stored = await harness.db
+        .select({ id: members.id })
+        .from(members)
+        .where(eq(members.spaceId, space.id))
+      expect(stored).toHaveLength(0)
+      const spaceRows = await harness.db
+        .select({ revision: spaces.revision })
+        .from(spaces)
+        .where(eq(spaces.id, space.id))
+      expect(spaceRows[0]?.revision).toBe(0n)
     })
   })
 })

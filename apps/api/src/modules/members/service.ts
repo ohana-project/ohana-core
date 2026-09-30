@@ -4,6 +4,7 @@ import { DomainError } from '../../platform/errors.ts'
 import { getSpace, lockSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
+import { CONTACT_MIN_LENGTH } from './contracts.ts'
 import {
   countOwnersInSpace,
   getMemberInSpace,
@@ -29,9 +30,6 @@ export interface MemberInput {
   interfaceLanguage?: 'ru' | 'en'
 }
 
-/** The shortest contact value that survives trimming; matches the web client. */
-export const CONTACT_MIN_LENGTH = 3
-
 /** Provisions a member in the named space; the change advances the space revision. */
 export async function provisionMember(
   deps: MembersDeps,
@@ -46,7 +44,8 @@ export async function provisionMember(
     ['email', email],
     ['phone', phone],
   ] as const) {
-    if (value !== undefined && value.length < CONTACT_MIN_LENGTH) {
+    // Code points, matching how the contract's JSON Schema minimum counts.
+    if (value !== undefined && [...value].length < CONTACT_MIN_LENGTH) {
       throw new DomainError(
         'validation_failed',
         `The trimmed ${field} is shorter than ${CONTACT_MIN_LENGTH} characters`,
@@ -92,11 +91,10 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
 /**
  * Moves a member between the owner and regular roles. The space must keep at
  * least one owner (CONTEXT.md: a space is never left without one). The
- * space row lock is taken before the member is read — the one lock order in
- * the codebase — so an unchanged role is answered without spending a
- * revision, the last-owner count runs serialised against concurrent role
- * changes, and tombstone inserts that lock the space first can never
- * deadlock against this transaction.
+ * space row lock is taken before the member is read, per the lock-order
+ * rule in architecture.md ("Revision bookkeeping"): an unchanged role is
+ * answered without spending a revision, and the last-owner count runs
+ * serialised against concurrent role changes.
  */
 export async function changeMemberRole(
   deps: MembersDeps,

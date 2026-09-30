@@ -144,14 +144,13 @@ export function CreateSpaceSheet({
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState<string | undefined>()
 
-  // Abandoned edits and stale mutation answers must not survive into the
-  // next session: everything resets on the open transition, during render,
-  // and a pending submission keeps the sheet open until it settles.
+  // Abandoned edits must not survive into the next session: everything
+  // resets on the open transition, during render, and a pending submission
+  // keeps the sheet open until it settles.
   const [lastOpen, setLastOpen] = useState(open)
   if (open !== lastOpen) {
     setLastOpen(open)
     if (open) {
-      createSpace.reset()
       setName('')
       setNameError(undefined)
     }

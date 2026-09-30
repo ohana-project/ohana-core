@@ -110,6 +110,37 @@ describe('AdminSpaceDetail', () => {
     expect(await screen.findByText('Участник добавлен')).toBeInTheDocument()
   })
 
+  it('keeps the provision sheet open while the request is in flight', async () => {
+    const user = userEvent.setup()
+    let settle: (() => void) | undefined
+    apiPost.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle = () =>
+            resolve({
+              data: MEMBERS[1],
+              error: undefined,
+              response: new Response(null, { status: 201 }),
+            })
+        }),
+    )
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
+    await user.type(screen.getByLabelText('Имя'), 'Миша')
+    await user.click(screen.getByRole('button', { name: 'Добавить' }))
+
+    // The in-flight request owns the sheet: dismissing it is refused, so
+    // the draft and the fields stay exactly as they were.
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    expect(screen.getByLabelText('Имя')).toHaveValue('Миша')
+
+    settle?.()
+    expect(await screen.findByText('Участник добавлен')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Имя')).not.toBeInTheDocument()
+  })
+
   it('forgets abandoned edits when the provision sheet reopens', async () => {
     const user = userEvent.setup()
     renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
