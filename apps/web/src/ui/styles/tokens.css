@@ -32,11 +32,20 @@
   /* hover accent: darkens 12% in light, lightens 10% in dark (README
      "Components", button) — shared by the button and the retry link */
   --accent-strong: color-mix(in oklch, var(--accent) 88%, black);
-  /* component fills, read by contrast.test.ts: the pill tints and the
-     offline banner (README "Components") */
-  --ok-fill: color-mix(in oklch, var(--ok) 14%, transparent);
-  --warn-fill: color-mix(in oklch, var(--warn) 16%, transparent);
-  --danger-fill: color-mix(in oklch, var(--danger) 13%, transparent);
+  /* component fills, read by contrast.test.ts: the pill tints, the
+     danger button and menu item tint, and the offline banner (README
+     "Components"). Fills that carry text mix into surface, not toward
+     transparent: they can sit on glass (a pill in a sheet, the danger
+     button in a dialog footer), where a see-through tint lets the
+     backdrop drag the text below 4.5:1. */
+  --ok-fill: color-mix(in oklch, var(--ok) 14%, var(--surface));
+  --warn-fill: color-mix(in oklch, var(--warn) 16%, var(--surface));
+  --danger-fill: color-mix(in oklch, var(--danger) 13%, var(--surface));
+  --accent-fill: color-mix(in oklch, var(--accent) 13%, var(--surface));
+  --neutral-fill: color-mix(in oklch, var(--fg) 6%, var(--surface));
+  --danger-tint: color-mix(in oklch, var(--danger) 12%, var(--surface));
+  /* 16%, not 20%: at 20% danger text drops below 4.5:1 even on surface */
+  --danger-tint-hover: color-mix(in oklch, var(--danger) 16%, var(--surface));
   --banner-fill: color-mix(in oklch, var(--warn) 14%, var(--surface));
   --banner-border: color-mix(in oklch, var(--warn) 35%, transparent);
   --banner-text: color-mix(in oklch, var(--warn) 80%, var(--fg));
@@ -97,6 +106,10 @@
   --fg-soft: color-mix(in oklch, var(--fg) 9%, transparent);
   --scrim: color-mix(in oklch, black 55%, transparent);
   --accent-strong: color-mix(in oklch, var(--accent) 90%, white);
+  /* the pill fills follow accent-soft and fg-soft (20% and 9% in dark);
+     the other fills re-resolve against the dark surface on their own */
+  --accent-fill: color-mix(in oklch, var(--accent) 20%, var(--surface));
+  --neutral-fill: color-mix(in oklch, var(--fg) 9%, var(--surface));
 
   --shadow-1: 0 1px 2px color-mix(in oklch, black 30%, transparent);
   --shadow-2: 0 6px 20px color-mix(in oklch, black 38%, transparent);

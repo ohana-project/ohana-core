@@ -152,11 +152,11 @@ describe.each(Object.entries(themes))('%s theme', (_theme, tokens) => {
   })
 
   it('pill text meets 4.5:1 over its tinted fill', () => {
-    check(color('accent'), tinted('accent-soft', 'surface'), 4.5, 'primary pill')
+    check(color('accent'), tinted('accent-fill', 'surface'), 4.5, 'primary pill')
     check(color('ok'), tinted('ok-fill', 'surface'), 4.5, 'ok pill')
     check(color('warn'), tinted('warn-fill', 'surface'), 4.5, 'warn pill')
     check(color('danger'), tinted('danger-fill', 'surface'), 4.5, 'danger pill')
-    check(color('muted'), tinted('fg-soft', 'surface'), 4.5, 'neutral pill')
+    check(color('muted'), tinted('neutral-fill', 'surface'), 4.5, 'neutral pill')
   })
 
   it('the offline banner meets 4.5:1', () => {
@@ -178,6 +178,30 @@ describe.each(Object.entries(themes))('%s theme', (_theme, tokens) => {
       // synced and offline sync glyphs), so they need 3:1
       for (const icon of ['ok', 'warn']) {
         check(color(icon), glass(backdrop), 3, `${icon} icon on glass over ${name}`)
+      }
+    }
+  })
+
+  it('text on a tint over glass meets 4.5:1 composited on white and black backdrops', () => {
+    // tints that carry text and can sit on glass: the danger button (a
+    // dialog footer) at rest and on hover, the destructive menu item's
+    // highlight (danger-tint too), and pills inside a sheet. A tint mixed
+    // toward transparent lets the backdrop through, so these mix into
+    // surface instead (README "Implementation")
+    const onTint = [
+      ['danger', 'danger-tint'],
+      ['danger', 'danger-tint-hover'],
+      ['accent', 'accent-fill'],
+      ['ok', 'ok-fill'],
+      ['warn', 'warn-fill'],
+      ['danger', 'danger-fill'],
+      ['muted', 'neutral-fill'],
+    ] as const
+    for (const backdrop of [WHITE, BLACK]) {
+      const name = backdrop === WHITE ? 'white' : 'black'
+      for (const [text, fill] of onTint) {
+        const tint = over(asRgb(resolve(fill, tokens), tokens), glass(backdrop))
+        check(color(text), tint, 4.5, `${text} on ${fill} on glass over ${name}`)
       }
     }
   })

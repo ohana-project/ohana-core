@@ -92,7 +92,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "flex min-h-[42px] cursor-default items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium text-left outline-hidden select-none hover:bg-accent focus:bg-accent data-inset:pl-[46px] data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px] [&_svg:not([class*='text-'])]:text-muted-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:hover:bg-destructive/10 data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:*:[svg]:text-destructive",
+        "flex min-h-[42px] cursor-default items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium text-left outline-hidden select-none hover:bg-accent focus:bg-accent data-inset:pl-[46px] data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px] [&_svg:not([class*='text-'])]:text-muted-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:hover:bg-(--danger-tint) data-[variant=destructive]:focus:bg-(--danger-tint) data-[variant=destructive]:*:[svg]:text-destructive",
         className,
       )}
       {...props}
