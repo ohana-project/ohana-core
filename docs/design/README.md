@@ -223,6 +223,7 @@ Do not carry these into the implementation:
 - The `phone` and `install` icons use the same glyph.
 - `.dark-mode` in `ohana.css` is an unused selector.
 - The prototypes use inline styles for repeated patterns (row heights, the 38px icon tile, 34px avatars, section labels). In the implementation these are component variants, never one-off styles.
+- The admin login prototype's field hint promises «по умолчанию вход только с localhost»; no localhost-only restriction exists, so the implemented hint keeps only «Выдаётся при первом запуске сервера». The password screen is implemented as its own route until ticket #8 folds it into `admin-settings`.
 
 ## Implementation
 

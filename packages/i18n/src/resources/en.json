@@ -54,6 +54,36 @@
     "adminTitle": "Ohana · Admin",
     "authNote": "The family album that is always with you"
   },
+  "admin": {
+    "pill": "Admin",
+    "signOut": "Sign out of the admin area",
+    "login": {
+      "title": "The server is password-protected",
+      "description": "A separate sign-in for whoever hosts Ohana. Family spaces use an access code on the main screen.",
+      "passwordLabel": "Administrator password",
+      "passwordHint": "Issued at the server's first start",
+      "submit": "Sign in to the admin area",
+      "footer": "Forgot the password? It lives only on your server — restore it with a console command.",
+      "wrongPassword": "Wrong password — try again"
+    },
+    "password": {
+      "title": "Administrator password",
+      "currentLabel": "Current password",
+      "currentRequired": "Enter the current password",
+      "newLabel": "New password",
+      "newHint": "At least 10 characters",
+      "newError": "At least 10 characters — this server is reachable from the internet",
+      "repeatLabel": "Repeat the new password",
+      "repeatError": "The passwords do not match",
+      "submit": "Change the password",
+      "note": "Admin sessions stay active — sign out and back in on your other devices",
+      "success": "The password is updated — the old one no longer works"
+    },
+    "errors": {
+      "invalid_credentials": "Wrong password — try again",
+      "unexpected": "That did not work — check the network and try again."
+    }
+  },
   "nav": {
     "home": "Home",
     "journal": "Journal",
