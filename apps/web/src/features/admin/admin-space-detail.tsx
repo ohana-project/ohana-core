@@ -64,10 +64,10 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group.tsx'
 
 /*
  * The administrative space screen (docs/design/screens/admin-space.html):
- * the space header, its members with roles, the invite codes with their
- * statuses, and a settings sheet for the name and default time zone.
- * The plaintext code is shown once in the issue dialog — only its hash
- * lives on the server, so the list shows statuses, not codes.
+ * the space header, its members with roles, the access codes with their
+ * statuses, and a settings sheet for the name and default time zone. The
+ * plaintext code is shown once in the issue dialog — only its hash lives
+ * on the server, so the list shows statuses, not codes.
  */
 
 export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
@@ -616,8 +616,8 @@ function ProvisionMemberSheet({
 }
 
 /*
- * The invite codes section (docs/design/screens/admin-space.html, «Коды
- * приглашения»): the space's codes with their statuses, one issue dialog
+ * The access codes section (docs/design/screens/admin-space.html, «Коды
+ * входа»): the space's codes with their statuses, one issue dialog
  * that shows the plaintext once, and a revoke confirmation. The list never
  * shows codes — the server stores only hashes — so each row names its
  * member instead.

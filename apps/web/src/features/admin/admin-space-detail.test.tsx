@@ -361,7 +361,7 @@ describe('AdminSpaceDetail', () => {
   })
 })
 
-describe('AdminSpaceDetail invite codes', () => {
+describe('AdminSpaceDetail access codes', () => {
   it('lists the codes with their statuses, naming members instead of codes', async () => {
     apiGet.mockImplementation(async (path: never) => {
       if (path === '/api/v1/spaces/{spaceId}/members') {

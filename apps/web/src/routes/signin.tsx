@@ -5,7 +5,7 @@ import { AuthLayout } from '@/ui/auth-layout.tsx'
 
 /*
  * The member sign-in screen (docs/design/screens/code-entry.html): the
- * invitation code is the only credential. The screen stays reachable for a
+ * access code is the only credential. The screen stays reachable for a
  * member who is already signed in — a device keeps several independent
  * sign-ins, and entering another code adds one more (ADR-0005).
  */

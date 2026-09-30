@@ -6,7 +6,7 @@ import { getSpace, getSpaceInTx, lockSpace } from '../spaces/index.ts'
 import type { AccessCodeStatus } from './contracts.ts'
 import {
   deleteExpiredMemberSessionsAcrossSpaces,
-  deleteMemberSessionByTokenHashAcrossSpaces,
+  deleteMemberSessionAcrossSpaces,
   expireAccessCodeRow,
   findAccessCodeByHashAcrossSpaces,
   findMemberSessionByTokenHashAcrossSpaces,
@@ -14,7 +14,7 @@ import {
   insertAccessCode,
   insertMemberSession,
   listAccessCodesInSpace,
-  redeemAccessCodeRow,
+  redeemAccessCodeByHashAcrossSpaces,
   revokeAccessCodeRow,
   sweepMemberCodesForIssue,
 } from './repository.ts'
@@ -180,7 +180,7 @@ export async function listAccessCodes(
   deps: AccessDeps,
   spaceId: string,
 ): Promise<AccessCodeListItem[]> {
-  // Members of an unknown space answer 404 like every other route that
+  // The codes of an unknown space answer 404 like every other route that
   // names a space, instead of an empty list.
   await getSpace(deps, spaceId)
   const rows = await listAccessCodesInSpace(deps.db, spaceId)
@@ -203,7 +203,8 @@ function derivedStatus(row: AccessCode, now: Date): AccessCodeStatus {
 /**
  * Revokes a live code. A code in any other state cannot be revoked: it has
  * already expired, been used, been replaced, or been revoked, and the
- * specific error says which.
+ * specific error says which. Like redemption, this is one compare-and-set
+ * on the code row, so it takes no space row lock.
  */
 export async function revokeAccessCode(
   deps: AccessDeps,
@@ -279,6 +280,9 @@ export interface RedeemResult {
  * Redeems a code: one live redemption, one new session, existing sessions
  * untouched (ADR-0005). The status flip and the session insert share one
  * transaction, so a code is never spent without a session to show for it.
+ * No space row lock is taken: the redemption is one compare-and-set on the
+ * code row, and no synchronised row changes, so the revision-lock order
+ * has nothing to serialise here.
  */
 export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promise<RedeemResult> {
   const normalized = normalizeAccessCode(rawCode)
@@ -289,7 +293,7 @@ export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promi
   const now = deps.clock.now()
 
   const outcome = await deps.db.transaction(async (tx) => {
-    const row = await redeemAccessCodeRow(tx, codeHash, now)
+    const row = await redeemAccessCodeByHashAcrossSpaces(tx, codeHash, now)
     if (row === undefined) {
       const existing = await findAccessCodeByHashAcrossSpaces(tx, codeHash)
       if (existing === undefined) return { kind: 'invalid' } as const
@@ -312,8 +316,9 @@ export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promi
     const member = await deps.findMemberInSpace(tx, row.spaceId, row.memberId)
     if (member === undefined) {
       // The composite foreign key makes this unreachable for a live member;
-      // a vanished row must not yield a session.
-      return { kind: 'invalid' } as const
+      // a vanished row must not yield a session. The throw — not a returned
+      // refusal — is what rolls the spent status back with the transaction.
+      throw new DomainError('access_code_invalid', 'The code names no live member', 401)
     }
     const space = await getSpaceInTx(tx, row.spaceId)
     const token = randomBytes(32).toString('base64url')
@@ -379,10 +384,18 @@ export async function authenticateMember(
   return { kind: 'member', memberId: member.id, spaceId: member.spaceId, role: member.role }
 }
 
-/** Deletes the session the token names. Other devices keep theirs. */
-export async function signOutMember(deps: AccessDeps, token: string | undefined): Promise<void> {
+/**
+ * Deletes the named member's session for this token. The delete is scoped
+ * to the member, matching the authentication rule: a token only ever acts
+ * for the member its cookie is named for. Other devices keep theirs.
+ */
+export async function signOutMember(
+  deps: AccessDeps,
+  memberId: string,
+  token: string | undefined,
+): Promise<void> {
   if (token === undefined || token.length === 0) return
   await deps.db.transaction((tx) =>
-    deleteMemberSessionByTokenHashAcrossSpaces(tx, codeHashOf(token)),
+    deleteMemberSessionAcrossSpaces(tx, memberId, codeHashOf(token)),
   )
 }

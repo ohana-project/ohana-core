@@ -200,6 +200,48 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/access-codes', () => {
     })
   })
 
+  test('of two concurrent issuances only one code stays live', async () => {
+    const space = await harness.createSpace()
+    const member = await harness.createMember(space.id, { name: 'Аня' })
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const [first, second] = await Promise.all([
+        app.inject({
+          method: 'POST',
+          url: `/api/v1/spaces/${space.id}/members/${member.id}/access-codes`,
+          headers: { cookie, ...MARKER },
+        }),
+        app.inject({
+          method: 'POST',
+          url: `/api/v1/spaces/${space.id}/members/${member.id}/access-codes`,
+          headers: { cookie, ...MARKER },
+        }),
+      ])
+      expect([first.statusCode, second.statusCode]).toEqual([201, 201])
+
+      const rows = await harness.db
+        .select({ status: accessCodes.status })
+        .from(accessCodes)
+        .where(eq(accessCodes.memberId, member.id))
+      // The space lock serialises the two: one lands issued, the earlier
+      // one is swept to replaced.
+      expect(rows.map((row) => row.status).sort()).toEqual(['issued', 'replaced'])
+    })
+  })
+
+  test('answers space_not_found when the space does not exist', async () => {
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/spaces/00000000-0000-7000-8000-000000000000/members/00000000-0000-7000-8000-000000000001/access-codes',
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('space_not_found')
+    })
+  })
+
   test('an issued code past its expiry becomes expired, not replaced', async () => {
     const space = await harness.createSpace()
     const member = await harness.createMember(space.id, { name: 'Аня' })

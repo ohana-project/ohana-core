@@ -91,12 +91,13 @@ export function useMemberSignOut() {
         params: { header: { 'x-ohana-member': memberId } },
       })
       await assertOk(response)
+      return memberId
     },
-    // Only success forgets the sign-in: a failed request must keep the
-    // entry so the member can retry the sign-out.
-    onSuccess: () => {
-      const memberId = getActiveMemberId()
-      if (memberId !== undefined) removeSession(memberId)
+    // Only success forgets the sign-in, and it forgets the member the
+    // request was sent for, not whichever one is active by the time it
+    // settles. A failed request keeps the entry so the member can retry.
+    onSuccess: (memberId) => {
+      removeSession(memberId)
       void queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
     },
   })

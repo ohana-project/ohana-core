@@ -209,7 +209,7 @@
       "access_code_invalid": "No such code. Check the characters — 0 and О, S and 5 are easy to mix up.",
       "access_code_expired": "The code has expired. Ask an owner of the space to issue a new one.",
       "access_code_used": "This code has already been used. A fresh code is needed to sign in on a new device.",
-      "access_code_replaced": "The code was replaced by a newer one — use the fresh code from the invitation.",
+      "access_code_replaced": "The code was replaced by a newer one — use the fresh access code.",
       "access_code_revoked": "The code was revoked. Ask an owner of the space to issue a new one.",
       "unexpected": "That did not work — check the network and try again."
     }
@@ -244,7 +244,8 @@
       "eventsLink": "The whole calendar",
       "eventsEmpty": "Events will appear here — birthdays, doctors, dinners.",
       "membersSection": "Members",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "signOutFailed": "Signing out did not work — check the network and try again."
     }
   },
   "designPreview": {
@@ -319,7 +320,7 @@
       "code": "Access code",
       "codeHint": "Chosen by the owner, valid until revoked",
       "codeError": "No such code",
-      "codeDisplay": "Invite code — shown once"
+      "codeDisplay": "Access code — shown once"
     },
     "overlays": {
       "dialog": "Dialog",

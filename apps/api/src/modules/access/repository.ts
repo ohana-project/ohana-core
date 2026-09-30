@@ -37,7 +37,7 @@ export async function insertAccessCode(tx: Tx, data: NewAccessCode): Promise<Acc
  * concurrent redemptions exactly one wins and the loser observes the row
  * as already used.
  */
-export async function redeemAccessCodeRow(
+export async function redeemAccessCodeByHashAcrossSpaces(
   tx: Tx,
   codeHash: string,
   now: Date,
@@ -197,11 +197,14 @@ export async function findMemberSessionByTokenHashAcrossSpaces(
   return rows[0]
 }
 
-export async function deleteMemberSessionByTokenHashAcrossSpaces(
+export async function deleteMemberSessionAcrossSpaces(
   tx: Tx,
+  memberId: string,
   tokenHash: string,
 ): Promise<void> {
-  await tx.delete(memberSessions).where(eq(memberSessions.tokenHash, tokenHash))
+  await tx
+    .delete(memberSessions)
+    .where(and(eq(memberSessions.memberId, memberId), eq(memberSessions.tokenHash, tokenHash)))
 }
 
 /** Opportunistic hygiene on sign-in: expired sessions of every member go. */

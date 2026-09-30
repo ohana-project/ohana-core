@@ -14,6 +14,7 @@ import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/i
 import { SectionHeader } from '@/ui/section-header.tsx'
 import type { ShellSection, ShellUserMenuItem } from '@/ui/shell.ts'
 import { Spinner } from '@/ui/spinner.tsx'
+import { toast } from '@/ui/toast.tsx'
 
 /*
  * The space home (docs/design/screens/home.html): the greeting with the
@@ -70,7 +71,12 @@ export function SpaceHomeScreen() {
       label: t('member.home.signOut'),
       icon: 'log-out',
       danger: true,
-      onSelect: () => signOut.mutate(),
+      onSelect: () =>
+        signOut.mutate(undefined, {
+          // A failed sign-out keeps the member signed in; it must not look
+          // like the menu did nothing.
+          onError: () => toast(t('member.home.signOutFailed'), 'danger'),
+        }),
     },
   ]
 

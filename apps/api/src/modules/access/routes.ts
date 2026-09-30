@@ -197,7 +197,7 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
     },
     async (request, reply) => {
       const { 'x-ohana-member': memberId } = request.headers as MemberSessionHeaders
-      await signOutMember(opts.deps, request.cookies?.[memberSessionCookieName(memberId)])
+      await signOutMember(opts.deps, memberId, request.cookies?.[memberSessionCookieName(memberId)])
       reply.clearCookie(memberSessionCookieName(memberId), cookieOptions)
       return reply.code(204).send(null)
     },
