@@ -1,15 +1,15 @@
 import type { paths } from '@ohana/api-client'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { skipToken, useMutation, useQuery } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { assertOk } from '@/data/api-error.ts'
+import { ApiError, assertOk } from '@/data/api-error.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 
 /*
  * The device review (issue #10, ADR-0005): the active member's server-side
  * sessions. Like the profile listing, this is online-only data — ordinary
- * queries, not the synchronised store. The query is disabled without an
- * active member: /accounts deliberately renders without a gate, and a
- * request that names no member could only be refused.
+ * queries, not the synchronised store. Without an active member the query
+ * is disabled outright (skipToken): /accounts deliberately renders without
+ * a gate, and a request that names no member could only be refused.
  */
 
 /** One row of GET /me/sessions, taken from the generated contract. */
@@ -26,31 +26,35 @@ export function useMemberSessions() {
   return useQuery({
     queryKey: memberSessionsQueryKey(memberId),
     enabled: memberId !== undefined,
-    // The header is tied to the key's member, not re-read at request time:
-    // a refetch that races a switch must answer for the key's member or
-    // name no member at all.
-    queryFn: async ({ queryKey }): Promise<MemberSessionRow[]> => {
-      const id = queryKey[1]
-      if (id === undefined) return []
-      const { data, error } = await api.GET('/api/v1/me/sessions', {
-        params: { header: { 'x-ohana-member': id } },
-      })
-      await assertOk({ error })
-      return data ?? []
-    },
+    // The header is pinned to this key's member, not re-read at request
+    // time: a refetch that races a switch answers for the key's member.
+    queryFn:
+      memberId === undefined
+        ? skipToken
+        : async (): Promise<MemberSessionRow[]> => {
+            const { data, error } = await api.GET('/api/v1/me/sessions', {
+              params: { header: { 'x-ohana-member': memberId } },
+            })
+            await assertOk({ error })
+            return data ?? []
+          },
   })
 }
 
 /**
- * Revokes one of the active member's own sessions by id. The cache is the
- * caller's business: only it knows whether the revoked row was the current
- * session (which is also a sign-out here) or another device's.
+ * Revokes one of the active member's own sessions by id, named explicitly
+ * so a revoke confirmed around a switch can never act for another member.
+ * The cache is the caller's business: only it knows whether the revoked
+ * row was the current session (which is also a sign-out here) or another
+ * device's.
  */
 export function useRevokeMemberSession() {
   return useMutation({
     mutationFn: async (sessionId: string): Promise<string> => {
+      const memberId = getActiveMemberId()
+      if (memberId === undefined) throw new ApiError('unexpected')
       const response = await api.DELETE('/api/v1/me/sessions/{sessionId}', {
-        params: { path: { sessionId } },
+        params: { path: { sessionId }, header: { 'x-ohana-member': memberId } },
       })
       await assertOk(response)
       return sessionId

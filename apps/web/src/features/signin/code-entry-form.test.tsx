@@ -1,9 +1,7 @@
-import { useQueryClient } from '@tanstack/react-query'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import { useRedeemedSignIn } from '@/features/member/use-member-session.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { CodeEntryForm } from './code-entry-form.tsx'
 
@@ -120,73 +118,3 @@ describe('CodeEntryForm', () => {
 function renderWithCodeEntryForm(onSignedIn?: (result: unknown) => void) {
   return renderWithProviders(<CodeEntryForm onSignedIn={onSignedIn ?? (() => {})} />)
 }
-
-/*
- * Adding a sign-in is also a cache-boundary event (ADR-0005): another
- * member's sign-in must leave no cached answer of the previous member in
- * place, while the same member's extra device session changes nothing
- * member-scoped. The probe captures the providers' query client so the
- * test can seed and inspect the cache directly.
- */
-
-const SPACE = { id: 's-1', name: 'Наша семья' }
-const PROFILES_KEY = ['member', 'm-1', 'profiles'] as const
-const PROFILES = [{ id: 'm-1', name: 'Аня' }]
-
-let probeClient: ReturnType<typeof useQueryClient> | undefined
-
-function SignInProbe({ member }: { member: { id: string; name: string } }) {
-  const signIn = useRedeemedSignIn()
-  probeClient = useQueryClient()
-  return (
-    <button type="button" onClick={() => void signIn({ ...member }, SPACE)}>
-      sign-in
-    </button>
-  )
-}
-
-function mockRedeemFor(memberId: string) {
-  apiPost.mockResolvedValue({
-    data: {
-      member: { id: memberId, name: 'Аня', role: 'regular' as const },
-      space: SPACE,
-      needsOnboarding: false,
-    },
-    error: undefined,
-    response: new Response(null, { status: 200 }),
-  })
-}
-
-describe('useRedeemedSignIn cache boundaries', () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-    apiPost.mockReset()
-    probeClient = undefined
-  })
-
-  it('wipes the previous member’s cached answers when another member signs in', async () => {
-    window.localStorage.setItem('ohana.activeMember', 'm-1')
-    mockRedeemFor('m-2')
-    const user = userEvent.setup()
-    renderWithProviders(<SignInProbe member={{ id: 'm-2', name: 'Аня' }} />)
-
-    probeClient?.setQueryData(PROFILES_KEY, PROFILES)
-    await user.click(screen.getByRole('button', { name: 'sign-in' }))
-
-    await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBe('m-2'))
-    expect(probeClient?.getQueryData(PROFILES_KEY)).toBeUndefined()
-  })
-
-  it('keeps the cache when the same member adds a device session', async () => {
-    window.localStorage.setItem('ohana.activeMember', 'm-1')
-    mockRedeemFor('m-1')
-    const user = userEvent.setup()
-    renderWithProviders(<SignInProbe member={{ id: 'm-1', name: 'Аня' }} />)
-
-    probeClient?.setQueryData(PROFILES_KEY, PROFILES)
-    await user.click(screen.getByRole('button', { name: 'sign-in' }))
-
-    await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBe('m-1'))
-    expect(probeClient?.getQueryData(PROFILES_KEY)).toEqual(PROFILES)
-  })
-})

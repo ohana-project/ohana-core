@@ -73,6 +73,12 @@ describe('SpaceHomeScreen', () => {
     expect(screen.getByText('Свежее в дневнике')).toBeInTheDocument()
     expect(screen.getByText('Ближайшие события')).toBeInTheDocument()
     expect(screen.getByText('Участники')).toBeInTheDocument()
+    // The profiles query names its member explicitly.
+    await vi.waitFor(() =>
+      expect(apiGet).toHaveBeenCalledWith('/api/v1/members', {
+        params: { header: { 'x-ohana-member': ME.member.id } },
+      }),
+    )
   })
 
   it('signs out through the user menu and forgets the registry entry', async () => {

@@ -93,6 +93,10 @@ describe('AccountsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<AccountsScreen />)
 
+    // The first load belongs to the mount; only a request after the click
+    // says anything about the switch.
+    await screen.findByText('Chrome на Windows')
+    apiGet.mockClear()
     await user.click(screen.getByText('Аня и родители'))
 
     await vi.waitFor(() =>
@@ -185,7 +189,10 @@ describe('AccountsScreen', () => {
       expect(apiDelete).toHaveBeenCalledWith(
         '/api/v1/me/sessions/{sessionId}',
         expect.objectContaining({
-          params: { path: { sessionId: phoneSession.id } },
+          params: {
+            path: { sessionId: phoneSession.id },
+            header: { 'x-ohana-member': FAMILY_ANYA.memberId },
+          },
         }),
       ),
     )

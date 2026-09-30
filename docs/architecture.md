@@ -172,7 +172,7 @@ e2e/            Playwright specs (pnpm --filter @ohana/web test:e2e)
 - Components never call `fetch`. Server data comes through the generated API client (`packages/api-client`), wrapped in TanStack Query hooks inside `features/<feature>` or `data/`.
 - Synchronised data is read from the local store. The sync engine calls the sync endpoint and applies the changes to IndexedDB in partitions keyed by member ID. Screens read those partitions reactively, so the same code works online and offline. Online-only data (the administrative area, session lists) uses ordinary queries.
 - Mutations go to the API. On success they trigger a sync; they do not patch the cache by hand.
-- The session registry stores which members are signed in on this device (member ID, space name, display name), and never tokens. The active member is set on every request as `X-Ohana-Member`.
+- The session registry stores which members are signed in on this device (member ID, space name, display name), and never tokens. The active member is the default on every request as `X-Ohana-Member`; a request tied to one member — such as a query keyed by member — names that member explicitly, and the middleware never overrides it.
 - Every user-visible string comes from `packages/i18n`. API error codes map to translated messages.
 - `ui/` holds only design-system components, and screens are composed from them. Feature code never overrides design tokens with one-off colours or sizes.
 - The visual language is defined in `docs/design/README.md`. Each screen is built against its reference prototype in `docs/design/screens/`, which that document maps to tickets. The web client never imports from `docs/design/`.
