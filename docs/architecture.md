@@ -148,14 +148,16 @@ Tests go through `buildApp` over HTTP and through `buildWorker`, against real Po
 
 ```
 src/
-  app/          router, providers, root layouts (member, admin)
-  routes/       TanStack Router file routes
+  app/          router, providers, theme provider, and the assembled shells in app/layouts/ (member, admin, auth)
+  routes/       TanStack Router file routes; /design previews the design system
   features/
     <feature>/  components, hooks, and queries for one area (journal, calendar, wishlist, sign-in, admin, …)
   data/         API client wiring, session registry, sync engine, IndexedDB store
   ui/           design-system components (shadcn/Base UI, restyled)
+    styles/     design tokens and glass materials, exposed to Tailwind through @theme
   lib/          small framework-independent helpers
   testing/      test setup and shared test helpers
+e2e/            Playwright specs (pnpm --filter @ohana/web test:e2e)
 ```
 
 ### Rules
@@ -166,6 +168,7 @@ src/
 - The session registry stores which members are signed in on this device (member ID, space name, display name), and never tokens. The active member is set on every request as `X-Ohana-Member`.
 - Every user-visible string comes from `packages/i18n`. API error codes map to translated messages.
 - `ui/` holds only design-system components, and screens are composed from them. Feature code never overrides design tokens with one-off colours or sizes.
+- The visual language is defined in `docs/design/README.md`. Each screen is built against its reference prototype in `docs/design/screens/`, which that document maps to tickets. The web client never imports from `docs/design/`.
 - The service worker precaches the shell and caches image derivatives as they are viewed. It never caches API responses; data offline comes only from the local store.
 
 ## Shared packages

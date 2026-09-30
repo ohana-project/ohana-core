@@ -1,0 +1,117 @@
+/*
+ * Ohana design tokens — docs/design/README.md is the binding spec, the
+ * values here come from it and from the prototype stylesheet
+ * (docs/design/assets/ohana.css). Colours are OKLch; derived colours are
+ * made only with color-mix(in oklch, …). The app always resolves the
+ * theme to an attribute on <html>, so there is no no-attribute mode.
+ */
+
+:root {
+  /* ── palette, light ─────────────────────────────────────────────── */
+  --bg: oklch(97.6% 0.012 20);
+  --surface: oklch(100% 0 0);
+  --surface-2: oklch(95.4% 0.015 20);
+  --fg: oklch(25% 0.028 20);
+  --muted: oklch(46% 0.026 20);
+  --border: oklch(89.5% 0.018 20);
+  --accent: oklch(45% 0.13 10);
+  --accent-fg: oklch(99% 0.005 15);
+  /* 50%, not the prototype's 52%: the ok pill's text needs 4.5:1 over
+     its 14% tint (see contrast.test.ts). */
+  --ok: oklch(50% 0.1 150);
+  /* 51%, not the prototype's 54%: the warn pill's text needs 4.5:1 over
+     its 16% tint (see contrast.test.ts). */
+  --warn: oklch(51% 0.11 70);
+  --danger: oklch(52% 0.17 32);
+  --ring: var(--accent);
+
+  /* derived */
+  --accent-soft: color-mix(in oklch, var(--accent) 13%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+  --scrim: color-mix(in oklch, var(--fg) 38%, transparent);
+  /* hover accent: darkens 12% in light, lightens 10% in dark (README
+     "Components", button) — shared by the button and the retry link */
+  --accent-strong: color-mix(in oklch, var(--accent) 88%, black);
+  /* component fills, read by contrast.test.ts: the pill tints, the
+     danger button and menu item tint, and the offline banner (README
+     "Components"). Fills that carry text mix into surface, not toward
+     transparent: they can sit on glass (a pill in a sheet, the danger
+     button in a dialog footer), where a see-through tint lets the
+     backdrop drag the text below 4.5:1. */
+  --ok-fill: color-mix(in oklch, var(--ok) 14%, var(--surface));
+  --warn-fill: color-mix(in oklch, var(--warn) 16%, var(--surface));
+  --danger-fill: color-mix(in oklch, var(--danger) 13%, var(--surface));
+  --accent-fill: color-mix(in oklch, var(--accent) 13%, var(--surface));
+  --neutral-fill: color-mix(in oklch, var(--fg) 6%, var(--surface));
+  --danger-tint: color-mix(in oklch, var(--danger) 12%, var(--surface));
+  /* 16%, not 20%: at 20% danger text drops below 4.5:1 even on surface */
+  --danger-tint-hover: color-mix(in oklch, var(--danger) 16%, var(--surface));
+  --banner-fill: color-mix(in oklch, var(--warn) 14%, var(--surface));
+  --banner-border: color-mix(in oklch, var(--warn) 35%, transparent);
+  --banner-text: color-mix(in oklch, var(--warn) 80%, var(--fg));
+
+  /* the only three shadows */
+  --shadow-1: 0 1px 2px color-mix(in oklch, var(--fg) 7%, transparent);
+  --shadow-2: 0 6px 20px color-mix(in oklch, var(--fg) 9%, transparent);
+  --shadow-3: 0 18px 50px color-mix(in oklch, var(--fg) 18%, transparent);
+
+  /* ── type ───────────────────────────────────────────────────────── */
+  --font-display: "Literata Variable", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-body:
+    "Golos Text Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ── motion ─────────────────────────────────────────────────────── */
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --t-slow: 340ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ── shell sizes ────────────────────────────────────────────────── */
+  --side-w: 232px;
+  --topbar-h: 56px;
+  --tabbar-h: 64px;
+  --pad: clamp(16px, 4vw, 24px);
+  --content-w: 1104px;
+  --content-w-narrow: 760px;
+  --content-w-wide: 1280px;
+  --admin-w: 960px;
+
+  /* ── brand constants, outside the UI palette ──────────────────────
+     rose and ink build the mark and the app icon; the sRGB values are
+     fallbacks for <meta name="theme-color"> only. */
+  --ohana-rose: #f5d8d5;
+  --ohana-ink: #4a1a48;
+  --theme-color-light: rgb(246 241 238);
+  --theme-color-dark: rgb(117 34 49);
+}
+
+[data-theme="dark"] {
+  --bg: oklch(20.5% 0.02 15);
+  --surface: oklch(24.5% 0.022 15);
+  --surface-2: oklch(28.5% 0.022 15);
+  --fg: oklch(93% 0.012 20);
+  --muted: oklch(70% 0.022 20);
+  --border: oklch(32% 0.02 15);
+  /* 74%, not the prototype's 72%: the primary pill's text needs 4.5:1
+     over accent-soft on surface (see contrast.test.ts). */
+  --accent: oklch(74% 0.13 10);
+  --accent-fg: oklch(21% 0.05 10);
+  --ok: oklch(76% 0.11 150);
+  --warn: oklch(80% 0.12 85);
+  --danger: oklch(70% 0.14 32);
+  --ring: var(--accent);
+
+  --accent-soft: color-mix(in oklch, var(--accent) 20%, transparent);
+  --fg-soft: color-mix(in oklch, var(--fg) 9%, transparent);
+  --scrim: color-mix(in oklch, black 55%, transparent);
+  --accent-strong: color-mix(in oklch, var(--accent) 90%, white);
+  /* the pill fills follow accent-soft and fg-soft (20% and 9% in dark);
+     the other fills re-resolve against the dark surface on their own */
+  --accent-fill: color-mix(in oklch, var(--accent) 20%, var(--surface));
+  --neutral-fill: color-mix(in oklch, var(--fg) 9%, var(--surface));
+
+  --shadow-1: 0 1px 2px color-mix(in oklch, black 30%, transparent);
+  --shadow-2: 0 6px 20px color-mix(in oklch, black 38%, transparent);
+  --shadow-3: 0 18px 50px color-mix(in oklch, black 55%, transparent);
+}

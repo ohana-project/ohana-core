@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Пространства на этом устройстве · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+<button type="button" class="btn btn-icon" data-action="theme" style="position:fixed;top:14px;right:14px;z-index:10" aria-label="Сменить тему"></button>
+
+<div class="auth" data-od-id="screen-accounts">
+  <div class="auth-card stack" style="gap:0;max-width:460px">
+    <div class="row-between" style="margin-bottom:22px">
+      <a class="btn btn-icon btn-secondary" href="home.html" aria-label="Назад в приложение">
+        <svg aria-hidden="true"><use href="#i-chevron-left"/></svg>
+      </a>
+      <span class="logo"><svg aria-hidden="true"><use href="#i-logo"/></svg><span class="logo-word">Ohana</span></span>
+      <span style="width:44px"></span>
+    </div>
+
+    <h1 class="display display-xl" style="margin-bottom:6px">Пространства</h1>
+    <p class="muted" style="margin-bottom:22px">На этом устройстве вы входите в две семьи. Данные каждой — раздельны.</p>
+
+    <div class="card list" data-od-id="spaces-list">
+      <button type="button" class="list-row" style="min-height:68px">
+        <span class="avatar-stack" aria-hidden="true">
+          <span class="avatar avatar-sm" style="--hue:60">А</span>
+          <span class="avatar avatar-sm" style="--hue:145">Д</span>
+          <span class="avatar avatar-sm" style="--hue:25">М</span>
+        </span>
+        <span class="body">
+          <span class="title">Наша семья <span class="pill pill-ok" style="margin-left:6px">сейчас</span></span>
+          <span class="sub">4 участника · вы владелец</span>
+        </span>
+        <span class="trailing meta">синхр. 14:32</span>
+      </button>
+      <button type="button" class="list-row" style="min-height:68px">
+        <span class="avatar-stack" aria-hidden="true">
+          <span class="avatar avatar-sm" style="--hue:60">А</span>
+          <span class="avatar avatar-sm" style="--hue:200">В</span>
+          <span class="avatar avatar-sm" style="--hue:90">П</span>
+        </span>
+        <span class="body">
+          <span class="title">Аня и родители</span>
+          <span class="sub">3 участника</span>
+        </span>
+        <span class="trailing">
+          <svg aria-hidden="true"><use href="#i-chevron-right"/></svg>
+        </span>
+      </button>
+    </div>
+
+    <div class="stack" style="gap:10px;margin-top:18px">
+      <a class="btn btn-secondary btn-lg" href="code-entry.html" style="width:auto">
+        <svg aria-hidden="true"><use href="#i-plus"/></svg>Добавить вход по коду
+      </a>
+      <button type="button" class="btn btn-ghost" style="color:var(--danger)" id="leave-btn">
+        <svg aria-hidden="true"><use href="#i-log-out"/></svg>Выйти из «Наша семья»
+      </button>
+    </div>
+
+    <p class="auth-foot">Выход удаляет данные пространства только с этого устройства. На сервере и у близких всё останется.</p>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('leave-btn').addEventListener('click', function () {
+    OHANA_CONFIRM({
+      title: 'Выйти из «Наша семья»?',
+      text: 'Записи, события и вишлисты этого пространства исчезнут с устройства. Пространство, другие участники и их данные останутся на сервере.',
+      confirmLabel: 'Выйти',
+      danger: true
+    }).then(function (yes) {
+      if (yes) { OHANA_TOAST('Вы вышли из «Наша семья»'); setTimeout(function () { location.href = 'code-entry.html'; }, 900); }
+    });
+  });
+});
+</script>
+</body>
+</html>

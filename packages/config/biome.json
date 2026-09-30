@@ -36,10 +36,27 @@
   },
   "overrides": [
     {
-      "includes": ["**/db/migrations/**", "**/openapi.json", "**/*.gen.ts"],
+      "includes": [
+        "**/db/migrations/**",
+        "**/openapi.json",
+        "**/*.gen.ts",
+        ".design/**",
+        "docs/design/screens/**",
+        "docs/design/assets/**"
+      ],
       "linter": { "enabled": false },
       "formatter": { "enabled": false },
       "assist": { "enabled": false }
+    },
+    {
+      "includes": ["**/ui/label.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noLabelWithoutControl": "off"
+          }
+        }
+      }
     }
   ],
   "root": false

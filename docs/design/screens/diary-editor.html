@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Новая запись · Дневник · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell="" data-active="diary" data-title="Новая запись" data-back="diary.html">
+  <template data-topbar-actions="">
+    <span class="meta d-only" style="margin-right:6px">ЧЕРНОВИК АВТОСОХРАНЁН 19:02</span>
+    <button type="button" class="btn btn-secondary btn-sm d-only" data-save-draft="">
+      <svg width="16" height="16" aria-hidden="true"><use href="#i-file-text"></use></svg>Сохранить черновик
+    </button>
+    <button type="button" class="btn btn-primary btn-sm d-only" data-publish="">
+      <svg width="16" height="16" aria-hidden="true"><use href="#i-send"></use></svg>Опубликовать
+    </button>
+  </template>
+
+  <main class="content content-narrow" data-od-id="screen-diary-editor" style="padding-top:26px;padding-bottom:180px">
+    <div class="stack" style="gap:16px">
+      <div class="row" style="gap:12px;align-items:flex-start">
+        <span class="avatar" style="--hue:60">А</span>
+        <div class="grow" style="padding-top:6px">
+          <span class="small" style="font-weight:600;display:block">Аня публикует в «Наша семья»</span>
+          <span class="meta">СЕГОДНЯ</span>
+        </div>
+      </div>
+
+      <label class="sr-only" for="title-input">Заголовок записи</label>
+      <input class="editor-title" id="title-input" value="Осенний пикник на озере" placeholder="Заголовок">
+      <hr class="hr">
+      <label class="sr-only" for="text-input">Текст записи</label>
+      <textarea class="editor-text" id="text-input" placeholder="Как прошло? Что бы вам хотелось вспомнить через десять лет?">Собрались за час: бутерброды, термос, плед и Бублик, который так и не понял, зачем мы едем. У озера ещё было по-летнему тепло, и Миша первый полез в воду — в кроссовках.
+
+Фотографии ниже — это Дима учился ловить свет. Кажется, начало получаться.</textarea>
+
+      <div>
+        <div class="row-between" style="margin-bottom:10px">
+          <h2 style="font-size:16px">Фотографии</h2>
+          <span class="meta" id="photo-count">2 ИЗ 12</span>
+        </div>
+        <div class="photo-grid" id="photo-grid" style="grid-template-columns:repeat(4,1fr)" data-od-id="editor-photos">
+          <div class="photo-chip is-done">
+            <img src="../assets/img/hike-forest.jpg" alt="Тропа в лесу" width="1600" height="1066">
+            <button type="button" class="chip-remove" aria-label="Убрать фото"><svg aria-hidden="true"><use href="#i-x"></use></svg></button>
+          </div>
+          <div class="photo-chip is-done">
+            <img src="../assets/img/hike-lake.jpg" alt="Озеро с горами" width="1600" height="1067">
+            <button type="button" class="chip-remove" aria-label="Убрать фото"><svg aria-hidden="true"><use href="#i-x"></use></svg></button>
+          </div>
+          <label class="attach-tile" tabindex="0" role="button" aria-label="Добавить фото" style="align-content:center;gap:2px">
+            <svg aria-hidden="true"><use href="#i-camera"></use></svg>
+            Добавить
+            <input type="file" accept="image/*" multiple="" data-photo-input="#photo-grid" class="sr-only">
+          </label>
+        </div>
+        <p class="field-hint" style="margin-top:10px">Фото загружаются в оригинале и черновик с фото виден только вам.</p>
+      </div>
+    </div>
+
+    <div class="editor-bar glass" data-od-id="editor-bar">
+      <span class="meta grow m-only editor-meta" style="text-align:left">СОХРАНЕНО 19:02</span>
+      <span class="meta grow d-only editor-meta" style="text-align:left">ФОТО: 2 · СИМВОЛОВ: 342</span>
+      <button type="button" class="btn btn-secondary m-only" data-save-draft="" style="padding-inline:12px">В черновики</button>
+      <button type="button" class="btn btn-primary" data-publish="" style="flex:1;min-width:0;padding-inline:18px">Опубликовать</button>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  /* демо: одна фотография «догружается» при открытии редактора */
+  var grid = document.getElementById('photo-grid');
+  var demo = OHANA_UPLOAD_DEMO(grid);
+  setTimeout(function () { demo(null); }, 600);
+
+  function countPhotos() {
+    document.getElementById('photo-count').textContent =
+      grid.querySelectorAll('.photo-chip').length + ' ИЗ 12';
+  }
+  new MutationObserver(countPhotos).observe(grid, { childList: true });
+
+  /* доступность: label-плитки добавления фото с клавиатуры */
+  document.querySelectorAll('.attach-tile').forEach(function (l) {
+    l.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); l.querySelector('input[type=file]').click(); }
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-save-draft]')) {
+      OHANA_TOAST('Черновик сохранён — виден только вам');
+    }
+    if (e.target.closest('[data-publish]')) {
+      var title = document.getElementById('title-input').value.trim();
+      if (!title) {
+        OHANA_TOAST('Добавьте заголовок — или публикуйте без него', 'danger');
+        document.getElementById('title-input').focus();
+        return;
+      }
+      OHANA_TOAST('Опубликовано в дневнике семьи');
+      setTimeout(function () { location.href = 'diary.html'; }, 900);
+    }
+  });
+});
+</script>
+
+
+</body></html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Поход к Чёртову креслу · Дневник · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="diary" data-title="Запись" data-back="diary.html">
+  <template data-topbar-actions>
+    <button type="button" class="btn btn-icon" data-menu="tpl-entry" aria-label="Меню записи">
+      <svg width="18" height="18" aria-hidden="true"><use href="#i-more-h"/></svg>
+    </button>
+  </template>
+
+  <main class="content content-narrow" data-od-id="screen-diary-entry" style="padding-top:28px">
+    <article>
+      <header>
+        <div class="entry-meta" style="margin:0 0 14px">
+          <span class="avatar" style="--hue:145">Д</span>
+          <div class="grow">
+            <span class="small" style="font-weight:600;display:block">Дима</span>
+            <span class="meta">21 СЕНТЯБРЯ 2026 · 17:40</span>
+          </div>
+          <span class="pill pill-neutral">ФОТО ×3</span>
+        </div>
+        <h1 class="display display-xl" style="margin-bottom:16px">Поход к Чёртову креслу</h1>
+      </header>
+
+      <div class="stack" style="gap:16px;font-size:16px;line-height:1.65" data-od-id="entry-text">
+        <p>Договорились ещё в августе, а вчера наконец дошли. Вышли в семь, пока было прохладно, и первые два часа шли молча — только палки стучат и Бублик впереди путается в поводке.</p>
+        <p>Тропа оказалась длиннее, чем в описании: не двенадцать километров, а все четырнадцать. У родника встретили бабушку с корзиной — дала Мише горсть черники и сказала, что до кресла «рукой подать». Подавать оказалось ещё полтора часа вверх.</p>
+        <p>Но вид стоит каждого шага: озеро внизу похоже на тёплый чай, а хребет держит облака как вешалка — шарф. Миша заявил, что в следующий раз идём «на ту гору, которая повыше». Дима молча посмотрел на карту.</p>
+      </div>
+
+      <div class="photo-grid" data-od-id="entry-gallery">
+        <button type="button" data-lightbox data-caption="Хребет над озером · 21.09.2026">
+          <img src="../assets/img/hike-ridge.jpg" alt="Хребет над озером, вид с седловины" width="1600" height="1067" loading="lazy">
+        </button>
+        <button type="button" data-lightbox data-caption="Тропа в лесу · 21.09.2026">
+          <img src="../assets/img/hike-forest.jpg" alt="Утренний свет на лесной тропе" width="1600" height="1066" loading="lazy">
+        </button>
+        <button type="button" data-lightbox data-caption="Озеро с перевала · 21.09.2026">
+          <img src="../assets/img/hike-lake.jpg" alt="Озеро и горы с перевала" width="1600" height="1067" loading="lazy">
+        </button>
+      </div>
+      <p class="meta" style="margin-top:10px">НАЖМИТЕ НА ФОТО, ЧТОБЫ ОТКРЫТЬ В ОРИГИНАЛЬНОМ КАЧЕСТВЕ</p>
+
+      <hr class="hr" style="margin:26px 0 14px">
+      <div class="row-between">
+        <a class="btn btn-ghost btn-sm" href="diary.html">
+          <svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-left"/></svg>Все записи
+        </a>
+        <span class="meta">СЛЕДУЮЩАЯ: «ВАРЕНИКИ С БАБУШКОЙ»</span>
+      </div>
+    </article>
+  </main>
+</div>
+
+<div class="popover" id="tpl-entry" role="menu" style="visibility:hidden">
+  <button type="button" class="menu-item" data-entry-share><svg aria-hidden="true"><use href="#i-share"/></svg>Поделиться…</button>
+  <button type="button" class="menu-item" data-entry-copy><svg aria-hidden="true"><use href="#i-copy"/></svg>Скопировать ссылку</button>
+  <div class="menu-sep"></div>
+  <button type="button" class="menu-item danger" id="entry-delete"><svg aria-hidden="true"><use href="#i-trash"/></svg>Удалить запись</button>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-entry-share]')) { closePopovers(); OHANA_TOAST('Открыт лист «Поделиться»'); }
+    if (e.target.closest('[data-entry-copy]')) { closePopovers(); OHANA_TOAST('Ссылка на запись скопирована'); }
+    if (e.target.closest('#entry-delete')) {
+      closePopovers();
+      OHANA_CONFIRM({
+        title: 'Удалить запись?',
+        text: '«Поход к Чёртову креслу» с тремя фотографиями уйдёт в корзину и удалится окончательно 21 октября. Восстановить можно до этой даты.',
+        confirmLabel: 'Удалить',
+        danger: true
+      }).then(function (yes) {
+        if (yes) { OHANA_TOAST('Запись перемещена в корзину'); setTimeout(function () { location.href = 'diary.html'; }, 900); }
+      });
+    }
+  });
+});
+</script>
+</body>
+</html>

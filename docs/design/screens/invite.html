@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Пригласить участника · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-title="Приглашение" data-back="members.html">
+  <main class="content content-narrow" data-od-id="screen-invite" style="padding-top:32px">
+
+    <header class="center" data-od-id="invite-head" style="margin-bottom:24px">
+      <span style="width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);margin:0 auto 14px">
+        <svg width="30" height="30" aria-hidden="true"><use href="#i-users"/></svg>
+      </span>
+      <h1 class="display display-lg">Пригласите близкого</h1>
+      <p class="muted" style="margin-top:6px">Покажите код лично — он работает один раз</p>
+    </header>
+
+    <div class="card card-pad" data-od-id="invite-code-card" style="max-width:420px;margin:0 auto">
+      <div class="code-display" id="invite-code" data-od-id="invite-code">SASF-KQLV</div>
+      <p class="meta center" style="margin-top:10px">ИСТЕКАЕТ ЧЕРЕЗ 7 ДНЕЙ · ОДИН РАЗ</p>
+
+      <div class="stack" style="gap:10px;margin-top:18px">
+        <button type="button" class="btn btn-primary btn-lg" data-copy-code>
+          <svg aria-hidden="true"><use href="#i-copy"/></svg>Скопировать код
+        </button>
+        <button type="button" class="btn btn-secondary" data-reroll>
+          <svg aria-hidden="true"><use href="#i-repeat"/></svg>Перевыпустить
+        </button>
+      </div>
+    </div>
+
+    <div class="venue-note" data-od-id="invite-hint" style="max-width:420px;margin:18px auto 0">
+      <svg aria-hidden="true"><use href="#i-shield"/></svg>
+      <p class="small" style="line-height:1.5">
+        <b>Сообщите код лично</b> — в общем чате его могут увидеть чужие люди. После первого входа код
+        сгорает. Перевыпуск отменит старый код и создаст новый.
+      </p>
+    </div>
+
+    <p class="meta center" style="margin-top:26px">НОВЫЙ УЧАСТНИК ПОЙМЁТ ВСЁ ЗА МИНУТУ — БЕЗ ПОЧТЫ И ПАРОЛЕЙ</p>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  var codeEl = document.getElementById('invite-code');
+
+  function newCode() {
+    var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    var part = function () {
+      var s = '';
+      for (var i = 0; i < 4; i++) s += abc[Math.floor(Math.random() * abc.length)];
+      return s;
+    };
+    return part() + '-' + part();
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-copy-code]')) {
+      var code = codeEl.textContent.trim();
+      if (navigator.clipboard) navigator.clipboard.writeText(code).catch(function () {});
+      OHANA_TOAST('Код ' + code + ' скопирован — отправьте лично');
+    }
+    if (e.target.closest('[data-reroll]')) {
+      OHANA_CONFIRM({
+        title: 'Перевыпустить код?',
+        text: 'Текущий код SASF-KQLV отзовётся: по нему больше никто не войдёт. Новый код появится здесь же.',
+        confirmLabel: 'Перевыпустить'
+      }).then(function (yes) {
+        if (!yes) return;
+        codeEl.textContent = newCode();
+        OHANA_TOAST('Новый код готов — старый больше не работает');
+      });
+    }
+  });
+</script>
+</body>
+</html>

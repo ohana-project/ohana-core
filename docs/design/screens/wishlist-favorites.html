@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Избранные идеи · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="wishlist" data-title="Избранные идеи" data-back="wishlists.html">
+  <main class="content content-narrow" data-od-id="screen-wishlist-favorites" style="padding-top:20px">
+
+    <header data-od-id="fav-head" style="margin-bottom:18px">
+      <h1 class="display display-lg">Избранные идеи</h1>
+      <p class="muted small" style="margin-top:4px"><span id="fav-count">2</span> идеи · видно только вам</p>
+    </header>
+
+    <div id="fav-list" class="stack" data-od-id="fav-items" style="gap:12px">
+
+      <a class="card list card-link" href="wishlist-person.html" data-od-id="fav-lantern" style="overflow:hidden">
+        <span class="list-row" style="min-height:0;padding:14px">
+          <span class="leading" style="color:var(--accent)">
+            <svg aria-hidden="true" style="fill:currentColor"><use href="#i-heart"/></svg>
+          </span>
+          <span class="body">
+            <span class="title">Налобный фонарь Petzl Actik Core</span>
+            <span class="sub">из вишлиста Димы · 4 990 ₽</span>
+          </span>
+          <span class="trailing">
+            <button type="button" class="btn btn-ghost btn-sm" data-unfav>Убрать</button>
+            <svg aria-hidden="true"><use href="#i-chevron-right"/></svg>
+          </span>
+        </span>
+      </a>
+
+      <a class="card list card-link" href="wishlist-person.html" data-od-id="fav-scarf" style="overflow:hidden">
+        <span class="list-row" style="min-height:0;padding:14px">
+          <span class="leading" style="color:var(--accent)">
+            <svg aria-hidden="true" style="fill:currentColor"><use href="#i-heart"/></svg>
+          </span>
+          <span class="body">
+            <span class="title">Шёлковый платок с маками</span>
+            <span class="sub">из вишлиста Люды · ателье на Гороховой</span>
+          </span>
+          <span class="trailing">
+            <button type="button" class="btn btn-ghost btn-sm" data-unfav>Убрать</button>
+            <svg aria-hidden="true"><use href="#i-chevron-right"/></svg>
+          </span>
+        </span>
+      </a>
+
+    </div>
+
+    <div id="fav-empty" class="empty" data-od-id="fav-empty" hidden style="padding-top:56px;padding-bottom:56px">
+      <span class="empty-ico"><svg aria-hidden="true"><use href="#i-heart"/></svg></span>
+      <h3>Пока ничего не отложено</h3>
+      <p>Откройте вишлист близкого и нажмите на сердечко — идея сохранится здесь, незаметно для него.</p>
+      <a class="btn btn-primary" href="wishlists.html">К вишлистам</a>
+    </div>
+
+    <p class="meta" style="margin:18px 4px 0">ИЗБРАННОЕ НЕ ВИДНО ДРУГИМ УЧАСТНИКАМ</p>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  document.addEventListener('click', function (e) {
+    var unfav = e.target.closest('[data-unfav]');
+    if (!unfav) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var card = unfav.closest('.card');
+    var list = document.getElementById('fav-list');
+    var count = document.getElementById('fav-count');
+    card.remove();
+    var n = list.querySelectorAll('.card').length;
+    count.textContent = n + ' ' + (n === 1 ? 'идея' : n >= 2 && n <= 4 ? 'идеи' : 'идей');
+    OHANA_TOAST('Убрано из избранного');
+    if (!n) {
+      list.hidden = true;
+      document.getElementById('fav-empty').hidden = false;
+    }
+  });
+</script>
+</body>
+</html>

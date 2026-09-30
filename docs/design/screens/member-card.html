@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дима · участник · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-title="Участник" data-back="members.html">
+  <main class="content content-narrow" data-od-id="screen-member-card" style="padding-top:20px">
+
+    <header data-od-id="member-head" style="margin-bottom:14px">
+      <div class="row-between">
+        <div class="row" style="gap:14px">
+          <span class="avatar avatar-lg" style="--hue:145">Д</span>
+          <div>
+            <h1 class="display display-lg">Дима</h1>
+            <p class="muted small" style="margin-top:2px">в пространстве с 12 августа</p>
+          </div>
+        </div>
+        <div class="seg" role="group" aria-label="Демо-состояние" data-od-id="member-demo-seg">
+          <button type="button" class="is-active" data-demo="active">Активный</button>
+          <button type="button" data-demo="archived">Архивный</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══ АКТИВНЫЙ ═══ -->
+    <div id="mc-active" class="stack" data-od-id="member-active" style="gap:24px">
+
+      <section data-od-id="member-role">
+        <h3 style="margin-bottom:10px;padding:0 4px">Роль</h3>
+        <div class="card list">
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-shield"/></svg></span>
+            <span class="body">
+              <span class="title">Права в пространстве</span>
+              <span class="sub">владелец может приглашать и скрывать разделы</span>
+            </span>
+            <span class="trailing">
+              <select class="input" id="mc-role" style="width:auto;min-height:40px;padding:8px 12px" aria-label="Роль участника">
+                <option selected>Обычный участник</option>
+                <option>Владелец</option>
+              </select>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section data-od-id="member-access">
+        <h3 style="margin-bottom:10px;padding:0 4px">Вход</h3>
+        <div class="card list">
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>
+            <span class="body">
+              <span class="title">Код входа</span>
+              <span class="sub">использован 12 августа · САРТ-····</span>
+            </span>
+            <span class="trailing"><span class="pill pill-ok">ИСПОЛЬЗОВАН</span></span>
+          </div>
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-repeat"/></svg></span>
+            <span class="body">
+              <span class="title">Перевыпустить код</span>
+              <span class="sub">понадобится, если Дима потерял доступ</span>
+            </span>
+            <span class="trailing"><button type="button" class="btn btn-secondary btn-sm" data-reroll>Выпустить</button></span>
+          </div>
+        </div>
+      </section>
+
+      <section data-od-id="member-devices">
+        <h3 style="margin-bottom:10px;padding:0 4px">Устройства</h3>
+        <div class="card list" id="mc-devices">
+          <div class="list-row" style="min-height:56px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-install"/></svg></span>
+            <span class="body">
+              <span class="title">iPhone Димы</span>
+              <span class="sub">Новосибирск · сейчас</span>
+            </span>
+            <span class="trailing"><span class="pill pill-ok">ТЕКУЩЕЕ</span></span>
+          </div>
+          <div class="list-row" style="min-height:56px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-install"/></svg></span>
+            <span class="body">
+              <span class="title">Redmi Note 12</span>
+              <span class="sub">Новосибирск · 2 недели назад</span>
+            </span>
+            <span class="trailing">
+              <button type="button" class="btn btn-sm" style="color:var(--danger)" data-disconnect>Отключить всё</button>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section data-od-id="member-archive">
+        <h3 style="margin-bottom:10px;padding:0 4px">Пространство</h3>
+        <div class="card list">
+          <button type="button" class="list-row danger" data-archive style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-archive"/></svg></span>
+            <span class="body">
+              <span class="title">Архивировать Диму</span>
+              <span class="sub">записи сохранятся, доступ исчезнет</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ═══ АРХИВНЫЙ ═══ -->
+    <div id="mc-archived" class="stack" data-od-id="member-archived" hidden style="gap:24px">
+
+      <div class="card list" data-od-id="archive-explain">
+        <div class="list-row" style="min-height:0;padding:16px 14px">
+          <span class="body">
+            <span class="title">Дима в архиве с 3 сентября</span>
+            <span class="sub" style="margin-top:8px;display:flex;gap:8px;align-items:flex-start">
+              <svg width="16" height="16" style="color:var(--ok);flex:none;margin-top:2px" aria-hidden="true"><use href="#i-check"/></svg>
+              <span>Осталось: записи в дневнике, события, вишлист и фото</span>
+            </span>
+            <span class="sub" style="margin-top:6px;display:flex;gap:8px;align-items:flex-start">
+              <svg width="16" height="16" style="color:var(--danger);flex:none;margin-top:2px" aria-hidden="true"><use href="#i-x"/></svg>
+              <span>Скрыто: он не входит, его нет в списках и получателях событий</span>
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div class="stack" style="gap:10px" data-od-id="archive-actions">
+        <button type="button" class="btn btn-primary btn-lg" data-restore>Восстановить участника</button>
+        <p class="field-hint center" style="margin-top:2px">Дима снова увидит дневник, календарь и вишлисты — и получит новый код</p>
+      </div>
+
+    </div>
+
+    <p class="meta" style="margin:24px 4px 0">ДОБАВЛЕН ПО КОДУ SASF-KQLV · ПРИГЛАСИЛА АНЯ</p>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  var W = location.hash === '#archived' ? 'archived' : 'active';
+
+  function paint() {
+    document.querySelectorAll('[data-demo]').forEach(function (b) {
+      b.classList.toggle('is-active', b.getAttribute('data-demo') === W);
+    });
+    document.getElementById('mc-active').hidden = W === 'archived';
+    document.getElementById('mc-archived').hidden = W !== 'archived';
+  }
+  document.querySelectorAll('[data-demo]').forEach(function (b) {
+    b.addEventListener('click', function () { W = b.getAttribute('data-demo'); paint(); });
+  });
+  paint();
+
+  /* роль */
+  document.getElementById('mc-role').addEventListener('change', function () {
+    if (this.value === 'Владелец') {
+      OHANA_CONFIRM({
+        title: 'Сделать Диму владельцем?',
+        text: 'Он сможет приглашать участников, скрывать разделы и архивировать людей. Забрать роль можно в любой момент.',
+        confirmLabel: 'Сделать владельцем'
+      }).then(function (yes) {
+        if (yes) OHANA_TOAST('Дима — теперь владелец');
+        else document.getElementById('mc-role').value = 'Обычный участник';
+      });
+    } else {
+      OHANA_TOAST('Роль: обычный участник');
+    }
+  });
+
+  /* перевыпуск кода */
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-reroll]')) {
+      OHANA_CONFIRM({
+        title: 'Выпустить новый код для Димы?',
+        text: 'Старый код отзовётся. Новый покажется один раз — сообщите его лично.',
+        confirmLabel: 'Выпустить'
+      }).then(function (yes) { if (yes) location.href = 'invite.html'; });
+    }
+    if (e.target.closest('[data-disconnect]')) {
+      OHANA_CONFIRM({
+        title: 'Отключить все устройства?',
+        text: 'Обе сессии Димы завершатся. Для входа понадобится новый код — постучитесь к нему лично.',
+        confirmLabel: 'Отключить', danger: true
+      }).then(function (yes) {
+        if (!yes) return;
+        document.getElementById('mc-devices').innerHTML =
+          '<div class="list-row" style="min-height:56px">' +
+          '<span class="leading"><svg aria-hidden="true"><use href="#i-cloud-off"/></svg></span>' +
+          '<span class="body"><span class="title">Устройств нет</span>' +
+          '<span class="sub">Дима войдёт заново по новому коду</span></span></div>';
+        OHANA_TOAST('Все устройства отключены');
+      });
+    }
+    if (e.target.closest('[data-archive]')) {
+      OHANA_CONFIRM({
+        title: 'Архивировать Диму?',
+        text: 'Сохранится всё: записи дневника, события, фото и вишлист. Скроется доступ: он выйдет из списков участников и получателей событий. Вернуть можно в один тап.',
+        confirmLabel: 'Архивировать', danger: true
+      }).then(function (yes) {
+        if (!yes) return;
+        W = 'archived'; paint();
+        OHANA_TOAST('Дима в архиве — данные в сохранности');
+      });
+    }
+    if (e.target.closest('[data-restore]')) {
+      OHANA_CONFIRM({
+        title: 'Вернуть Диму в участники?',
+        text: 'Он снова увидит дневник, календарь и вишлисты. Для входа на новом устройстве понадобится новый код.',
+        confirmLabel: 'Восстановить'
+      }).then(function (yes) {
+        if (!yes) return;
+        W = 'active'; paint();
+        OHANA_TOAST('Дима снова участник пространства');
+      });
+    }
+  });
+</script>
+</body>
+</html>

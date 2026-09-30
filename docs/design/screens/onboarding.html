@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Знакомство · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+<button type="button" class="btn btn-icon" data-action="theme" style="position:fixed;top:14px;right:14px;z-index:10" aria-label="Сменить тему"></button>
+
+<div class="auth" data-od-id="screen-onboarding">
+  <div class="auth-card stack" style="gap:0;max-width:460px">
+    <div style="margin-bottom:24px">
+      <p class="meta" style="margin-bottom:8px">ПРОСТРАНСТВО «НАША СЕМЬЯ» · ШАГ 2 ИЗ 2</p>
+      <h1 class="display display-xl" style="margin-bottom:8px">Как вас назовут в семье?</h1>
+      <p class="muted">Имя увидят участники ваших пространств. Остальное — по желанию.</p>
+    </div>
+
+    <form id="ob-form" novalidate class="stack" style="gap:18px">
+      <div class="field" id="f-name">
+        <label for="name">Имя</label>
+        <input class="input" id="name" placeholder="Например: Аня" autocomplete="nickname" aria-describedby="name-error">
+        <span class="field-error" id="name-error" role="alert"><svg aria-hidden="true"><use href="#i-alert"/></svg><span>Напишите имя — так к вам будут обращаться близкие.</span></span>
+      </div>
+
+      <div class="row" style="gap:10px;align-items:flex-start">
+        <div class="field grow">
+          <label for="email">Email</label>
+          <input class="input" id="email" type="email" placeholder="anechka@mail.ru" autocomplete="email">
+        </div>
+        <div class="field grow">
+          <label for="phone">Телефон</label>
+          <input class="input" id="phone" type="tel" placeholder="+7 900 000-00-00" autocomplete="tel">
+        </div>
+      </div>
+      <p class="field-hint" style="display:flex;gap:6px;align-items:center;margin-top:-8px">
+        <svg width="14" height="14" style="flex:none" aria-hidden="true"><use href="#i-lock"/></svg>
+        Необязательно. Видны только вашей семье — и никому больше.
+      </p>
+
+      <div class="field">
+        <label>Язык интерфейса</label>
+        <div class="row" style="gap:10px" role="radiogroup" aria-label="Язык интерфейса" id="lang-group">
+          <label class="card card-link row" style="display:flex;align-items:center;flex:1;padding:14px 16px;min-height:56px;cursor:pointer;gap:10px">
+            <input type="radio" name="lang" value="ru" checked style="accent-color:var(--accent);width:18px;height:18px">
+            <svg width="18" height="18" aria-hidden="true" style="color:var(--muted)"><use href="#i-globe"/></svg>
+            <span class="grow"><span class="title" style="font-weight:600;font-size:15px">Русский</span></span>
+          </label>
+          <label class="card card-link row" style="display:flex;align-items:center;flex:1;padding:14px 16px;min-height:56px;cursor:pointer;gap:10px">
+            <input type="radio" name="lang" value="en" style="accent-color:var(--accent);width:18px;height:18px">
+            <svg width="18" height="18" aria-hidden="true" style="color:var(--muted)"><use href="#i-globe"/></svg>
+            <span class="grow"><span class="title" style="font-weight:600;font-size:15px">English</span></span>
+          </label>
+        </div>
+        <span class="field-hint">Позже можно изменить в настройках. Китайский — скоро.</span>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg" style="margin-top:6px">Продолжить</button>
+    </form>
+
+    <p class="auth-foot">Входим в «Наша семья» под кодом SASF-KQLV</p>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.getElementById('ob-form');
+  var fName = document.getElementById('f-name');
+  var name = document.getElementById('name');
+  var email = document.getElementById('email');
+  name.addEventListener('input', function () { fName.classList.remove('invalid'); });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var ok = true;
+    if (!name.value.trim()) { fName.classList.add('invalid', 'shake'); ok = false; }
+    if (email.value && !/^\S+@\S+\.\S+$/.test(email.value)) {
+      var f = email.closest('.field');
+      f.classList.add('invalid', 'shake');
+      if (!f.querySelector('.field-error')) {
+        f.insertAdjacentHTML('beforeend', '<span class="field-error" role="alert"><svg aria-hidden="true"><use href="#i-alert"/></svg><span>Проверьте адрес — похоже, в нём опечатка.</span></span>');
+      }
+      ok = false;
+    }
+    setTimeout(function () { document.querySelectorAll('.shake').forEach(function (x) { x.classList.remove('shake'); }); }, 450);
+    if (!ok) return;
+    OHANA_TOAST('Готово, ' + (name.value.trim().split(' ')[0] || 'друг') + '! Это ваша семья.');
+    setTimeout(function () { location.href = 'home.html'; }, 800);
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мои черновики · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="diary" data-title="Черновики" data-back="diary.html">
+  <main class="content content-narrow" data-od-id="screen-drafts" style="padding-top:26px">
+    <header style="margin-bottom:18px">
+      <h1 class="display display-xl" style="margin-bottom:6px">Мои черновики</h1>
+      <p class="muted">Их видите только вы. Опубликуете — увидит вся семья.</p>
+    </header>
+
+    <div id="drafts-list" class="stack" style="gap:12px">
+      <div class="card list" data-od-id="draft-row-1">
+        <div class="list-row" style="min-height:64px">
+          <span class="leading" style="width:38px;height:38px;border-radius:12px;background:var(--surface-2)">
+            <svg aria-hidden="true"><use href="#i-file-text"/></svg>
+          </span>
+          <a class="body" href="diary-editor.html" style="min-width:0">
+            <span class="title" style="display:block">Осенний пикник на озере</span>
+            <span class="sub">правки вчера в 21:10 · 2 фото загружено</span>
+          </a>
+          <span class="trailing">
+            <a class="btn btn-secondary btn-sm" href="diary-editor.html">Дописать</a>
+            <button type="button" class="btn btn-icon btn-sm" data-menu="tpl-draft" aria-label="Действия с черновиком">
+              <svg width="18" height="18" aria-hidden="true"><use href="#i-more-h"/></svg>
+            </button>
+          </span>
+        </div>
+      </div>
+
+      <p class="small muted" style="padding:0 4px;display:flex;gap:6px;align-items:center">
+        <svg width="15" height="15" style="flex:none" aria-hidden="true"><use href="#i-lock"/></svg>
+        Черновики хранятся на вашем устройстве и на сервере — но не показываются семье до публикации.
+      </p>
+    </div>
+
+    <div class="empty" id="drafts-empty" hidden data-od-id="drafts-empty">
+      <span class="empty-ico"><svg aria-hidden="true"><use href="#i-file-text"/></svg></span>
+      <h3>Черновиков нет</h3>
+      <p>Начните запись и сохраните её — она появится здесь и будет ждать публикации.</p>
+      <a class="btn btn-secondary" href="diary-editor.html">Новая запись</a>
+    </div>
+  </main>
+</div>
+
+<div class="popover" id="tpl-draft" role="menu" style="visibility:hidden">
+  <button type="button" class="menu-item" data-draft-publish><svg aria-hidden="true"><use href="#i-send"/></svg>Опубликовать сейчас</button>
+  <button type="button" class="menu-item danger" data-draft-delete><svg aria-hidden="true"><use href="#i-trash"/></svg>Удалить черновик</button>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-draft-publish]')) {
+      closePopovers();
+      OHANA_TOAST('Черновик опубликован в дневнике');
+      setTimeout(function () { location.href = 'diary.html'; }, 800);
+    }
+    if (e.target.closest('[data-draft-delete]')) {
+      closePopovers();
+      OHANA_CONFIRM({
+        title: 'Удалить черновик?',
+        text: '«Осенний пикник на озере» и его черновые фото исчезнут безвозвратно — черновики не попадают в корзину.',
+        confirmLabel: 'Удалить',
+        danger: true
+      }).then(function (yes) {
+        if (!yes) return;
+        document.querySelector('[data-od-id="draft-row-1"]').remove();
+        var list = document.getElementById('drafts-list');
+        if (!list.querySelector('.card')) { list.hidden = true; document.getElementById('drafts-empty').hidden = false; }
+        OHANA_TOAST('Черновик удалён');
+      });
+    }
+  });
+});
+</script>
+</body>
+</html>

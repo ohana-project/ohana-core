@@ -1,0 +1,218 @@
+/*
+ * Ohana glass — docs/design/README.md, section "Glass".
+ *
+ * `glass` is the recipe for floating chrome that carries text (bars,
+ * sheets, dialogs, popovers, toasts); `glass-bar` for the chrome that
+ * keeps only the inset highlight; `glass-liquid` draws the gradient rim
+ * and stays on the FAB, the one glass surface without text — over a
+ * 52% fill (48% in dark) AA small text cannot hold even at full
+ * opacity, so text-bearing overlays take the plain recipe (README
+ * "Glass", "the fallback wherever text would miss AA").
+ *
+ * The recipes read their fill alpha and blur from the custom properties
+ * below, and the flat mode at the bottom only raises them: CSS cannot
+ * OR a media query with a feature query, so both flat conditions set
+ * the same values in their own block.
+ */
+
+:root {
+  /* 90%, not 82%: danger text (the failed sync label, destructive menu
+     items) needs 4.5:1 over a black backdrop (see contrast.test.ts) */
+  --glass-a: 90%;
+  --liquid-a: 52%;
+  --glass-backdrop: blur(24px) saturate(1.5);
+  --liquid-backdrop: blur(20px) saturate(1.7);
+  --scrim-backdrop: blur(12px) saturate(1.25);
+  /* the inset highlight on top of shadow-3; flat mode drops it */
+  --glass-inset: inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
+  /* the gradient rim, drawn by masking a border-sized overlay; flat
+     mode removes it */
+  --liquid-rim: "";
+  /* the FAB's brighter hover fill; flat mode flattens it with the rest */
+  --fab-hover-bg:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.34),
+      rgb(255 255 255 / 0.12) 52%,
+      rgb(255 255 255 / 0)
+    ),
+    color-mix(in oklch, var(--surface) 64%, transparent);
+}
+
+[data-theme="dark"] {
+  --glass-a: 92%;
+  --liquid-a: 48%;
+  --fab-hover-bg:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.14),
+      rgb(255 255 255 / 0.04) 52%,
+      rgb(255 255 255 / 0)
+    ),
+    color-mix(in oklch, var(--surface) 60%, transparent);
+}
+
+@utility glass {
+  background: color-mix(in oklch, var(--surface) var(--glass-a), transparent);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  border: 1px solid color-mix(in oklch, var(--fg) 9%, transparent);
+  box-shadow: var(--shadow-3), var(--glass-inset);
+}
+
+@utility glass-bar {
+  background: color-mix(in oklch, var(--surface) var(--glass-a), transparent);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
+}
+
+@utility glass-liquid {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.26),
+      rgb(255 255 255 / 0.07) 52%,
+      rgb(255 255 255 / 0)
+    ),
+    color-mix(in oklch, var(--surface) var(--liquid-a), transparent);
+  box-shadow: var(
+    --liquid-shadow,
+    0 0 0 0.5px color-mix(in oklch, var(--fg) 10%, rgb(255 255 255 / 0.4)),
+    inset 0 1px 0.5px rgb(255 255 255 / 0.35),
+    inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 9%, transparent),
+    0 2px 6px -1px color-mix(in oklch, var(--fg) 12%, transparent),
+    0 14px 36px -6px color-mix(in oklch, var(--fg) 20%, transparent)
+  );
+  -webkit-backdrop-filter: var(--liquid-backdrop);
+  backdrop-filter: var(--liquid-backdrop);
+
+  &::after {
+    content: var(--liquid-rim);
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      155deg,
+      rgb(255 255 255 / 0.72),
+      rgb(255 255 255 / 0.13) 34%,
+      rgb(255 255 255 / 0) 58%,
+      color-mix(in oklch, var(--fg) 12%, transparent)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* the liquid layers need their own dark overrides; the shared tokens
+     alone are not enough (the prototype's .popover/.toast/.fab blocks) */
+  [data-theme="dark"] & {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 0.1),
+        rgb(255 255 255 / 0.02) 52%,
+        rgb(255 255 255 / 0)
+      ),
+      color-mix(in oklch, var(--surface) var(--liquid-a), transparent);
+    box-shadow: var(
+      --liquid-shadow,
+      0 0 0 0.5px color-mix(in oklch, var(--fg) 18%, rgb(255 255 255 / 0.12)),
+      inset 0 1px 0.5px rgb(255 255 255 / 0.14),
+      inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 22%, transparent),
+      0 2px 8px -1px color-mix(in oklch, black 35%, transparent),
+      0 14px 36px -6px color-mix(in oklch, black 45%, transparent)
+    );
+  }
+
+  [data-theme="dark"] &::after {
+    background: linear-gradient(
+      155deg,
+      rgb(255 255 255 / 0.36),
+      rgb(255 255 255 / 0.06) 34%,
+      rgb(255 255 255 / 0) 58%,
+      color-mix(in oklch, var(--fg) 20%, transparent)
+    );
+  }
+}
+
+/* the overlay scrim behind sheets, dialogs and the lightbox */
+@utility scrim {
+  background: var(--scrim);
+  -webkit-backdrop-filter: var(--scrim-backdrop);
+  backdrop-filter: var(--scrim-backdrop);
+}
+
+/*
+ * The FAB is the one element that hovers to a brighter liquid mix,
+ * which does not fit a stateless utility; it applies the liquid recipe
+ * and adds the interaction states here, next to the recipes it is
+ * built from. Mobile only (see layout rules).
+ */
+@layer components {
+  .fab {
+    @apply glass-liquid;
+    color: var(--accent);
+    border: 0;
+    transition:
+      transform var(--t-fast) var(--ease),
+      box-shadow var(--t-base) var(--ease),
+      background var(--t-fast) var(--ease);
+  }
+
+  .fab:hover {
+    background: var(--fab-hover-bg);
+    box-shadow:
+      0 0 0 0.5px color-mix(in oklch, var(--fg) 12%, rgb(255 255 255 / 0.48)),
+      inset 0 1px 0.5px rgb(255 255 255 / 0.42),
+      inset 0 -1px 1.5px color-mix(in oklch, var(--fg) 9%, transparent),
+      0 2px 6px -1px color-mix(in oklch, var(--fg) 12%, transparent),
+      0 18px 44px -6px color-mix(in oklch, var(--fg) 24%, transparent);
+  }
+
+  .fab:active {
+    transform: translateY(1px);
+  }
+}
+
+/*
+ * Flat mode: opaque surface, shadow-3, no blur, no rim. Declared last
+ * and unlayered on purpose — unlayered rules beat the layered
+ * utilities, so these win over every recipe whenever the condition
+ * holds, in both themes. glass-bar keeps its inset highlight instead
+ * of shadow-3, like the prototype's bars.
+ */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-a: 100%;
+    --liquid-a: 100%;
+    --glass-backdrop: none;
+    --liquid-backdrop: none;
+    --scrim-backdrop: none;
+    --glass-inset: 0 0 0 transparent;
+    --liquid-shadow: var(--shadow-3);
+    --liquid-rim: none;
+    --fab-hover-bg: var(--surface);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-a: 100%;
+    --liquid-a: 100%;
+    --glass-backdrop: none;
+    --liquid-backdrop: none;
+    --scrim-backdrop: none;
+    --glass-inset: 0 0 0 transparent;
+    --liquid-shadow: var(--shadow-3);
+    --liquid-rim: none;
+    --fab-hover-bg: var(--surface);
+  }
+}

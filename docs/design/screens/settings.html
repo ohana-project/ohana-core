@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Настройки · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-title="Настройки">
+  <main class="content content-narrow" data-od-id="screen-settings" style="padding-top:20px">
+
+    <header data-od-id="settings-head" style="margin-bottom:22px">
+      <h1 class="display display-lg">Настройки</h1>
+    </header>
+
+    <div class="stack" data-od-id="settings-groups" style="gap:26px">
+
+      <!-- профиль и язык -->
+      <section data-od-id="set-profile">
+        <h3 style="margin-bottom:10px;padding:0 4px">Профиль</h3>
+        <div class="card list">
+          <a class="list-row" href="profile.html" style="min-height:64px">
+            <span class="avatar" style="--hue:60">А</span>
+            <span class="body">
+              <span class="title">Аня</span>
+              <span class="sub">контакты для семьи · владелец</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <button type="button" class="list-row" data-menu="tpl-lang" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-globe"/></svg></span>
+            <span class="body">
+              <span class="title">Язык</span>
+              <span class="sub" data-lang-label>Русский</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- тема -->
+      <section data-od-id="set-theme">
+        <h3 style="margin-bottom:10px;padding:0 4px">Тема</h3>
+        <div class="card list">
+          <div class="list-row" style="min-height:56px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-sun"/></svg></span>
+            <span class="body">
+              <span class="title">Оформление</span>
+              <span class="sub">как в системных настройках, если выбрать «Авто»</span>
+              <span class="seg" role="group" aria-label="Тема" style="margin-top:10px">
+                <button type="button" data-set-theme="light">Светлая</button>
+                <button type="button" data-set-theme="dark">Тёмная</button>
+                <button type="button" data-set-theme="system" class="is-active">Авто</button>
+              </span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- уведомления -->
+      <section data-od-id="set-notifications">
+        <h3 style="margin-bottom:10px;padding:0 4px">Уведомления</h3>
+        <div class="card list">
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-bell"/></svg></span>
+            <span class="body">
+              <span class="title">На этом устройстве</span>
+              <span class="sub">события и новые записи дневника</span>
+            </span>
+            <span class="trailing">
+              <span class="switch">
+                <input type="checkbox" id="nt-main" role="switch" checked>
+                <i></i><label class="sr-only" for="nt-main">Уведомления на этом устройстве</label>
+              </span>
+            </span>
+          </div>
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-eye"/></svg></span>
+            <span class="body">
+              <span class="title">Показывать детали события</span>
+              <span class="sub">иначе — нейтральный текст: «Новое событие в „Наша семья“»</span>
+            </span>
+            <span class="trailing">
+              <span class="switch">
+                <input type="checkbox" id="nt-details" role="switch">
+                <i></i><label class="sr-only" for="nt-details">Показывать детали события в уведомлении</label>
+              </span>
+            </span>
+          </div>
+        </div>
+        <p class="field-hint" style="margin:10px 4px 0">
+          На iPhone уведомления работают только в установленном приложении — добавьте Ohana на экран «Домой».
+        </p>
+      </section>
+
+      <!-- устройства и сессии -->
+      <section data-od-id="set-devices">
+        <h3 style="margin-bottom:10px;padding:0 4px">Мои устройства</h3>
+        <div class="card list" id="device-list">
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-install"/></svg></span>
+            <span class="body">
+              <span class="title">iPhone 15 · это устройство</span>
+              <span class="sub">Москва · активна сейчас</span>
+            </span>
+            <span class="trailing"><span class="pill pill-ok">ТЕКУЩЕЕ</span></span>
+          </div>
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-install"/></svg></span>
+            <span class="body">
+              <span class="title">iPad Air</span>
+              <span class="sub">Москва · 2 дня назад</span>
+            </span>
+            <span class="trailing"><button type="button" class="btn btn-sm" style="color:var(--danger)" data-revoke>Отозвать</button></span>
+          </div>
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-globe"/></svg></span>
+            <span class="body">
+              <span class="title">Chrome · Windows</span>
+              <span class="sub">Санкт-Петербург · 12 сентября</span>
+            </span>
+            <span class="trailing"><button type="button" class="btn btn-sm" style="color:var(--danger)" data-revoke>Отозвать</button></span>
+          </div>
+        </div>
+        <p class="field-hint" style="margin:10px 4px 0">Отозванное устройство выйдет из пространства — для входа снова понадобится код</p>
+      </section>
+
+      <!-- пространство (владелец) -->
+      <section data-od-id="set-space">
+        <h3 style="margin-bottom:10px;padding:0 4px">Пространство «Наша семья»</h3>
+        <div class="card list">
+          <a class="list-row" href="members.html" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-users"/></svg></span>
+            <span class="body">
+              <span class="title">Участники</span>
+              <span class="sub">4 активных · 1 в архиве</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <a class="list-row" href="space-settings.html" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-settings"/></svg></span>
+            <span class="body">
+              <span class="title">Настройки пространства</span>
+              <span class="sub">видимость разделов · часовой пояс</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- прочее -->
+      <section data-od-id="set-other">
+        <div class="card list">
+          <a class="list-row" href="admin-login.html" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-server"/></svg></span>
+            <span class="body">
+              <span class="title">Админка сервера</span>
+              <span class="sub">вход по паролю · для того, кто хостит Ohana</span>
+            </span>
+            <span class="trailing"><svg aria-hidden="true"><use href="#i-chevron-right"/></svg></span>
+          </a>
+          <button type="button" class="list-row danger" data-logout style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-log-out"/></svg></span>
+            <span class="body"><span class="title">Выйти из «Наша семья»</span></span>
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <p class="meta" style="margin:24px 4px 0">OHANA 1.4 · СЕРВЕР: OHANA.SMIROVA.RU</p>
+  </main>
+
+  <div class="popover" id="tpl-lang" role="menu">
+    <button type="button" class="menu-item" data-lang="Русский">Русский<span class="check" data-check>✓</span></button>
+    <button type="button" class="menu-item" data-lang="English">English<span class="check" data-check style="visibility:hidden">✓</span></button>
+    <div class="menu-sep"></div>
+    <button type="button" class="menu-item" style="color:var(--muted)" disabled>中文 · позже</button>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  /* тема */
+  var segBtns = document.querySelectorAll('[data-set-theme]');
+  function paintSeg() {
+    var cur = document.documentElement.getAttribute('data-theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark-auto' : 'light-auto');
+    segBtns.forEach(function (b) {
+      var v = b.getAttribute('data-set-theme');
+      b.classList.toggle('is-active', cur === v || cur === v + '-auto');
+    });
+  }
+  segBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-set-theme');
+      if (v === 'system') {
+        document.documentElement.removeAttribute('data-theme');
+        try { localStorage.removeItem('ohana-theme'); } catch (err) {}
+      } else {
+        document.documentElement.setAttribute('data-theme', v);
+        try { localStorage.setItem('ohana-theme', v); } catch (err) {}
+      }
+      paintSeg();
+      OHANA_TOAST(v === 'system' ? 'Тема как в системе' : (v === 'dark' ? 'Тёмная тема' : 'Светлая тема'));
+    });
+  });
+  paintSeg();
+
+  /* язык */
+  document.addEventListener('click', function (e) {
+    var item = e.target.closest('[data-lang]');
+    if (!item) return;
+    document.querySelectorAll('#tpl-lang [data-check]').forEach(function (c) { c.style.visibility = 'hidden'; });
+    item.querySelector('[data-check]').style.visibility = 'visible';
+    document.querySelector('[data-lang-label]').textContent = item.getAttribute('data-lang');
+    document.documentElement.lang = item.getAttribute('data-lang') === 'Русский' ? 'ru' : 'en';
+    OHANA_TOAST('Язык интерфейса: ' + item.getAttribute('data-lang'));
+  });
+
+  /* отзыв устройств */
+  document.addEventListener('click', function (e) {
+    var rv = e.target.closest('[data-revoke]');
+    if (!rv) return;
+    var row = rv.closest('.list-row');
+    var name = row.querySelector('.title').textContent;
+    OHANA_CONFIRM({
+      title: 'Отозвать «' + name + '»?',
+      text: 'Устройство выйдет из пространства, а его черновики и кэш сотрутся при следующем запуске.',
+      confirmLabel: 'Отозвать', danger: true
+    }).then(function (yes) {
+      if (!yes) return;
+      row.remove();
+      OHANA_TOAST('Сессия отозвана');
+    });
+  });
+
+  /* уведомления */
+  document.getElementById('nt-main').addEventListener('change', function () {
+    OHANA_TOAST(this.checked ? 'Уведомления включены' : 'Уведомления выключены');
+  });
+  document.getElementById('nt-details').addEventListener('change', function () {
+    OHANA_TOAST(this.checked
+      ? 'В уведомлениях будут название и время события'
+      : 'В уведомлениях — нейтральный текст без деталей');
+  });
+</script>
+</body>
+</html>

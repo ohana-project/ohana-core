@@ -17,7 +17,7 @@ export function LanguageSwitcher() {
       {locales.map((locale) => (
         <Button
           key={locale}
-          variant={i18n.resolvedLanguage === locale ? 'default' : 'outline'}
+          variant={i18n.resolvedLanguage === locale ? 'primary' : 'secondary'}
           aria-pressed={i18n.resolvedLanguage === locale}
           onClick={() => changeLanguage(locale)}
         >

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Настройки пространства · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-title="Пространство" data-back="home.html">
+  <main class="content content-narrow" data-od-id="screen-space-settings" style="padding-top:20px">
+
+    <header data-od-id="space-head" style="margin-bottom:22px">
+      <h1 class="display display-lg">Настройки пространства</h1>
+      <p class="muted small" style="margin-top:4px">«Наша семья» · доступно только владельцу</p>
+    </header>
+
+    <div class="stack" style="gap:26px">
+
+      <section data-od-id="space-name">
+        <div class="field">
+          <label for="sp-name">Название</label>
+          <input class="input" id="sp-name" value="Наша семья">
+          <span class="field-hint">Его увидят участники в переключателе пространств</span>
+        </div>
+      </section>
+
+      <section data-od-id="space-sections">
+        <h3 style="margin-bottom:10px;padding:0 4px">Разделы</h3>
+        <div class="card list">
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-book"/></svg></span>
+            <span class="body">
+              <span class="title">Дневник</span>
+              <span class="sub" data-vis-sub data-on="записи и фото семьи" data-off="скрыт для всех — данные сохранены">записи и фото семьи</span>
+            </span>
+            <span class="trailing">
+              <span class="switch">
+                <input type="checkbox" id="vis-diary" role="switch" checked data-vis>
+                <i></i><label class="sr-only" for="vis-diary">Показывать дневник</label>
+              </span>
+            </span>
+          </div>
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-calendar"/></svg></span>
+            <span class="body">
+              <span class="title">Календарь</span>
+              <span class="sub" data-vis-sub data-on="события и напоминания" data-off="скрыт для всех — данные сохранены">события и напоминания</span>
+            </span>
+            <span class="trailing">
+              <span class="switch">
+                <input type="checkbox" id="vis-cal" role="switch" checked data-vis>
+                <i></i><label class="sr-only" for="vis-cal">Показывать календарь</label>
+              </span>
+            </span>
+          </div>
+          <div class="list-row" style="min-height:60px">
+            <span class="leading"><svg aria-hidden="true"><use href="#i-gift"/></svg></span>
+            <span class="body">
+              <span class="title">Вишлисты</span>
+              <span class="sub" data-vis-sub data-on="желания, брони и избранное" data-off="скрыт для всех — данные сохранены">желания, брони и избранное</span>
+            </span>
+            <span class="trailing">
+              <span class="switch">
+                <input type="checkbox" id="vis-wish" role="switch" checked data-vis>
+                <i></i><label class="sr-only" for="vis-wish">Показывать вишлисты</label>
+              </span>
+            </span>
+          </div>
+        </div>
+        <p class="field-hint" style="margin:10px 4px 0">
+          Скрытие не удаляет данные: записи, события и желания останутся на сервере и вернутся вместе с разделом.
+          Навигация привыкает — с одним разделом таб-бар не ломается.
+        </p>
+      </section>
+
+      <section data-od-id="space-tz">
+        <h3 style="margin-bottom:10px;padding:0 4px">Часовой пояс</h3>
+        <div class="field">
+          <label for="sp-tz">По умолчанию для новых событий</label>
+          <select class="input" id="sp-tz">
+            <option selected>Москва (UTC+3)</option>
+            <option>Калининград (UTC+2)</option>
+            <option>Самара (UTC+4)</option>
+            <option>Екатеринбург (UTC+5)</option>
+            <option>Новосибирск (UTC+7)</option>
+            <option>Владивосток (UTC+10)</option>
+            <option>UTC</option>
+          </select>
+          <span class="field-hint">Дима живёт в Новосибирске — его события показываются в его поясе</span>
+        </div>
+      </section>
+
+      <div class="stack" style="gap:10px" data-od-id="space-save">
+        <button type="button" class="btn btn-primary btn-lg" data-save-space>Сохранить</button>
+      </div>
+
+    </div>
+
+    <p class="meta" style="margin:24px 4px 0">ИЗМЕНЕНИЯ УВИДЯТ УЧАСТНИКИ ПОСЛЕ СИНХРОНИЗАЦИИ</p>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  document.querySelectorAll('[data-vis]').forEach(function (sw) {
+    sw.addEventListener('change', function () {
+      var sub = sw.closest('.list-row').querySelector('[data-vis-sub]');
+      sub.textContent = sw.checked ? sub.getAttribute('data-on') : sub.getAttribute('data-off');
+      OHANA_TOAST(sw.checked ? 'Раздел вернётся участникам' : 'Раздел скрыт — ничего не удалено');
+    });
+  });
+
+  document.querySelector('[data-save-space]').addEventListener('click', function () {
+    var name = document.getElementById('sp-name');
+    var f = name.closest('.field');
+    if (!name.value.trim()) {
+      f.classList.add('invalid', 'shake');
+      setTimeout(function () { f.classList.remove('shake'); }, 450);
+      return;
+    }
+    f.classList.remove('invalid');
+    OHANA_TOAST('Настройки пространства сохранены');
+  });
+</script>
+</body>
+</html>

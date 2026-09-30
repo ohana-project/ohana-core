@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мой вишлист · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+<style>
+  /* вложение желания: миниатюра, ссылка, фото в шторке */
+  .wish-thumb {
+    width: 64px; height: 64px; flex: none; padding: 0;
+    border-radius: var(--r-lg); overflow: hidden;
+    border: 1px solid var(--border); background: var(--surface-2);
+  }
+  .wish-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ws-photo {
+    position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 92px; padding: 12px; overflow: hidden; cursor: pointer;
+    border-radius: var(--r-md);
+    border: 1.5px dashed color-mix(in oklch, var(--fg) 25%, var(--border));
+    color: var(--muted); font-size: var(--fs-sm); font-weight: 500;
+    transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  }
+  .ws-photo:hover, .ws-photo:focus-visible { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); outline: none; }
+  .ws-photo svg { width: 18px; height: 18px; flex: none; }
+  .ws-photo.is-set { padding: 0; border-style: solid; border-color: var(--border); }
+  .ws-photo.is-set:hover, .ws-photo.is-set:focus-visible { background: none; border-color: var(--border); }
+  .ws-photo.is-set .ws-photo-empty { display: none; }
+  .ws-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ws-photo-x {
+    position: absolute; top: 8px; right: 8px; z-index: 1;
+    width: 28px; height: 28px; border-radius: var(--r-full);
+    background: color-mix(in oklch, black 55%, transparent); color: #fff;
+    display: grid; place-items: center;
+  }
+  .ws-photo-x svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+
+<div id="app" data-shell data-active="wishlist" data-title="Мой вишлист" data-back="wishlists.html">
+  <main class="content content-narrow" data-od-id="screen-wishlist-mine" style="padding-top:20px">
+
+    <header data-od-id="mine-head" style="margin-bottom:14px">
+      <div class="row-between">
+        <h1 class="display display-lg">Мой вишлист</h1>
+        <div class="seg" role="group" aria-label="Демо-состояние" data-od-id="mine-demo-seg">
+          <button type="button" class="is-active" data-demo="list">Список</button>
+          <button type="button" data-demo="empty">Пустой</button>
+        </div>
+      </div>
+      <p class="muted small" style="margin-top:4px">Виден семье · обновлён вчера</p>
+    </header>
+
+    <!-- экран 18: автор брони не видит совсем -->
+    <div class="venue-note" data-od-id="surprise-note" style="margin-bottom:18px">
+      <svg aria-hidden="true"><use href="#i-eye-off"/></svg>
+      <p class="small" style="line-height:1.5">Близкие могут забронировать ваши желания — но вы никогда не увидите, что и кем занято. Сюрприз сохранится до последнего.</p>
+    </div>
+
+    <div id="mine-list" class="stack" data-od-id="mine-items" style="gap:12px">
+
+      <button type="button" class="attach-tile" data-add-wish data-od-id="mine-add-tile"
+        style="width:100%;aspect-ratio:auto;padding:14px;min-height:52px">
+        <span class="row" style="gap:8px;justify-content:center">
+          <svg width="18" height="18" aria-hidden="true"><use href="#i-plus"/></svg>Добавить желание
+        </span>
+      </button>
+    </div>
+
+    <!-- демо: пустой вишлист -->
+    <div id="mine-empty" class="empty" data-od-id="mine-empty" hidden style="padding-top:56px;padding-bottom:56px">
+      <span class="empty-ico"><svg aria-hidden="true"><use href="#i-gift"/></svg></span>
+      <h3>Здесь пока ничего нет</h3>
+      <p>Добавьте первое желание — близкие увидят его и смогут тихо забронировать подарок.</p>
+      <button type="button" class="btn btn-primary" data-add-wish>Добавить желание</button>
+    </div>
+
+    <p class="meta" style="margin:18px 4px 0">ВАШ СПИСОК НЕ ВИДЕН В ДРУГИХ ПРОСТРАНСТВАХ</p>
+  </main>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+  function fmtNum(v) {
+    var n = String(v || '').replace(/[^\d]/g, '');
+    return n ? new Intl.NumberFormat('ru-RU').format(+n) : '';
+  }
+  function fmtPrice(v) {
+    var n = fmtNum(v);
+    return n ? n + ' ₽' : '';
+  }
+  function normLink(v) {
+    v = String(v || '').trim().replace(/\s+/g, '');
+    if (!v) return '';
+    return /^https?:\/\//i.test(v) ? v : 'https://' + v;
+  }
+  function domainOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch (e) { return url; }
+  }
+
+  /* ── карточка желания: фото · цена · ссылка · подсказка ──────────── */
+  function renderWish(card, d) {
+    card.className = 'card list';
+    card.setAttribute('data-name', d.name);
+    card.setAttribute('data-price', d.price || '');
+    card.setAttribute('data-hint', d.hint || '');
+    card.setAttribute('data-link', d.link || '');
+    card.setAttribute('data-photo', d.photo || '');
+    card.setAttribute('data-received', d.received ? '1' : '');
+    if (d.id) card.setAttribute('data-od-id', d.id);
+    var meta = [];
+    if (d.price) meta.push('<span class="num">' + esc(fmtPrice(d.price)) + '</span>');
+    if (d.hint) meta.push(esc(d.hint));
+    card.innerHTML =
+      '<div class="list-row" style="min-height:0;padding:14px;gap:12px">' +
+      '<span class="body" style="min-width:0">' +
+      (d.received ? '<span class="pill pill-ok" style="display:flex;width:fit-content;margin-bottom:6px">ПОЛУЧЕНО</span>' : '') +
+      '<span class="title' + (d.received ? ' is-received' : '') + '">' + esc(d.name) + '</span>' +
+      (meta.length ? '<span class="sub">' + meta.join(' · ') + '</span>' : '') +
+      (d.link
+        ? '<a class="wish-link" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + ico('globe') + esc(domainOf(d.link)) + '</a>'
+        : '') +
+      '</span>' +
+      (d.photo
+        ? '<button type="button" class="wish-thumb" data-lightbox data-caption="' + esc(d.name) + '" aria-label="Открыть фото: ' + esc(d.name) + '">' +
+          '<img src="' + esc(d.photo) + '" alt="Фото желания «' + esc(d.name) + '»"></button>'
+        : '') +
+      '<button type="button" class="btn btn-icon" aria-label="Изменить" data-edit-wish>' + ico('edit') + '</button>' +
+      '</div>';
+  }
+
+  function readCard(row) {
+    return {
+      name: row.getAttribute('data-name') || '',
+      price: row.getAttribute('data-price') || '',
+      hint: row.getAttribute('data-hint') || '',
+      link: row.getAttribute('data-link') || '',
+      photo: row.getAttribute('data-photo') || '',
+      received: row.getAttribute('data-received') === '1'
+    };
+  }
+
+  /* демо-список */
+  var DEMO_WISHES = [
+    { id: 'wish-mine-sweater', name: 'Кашемировый свитер, горчичный', price: '8900',
+      hint: 'размер 46, не колючий',
+      link: 'https://www.wildberries.ru/search?query=%D0%BA%D0%B0%D1%88%D0%B5%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D1%8B%D0%B9%20%D1%81%D0%B2%D0%B8%D1%82%D0%B5%D1%80' },
+    { id: 'wish-mine-cert', name: 'Сертификат в «Подписные издания»', price: '2000',
+      hint: 'подарил Дима', received: true },
+    { id: 'wish-mine-baikal', name: 'Поездка на Байкал летом', hint: 'мечта — копим вместе',
+      photo: '../assets/img/hike-lake.jpg' }
+  ];
+  document.addEventListener('DOMContentLoaded', function () {
+    var list = document.getElementById('mine-list');
+    DEMO_WISHES.forEach(function (d) {
+      var card = document.createElement('div');
+      renderWish(card, d);
+      list.insertBefore(card, list.querySelector('.attach-tile'));
+    });
+  });
+
+  /* демо «список / пустой» */
+  document.querySelectorAll('[data-demo]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('[data-demo]').forEach(function (o) { o.classList.remove('is-active'); });
+      b.classList.add('is-active');
+      var empty = b.getAttribute('data-demo') === 'empty';
+      document.getElementById('mine-list').hidden = empty;
+      document.getElementById('mine-empty').hidden = !empty;
+    });
+  });
+
+  /* ── шторка добавления/изменения: фото · ссылка · цена ───────────── */
+  var customSeq = 0;
+  function wishSheet(row) {
+    var d = row ? readCard(row) : { name: '', price: '', hint: '', link: '', photo: '', received: false };
+    var curPhoto = d.photo;
+    var ov = OHANA_SHEET(
+      '<div class="sheet-grab"></div>' +
+      '<h2 class="sheet-title">' + (row ? 'Изменить желание' : 'Новое желание') + '</h2>' +
+      '<p class="sheet-sub">Видно семье; брони вы не увидите — сюрприз сохранится</p>' +
+      '<div class="stack" style="gap:14px;margin-bottom:18px">' +
+      '<div class="field"><label for="ws-name">Название</label>' +
+      '<input class="input" id="ws-name" value="' + esc(d.name) + '" placeholder="Например: набор для вышивания «Маки»">' +
+      '<span class="field-error">' + ico('alert') + 'Напишите, что именно хотите</span></div>' +
+      '<div class="field"><label>Фото</label>' +
+      '<div class="ws-photo' + (curPhoto ? ' is-set' : '') + '" id="ws-photo" tabindex="0" role="button" aria-label="Прикрепить фото">' +
+      '<span class="ws-photo-empty row" style="gap:8px">' + ico('camera') + (curPhoto ? '' : 'Прикрепить фото') + '</span>' +
+      (curPhoto ? '<img class="ws-photo-img" src="' + esc(curPhoto) + '" alt="Предпросмотр фото желания">' : '') +
+      (curPhoto ? '<button type="button" class="ws-photo-x" aria-label="Убрать фото">' + ico('x') + '</button>' : '') +
+      '<input type="file" accept="image/*" id="ws-file" class="sr-only"></div>' +
+      '<span class="field-hint">Необязательно · фото увидит вся семья</span></div>' +
+      '<div class="row" style="align-items:flex-start;gap:10px">' +
+      '<div class="field grow"><label for="ws-link">Ссылка</label>' +
+      '<input class="input" id="ws-link" inputmode="url" value="' + esc(d.link) + '" placeholder="Необязательно"></div>' +
+      '<div class="field" style="flex:none;width:148px"><label for="ws-price">Цена, ₽</label>' +
+      '<input class="input" id="ws-price" inputmode="decimal" value="' + esc(fmtNum(d.price)) + '" placeholder="Необязательно"></div>' +
+      '</div>' +
+      '<div class="field"><label for="ws-hint">Подсказка</label>' +
+      '<input class="input" id="ws-hint" value="' + esc(d.hint) + '" placeholder="Размер, цвет, где искать"></div>' +
+      (row
+        ? '<label class="row-between" style="gap:12px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer">' +
+          '<span style="min-width:0"><span style="display:block;font-weight:500">Уже получено</span>' +
+          '<span class="muted small" style="display:block;margin-top:2px">В списке появится отметка «получено»</span></span>' +
+          '<span class="switch"><input type="checkbox" id="ws-received"' + (d.received ? ' checked' : '') + '><i></i></span></label>'
+        : '') +
+      '</div>' +
+      '<button type="button" class="btn btn-primary btn-lg" data-wish-save>' + (row ? 'Сохранить' : 'Добавить') + '</button>' +
+      (row ? '<button type="button" class="btn btn-danger btn-lg" data-wish-del style="margin-top:10px">Удалить желание</button>' : ''));
+
+    var tile = ov.querySelector('#ws-photo'),
+        file = ov.querySelector('#ws-file'),
+        priceEl = ov.querySelector('#ws-price'),
+        save = function () {
+          var nameEl = ov.querySelector('#ws-name');
+          var f = nameEl.closest('.field');
+          if (!nameEl.value.trim()) {
+            f.classList.add('invalid', 'shake');
+            setTimeout(function () { f.classList.remove('shake'); }, 450);
+            return;
+          }
+          f.classList.remove('invalid');
+          var rcv = ov.querySelector('#ws-received');
+          var nd = {
+            name: nameEl.value.trim(),
+            price: priceEl.value.replace(/[^\d]/g, ''),
+            hint: ov.querySelector('#ws-hint').value.trim(),
+            link: normLink(ov.querySelector('#ws-link').value),
+            photo: curPhoto,
+            received: rcv ? rcv.checked : d.received
+          };
+          if (row) {
+            renderWish(row, nd);
+            OHANA_TOAST('Желание обновлено');
+          } else {
+            var card = document.createElement('div');
+            nd.id = 'wish-mine-custom-' + (++customSeq);
+            renderWish(card, nd);
+            var list = document.getElementById('mine-list');
+            list.insertBefore(card, list.querySelector('.attach-tile'));
+            OHANA_TOAST('Желание добавлено');
+          }
+          OHANA_CLOSE(ov);
+        };
+
+    ov.querySelector('[data-wish-save]').addEventListener('click', save);
+
+    var delBtn = ov.querySelector('[data-wish-del]');
+    if (delBtn) delBtn.addEventListener('click', function () {
+      OHANA_CONFIRM({
+        title: 'Удалить желание?',
+        text: '«' + d.name + '» исчезнет из вашего списка. Брони, если были, снимутся — но вы о них и так не узнаете.',
+        confirmLabel: 'Удалить', danger: true
+      }).then(function (yes) {
+        if (!yes) return;
+        row.remove();
+        OHANA_CLOSE(ov);
+        OHANA_TOAST('Желание удалено');
+      });
+    });
+    ov.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && e.target.closest('.input')) { e.preventDefault(); save(); }
+    });
+    priceEl.addEventListener('input', function () {
+      priceEl.value = fmtNum(priceEl.value.replace(/[^\d]/g, '').slice(0, 9));
+    });
+
+    function setPhoto(src) {
+      curPhoto = src;
+      tile.classList.toggle('is-set', !!src);
+      var old = tile.querySelector('.ws-photo-img'), x = tile.querySelector('.ws-photo-x');
+      if (old) old.remove();
+      if (x) x.remove();
+      if (src) {
+        tile.insertAdjacentHTML('beforeend',
+          '<img class="ws-photo-img" src="' + esc(src) + '" alt="Предпросмотр фото желания">' +
+          '<button type="button" class="ws-photo-x" aria-label="Убрать фото">' + ico('x') + '</button>');
+      }
+    }
+    tile.addEventListener('click', function (e) {
+      if (e.target.closest('.ws-photo-x')) { setPhoto(null); return; }
+      file.click();
+    });
+    tile.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); }
+    });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () { setPhoto(r.result); };
+      r.readAsDataURL(f);
+      file.value = '';
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-add-wish]')) { wishSheet(null); return; }
+    var edit = e.target.closest('[data-edit-wish]');
+    if (edit) { wishSheet(edit.closest('.card')); }
+  });
+</script>
+</body>
+</html>

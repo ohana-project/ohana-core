@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Наша семья · Админка Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<header class="admin-top" data-od-id="admin-top">
+  <a class="row" style="gap:8px" href="admin-spaces.html">
+    <svg width="18" height="18" aria-hidden="true" style="color:var(--muted)"><use href="#i-chevron-left"/></svg>
+    <span class="muted small" style="font-weight:500">Пространства</span>
+  </a>
+  <span class="grow"></span>
+  <button type="button" class="btn btn-icon btn-sm" data-action="theme" aria-label="Тема"></button>
+</header>
+
+<main class="admin-main" data-od-id="screen-admin-space">
+
+  <header class="row" data-od-id="admin-space-head" style="gap:14px;margin-bottom:24px">
+    <span class="avatar-stack" aria-hidden="true">
+      <span class="avatar" style="--hue:60">А</span><span class="avatar" style="--hue:145">Д</span><span class="avatar" style="--hue:340">Л</span>
+    </span>
+    <div class="grow">
+      <h1 class="display display-lg">Наша семья</h1>
+      <p class="muted small" style="margin-top:2px">создано 12 августа · корзина хранится 30 дней</p>
+    </div>
+  </header>
+
+  <div class="stack" style="gap:26px">
+
+    <!-- участники и роли -->
+    <section data-od-id="admin-members">
+      <h3 style="margin-bottom:10px;padding:0 4px">Участники</h3>
+      <div class="card list">
+        <div class="list-row" style="min-height:60px">
+          <span class="avatar" style="--hue:60">А</span>
+          <span class="body">
+            <span class="title">Аня</span>
+            <span class="sub">1 устройство · последний вход: сейчас</span>
+          </span>
+          <span class="trailing"><span class="pill">ВЛАДЕЛЕЦ</span></span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="avatar" style="--hue:145">Д</span>
+          <span class="body">
+            <span class="title">Дима</span>
+            <span class="sub">2 устройства · вчера в 21:04</span>
+          </span>
+          <span class="trailing">
+            <span class="pill pill-neutral">УЧАСТНИК</span>
+            <button type="button" class="btn btn-icon btn-sm" data-promote data-tip="Сделать владельцем" data-tip-align="right" aria-label="Сделать владельцем"><svg aria-hidden="true"><use href="#i-crown"/></svg></button>
+          </span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="avatar" style="--hue:340">Л</span>
+          <span class="body">
+            <span class="title">Люда</span>
+            <span class="sub">1 устройство · сегодня в 9:12</span>
+          </span>
+          <span class="trailing"><span class="pill pill-neutral">УЧАСТНИК</span></span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="avatar" style="--hue:25">М</span>
+          <span class="body">
+            <span class="title">Миша</span>
+            <span class="sub">1 устройство · позавчера</span>
+          </span>
+          <span class="trailing"><span class="pill pill-neutral">УЧАСТНИК</span></span>
+        </div>
+      </div>
+      <p class="field-hint" style="margin:10px 4px 0">Архивных участников нет · роль владельца можно передать, но не снять с последнего</p>
+    </section>
+
+    <!-- коды приглашения -->
+    <section data-od-id="admin-codes">
+      <div class="row-between" style="margin-bottom:10px;padding:0 4px">
+        <h3>Коды приглашения</h3>
+        <button type="button" class="btn btn-primary btn-sm" data-issue>Выпустить код</button>
+      </div>
+      <div class="card list" id="code-list">
+        <div class="list-row" style="min-height:60px">
+          <span class="leading"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>
+          <span class="body">
+            <span class="title num">MISH-QPRT</span>
+            <span class="sub">для нового участника · выпущен сегодня в 10:20</span>
+          </span>
+          <span class="trailing">
+            <span class="pill">ВЫПУЩЕН</span>
+            <button type="button" class="btn btn-sm" style="color:var(--danger)" data-revoke-code>Отозвать</button>
+          </span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="leading"><svg aria-hidden="true"><use href="#i-check"/></svg></span>
+          <span class="body">
+            <span class="title num">SASF-KQLV</span>
+            <span class="sub">для Димы · использован 12 августа</span>
+          </span>
+          <span class="trailing"><span class="pill pill-ok">ИСПОЛЬЗОВАН</span></span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="leading"><svg aria-hidden="true"><use href="#i-clock"/></svg></span>
+          <span class="body">
+            <span class="title num">GOST-2026</span>
+            <span class="sub">для гостей · истёк 1 сентября, никем не использован</span>
+          </span>
+          <span class="trailing"><span class="pill pill-warn">ИСТЁК</span></span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="leading"><svg aria-hidden="true"><use href="#i-repeat"/></svg></span>
+          <span class="body">
+            <span class="title num">QWEE-4455</span>
+            <span class="sub">заменён на SASF-KQLV 10 августа</span>
+          </span>
+          <span class="trailing"><span class="pill pill-neutral">ЗАМЕНЁН</span></span>
+        </div>
+        <div class="list-row" style="min-height:60px">
+          <span class="leading"><svg aria-hidden="true"><use href="#i-x"/></svg></span>
+          <span class="body">
+            <span class="title num">TEST-9999</span>
+            <span class="sub">отозван Аней 5 августа · по нему никто не входил</span>
+          </span>
+          <span class="trailing"><span class="pill pill-danger">ОТОЗВАН</span></span>
+        </div>
+      </div>
+      <p class="field-hint" style="margin:10px 4px 0">Код работает один раз и живёт 7 дней. Отозванный нельзя восстановить — только выпустить новый</p>
+    </section>
+
+  </div>
+</main>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  /* смена роли */
+  document.addEventListener('click', function (e) {
+    var pr = e.target.closest('[data-promote]');
+    if (pr) {
+      OHANA_CONFIRM({
+        title: 'Сделать Диму владельцем?',
+        text: 'Он сможет приглашать участников и скрывать разделы. У пространства будет два владельца.',
+        confirmLabel: 'Сделать владельцем'
+      }).then(function (yes) {
+        if (!yes) return;
+        var pill = pr.closest('.list-row').querySelector('.pill');
+        pill.className = 'pill';
+        pill.textContent = 'ВЛАДЕЛЕЦ';
+        pr.remove();
+        OHANA_TOAST('Дима — второй владелец');
+      });
+    }
+  });
+
+  /* выпуск кода */
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-issue]')) return;
+    var ov = OHANA_DIALOG(
+      '<h2 class="sheet-title">Новый код приглашения</h2>' +
+      '<p class="sheet-sub">Покажется один раз — сообщите участнику лично</p>' +
+      '<div class="code-display" id="admin-code">KODD-7QWM</div>' +
+      '<p class="meta center" style="margin:10px 0 18px">ЖИВЁТ 7 ДНЕЙ · ОДИН ВХОД</p>' +
+      '<div class="row" style="gap:10px">' +
+      '<button type="button" class="btn btn-secondary grow" data-copy-admin>' + ico('copy') + 'Скопировать</button>' +
+      '<button type="button" class="btn btn-primary grow" data-issue-done>Готово</button>' +
+      '</div>');
+    ov.querySelector('[data-copy-admin]').addEventListener('click', function () {
+      if (navigator.clipboard) navigator.clipboard.writeText(ov.querySelector('#admin-code').textContent.trim()).catch(function () {});
+      OHANA_TOAST('Код скопирован');
+    });
+    ov.querySelector('[data-issue-done]').addEventListener('click', function () {
+      var code = ov.querySelector('#admin-code').textContent.trim();
+      var row = document.createElement('div');
+      row.className = 'list-row';
+      row.style.minHeight = '60px';
+      row.innerHTML =
+        '<span class="leading"><svg aria-hidden="true"><use href="#i-lock"/></svg></span>' +
+        '<span class="body"><span class="title num">' + code + '</span>' +
+        '<span class="sub">для нового участника · выпущен только что</span></span>' +
+        '<span class="trailing"><span class="pill">ВЫПУЩЕН</span>' +
+        '<button type="button" class="btn btn-sm" style="color:var(--danger)" data-revoke-code>Отозвать</button></span>';
+      document.getElementById('code-list').prepend(row);
+      OHANA_CLOSE(ov);
+      OHANA_TOAST('Код ' + code + ' выпущен');
+    });
+  });
+
+  /* отзыв кода */
+  document.addEventListener('click', function (e) {
+    var rv = e.target.closest('[data-revoke-code]');
+    if (!rv) return;
+    var row = rv.closest('.list-row');
+    var code = row.querySelector('.title').textContent.trim();
+    OHANA_CONFIRM({
+      title: 'Отозвать ' + code + '?',
+      text: 'По коду никто не сможет войти. Отозванный код не восстанавливается — при необходимости выпустите новый.',
+      confirmLabel: 'Отозвать', danger: true
+    }).then(function (yes) {
+      if (!yes) return;
+      var trailing = row.querySelector('.trailing');
+      trailing.innerHTML = '<span class="pill pill-danger">ОТОЗВАН</span>';
+      var sub = row.querySelector('.sub');
+      sub.textContent = sub.textContent.split('· выпущен')[0].replace(/ для нового участника/, '') +
+        ' · отозван только что';
+      OHANA_TOAST('Код ' + code + ' отозван');
+    });
+  });
+</script>
+</body>
+</html>

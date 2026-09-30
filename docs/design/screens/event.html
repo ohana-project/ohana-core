@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ужин у бабушки · Ohana</title>
+<link rel="stylesheet" href="../assets/ohana.css">
+</head>
+<body>
+
+<div id="app" data-shell data-active="calendar" data-title="Событие" data-back="calendar.html">
+  <template data-topbar-actions>
+    <button type="button" class="btn btn-primary btn-sm d-only" data-edit-series>
+      <svg width="16" height="16" aria-hidden="true"><use href="#i-edit"/></svg>Изменить
+    </button>
+    <button type="button" class="btn btn-icon btn-sm d-only" data-menu="tpl-event" aria-label="Ещё">
+      <svg aria-hidden="true"><use href="#i-more-h"/></svg>
+    </button>
+  </template>
+
+  <main class="content content-narrow" data-od-id="screen-event" style="padding-top:20px;padding-bottom:176px">
+    <header style="margin-bottom:18px" data-od-id="event-head">
+      <p class="meta" style="margin-bottom:6px">СУББОТА, 3 ОКТЯБРЯ 2026</p>
+      <h1 class="display display-xl">Ужин у бабушки</h1>
+      <p class="muted" style="margin-top:6px">18:00 – 21:00 · Москва (UTC+3)</p>
+    </header>
+
+    <div class="card list" data-od-id="event-details">
+      <div class="list-row" style="min-height:60px">
+        <span class="leading"><svg aria-hidden="true"><use href="#i-clock"/></svg></span>
+        <span class="body">
+          <span class="title">18:00 – 21:00</span>
+          <span class="sub">длительность 3 часа</span>
+        </span>
+      </div>
+      <div class="list-row" style="min-height:60px">
+        <span class="leading"><svg aria-hidden="true"><use href="#i-home"/></svg></span>
+        <span class="body">
+          <span class="title">У бабушки</span>
+          <span class="sub">ул. Садовая, 4 — звонок в квартиру 12</span>
+        </span>
+      </div>
+      <div class="list-row" style="min-height:60px">
+        <span class="leading"><svg aria-hidden="true"><use href="#i-repeat"/></svg></span>
+        <span class="body">
+          <span class="title">Каждый месяц</span>
+          <span class="sub">с 3 октября 2026 · без даты окончания</span>
+        </span>
+      </div>
+      <div class="list-row" style="min-height:60px">
+        <span class="leading"><svg aria-hidden="true"><use href="#i-bell"/></svg></span>
+        <span class="body">
+          <span class="title">Напоминание за 2 часа</span>
+          <span class="sub">в 16:00, в пятницу</span>
+        </span>
+      </div>
+      <div class="list-row" style="min-height:60px">
+        <span class="leading"><svg aria-hidden="true"><use href="#i-users"/></svg></span>
+        <span class="body">
+          <span class="title">Все участники</span>
+          <span class="sub">Аня, Дима, Люда и Миша</span>
+        </span>
+        <span class="trailing">
+          <span class="avatar-stack" aria-hidden="true">
+            <span class="avatar avatar-sm" style="--hue:60">А</span>
+            <span class="avatar avatar-sm" style="--hue:145">Д</span>
+            <span class="avatar avatar-sm" style="--hue:340">Л</span>
+            <span class="avatar avatar-sm" style="--hue:25">М</span>
+          </span>
+        </span>
+      </div>
+      <div class="list-row" style="min-height:60px">
+        <span class="leading"><svg aria-hidden="true"><use href="#i-file-text"/></svg></span>
+        <span class="body">
+          <span class="title">Заметка</span>
+          <span class="sub">взять пирог с вишней и показать фото с дачи</span>
+        </span>
+      </div>
+    </div>
+
+    <p class="meta" style="margin-top:14px;padding:0 4px">СОЗДАНО АНЕЙ · 12 СЕНТЯБРЯ · ИЗМЕНЕНО ВЧЕРА В 20:15</p>
+
+    <p class="small muted" style="margin-top:22px;padding:0 4px">
+      Это повторяющееся событие. При изменении или удалении можно затронуть
+      только этот ужин — или всю серию сразу.
+    </p>
+  </main>
+
+  <div class="editor-bar glass" data-od-id="event-actions">
+    <button type="button" class="btn btn-primary grow" data-edit-series>
+      <svg aria-hidden="true"><use href="#i-edit"/></svg>Изменить
+    </button>
+    <button type="button" class="btn btn-danger" data-del>
+      <svg aria-hidden="true"><use href="#i-trash"/></svg>Удалить
+    </button>
+  </div>
+
+  <div class="popover" id="tpl-event" role="menu">
+    <button type="button" class="menu-item" data-share>
+      <svg aria-hidden="true"><use href="#i-share"/></svg>Поделиться
+    </button>
+    <div class="menu-sep"></div>
+    <button type="button" class="menu-item danger" data-del>
+      <svg aria-hidden="true"><use href="#i-trash"/></svg>Удалить
+    </button>
+  </div>
+</div>
+
+<script src="../assets/ohana.js"></script>
+<script>
+  /* экран 14: «только это событие или всю серию» */
+  function seriesDialog(del) {
+    var ov = OHANA_DIALOG(
+      '<h2 class="sheet-title">' + (del ? 'Удалить повторяющееся событие?' : 'Изменить повторяющееся событие?') + '</h2>' +
+      '<p class="sheet-sub" style="margin-bottom:18px">«Ужин у бабушки» повторяется каждый месяц. ' +
+      (del ? 'Что удалить?' : 'Что изменить?') + '</p>' +
+      '<div class="stack" style="gap:10px">' +
+      '<button type="button" class="btn btn-secondary" data-pick="one">Только это событие</button>' +
+      '<button type="button" class="btn ' + (del ? 'btn-danger' : 'btn-primary') + '" data-pick="all">Всю серию</button>' +
+      '<button type="button" class="btn btn-ghost" data-close-overlay>Отмена</button>' +
+      '</div>');
+    ov.querySelectorAll('[data-pick]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var all = b.getAttribute('data-pick') === 'all';
+        OHANA_CLOSE(ov);
+        if (del) {
+          OHANA_TOAST(all ? 'Серия удалена' : 'Событие удалено из серии');
+          setTimeout(function () { location.href = 'calendar.html'; }, 900);
+        } else {
+          location.href = 'event-editor.html';
+        }
+      });
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-edit-series]')) seriesDialog(false);
+    else if (e.target.closest('[data-del]')) seriesDialog(true);
+    else if (e.target.closest('[data-share]')) OHANA_TOAST('Ссылка на событие скопирована');
+  });
+</script>
+</body>
+</html>
