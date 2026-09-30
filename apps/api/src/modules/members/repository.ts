@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { notFound } from '../../platform/errors.ts'
-import { type Member, type memberRoles, members } from './tables.ts'
+import { type Member, type interfaceLanguages, type memberRoles, members } from './tables.ts'
 
 export interface NewMember {
   name: string
@@ -80,6 +80,43 @@ export async function updateMemberRole(
   const updated = await tx
     .update(members)
     .set({ role, revision, updatedAt: now })
+    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .returning()
+  const row = updated[0]
+  if (!row) {
+    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+  }
+  return row
+}
+
+export interface MemberProfileChanges {
+  displayName: string | null
+  email: string | null
+  phone: string | null
+  interfaceLanguage: (typeof interfaceLanguages)[number] | null
+  onboardedAt: Date
+}
+
+/** Onboarding writes the whole optional profile in one stroke (ADR-0005). */
+export async function updateMemberProfile(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  changes: MemberProfileChanges,
+  revision: bigint,
+  now: Date,
+): Promise<Member> {
+  const updated = await tx
+    .update(members)
+    .set({
+      displayName: changes.displayName,
+      email: changes.email,
+      phone: changes.phone,
+      interfaceLanguage: changes.interfaceLanguage,
+      onboardedAt: changes.onboardedAt,
+      revision,
+      updatedAt: now,
+    })
     .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
     .returning()
   const row = updated[0]

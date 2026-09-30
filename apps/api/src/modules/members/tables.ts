@@ -25,6 +25,9 @@ export const members = pgTable(
     phone: text('phone'),
     interfaceLanguage: text('interface_language').$type<(typeof interfaceLanguages)[number]>(),
     role: text('role').notNull().$type<(typeof memberRoles)[number]>(),
+    // Set when the member completes onboarding (ADR-0005); null until the
+    // first sign-in, which is what sends a fresh redemption to onboarding.
+    onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
     revision: bigint('revision', { mode: 'bigint' }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),

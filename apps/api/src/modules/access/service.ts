@@ -1,0 +1,373 @@
+import { createHash, randomBytes } from 'node:crypto'
+import type { Clock } from '../../platform/clock.ts'
+import type { Db, Executor } from '../../platform/db/index.ts'
+import { DomainError } from '../../platform/errors.ts'
+import { getSpace } from '../spaces/index.ts'
+import type { AccessCodeStatus } from './contracts.ts'
+import {
+  deleteExpiredMemberSessions,
+  deleteMemberSessionByTokenHash,
+  expireAccessCodeRow,
+  getAccessCodeByHash,
+  getAccessCodeRow,
+  getMemberSessionByTokenHash,
+  insertAccessCode,
+  insertMemberSession,
+  listAccessCodesInSpace,
+  redeemAccessCodeRow,
+  revokeAccessCodeRow,
+  sweepMemberCodesForIssue,
+} from './repository.ts'
+import type { AccessCode } from './tables.ts'
+
+export interface AccessDeps {
+  db: Db
+  clock: Clock
+  /**
+   * The member lookup the port covers for the members module, which sits
+   * above access in the dependency order (architecture.md, "Composition"):
+   * the composition root wires it to the members module's read.
+   */
+  findMemberInSpace(
+    executor: Executor,
+    spaceId: string,
+    memberId: string,
+  ): Promise<MemberAccount | undefined>
+}
+
+/** The member data access needs, kept structural so members satisfies it. */
+export interface MemberAccount {
+  id: string
+  spaceId: string
+  role: 'owner' | 'regular'
+  name: string
+  displayName: string | null
+  onboardedAt: Date | null
+}
+
+/** The actor attached to authenticated member requests. */
+export interface MemberActor {
+  kind: 'member'
+  memberId: string
+  spaceId: string
+  role: 'owner' | 'regular'
+}
+
+/*
+ * Codes are the only anti-guessing defence (ADR-0005): eight characters
+ * from a 32-symbol alphabet without the ambiguous 0/О, 1/I/L, so every
+ * symbol is unambiguous at a glance. 32 symbols are exactly 5 bits, so
+ * eight characters draw 40 bits from the CSPRNG without modulo bias.
+ */
+export const ACCESS_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+
+export const ACCESS_CODE_TTL_MS = 24 * 60 * 60 * 1000
+
+// Member sessions are long-lived device sign-ins (ADR-0005: a new sign-in
+// adds a session rather than terminating existing ones; review and
+// revocation arrive with the device list). Administrative sessions stay
+// short-lived because they protect every space at once.
+export const MEMBER_SESSION_TTL_MS = 180 * 24 * 60 * 60 * 1000
+
+/** Draws eight alphabet characters from 5 cryptographically random bytes. */
+export function generateAccessCode(): string {
+  const bytes = randomBytes(5)
+  let bits = 0n
+  for (const byte of bytes) bits = (bits << 8n) | BigInt(byte)
+  let code = ''
+  for (let index = 0; index < 8; index++) {
+    const shift = BigInt(35 - index * 5)
+    code += ACCESS_CODE_ALPHABET[Number((bits >> shift) & 0b11111n)]
+  }
+  return code
+}
+
+/** The displayed form: XXXX-XXXX. */
+export function formatAccessCode(code: string): string {
+  return `${code.slice(0, 4)}-${code.slice(4)}`
+}
+
+/**
+ * Accepts any letter case, with or without the hyphen, and returns the
+ * canonical eight-character form — or undefined for anything that is not
+ * shaped like a code.
+ */
+export function normalizeAccessCode(raw: string): string | undefined {
+  const cleaned = raw.toUpperCase().replace(/[\s-]/g, '')
+  const pattern = new RegExp(`^[${ACCESS_CODE_ALPHABET}]{8}$`)
+  return pattern.test(cleaned) ? cleaned : undefined
+}
+
+function codeHashOf(code: string): string {
+  return createHash('sha256').update(code).digest('hex')
+}
+
+export type AccessCodeIssuer =
+  | { kind: 'administrator'; administratorId: string }
+  | { kind: 'member'; memberId: string }
+
+export interface IssuedAccessCode {
+  id: string
+  memberId: string
+  /** The plaintext, shown once at issuance — it is never stored. */
+  code: string
+  status: 'issued'
+  createdAt: Date
+  expiresAt: Date
+  statusChangedAt: Date
+}
+
+/**
+ * Issues a fresh code for the member. Issuing is replacing (ADR-0005):
+ * older unused codes become replaced and expired ones materialise their
+ * status, so a member never holds two live codes at once. The change
+ * touches no synchronised rows, so the space revision is not spent.
+ */
+export async function issueAccessCode(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+  issuer: AccessCodeIssuer,
+): Promise<IssuedAccessCode> {
+  const now = deps.clock.now()
+  return deps.db.transaction(async (tx) => {
+    const member = await deps.findMemberInSpace(tx, spaceId, memberId)
+    if (member === undefined) {
+      throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
+    }
+    await sweepMemberCodesForIssue(tx, spaceId, memberId, now)
+    const code = generateAccessCode()
+    const created = await insertAccessCode(tx, {
+      spaceId,
+      memberId,
+      issuerAdministratorId: issuer.kind === 'administrator' ? issuer.administratorId : undefined,
+      issuerMemberId: issuer.kind === 'member' ? issuer.memberId : undefined,
+      codeHash: codeHashOf(code),
+      now,
+      expiresAt: new Date(now.getTime() + ACCESS_CODE_TTL_MS),
+    })
+    return {
+      id: created.id,
+      memberId: created.memberId,
+      code: formatAccessCode(code),
+      status: 'issued',
+      createdAt: created.createdAt,
+      expiresAt: created.expiresAt,
+      statusChangedAt: created.statusChangedAt,
+    }
+  })
+}
+
+export interface AccessCodeListItem {
+  id: string
+  memberId: string
+  /** The stored status, with issued-past-expiry reported as expired. */
+  status: AccessCodeStatus
+  createdAt: Date
+  expiresAt: Date
+  statusChangedAt: Date
+}
+
+/**
+ * Lists a space's codes for the administrative area, newest first. Expiry
+ * is derived at read time — a GET never writes; the status materialises on
+ * the member's next code write.
+ */
+export async function listAccessCodes(
+  deps: AccessDeps,
+  spaceId: string,
+): Promise<AccessCodeListItem[]> {
+  const rows = await listAccessCodesInSpace(deps.db, spaceId)
+  const now = deps.clock.now()
+  return rows.map((row) => ({
+    id: row.id,
+    memberId: row.memberId,
+    status: derivedStatus(row, now),
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    statusChangedAt: row.statusChangedAt,
+  }))
+}
+
+function derivedStatus(row: AccessCode, now: Date): AccessCodeStatus {
+  if (row.status === 'issued' && row.expiresAt.getTime() <= now.getTime()) return 'expired'
+  return row.status as AccessCodeStatus
+}
+
+/**
+ * Revokes a live code. A code in any other state cannot be revoked: it has
+ * already expired, been used, been replaced, or been revoked, and the
+ * specific error says which.
+ */
+export async function revokeAccessCode(
+  deps: AccessDeps,
+  spaceId: string,
+  codeId: string,
+): Promise<AccessCodeListItem> {
+  const now = deps.clock.now()
+  const outcome = await deps.db.transaction(async (tx) => {
+    const row = await revokeAccessCodeRow(tx, spaceId, codeId, now)
+    if (row !== undefined) return { kind: 'revoked', row } as const
+    const existing = await getAccessCodeRow(tx, spaceId, codeId)
+    if (existing === undefined) return { kind: 'unknown' } as const
+    return { kind: 'refused', status: derivedStatus(existing, now), codeId: existing.id } as const
+  })
+
+  // An expired code materialises its status in its own transaction, so the
+  // write survives the refused answer.
+  if (outcome.kind === 'refused' && outcome.status === 'expired') {
+    await deps.db.transaction((tx) => expireAccessCodeRow(tx, outcome.codeId, now))
+  }
+
+  if (outcome.kind === 'unknown') {
+    throw new DomainError('access_code_not_found', `Access code ${codeId} does not exist`, 404)
+  }
+  if (outcome.kind === 'refused') {
+    throw refusalForStatus(outcome.status, outcome.codeId)
+  }
+
+  return {
+    id: outcome.row.id,
+    memberId: outcome.row.memberId,
+    status: 'revoked',
+    createdAt: outcome.row.createdAt,
+    expiresAt: outcome.row.expiresAt,
+    statusChangedAt: outcome.row.statusChangedAt,
+  }
+}
+
+const REFUSALS = {
+  redeemed: { code: 'access_code_used', httpStatus: 409, message: 'has already been redeemed' },
+  expired: { code: 'access_code_expired', httpStatus: 410, message: 'has expired' },
+  replaced: { code: 'access_code_replaced', httpStatus: 409, message: 'has been replaced' },
+  revoked: { code: 'access_code_revoked', httpStatus: 409, message: 'has already been revoked' },
+} as const
+
+function refusalForStatus(status: AccessCodeStatus, codeId: string): DomainError {
+  if (status === 'issued') {
+    // Unreachable: the compare-and-set covers issued-and-live codes, and a
+    // concurrent winner commits its terminal status before the loser reads.
+    throw new Error(`Access code ${codeId} is still issued but was not changed`)
+  }
+  const refusal = REFUSALS[status]
+  return new DomainError(
+    refusal.code,
+    `Access code ${codeId} ${refusal.message}`,
+    refusal.httpStatus,
+  )
+}
+
+export interface RedeemResult {
+  token: string
+  expiresAt: Date
+  memberId: string
+  spaceId: string
+  spaceName: string
+  role: 'owner' | 'regular'
+  name: string
+  displayName: string | null
+  needsOnboarding: boolean
+}
+
+/**
+ * Redeems a code: one live redemption, one new session, existing sessions
+ * untouched (ADR-0005). The status flip and the session insert share one
+ * transaction, so a code is never spent without a session to show for it.
+ */
+export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promise<RedeemResult> {
+  const normalized = normalizeAccessCode(rawCode)
+  if (normalized === undefined) {
+    throw new DomainError('access_code_invalid', 'The code is not shaped like a code', 401)
+  }
+  const codeHash = codeHashOf(normalized)
+  const now = deps.clock.now()
+
+  const outcome = await deps.db.transaction(async (tx) => {
+    const row = await redeemAccessCodeRow(tx, codeHash, now)
+    if (row !== undefined) return { kind: 'redeemed', row } as const
+    const existing = await getAccessCodeByHash(tx, codeHash)
+    if (existing === undefined) return { kind: 'invalid' } as const
+    const status = derivedStatus(existing, now)
+    if (status === 'issued') {
+      // Still issued but the compare-and-set lost: a concurrent redemption
+      // won the race, so this one is a used code.
+      return { kind: 'refused', status: 'redeemed', codeId: existing.id } as const
+    }
+    return { kind: 'refused', status, codeId: existing.id } as const
+  })
+
+  // The refusal itself writes nothing, but an expired code materialises its
+  // status in its own transaction: inside the failed one it would roll back.
+  if (outcome.kind === 'refused' && outcome.status === 'expired') {
+    await deps.db.transaction((tx) => expireAccessCodeRow(tx, outcome.codeId, now))
+  }
+
+  if (outcome.kind === 'invalid') {
+    throw new DomainError('access_code_invalid', 'No code matches', 401)
+  }
+  if (outcome.kind === 'refused') {
+    throw refusalForStatus(outcome.status, outcome.codeId)
+  }
+
+  const member = await deps.findMemberInSpace(deps.db, outcome.row.spaceId, outcome.row.memberId)
+  if (member === undefined) {
+    // The composite foreign key makes this unreachable for a live member;
+    // a vanished row must not yield a session.
+    throw new DomainError('access_code_invalid', 'The code names no live member', 401)
+  }
+  const { name } = await getSpace({ db: deps.db, clock: deps.clock }, outcome.row.spaceId)
+
+  const token = randomBytes(32).toString('base64url')
+  const expiresAt = new Date(now.getTime() + MEMBER_SESSION_TTL_MS)
+  await deps.db.transaction(async (tx) => {
+    await deleteExpiredMemberSessions(tx, now)
+    await insertMemberSession(tx, {
+      spaceId: outcome.row.spaceId,
+      memberId: outcome.row.memberId,
+      tokenHash: codeHashOf(token),
+      now,
+      expiresAt,
+    })
+  })
+
+  return {
+    token,
+    expiresAt,
+    memberId: member.id,
+    spaceId: member.spaceId,
+    spaceName: name,
+    role: member.role,
+    name: member.name,
+    displayName: member.displayName,
+    needsOnboarding: member.onboardedAt === null,
+  }
+}
+
+/**
+ * Resolves the request's member from the X-Ohana-Member header and the
+ * session cookie named for that same member (ADR-0005). Any other cookie
+ * the browser sends grants nothing, and an administrative session never
+ * authorises a member route.
+ */
+export async function authenticateMember(
+  deps: AccessDeps,
+  memberId: string | undefined,
+  token: string | undefined,
+): Promise<MemberActor | undefined> {
+  if (memberId === undefined || memberId.length === 0) return undefined
+  if (token === undefined || token.length === 0) return undefined
+  const session = await getMemberSessionByTokenHash(deps.db, codeHashOf(token), deps.clock.now())
+  if (session === undefined || session.memberId !== memberId) return undefined
+  const member = await deps.findMemberInSpace(deps.db, session.spaceId, session.memberId)
+  if (member === undefined) return undefined
+  return { kind: 'member', memberId: member.id, spaceId: member.spaceId, role: member.role }
+}
+
+/** Deletes the session the token names. Other devices keep theirs. */
+export async function signOutMember(
+  deps: AccessDeps,
+  token: string | undefined,
+): Promise<void> {
+  if (token === undefined || token.length === 0) return
+  await deps.db.transaction((tx) => deleteMemberSessionByTokenHash(tx, codeHashOf(token)))
+}

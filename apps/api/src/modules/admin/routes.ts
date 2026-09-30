@@ -30,7 +30,14 @@ const cookieOptions = {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    actor?: AdminActor
+    /**
+     * The authenticated actor. Member routes attach the member variant with
+     * the same field (the access module's memberSessionGuard), so the type
+     * is the union; each route narrows with its own guard.
+     */
+    actor?:
+      | AdminActor
+      | { kind: 'member'; memberId: string; spaceId: string; role: 'owner' | 'regular' }
   }
 }
 
@@ -125,7 +132,7 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminRoutesOptions> = async 
     },
     async (request, reply) => {
       // The session guard in onRequest attaches the actor before the handler.
-      if (request.actor === undefined) {
+      if (request.actor === undefined || request.actor.kind !== 'admin') {
         throw new DomainError('unauthorized', 'An administrative session is required', 401)
       }
       await changeAdminPassword(

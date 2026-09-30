@@ -2,8 +2,12 @@ import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import Fastify, { type FastifyBaseLogger } from 'fastify'
+import {
+  type AccessDeps,
+  accessRoutes,
+} from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
-import { adminCountMembersBySpace } from '../modules/members/index.ts'
+import { adminCountMembersBySpace, findMemberInSpace } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import type { Clock } from '../platform/clock.ts'
@@ -43,16 +47,30 @@ export function buildApp(deps: AppDeps) {
 
   app.register(cookie)
   app.register(healthRoutes, { prefix: '/api', deps: { db: deps.db, storage: deps.storage } })
-  // The composition root is the one place allowed to know every module: the
-  // spaces listing needs the members module's administrative count, and the
-  // members module sits above spaces, so the counter is injected here
+  // The composition root is the one place allowed to know every module.
+  // The access module sits below members, so the member lookups its service
+  // and guard need arrive through this port; the members module sits above
+  // access and receives the guard's deps back for its member-facing routes.
+  const accessDeps: AccessDeps = {
+    db: deps.db,
+    clock: deps.clock,
+    findMemberInSpace: (executor, spaceId, memberId) =>
+      findMemberInSpace(executor, spaceId, memberId),
+  }
+  // The spaces listing needs the members module's administrative count, and
+  // the members module sits above spaces, so the counter is injected here
   // instead of imported inside the spaces module.
   app.register(spacesRoutes, {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock },
     countMembers: (db) => adminCountMembersBySpace({ db, clock: deps.clock }),
   })
-  app.register(membersRoutes, { prefix: '/api/v1', deps: { db: deps.db, clock: deps.clock } })
+  app.register(accessRoutes, { prefix: '/api/v1', deps: accessDeps })
+  app.register(membersRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock },
+    access: accessDeps,
+  })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
   if (deps.webDist !== undefined) {
     app.register(registerStaticFiles, { webDist: deps.webDist })
