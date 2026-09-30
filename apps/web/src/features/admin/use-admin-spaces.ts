@@ -135,7 +135,9 @@ export function useProvisionMember(spaceId: string) {
       })
       await assertOk(response)
     },
-    onSuccess: invalidate,
+    // A refused request must still refresh: another actor may have changed
+    // what this one was refused against.
+    onSettled: invalidate,
   })
 }
 
@@ -150,7 +152,9 @@ export function useChangeMemberRole(spaceId: string) {
       })
       await assertOk(response)
     },
-    onSuccess: invalidate,
+    // A refused request (last_owner, for instance) must still refresh, or
+    // the screen keeps offering a change the server will refuse again.
+    onSettled: invalidate,
   })
 }
 

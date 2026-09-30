@@ -235,6 +235,59 @@ describe('AdminSpaceDetail', () => {
     )
   })
 
+  it('keeps the role dialog open while the request is in flight', async () => {
+    const user = userEvent.setup()
+    let settle: (() => void) | undefined
+    apiPatch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settle = () =>
+            resolve({
+              data: MEMBERS[1],
+              error: undefined,
+              response: new Response(null, { status: 200 }),
+            })
+        }),
+    )
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Дима')
+    await user.click(screen.getByRole('button', { name: 'Сделать владельцем' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await user.click(dialog.getByRole('button', { name: 'Сделать владельцем' }))
+
+    // The in-flight request owns the dialog: Escape and both close buttons
+    // are refused until it settles.
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const footerClose = dialog
+      .getAllByRole('button', { name: 'Закрыть' })
+      .find((button) => button.getAttribute('data-slot') === 'button')
+    if (footerClose === undefined) throw new Error('The dialog has no footer close button')
+    await user.click(footerClose)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    settle?.()
+    await user.click(dialog.getByRole('button', { name: 'Сделать владельцем' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('rejects a multibyte email whose code points are under the minimum', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
+    await user.type(screen.getByLabelText('Имя'), 'Миша')
+    // «😀a» is 2 code points but 3 UTF-16 units: only a code-point count
+    // refuses it.
+    await user.type(screen.getByLabelText('Эл. почта'), '😀a')
+    await user.click(screen.getByRole('button', { name: 'Добавить' }))
+
+    expect(await screen.findByText('Минимум 3 символа — проверьте значение')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
   it('renames the space from the settings sheet', async () => {
     const user = userEvent.setup()
     apiPatch.mockResolvedValue(okBody({ ...SPACE, name: 'Семья Смирновых' }))

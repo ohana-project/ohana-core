@@ -397,7 +397,7 @@ describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
       const [first, second] = await Promise.all([demote(anya.id), demote(dima.id)])
       // The space lock serialises the two: whichever lands second sees the
       // last owner and is refused.
-      const statuses = [first.statusCode, second.statusCode].sort()
+      const statuses = [first.statusCode, second.statusCode].sort((a, b) => a - b)
       expect(statuses).toEqual([200, 409])
       const refused = first.statusCode === 409 ? first : second
       expect(refused.json().error.code).toBe('last_owner')
@@ -442,6 +442,9 @@ describe('provisioning with padded contact values', () => {
   test.each([
     ['email', ' a '],
     ['phone', '  1 '],
+    // Trimmed, «😀a» is 2 code points but 3 UTF-16 units: the length check
+    // must count code points to refuse it.
+    ['email', ' 😀a '],
   ] as const)('rejects a padded %s under the minimum', async (field, value) => {
     const space = await harness.createSpace()
     await withApp(async (app) => {
@@ -455,8 +458,7 @@ describe('provisioning with padded contact values', () => {
       expect(response.statusCode).toBe(400)
       expect(response.json().error.code).toBe('validation_failed')
 
-      // The refusal happens before the transaction: nothing stored, no
-      // revision spent.
+      // Nothing stored, no revision spent.
       const stored = await harness.db
         .select({ id: members.id })
         .from(members)
