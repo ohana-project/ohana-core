@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { type Static, type TSchema, Type } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import { MIN_ADMIN_PASSWORD_LENGTH } from './password.ts'
 
 const nodeEnv = Type.Union(
   [Type.Literal('development'), Type.Literal('test'), Type.Literal('production')],
@@ -31,6 +32,10 @@ const ConfigSchema = Type.Object({
   storageSecretKey: Type.String({ minLength: 1 }),
   storageBucket: Type.String({ minLength: 1 }),
   webDist: Type.Optional(Type.String({ minLength: 1 })),
+  // The initial instance-administrator password (ADR-0005): used once to
+  // provision the first administrator on first start. An administrator that
+  // already exists is never overwritten by this value.
+  adminInitialPassword: Type.Optional(Type.String({ minLength: MIN_ADMIN_PASSWORD_LENGTH })),
 })
 
 const MigrationConfigSchema = Type.Object({ nodeEnv, logLevel, databaseUrl })
@@ -59,6 +64,7 @@ const configEnvironmentNames: Readonly<Record<string, string>> = {
   storageSecretKey: 'STORAGE_SECRET_KEY',
   storageBucket: 'STORAGE_BUCKET',
   webDist: 'WEB_DIST',
+  adminInitialPassword: 'ADMIN_INITIAL_PASSWORD',
 }
 
 const migrationEnvironmentNames: Readonly<Record<string, string>> = {
@@ -96,7 +102,9 @@ async function parseConfig(
   const raw: Record<string, unknown> = {}
   for (const [key, environmentName] of Object.entries(environmentNames)) {
     const value = environment[environmentName] ?? fileValues[environmentName]
-    if (value !== undefined) raw[key] = value
+    // Compose substitutes ${VAR:-} as an empty string for unset variables;
+    // an empty value means "not configured", not "invalid".
+    if (value !== undefined && value !== '') raw[key] = value
   }
   const prepared = Value.Clean(schema, Value.Default(schema, Value.Convert(schema, raw)))
   if (!Value.Check(schema, prepared)) {

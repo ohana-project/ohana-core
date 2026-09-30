@@ -187,6 +187,17 @@
             }
           }
         },
+        "parameters": [
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
         "responses": {
           "201": {
             "description": "Default Response",
@@ -226,6 +237,119 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/session": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "password"
+                ],
+                "properties": {
+                  "password": {
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/password": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "currentPassword": {
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "minLength": 10,
+                    "maxLength": 1024,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
           }
         }
       }

@@ -1,4 +1,5 @@
 import { buildApp } from '../app/buildApp.ts'
+import { ensureInitialAdministrator } from '../modules/admin/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
@@ -13,6 +14,24 @@ async function main(): Promise<void> {
   const { db, close } = createDb(config.databaseUrl)
   const storage = storageFromConfig(config)
   await storage.ensureBucket()
+
+  // The first instance administrator is provisioned from deployment
+  // configuration on first start (ADR-0005); an existing administrator is
+  // never overwritten by configuration.
+  const bootstrap = await ensureInitialAdministrator(
+    { db, clock: systemClock },
+    config.adminInitialPassword,
+  )
+  if (bootstrap === 'unconfigured') {
+    // Served anyway: the installation is inert rather than broken, and the
+    // operator fixes it without editing a failing deployment.
+    logger.warn(
+      'No instance administrator exists yet. Set ADMIN_INITIAL_PASSWORD in the deployment configuration and restart the server once to create it; until then administrative sign-in is rejected.',
+    )
+  }
+  if (bootstrap === 'exists' && config.adminInitialPassword !== undefined) {
+    logger.info('The instance administrator already exists; ADMIN_INITIAL_PASSWORD is ignored')
+  }
 
   const app = buildApp({
     db,

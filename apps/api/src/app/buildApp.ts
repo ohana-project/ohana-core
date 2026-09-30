@@ -1,6 +1,8 @@
+import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import Fastify, { type FastifyBaseLogger } from 'fastify'
+import { adminRoutes } from '../modules/admin/routes.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
@@ -37,8 +39,10 @@ export function buildApp(deps: AppDeps) {
     },
   })
 
+  app.register(cookie)
   app.register(healthRoutes, { prefix: '/api', deps: { db: deps.db, storage: deps.storage } })
   app.register(spacesRoutes, { prefix: '/api/v1', deps: { db: deps.db, clock: deps.clock } })
+  app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
   if (deps.webDist !== undefined) {
     app.register(registerStaticFiles, { webDist: deps.webDist })
   }
