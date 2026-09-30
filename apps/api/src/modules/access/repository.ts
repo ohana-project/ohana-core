@@ -170,7 +170,8 @@ export interface NewMemberSession {
   spaceId: string
   memberId: string
   tokenHash: string
-  device: string
+  browser: string
+  platform: string
   now: Date
   expiresAt: Date
 }
@@ -180,7 +181,8 @@ export async function insertMemberSession(tx: Tx, data: NewMemberSession): Promi
     spaceId: data.spaceId,
     memberId: data.memberId,
     tokenHash: data.tokenHash,
-    device: data.device,
+    browser: data.browser,
+    platform: data.platform,
     createdAt: data.now,
     lastUsedAt: data.now,
     expiresAt: data.expiresAt,

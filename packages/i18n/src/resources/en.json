@@ -267,6 +267,7 @@
       "title": "Your devices",
       "hint": "The devices this member has signed in from. An ended session loses access.",
       "unknown": "Unknown device",
+      "name": "{browser} on {platform}",
       "sub": "Signed in {created} · last active {used}",
       "revoke": "End the session",
       "revokeTitle": "End this session?",

@@ -1,5 +1,5 @@
 {
-  "id": "5947cef6-421a-495b-92f4-fd3be71859b7",
+  "id": "5ff40126-440a-4741-a9f4-8b2b1b497340",
   "prevId": "7ad7eee2-65ae-452e-97f5-da8d2f380802",
   "version": "7",
   "dialect": "postgresql",
@@ -226,8 +226,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "device": {
-          "name": "device",
+        "browser": {
+          "name": "browser",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "platform": {
+          "name": "platform",
           "type": "text",
           "primaryKey": false,
           "notNull": true,

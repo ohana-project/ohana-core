@@ -20,6 +20,7 @@ export {
   type AccessCodeListItem,
   type AccessDeps,
   authenticateMember,
+  type DeviceDescription,
   describeDevice,
   formatAccessCode,
   generateAccessCode,

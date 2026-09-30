@@ -467,7 +467,8 @@ export interface paths {
                         "application/json": {
                             /** Format: uuid */
                             id: string;
-                            device: string;
+                            browser: string;
+                            platform: string;
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */

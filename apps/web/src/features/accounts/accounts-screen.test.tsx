@@ -39,14 +39,16 @@ const DACHA_ANYA = {
 const SERVER_SESSIONS = [
   {
     id: '01900000-0000-7000-8000-000000001001',
-    device: 'Chrome on Windows',
+    browser: 'Chrome',
+    platform: 'Windows',
     createdAt: '2026-09-28T10:00:00.000Z',
     lastUsedAt: '2026-09-29T09:30:00.000Z',
     current: true,
   },
   {
     id: '01900000-0000-7000-8000-000000001002',
-    device: 'Safari on iPhone',
+    browser: 'Safari',
+    platform: 'iPhone',
     createdAt: '2026-09-27T18:00:00.000Z',
     lastUsedAt: '2026-09-28T20:15:00.000Z',
     current: false,
@@ -101,32 +103,43 @@ describe('AccountsScreen', () => {
     await vi.waitFor(() => expect(apiGet).toHaveBeenCalledWith('/api/v1/me/sessions'))
   })
 
-  it('lists the device review with device, dates, and the current mark', async () => {
+  it('composes the device name in the interface language from the captured parts', async () => {
     seedRegistry()
     renderWithProviders(<AccountsScreen />)
 
-    expect(await screen.findByText('Chrome on Windows')).toBeInTheDocument()
-    expect(screen.getByText('Safari on iPhone')).toBeInTheDocument()
+    expect(await screen.findByText('Chrome на Windows')).toBeInTheDocument()
+    expect(screen.getByText('Safari на iPhone')).toBeInTheDocument()
     expect(screen.getAllByText('это устройство')).toHaveLength(1)
     // Created and last-used metadata are rendered from the API values.
     expect(screen.getByText(/Вход 28 сентября/)).toBeInTheDocument()
     expect(screen.getByText(/активность 29 сентября/)).toBeInTheDocument()
   })
 
-  it('falls back to a translated name for a session without a device description', async () => {
+  it('falls back per part and to a translated label when a part is missing', async () => {
     seedRegistry()
     mockSessions([
       {
         id: '01900000-0000-7000-8000-000000001003',
-        device: '',
+        browser: '',
+        platform: '',
         createdAt: '2026-09-28T10:00:00.000Z',
         lastUsedAt: '2026-09-29T09:30:00.000Z',
         current: true,
+      },
+      {
+        id: '01900000-0000-7000-8000-000000001004',
+        browser: '',
+        platform: 'iPad',
+        createdAt: '2026-09-28T10:00:00.000Z',
+        lastUsedAt: '2026-09-29T09:30:00.000Z',
+        current: false,
       },
     ])
     renderWithProviders(<AccountsScreen />)
 
     expect(await screen.findByText('Неизвестное устройство')).toBeInTheDocument()
+    // A lone platform is shown as recorded, without inventing a browser.
+    expect(screen.getByText('iPad')).toBeInTheDocument()
   })
 
   it('revokes another device’s session after confirmation', async () => {
@@ -139,7 +152,7 @@ describe('AccountsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<AccountsScreen />)
 
-    await screen.findByText('Chrome on Windows')
+    await screen.findByText('Chrome на Windows')
     const revokeButtons = screen.getAllByRole('button', { name: 'Завершить сессию' })
     const phoneRow = revokeButtons.at(1)
     const phoneSession = SERVER_SESSIONS.at(1)
@@ -173,7 +186,7 @@ describe('AccountsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<AccountsScreen />)
 
-    await screen.findByText('Chrome on Windows')
+    await screen.findByText('Chrome на Windows')
     // The current row is the first revoke button.
     const currentRow = screen.getAllByRole('button', { name: 'Завершить сессию' }).at(0)
     if (currentRow === undefined) throw new Error('The mock lists no session to revoke')
@@ -203,7 +216,7 @@ describe('AccountsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<AccountsScreen />)
 
-    await screen.findByText('Chrome on Windows')
+    await screen.findByText('Chrome на Windows')
     await user.click(screen.getByRole('button', { name: 'Выйти из «Наша семья»' }))
     await user.click(await screen.findByRole('button', { name: /Выйти$/ }))
 
@@ -227,7 +240,7 @@ describe('AccountsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<AccountsScreen />)
 
-    await screen.findByText('Chrome on Windows')
+    await screen.findByText('Chrome на Windows')
     await user.click(screen.getByRole('button', { name: 'Выйти из «Наша семья»' }))
     await user.click(await screen.findByRole('button', { name: /Выйти$/ }))
 

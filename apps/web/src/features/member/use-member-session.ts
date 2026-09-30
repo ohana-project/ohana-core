@@ -72,10 +72,17 @@ export function useRedeemedSignIn() {
       name: member.name,
       displayName: member.displayName,
     }
+    // Adding a sign-in for another member must leave none of the previous
+    // member's cached answers in place (ADR-0005: the space boundary holds
+    // on the device too); the same member's new device session changes no
+    // member-scoped data, so its probe alone is refreshed.
+    const previousMemberId = getActiveMemberId()
     saveSession(stored)
-    // The refresh settles before the caller navigates, so the next screen's
-    // gate decides on the new session, not on the stale signed-out answer.
-    await queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+    if (previousMemberId === member.id) {
+      await queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+    } else {
+      await queryClient.resetQueries()
+    }
   }
 }
 

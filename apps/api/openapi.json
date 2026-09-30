@@ -912,7 +912,8 @@
                     "type": "object",
                     "required": [
                       "id",
-                      "device",
+                      "browser",
+                      "platform",
                       "createdAt",
                       "lastUsedAt",
                       "current"
@@ -922,7 +923,10 @@
                         "format": "uuid",
                         "type": "string"
                       },
-                      "device": {
+                      "browser": {
+                        "type": "string"
+                      },
+                      "platform": {
                         "type": "string"
                       },
                       "createdAt": {

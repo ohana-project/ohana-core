@@ -113,14 +113,16 @@ export const AccessCodeParamsSchema = Type.Object({
 })
 
 /**
- * One row of the device review (ADR-0005): the device description is
- * captured data shown verbatim — the client renders a translated fallback
- * when it is empty. `current` marks the session that made the request.
+ * One row of the device review (ADR-0005): the browser and platform are
+ * captured data shown as recorded — the client composes and translates
+ * them, falling back when a part is empty. `current` marks the session
+ * that made the request.
  */
 export const MemberSessionDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
-    device: Type.String(),
+    browser: Type.String(),
+    platform: Type.String(),
     createdAt: Type.String({ format: 'date-time' }),
     lastUsedAt: Type.String({ format: 'date-time' }),
     current: Type.Boolean(),

@@ -6,6 +6,7 @@ import { ApiError } from '@/data/api-error.ts'
 import { getActiveMemberId, listStoredSessions, removeSession } from '@/data/session-registry.ts'
 import {
   type MemberSessionRow,
+  memberSessionsQueryKey,
   useMemberSessions,
   useRevokeMemberSession,
 } from '@/features/accounts/use-member-sessions.ts'
@@ -86,27 +87,41 @@ export function AccountsScreen() {
     minute: '2-digit',
   })
 
-  const currentServerSession = sessions.data?.find((row) => row.current)
+  /** Composes the captured parts; whichever part is missing is skipped. */
+  const deviceName = (row: MemberSessionRow) => {
+    if (row.browser.length > 0 && row.platform.length > 0) {
+      return t('accounts.devices.name', { browser: row.browser, platform: row.platform })
+    }
+    if (row.browser.length > 0) return row.browser
+    if (row.platform.length > 0) return row.platform
+    return t('accounts.devices.unknown')
+  }
 
   const applyRevoke = () => {
     if (revoking === undefined) return
-    revoke.mutate(revoking.id, {
-      onSuccess: (sessionId) => {
+    // Captured before the request: the dialog state clears on success, and
+    // the row itself already knows whether this device is the one revoked.
+    const wasCurrent = revoking.current
+    const sessionId = revoking.id
+    revoke.mutate(sessionId, {
+      onSuccess: () => {
         setRevoking(undefined)
-        // Ending the session that this device is using is also a sign-out:
-        // the member's local data goes with it, exactly like signing out.
-        if (sessionId === currentServerSession?.id && activeId !== undefined) {
+        if (wasCurrent && activeId !== undefined) {
+          // Ending the session that this device is using is also a sign-out:
+          // the member's local data goes with it, exactly like signing out.
           removeSession(activeId)
           void queryClient.resetQueries()
           void navigate({ to: '/' })
+        } else {
+          // Another device lost access; only this list changes.
+          void queryClient.invalidateQueries({
+            queryKey: memberSessionsQueryKey(activeId),
+          })
         }
       },
       onError: (error) => toast(revokeSessionErrorMessage(error, t), 'danger'),
     })
   }
-
-  const deviceName = (row: MemberSessionRow) =>
-    row.device.length > 0 ? row.device : t('accounts.devices.unknown')
 
   return (
     <AuthLayout footer={t('accounts.footer')}>

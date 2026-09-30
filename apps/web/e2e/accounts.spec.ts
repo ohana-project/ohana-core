@@ -36,14 +36,16 @@ const DACHA_ANYA = {
 const FAMILY_SESSIONS = [
   {
     id: '01900000-0000-7000-8000-000000001001',
-    device: 'Chrome on Windows',
+    browser: 'Chrome',
+    platform: 'Windows',
     createdAt: '2026-09-28T10:00:00.000Z',
     lastUsedAt: '2026-09-29T09:30:00.000Z',
     current: true,
   },
   {
     id: '01900000-0000-7000-8000-000000001002',
-    device: 'Safari on iPhone',
+    browser: 'Safari',
+    platform: 'iPhone',
     createdAt: '2026-09-27T18:00:00.000Z',
     lastUsedAt: '2026-09-28T20:15:00.000Z',
     current: false,
@@ -53,7 +55,8 @@ const FAMILY_SESSIONS = [
 const DACHA_SESSIONS = [
   {
     id: '01900000-0000-7000-8000-000000001003',
-    device: 'Chrome on Windows',
+    browser: 'Firefox',
+    platform: 'Linux',
     createdAt: '2026-09-29T11:00:00.000Z',
     lastUsedAt: '2026-09-29T11:30:00.000Z',
     current: true,
@@ -186,6 +189,12 @@ test.describe('several sign-ins on one device', () => {
     ).toBeVisible()
     await expect(page.getByText('сейчас')).toBeVisible()
 
+    // The device review belongs to the new active member alone: the first
+    // space's device list must not flash through after the switch.
+    await expect(page.getByText('Firefox на Linux')).toBeVisible()
+    await expect(page.getByText('Safari на iPhone')).toHaveCount(0)
+    await expect(page.getByText('Chrome на Windows')).toHaveCount(0)
+
     // Switching back to «Наша семья» makes its home the active screen.
     await page.getByRole('button', { name: 'Войти как Аня Смирнова в «Наша семья»' }).click()
     await expect(page).toHaveURL(/\/$/)
@@ -193,8 +202,8 @@ test.describe('several sign-ins on one device', () => {
 
     // The device review shows the retained sessions of the active member.
     await openAccountsFromMenu(page)
-    await expect(page.getByText('Chrome on Windows')).toBeVisible()
-    await expect(page.getByText('Safari on iPhone')).toBeVisible()
+    await expect(page.getByText('Chrome на Windows')).toBeVisible()
+    await expect(page.getByText('Safari на iPhone')).toBeVisible()
     await expect(page.getByText('это устройство')).toBeVisible()
   })
 

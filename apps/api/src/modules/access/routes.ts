@@ -93,7 +93,8 @@ export interface AccessRoutesOptions {
 function toMemberSessionDto(
   item: {
     id: string
-    device: string
+    browser: string
+    platform: string
     createdAt: Date
     lastUsedAt: Date
   },
@@ -101,7 +102,8 @@ function toMemberSessionDto(
 ) {
   return {
     id: item.id,
-    device: item.device,
+    browser: item.browser,
+    platform: item.platform,
     createdAt: item.createdAt.toISOString(),
     lastUsedAt: item.lastUsedAt.toISOString(),
     current: item.id === currentSessionId,

@@ -97,10 +97,16 @@ export function formatAccessCode(code: string): string {
 
 /*
  * The device description (ADR-0005's minimal device review) derives from
- * the sign-in request's user agent. It is stored data, shown verbatim in
- * the session list like a member's name; an unparseable agent stores the
- * empty string and the client shows a translated fallback.
+ * the sign-in request's user agent as two parts — browser and platform.
+ * The parts are stored untranslated and composed in the client, whose
+ * language decides the connecting word; the product names (Chrome, iPhone)
+ * look the same in every locale.
  */
+
+export interface DeviceDescription {
+  browser: string
+  platform: string
+}
 
 function firstMatch(userAgent: string, pairs: readonly (readonly [string, string])[]): string {
   for (const [fragment, name] of pairs) {
@@ -110,16 +116,22 @@ function firstMatch(userAgent: string, pairs: readonly (readonly [string, string
 }
 
 /**
- * Derives a short device description from a user agent, e.g.
- * "Chrome on Windows". Order matters: Chromium-based agents embed other
- * browsers' fragments, so the specific browser is checked first.
+ * Reads the browser and the platform out of a user agent. Order matters:
+ * Chromium-based agents embed other browsers' fragments, so the specific
+ * browser is checked first, and the iOS browsers announce themselves with
+ * their own tokens (CriOS, FxiOS, EdgiOS) before the generic Safari one.
+ * iPadOS 13+ Safari sends the desktop Mac agent, so such an iPad reads as
+ * macOS — indistinguishable server-side and accepted as such.
  */
-export function describeDevice(userAgent: string | undefined): string {
-  if (userAgent === undefined || userAgent.length === 0) return ''
+export function describeDevice(userAgent: string | undefined): DeviceDescription {
+  if (userAgent === undefined || userAgent.length === 0) return { browser: '', platform: '' }
   const browser = firstMatch(userAgent, [
-    ['Edg', 'Edge'],
+    ['Edg/', 'Edge'],
+    ['EdgiOS', 'Edge'],
     ['OPR', 'Opera'],
+    ['FxiOS', 'Firefox'],
     ['Firefox', 'Firefox'],
+    ['CriOS', 'Chrome'],
     ['Chrome', 'Chrome'],
     ['Safari', 'Safari'],
   ])
@@ -132,10 +144,7 @@ export function describeDevice(userAgent: string | undefined): string {
     ['CrOS', 'ChromeOS'],
     ['Linux', 'Linux'],
   ])
-  if (browser.length === 0 && platform.length === 0) return ''
-  if (platform.length === 0) return browser
-  if (browser.length === 0) return platform
-  return `${browser} on ${platform}`
+  return { browser, platform }
 }
 
 /**
@@ -384,7 +393,7 @@ export async function redeemAccessCode(
       spaceId: row.spaceId,
       memberId: row.memberId,
       tokenHash: codeHashOf(token),
-      device: describeDevice(userAgent),
+      ...describeDevice(userAgent),
       now,
       expiresAt,
     })
@@ -437,7 +446,9 @@ export async function authenticateMember(
   const session = await findMemberSessionByTokenHashAcrossSpaces(deps.db, tokenHash, now)
   if (session === undefined || session.memberId !== memberId) return undefined
   const staleBefore = new Date(now.getTime() - MEMBER_SESSION_TOUCH_INTERVAL_MS)
-  if (session.lastUsedAt.getTime() <= staleBefore.getTime()) {
+  // Strictly older, matching the compare-and-set's `lt`: at the boundary
+  // exactly one of the two decides, and it is the SQL.
+  if (session.lastUsedAt.getTime() < staleBefore.getTime()) {
     await touchMemberSessionByTokenHashAcrossSpaces(deps.db, tokenHash, staleBefore, now)
   }
   const member = await deps.findMemberInSpace(deps.db, session.spaceId, session.memberId)
@@ -469,8 +480,9 @@ export async function signOutMember(
 
 export interface MemberSessionListItem {
   id: string
-  /** The device description captured at sign-in; empty when unknown. */
-  device: string
+  /** The browser and platform captured at sign-in; '' when unknown. */
+  browser: string
+  platform: string
   createdAt: Date
   lastUsedAt: Date
 }
@@ -489,7 +501,8 @@ export async function listMemberSessions(
   const rows = await listLiveMemberSessionsForMember(deps.db, spaceId, memberId, deps.clock.now())
   return rows.map((row: MemberSession) => ({
     id: row.id,
-    device: row.device,
+    browser: row.browser,
+    platform: row.platform,
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
   }))

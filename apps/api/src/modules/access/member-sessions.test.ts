@@ -620,40 +620,65 @@ describe('describeDevice', () => {
     [
       'chrome on windows',
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-      'Chrome on Windows',
+      { browser: 'Chrome', platform: 'Windows' },
     ],
     [
       'edge on windows',
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
-      'Edge on Windows',
+      { browser: 'Edge', platform: 'Windows' },
     ],
     [
       'safari on iphone',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-      'Safari on iPhone',
+      { browser: 'Safari', platform: 'iPhone' },
+    ],
+    [
+      'chrome on iphone',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.0.0 Mobile/15E148 Safari/604.1',
+      { browser: 'Chrome', platform: 'iPhone' },
+    ],
+    [
+      'firefox on iphone',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/127.0 Mobile/15E148 Safari/605.1.15',
+      { browser: 'Firefox', platform: 'iPhone' },
+    ],
+    [
+      'the installed home-screen app, which omits the Safari token',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      { browser: '', platform: 'iPhone' },
     ],
     [
       'safari on ipad',
       'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-      'Safari on iPad',
+      { browser: 'Safari', platform: 'iPad' },
     ],
     [
       'chrome on android',
       'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
-      'Chrome on Android',
+      { browser: 'Chrome', platform: 'Android' },
     ],
     [
       'firefox on linux',
       'Mozilla/5.0 (X11; Linux x86_64; rv:127.0) Gecko/20100101 Firefox/127.0',
-      'Firefox on Linux',
+      { browser: 'Firefox', platform: 'Linux' },
     ],
     [
       'safari on macos',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
-      'Safari on macOS',
+      { browser: 'Safari', platform: 'macOS' },
     ],
   ] as const)('reads %s', (_label, userAgent, expected) => {
-    expect(describeDevice(userAgent)).toBe(expected)
+    expect(describeDevice(userAgent)).toEqual(expected)
+  })
+
+  // iPadOS 13+ Safari sends the desktop Mac agent; server-side such an
+  // iPad is indistinguishable from a Mac and reads as macOS.
+  test('cannot tell an iPad in desktop-agent mode from a Mac', () => {
+    expect(
+      describeDevice(
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+      ),
+    ).toEqual({ browser: 'Safari', platform: 'macOS' })
   })
 
   test.each([
@@ -661,7 +686,7 @@ describe('describeDevice', () => {
     ['empty header', ''],
     ['a crawler with no browser or platform', 'pytest-httpserver'],
   ] as const)('stores nothing for %s', (_label, userAgent) => {
-    expect(describeDevice(userAgent)).toBe('')
+    expect(describeDevice(userAgent)).toEqual({ browser: '', platform: '' })
   })
 })
 
@@ -684,10 +709,10 @@ describe('the device review (ADR-0005)', () => {
       expect(response.statusCode).toBe(200)
 
       const rows = await harness.db
-        .select({ device: memberSessions.device })
+        .select({ browser: memberSessions.browser, platform: memberSessions.platform })
         .from(memberSessions)
         .where(eq(memberSessions.memberId, member.id))
-      expect(rows[0]?.device).toBe('Chrome on Windows')
+      expect(rows[0]).toEqual({ browser: 'Chrome', platform: 'Windows' })
     })
   })
 
@@ -731,22 +756,25 @@ describe('the device review (ADR-0005)', () => {
       const sessions = response.json()
       expect(sessions).toHaveLength(2)
       // Last used first: the laptop signed in a minute after the phone.
-      expect(sessions.map((row: { device: string }) => row.device)).toEqual([
-        'Safari on macOS',
-        'Safari on iPhone',
+      expect(
+        sessions.map((row: { browser: string; platform: string }) => [row.browser, row.platform]),
+      ).toEqual([
+        ['Safari', 'macOS'],
+        ['Safari', 'iPhone'],
       ])
       const current = sessions.filter((row: { current: boolean }) => row.current)
       expect(current).toHaveLength(1)
-      expect(current[0]?.device).toBe('Safari on macOS')
+      expect(current[0]).toMatchObject({ browser: 'Safari', platform: 'macOS' })
       for (const row of sessions) {
         expect(row.createdAt).toBeTypeOf('string')
         expect(row.lastUsedAt).toBeTypeOf('string')
         expect(Object.keys(row).sort()).toEqual([
+          'browser',
           'createdAt',
           'current',
-          'device',
           'id',
           'lastUsedAt',
+          'platform',
         ])
       }
       // The same list seen from the phone marks the phone's row instead.
@@ -756,7 +784,7 @@ describe('the device review (ADR-0005)', () => {
         headers: memberHeaders(phoneSession),
       })
       const phoneRow = fromPhone.json().find((row: { current: boolean }) => row.current)
-      expect(phoneRow.device).toBe('Safari on iPhone')
+      expect(phoneRow).toMatchObject({ browser: 'Safari', platform: 'iPhone' })
     })
   })
 
