@@ -147,6 +147,36 @@ describe('POST /api/v1/spaces/:spaceId/members', () => {
     })
   })
 
+  test('accepts a short display name', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/v1/spaces/${space.id}/members`,
+        payload: { name: 'Ян', role: 'regular', displayName: 'Ян' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(201)
+      expect(response.json().displayName).toBe('Ян')
+    })
+  })
+
+  test('trims padded values instead of storing them', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/v1/spaces/${space.id}/members`,
+        payload: { name: '  Люда  ', role: 'regular', displayName: ' бабушка Люда ' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(201)
+      expect(response.json()).toMatchObject({ name: 'Люда', displayName: 'бабушка Люда' })
+    })
+  })
+
   test('answers space_not_found for an unknown space', async () => {
     await withApp(async (app) => {
       const cookie = await signInAndGetCookie(app)
@@ -297,6 +327,24 @@ describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
       .from(members)
       .where(eq(members.id, anya.id))
     expect(rows[0]?.role).toBe('owner')
+  })
+
+  test('a role change to the current role costs no revision', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const before = await spaceRevision(space.id)
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/spaces/${space.id}/members/${anya.id}`,
+        payload: { role: 'owner' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(200)
+      expect(response.json().role).toBe('owner')
+      expect(await spaceRevision(space.id)).toBe(before)
+    })
   })
 
   test('demotes an owner while another owner remains', async () => {

@@ -32,7 +32,7 @@ export const ProvisionMemberBodySchema = Type.Object(
   {
     name: nameSchema,
     role: MemberRoleSchema,
-    displayName: contactSchema(200),
+    displayName: Type.Optional(nameSchema),
     email: contactSchema(200),
     phone: contactSchema(40),
     interfaceLanguage: Type.Optional(InterfaceLanguageSchema),

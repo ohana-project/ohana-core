@@ -110,6 +110,50 @@ describe('AdminSpaceDetail', () => {
     expect(await screen.findByText('Участник добавлен')).toBeInTheDocument()
   })
 
+  it('forgets abandoned edits when the provision sheet reopens', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
+    await user.type(screen.getByLabelText('Имя'), 'Черновик')
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
+
+    expect(screen.getByLabelText('Имя')).toHaveValue('')
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('shows the server values again when the settings sheet reopens', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Настройки' }))
+    const nameInput = await screen.findByLabelText('Название')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Брошенное имя')
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.click(screen.getByRole('button', { name: 'Настройки' }))
+
+    expect(await screen.findByLabelText('Название')).toHaveValue('Наша семья')
+    expect(apiPatch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a too-short email in the sheet before calling the API', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
+    await user.type(screen.getByLabelText('Имя'), 'Миша')
+    await user.type(screen.getByLabelText('Эл. почта'), 'ab')
+    await user.click(screen.getByRole('button', { name: 'Добавить' }))
+
+    expect(await screen.findByText('Слишком коротко — проверьте значение')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
   it('promotes a regular member after a confirmation', async () => {
     const user = userEvent.setup()
     apiPatch.mockResolvedValue(okBody(MEMBERS[1]))

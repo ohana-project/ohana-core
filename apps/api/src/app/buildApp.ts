@@ -3,7 +3,7 @@ import swagger from '@fastify/swagger'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import Fastify, { type FastifyBaseLogger } from 'fastify'
 import { adminRoutes } from '../modules/admin/routes.ts'
-import { countMembersBySpace } from '../modules/members/index.ts'
+import { adminCountMembersBySpace } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import type { Clock } from '../platform/clock.ts'
@@ -50,7 +50,7 @@ export function buildApp(deps: AppDeps) {
   app.register(spacesRoutes, {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock },
-    countMembers: (db) => countMembersBySpace({ db, clock: deps.clock }),
+    countMembers: (db) => adminCountMembersBySpace({ db, clock: deps.clock }),
   })
   app.register(membersRoutes, { prefix: '/api/v1', deps: { db: deps.db, clock: deps.clock } })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })

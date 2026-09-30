@@ -30,6 +30,12 @@ export async function getSpaceById(executor: Executor, id: string): Promise<Spac
   return rows[0]
 }
 
+/** Locking read for read-decide-write use cases inside one transaction. */
+export async function getSpaceForUpdate(tx: Tx, id: string): Promise<Space | undefined> {
+  const rows = await tx.select().from(spaces).where(eq(spaces.id, id)).limit(1).for('update')
+  return rows[0]
+}
+
 /** Administrative listing across spaces (ADR-0005): oldest first, id as a stable tiebreaker. */
 export async function listSpaces(executor: Executor): Promise<Space[]> {
   return executor.select().from(spaces).orderBy(asc(spaces.createdAt), asc(spaces.id))

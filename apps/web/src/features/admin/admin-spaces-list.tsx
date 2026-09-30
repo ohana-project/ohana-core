@@ -144,13 +144,15 @@ export function CreateSpaceSheet({
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState<string | undefined>()
 
-  // Abandoned edits must not survive closing, whatever closed the sheet.
-  const handleOpenChange = (next: boolean) => {
-    if (!next) {
+  // Abandoned edits must not survive closing, whatever closed the sheet:
+  // the reset runs on the open transition, during render.
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
+    if (!open) {
       setName('')
       setNameError(undefined)
     }
-    onOpenChange(next)
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -164,7 +166,7 @@ export function CreateSpaceSheet({
       { name: name.trim() },
       {
         onSuccess: () => {
-          handleOpenChange(false)
+          onOpenChange(false)
           toast(t('admin.spaces.createdToast'))
         },
         onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
@@ -173,7 +175,7 @@ export function CreateSpaceSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{t('admin.spaces.newTitle')}</SheetTitle>

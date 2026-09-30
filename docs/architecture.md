@@ -59,6 +59,8 @@ Modules: `spaces`, `members`, `access`, `admin`, `journal`, `calendar`, `wishlis
 
 `buildApp(deps)` assembles the Fastify instance from explicit dependencies and returns it without listening. The server entrypoint builds the real dependencies from config and calls it. Tests call it with a Testcontainers database, a RustFS container, a controllable clock, and a recording push sender. `buildWorker(deps)` does the same for pg-boss handlers.
 
+When a lower module needs something only a higher module can compute — the spaces listing shows member counts, for example — the lower module declares the dependency as a port (a function type in its own service), and `buildApp` wires the port to the higher module's public surface. Modules never import upward, so the dependency graph stays acyclic.
+
 ### Request lifecycle
 
 1. The `/api/v1` prefix is applied. The version changes only for breaking changes to published contracts.

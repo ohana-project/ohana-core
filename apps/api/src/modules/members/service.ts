@@ -3,10 +3,10 @@ import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import { getSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
-import { adminCountMembersBySpace } from './admin-repository.ts'
+import { adminCountMembersBySpace as countAllMembersBySpace } from './admin-repository.ts'
 import {
   countOwnersInSpace,
-  getMemberInSpace,
+  getMemberInSpaceForUpdate,
   insertMember,
   listMembersInSpace,
   updateMemberRole,
@@ -43,7 +43,12 @@ export async function provisionMember(
       {
         writes: async (writeTx, revision) => {
           created = await insertMember(writeTx, spaceId, {
-            ...input,
+            name: input.name.trim(),
+            role: input.role,
+            displayName: input.displayName?.trim() || undefined,
+            email: input.email?.trim() || undefined,
+            phone: input.phone?.trim() || undefined,
+            interfaceLanguage: input.interfaceLanguage,
             revision,
             now: deps.clock.now(),
           })
@@ -65,9 +70,12 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
 
 /**
  * Moves a member between the owner and regular roles. The space must keep at
- * least one owner (CONTEXT.md: a space is never left without one). The check
- * runs inside the writes callback, after the revision bump has taken the
- * space row lock, so concurrent role changes cannot slip past it.
+ * least one owner (CONTEXT.md: a space is never left without one). The
+ * current role is read under a row lock before anything is written, so an
+ * unchanged role is answered without spending a revision, and the
+ * last-owner check runs inside the writes callback, after the revision bump
+ * has taken the space row lock, so concurrent role changes cannot slip past
+ * it.
  */
 export async function changeMemberRole(
   deps: MembersDeps,
@@ -75,18 +83,19 @@ export async function changeMemberRole(
   memberId: string,
   role: MemberRole,
 ): Promise<Member> {
-  let updated: Member | undefined
-  await deps.db.transaction(async (tx) =>
-    recordChanges(
+  return deps.db.transaction(async (tx) => {
+    const member = await getMemberInSpaceForUpdate(tx, spaceId, memberId)
+    if (member === undefined) {
+      throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
+    }
+    if (member.role === role) return member
+    let updated: Member | undefined
+    await recordChanges(
       tx,
       spaceId,
       {
         writes: async (writeTx, revision) => {
-          const member = await getMemberInSpace(writeTx, spaceId, memberId)
-          if (member === undefined) {
-            throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
-          }
-          if (member.role !== role && member.role === 'owner') {
+          if (member.role === 'owner') {
             const owners = await countOwnersInSpace(writeTx, spaceId)
             if (owners === 1) {
               throw new DomainError('last_owner', 'The space must keep at least one owner', 409)
@@ -103,13 +112,13 @@ export async function changeMemberRole(
         },
       },
       deps.clock.now(),
-    ),
-  )
-  if (updated === undefined) throw new Error('Changing a member role produced no row')
-  return updated
+    )
+    if (updated === undefined) throw new Error('Changing a member role produced no row')
+    return updated
+  })
 }
 
 /** Counts members per space across the installation, for administrative listings. */
-export function countMembersBySpace(deps: MembersDeps): Promise<Map<string, number>> {
-  return adminCountMembersBySpace(deps.db)
+export function adminCountMembersBySpace(deps: MembersDeps): Promise<Map<string, number>> {
+  return countAllMembersBySpace(deps.db)
 }

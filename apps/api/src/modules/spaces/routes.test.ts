@@ -277,6 +277,24 @@ describe('administrative space management', () => {
     }
   })
 
+  test('trims a padded name instead of storing it', async () => {
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/spaces',
+        payload: { name: '  Дача  ' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(201)
+      expect(response.json().name).toBe('Дача')
+    } finally {
+      await app.close()
+    }
+  })
+
   test('lists spaces with member counts', async () => {
     const family = await harness.createSpace({ name: 'Список: семья' })
     const dacha = await harness.createSpace({ name: 'Список: дача' })

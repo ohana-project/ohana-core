@@ -1,6 +1,6 @@
 export {
+  adminCountMembersBySpace,
   changeMemberRole,
-  countMembersBySpace,
   listMembers,
   type MemberInput,
   type MemberRole,

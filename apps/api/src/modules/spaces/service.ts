@@ -3,6 +3,7 @@ import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import {
   getSpaceById,
+  getSpaceForUpdate,
   incrementSpaceRevision,
   insertSpace,
   listSpaces as listSpaceRows,
@@ -25,7 +26,12 @@ export type SpaceWithMemberCount = Space & { memberCount: number }
  */
 export type SpaceMemberCounter = (db: Db) => Promise<Map<string, number>>
 
-/** Any IANA time zone name accepted by Intl is a valid space time zone. */
+/**
+ * Returns the IANA spelling Intl resolves for `zone`, or undefined for
+ * unknown zones and raw offsets. Link aliases keep the spelling sent when
+ * Intl does not canonicalise them (for example Asia/Calcutta); they remain
+ * valid IANA names even though the web picker lists only primary ones.
+ */
 export function canonicalTimezone(zone: string): string | undefined {
   // Intl also accepts raw offsets on some runtimes; a space zone is an
   // IANA name, so offsets are rejected before the lookup.
@@ -51,7 +57,7 @@ export async function createSpace(
 ): Promise<Space> {
   const timezone = assertTimezone(data.timezone ?? 'UTC')
   return deps.db.transaction((tx) =>
-    insertSpace(tx, { name: data.name, timezone, now: deps.clock.now() }),
+    insertSpace(tx, { name: data.name.trim(), timezone, now: deps.clock.now() }),
   )
 }
 
@@ -75,6 +81,8 @@ export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space
  * Renames the space or changes its time zone; the revision advances with
  * the change in one statement. A patch that changes nothing is answered
  * from the stored row so it does not spend a revision and force a resync.
+ * The read and the write share one transaction under the space row lock,
+ * so the no-op decision can never be made from a half-done state.
  */
 export async function updateSpace(
   deps: SpacesDeps,
@@ -82,12 +90,18 @@ export async function updateSpace(
   changes: SpaceChanges,
 ): Promise<Space> {
   const timezone = changes.timezone !== undefined ? assertTimezone(changes.timezone) : undefined
-  const current = await getSpace(deps, spaceId)
-  const effective: SpaceChanges = {}
-  if (changes.name !== undefined && changes.name !== current.name) effective.name = changes.name
-  if (timezone !== undefined && timezone !== current.timezone) effective.timezone = timezone
-  if (Object.keys(effective).length === 0) return current
-  return deps.db.transaction((tx) => updateSpaceRow(tx, spaceId, effective, deps.clock.now()))
+  const name = changes.name?.trim()
+  return deps.db.transaction(async (tx) => {
+    const current = await getSpaceForUpdate(tx, spaceId)
+    if (current === undefined) {
+      throw new DomainError('space_not_found', `Space ${spaceId} does not exist`, 404)
+    }
+    const effective: SpaceChanges = {}
+    if (name !== undefined && name !== current.name) effective.name = name
+    if (timezone !== undefined && timezone !== current.timezone) effective.timezone = timezone
+    if (Object.keys(effective).length === 0) return current
+    return updateSpaceRow(tx, spaceId, effective, deps.clock.now())
+  })
 }
 
 export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): Promise<bigint> {

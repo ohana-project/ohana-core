@@ -607,7 +607,7 @@
                     ]
                   },
                   "displayName": {
-                    "minLength": 3,
+                    "minLength": 1,
                     "maxLength": 200,
                     "pattern": "\\S",
                     "type": "string"

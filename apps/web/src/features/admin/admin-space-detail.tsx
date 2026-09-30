@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   type AdminMember,
@@ -289,15 +289,18 @@ function SpaceSettingsSheet({
     [i18n.language],
   )
 
-  // Abandoned edits must not survive closing: every opening shows the
-  // space as the server currently has it.
-  useEffect(() => {
+  // Abandoned edits must not survive closing, and a background refetch must
+  // not interrupt typing: the reset runs on the open transition only, during
+  // render, so the first frame already shows the server's values.
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
     if (open) {
       setName(initialName)
       setTimezone(initialTimezone)
       setNameError(undefined)
     }
-  }, [open, initialName, initialTimezone])
+  }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -393,28 +396,48 @@ function ProvisionMemberSheet({
   const [phone, setPhone] = useState('')
   const [interfaceLanguage, setInterfaceLanguage] = useState<'' | 'ru' | 'en'>('')
   const [nameError, setNameError] = useState<string | undefined>()
+  const [emailError, setEmailError] = useState<string | undefined>()
+  const [phoneError, setPhoneError] = useState<string | undefined>()
+  const [formError, setFormError] = useState<string | undefined>()
 
-  const reset = () => {
-    setName('')
-    setRole('regular')
-    setDisplayName('')
-    setEmail('')
-    setPhone('')
-    setInterfaceLanguage('')
-    setNameError(undefined)
-  }
-
-  // Abandoned edits must not survive closing, whatever closed the sheet.
-  const handleOpenChange = (next: boolean) => {
-    if (!next) reset()
-    onOpenChange(next)
+  // Abandoned edits must not survive closing, whatever closed the sheet:
+  // the reset runs on the open transition, during render.
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
+    if (!open) {
+      setName('')
+      setRole('regular')
+      setDisplayName('')
+      setEmail('')
+      setPhone('')
+      setInterfaceLanguage('')
+      setNameError(undefined)
+      setEmailError(undefined)
+      setPhoneError(undefined)
+      setFormError(undefined)
+    }
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (provisionMember.isPending) return
-    if (name.trim().length === 0) {
-      setNameError(t('admin.space.memberNameRequired'))
+    const failures: { name?: string; email?: string; phone?: string } = {}
+    if (name.trim().length === 0) failures.name = t('admin.space.memberNameRequired')
+    if (email.trim().length > 0 && email.trim().length < 3) {
+      failures.email = t('admin.space.tooShort')
+    }
+    if (phone.trim().length > 0 && phone.trim().length < 3) {
+      failures.phone = t('admin.space.tooShort')
+    }
+    setNameError(failures.name)
+    setEmailError(failures.email)
+    setPhoneError(failures.phone)
+    if (
+      failures.name !== undefined ||
+      failures.email !== undefined ||
+      failures.phone !== undefined
+    ) {
       return
     }
     provisionMember.mutate(
@@ -428,16 +451,17 @@ function ProvisionMemberSheet({
       },
       {
         onSuccess: () => {
-          handleOpenChange(false)
+          onOpenChange(false)
           toast(t('admin.space.addedToast'))
         },
-        onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
+        // A schema answer concerns the form as a whole, not one field.
+        onError: (error) => setFormError(adminSpaceErrorMessage(error, t)),
       },
     )
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{t('admin.space.addMemberTitle')}</SheetTitle>
@@ -455,6 +479,7 @@ function ProvisionMemberSheet({
               onChange={(event) => {
                 setName(event.target.value)
                 setNameError(undefined)
+                setFormError(undefined)
               }}
             />
             {nameError !== undefined ? <FieldError>{nameError}</FieldError> : null}
@@ -466,6 +491,7 @@ function ProvisionMemberSheet({
               onValueChange={(value) => {
                 const next = value.at(-1)
                 if (next === 'owner' || next === 'regular') setRole(next)
+                setFormError(undefined)
               }}
             >
               <ToggleGroupItem value="regular">{t('admin.space.roleRegular')}</ToggleGroupItem>
@@ -483,7 +509,10 @@ function ProvisionMemberSheet({
               id="provision-member-display-name"
               value={displayName}
               maxLength={200}
-              onChange={(event) => setDisplayName(event.target.value)}
+              onChange={(event) => {
+                setDisplayName(event.target.value)
+                setFormError(undefined)
+              }}
             />
           </Field>
           <Field>
@@ -493,8 +522,13 @@ function ProvisionMemberSheet({
               type="email"
               value={email}
               maxLength={200}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value)
+                setEmailError(undefined)
+                setFormError(undefined)
+              }}
             />
+            {emailError !== undefined ? <FieldError>{emailError}</FieldError> : null}
           </Field>
           <Field>
             <FieldLabel htmlFor="provision-member-phone">{t('admin.space.phoneLabel')}</FieldLabel>
@@ -503,8 +537,13 @@ function ProvisionMemberSheet({
               type="tel"
               value={phone}
               maxLength={40}
-              onChange={(event) => setPhone(event.target.value)}
+              onChange={(event) => {
+                setPhone(event.target.value)
+                setPhoneError(undefined)
+                setFormError(undefined)
+              }}
             />
+            {phoneError !== undefined ? <FieldError>{phoneError}</FieldError> : null}
           </Field>
           <Field>
             <FieldLabel htmlFor="provision-member-language">
@@ -513,13 +552,17 @@ function ProvisionMemberSheet({
             <Select
               id="provision-member-language"
               value={interfaceLanguage}
-              onChange={(event) => setInterfaceLanguage(event.target.value as '' | 'ru' | 'en')}
+              onChange={(event) => {
+                setInterfaceLanguage(event.target.value as '' | 'ru' | 'en')
+                setFormError(undefined)
+              }}
             >
               <option value="">—</option>
               <option value="ru">{t('language.ru')}</option>
               <option value="en">{t('language.en')}</option>
             </Select>
           </Field>
+          {formError !== undefined ? <FieldError>{formError}</FieldError> : null}
           <SheetFooter>
             <Button type="submit" size="lg" disabled={provisionMember.isPending}>
               {t('admin.space.add')}
