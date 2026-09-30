@@ -379,7 +379,7 @@ describe('AdminSpaceDetail invite codes', () => {
     renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
 
     await screen.findByText('Аня')
-    expect(screen.getByText('Коды приглашения')).toBeInTheDocument()
+    expect(screen.getByText('Коды входа')).toBeInTheDocument()
     // Three rows for the same member, one per status, plus the members row.
     expect(await screen.findByText('Выпущен')).toBeInTheDocument()
     expect(screen.getByText('Использован')).toBeInTheDocument()

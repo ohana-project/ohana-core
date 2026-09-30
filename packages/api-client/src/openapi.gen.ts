@@ -453,8 +453,8 @@ export interface paths {
         delete: {
             parameters: {
                 query?: never;
-                header?: {
-                    "x-ohana-member"?: string;
+                header: {
+                    "x-ohana-member": string;
                 };
                 path?: never;
                 cookie?: never;

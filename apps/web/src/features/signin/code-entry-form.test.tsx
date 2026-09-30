@@ -33,8 +33,8 @@ describe('CodeEntryForm', () => {
 
   it('renders the reference copy', () => {
     renderWithCodeEntryForm()
-    expect(screen.getByRole('heading', { name: 'Код приглашения' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Код из приглашения')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Код входа' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Код входа')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument()
   })
 
@@ -42,10 +42,10 @@ describe('CodeEntryForm', () => {
     const user = userEvent.setup()
     renderWithCodeEntryForm()
 
-    await user.type(screen.getByLabelText('Код из приглашения'), 'ABC')
+    await user.type(screen.getByLabelText('Код входа'), 'ABC')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Введите код из приглашения.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Введите код входа.')
     expect(apiPost).not.toHaveBeenCalled()
   })
 
@@ -59,7 +59,7 @@ describe('CodeEntryForm', () => {
     const user = userEvent.setup()
     renderWithCodeEntryForm(onSignedIn)
 
-    await user.type(screen.getByLabelText('Код из приглашения'), 'QWEE4455')
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(apiPost).toHaveBeenCalledWith(
@@ -80,13 +80,14 @@ describe('CodeEntryForm', () => {
     const user = userEvent.setup()
     renderWithCodeEntryForm()
 
-    await user.type(screen.getByLabelText('Код из приглашения'), 'QWEE4455')
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Такого кода нет')
-    expect(
-      screen.getByLabelText('Код из приглашения').closest('[data-slot=field]'),
-    ).toHaveAttribute('data-invalid', 'true')
+    expect(screen.getByLabelText('Код входа').closest('[data-slot=field]')).toHaveAttribute(
+      'data-invalid',
+      'true',
+    )
   })
 
   it('explains an expired code', async () => {
@@ -94,7 +95,7 @@ describe('CodeEntryForm', () => {
     const user = userEvent.setup()
     renderWithCodeEntryForm()
 
-    await user.type(screen.getByLabelText('Код из приглашения'), 'QWEE4455')
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Код истёк')
@@ -105,7 +106,7 @@ describe('CodeEntryForm', () => {
     const user = userEvent.setup()
     renderWithCodeEntryForm()
 
-    await user.type(screen.getByLabelText('Код из приглашения'), 'QWEE4455')
+    await user.type(screen.getByLabelText('Код входа'), 'QWEE4455')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

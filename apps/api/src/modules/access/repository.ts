@@ -56,7 +56,7 @@ export async function redeemAccessCodeRow(
   return updated[0]
 }
 
-export async function getAccessCodeByHash(
+export async function findAccessCodeByHashAcrossSpaces(
   executor: Executor,
   codeHash: string,
 ): Promise<AccessCode | undefined> {
@@ -82,11 +82,22 @@ export async function getAccessCodeRow(
 }
 
 /** Marks an issued-but-expired code as expired, materialising its status. */
-export async function expireAccessCodeRow(tx: Tx, codeId: string, now: Date): Promise<void> {
+export async function expireAccessCodeRow(
+  tx: Tx,
+  spaceId: string,
+  codeId: string,
+  now: Date,
+): Promise<void> {
   await tx
     .update(accessCodes)
     .set({ status: 'expired', statusChangedAt: now })
-    .where(and(eq(accessCodes.id, codeId), eq(accessCodes.status, 'issued')))
+    .where(
+      and(
+        eq(accessCodes.spaceId, spaceId),
+        eq(accessCodes.id, codeId),
+        eq(accessCodes.status, 'issued'),
+      ),
+    )
 }
 
 export async function revokeAccessCodeRow(
@@ -173,7 +184,7 @@ export async function insertMemberSession(tx: Tx, data: NewMemberSession): Promi
   })
 }
 
-export async function getMemberSessionByTokenHash(
+export async function findMemberSessionByTokenHashAcrossSpaces(
   executor: Executor,
   tokenHash: string,
   now: Date,
@@ -186,10 +197,17 @@ export async function getMemberSessionByTokenHash(
   return rows[0]
 }
 
-export async function deleteMemberSessionByTokenHash(tx: Tx, tokenHash: string): Promise<void> {
+export async function deleteMemberSessionByTokenHashAcrossSpaces(
+  tx: Tx,
+  tokenHash: string,
+): Promise<void> {
   await tx.delete(memberSessions).where(eq(memberSessions.tokenHash, tokenHash))
 }
 
-export async function deleteExpiredMemberSessions(executor: Executor, now: Date): Promise<void> {
+/** Opportunistic hygiene on sign-in: expired sessions of every member go. */
+export async function deleteExpiredMemberSessionsAcrossSpaces(
+  executor: Executor,
+  now: Date,
+): Promise<void> {
   await executor.delete(memberSessions).where(lt(memberSessions.expiresAt, now))
 }

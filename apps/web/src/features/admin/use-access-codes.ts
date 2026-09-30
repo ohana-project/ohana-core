@@ -1,3 +1,4 @@
+import type { paths } from '@ohana/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
@@ -11,17 +12,13 @@ import { adminSpaceErrorMessage } from '@/features/admin/use-admin-spaces.ts'
 
 const adminMarker = { 'x-ohana-admin': '1' }
 
-export type AdminAccessCode = {
-  id: string
-  memberId: string
-  status: 'issued' | 'redeemed' | 'expired' | 'replaced' | 'revoked'
-  createdAt: string
-  expiresAt: string
-  statusChangedAt: string
-}
+/** Response types, taken from the generated contract (ADR-0013). */
+export type AdminAccessCode =
+  paths['/api/v1/spaces/{spaceId}/access-codes']['get']['responses'][200]['content']['application/json'][number]
 
 /** The one response that carries the plaintext code — it is never stored. */
-export type IssuedAccessCode = AdminAccessCode & { code: string }
+export type IssuedAccessCode =
+  paths['/api/v1/spaces/{spaceId}/members/{memberId}/access-codes']['post']['responses'][201]['content']['application/json']
 
 function accessCodesQueryKey(spaceId: string) {
   return ['admin', 'spaces', spaceId, 'access-codes'] as const

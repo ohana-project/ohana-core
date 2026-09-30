@@ -897,7 +897,7 @@
             },
             "in": "header",
             "name": "x-ohana-member",
-            "required": false
+            "required": true
           }
         ],
         "responses": {

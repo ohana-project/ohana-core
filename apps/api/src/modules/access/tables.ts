@@ -50,7 +50,7 @@ export const accessCodes = pgTable(
   (table) => [
     unique('access_codes_code_hash_key').on(table.codeHash),
     unique('access_codes_space_id_id_key').on(table.spaceId, table.id),
-    unique('access_codes_space_id_issuer_member_id_key').on(table.spaceId, table.issuerMemberId),
+    index('access_codes_member_id_idx').on(table.memberId),
     foreignKey({
       name: 'access_codes_space_id_member_id_fk',
       columns: [table.spaceId, table.memberId],

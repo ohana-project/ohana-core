@@ -9,7 +9,8 @@ import {
   AccessCodeParamsSchema,
   IssuedAccessCodeDtoSchema,
   MEMBER_HEADER,
-  MemberHeadersSchema,
+  type MemberSessionHeaders,
+  MemberSessionHeadersSchema,
   RedeemBodySchema,
   RedeemResponseSchema,
   SpaceIdParamsSchema,
@@ -190,12 +191,12 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
     '/me/session',
     {
       schema: {
-        headers: MemberHeadersSchema,
+        headers: MemberSessionHeadersSchema,
         response: { 204: Type.Null() },
       },
     },
     async (request, reply) => {
-      const memberId = request.headers['x-ohana-member'] as string
+      const { 'x-ohana-member': memberId } = request.headers as MemberSessionHeaders
       await signOutMember(opts.deps, request.cookies?.[memberSessionCookieName(memberId)])
       reply.clearCookie(memberSessionCookieName(memberId), cookieOptions)
       return reply.code(204).send(null)

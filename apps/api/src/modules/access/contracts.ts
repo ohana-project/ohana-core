@@ -13,7 +13,14 @@ export const MemberHeadersSchema = Type.Object({
   'x-ohana-member': Type.Optional(Type.String({ format: 'uuid' })),
 })
 
+/** Sign-out still names its member: the route clears that member's cookie. */
+export const MemberSessionHeadersSchema = Type.Object({
+  'x-ohana-member': Type.String({ format: 'uuid' }),
+})
+
 export type MemberHeaders = Static<typeof MemberHeadersSchema>
+
+export type MemberSessionHeaders = Static<typeof MemberSessionHeadersSchema>
 
 /** The body of the one unauthenticated member route: code redemption. */
 export const RedeemBodySchema = Type.Object(

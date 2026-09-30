@@ -140,9 +140,9 @@
       "tooShort": "At least {count, plural, one {# character} other {# characters}} — check the value"
     },
     "codes": {
-      "title": "Invite codes",
+      "title": "Access codes",
       "issue": "Issue a code",
-      "issueTitle": "A new invite code",
+      "issueTitle": "A new access code",
       "issueDescription": "Pick the member — the code is shown once; pass it on in person.",
       "memberLabel": "Member",
       "memberRequired": "Pick a member",
@@ -198,13 +198,13 @@
     "wishlist": "Wishlists"
   },
   "signin": {
-    "title": "Invitation code",
+    "title": "Access code",
     "description": "Type the code — an owner issues it and shows it once.",
-    "label": "Code from the invitation",
+    "label": "Access code",
     "submit": "Sign in",
-    "emptyCode": "Enter the code from the invitation.",
+    "emptyCode": "Enter the access code.",
     "successToast": "The code is accepted — welcome!",
-    "footer": "No code? Ask an owner of the space for a new one. Lost the code? An owner can reissue it.",
+    "footer": "No code? Ask an owner of the space for a new one. Lost the code? An owner can issue a new one.",
     "errors": {
       "access_code_invalid": "No such code. Check the characters — 0 and О, S and 5 are easy to mix up.",
       "access_code_expired": "The code has expired. Ask an owner of the space to issue a new one.",

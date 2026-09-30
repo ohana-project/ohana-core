@@ -1,5 +1,5 @@
 {
-  "id": "06b49b9e-2e24-4dac-a717-38abf7641f53",
+  "id": "98469918-d2d8-475a-9771-4e86f4bfa315",
   "prevId": "abe1046e-2be7-4ccb-8380-b79aa90d9338",
   "version": "7",
   "dialect": "postgresql",
@@ -70,7 +70,23 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "access_codes_member_id_idx": {
+          "name": "access_codes_member_id_idx",
+          "columns": [
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "access_codes_space_id_spaces_id_fk": {
           "name": "access_codes_space_id_spaces_id_fk",
@@ -144,14 +160,6 @@
           "columns": [
             "space_id",
             "id"
-          ]
-        },
-        "access_codes_space_id_issuer_member_id_key": {
-          "name": "access_codes_space_id_issuer_member_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "space_id",
-            "issuer_member_id"
           ]
         }
       },

@@ -290,6 +290,19 @@ describe('GET /api/v1/spaces/:spaceId/access-codes', () => {
       expect(response.statusCode).toBe(401)
     })
   })
+
+  test('answers space_not_found for an unknown space', async () => {
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/spaces/00000000-0000-7000-8000-000000000000/access-codes',
+        headers: { cookie },
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('space_not_found')
+    })
+  })
 })
 
 describe('POST /api/v1/spaces/:spaceId/access-codes/:codeId/revoke', () => {

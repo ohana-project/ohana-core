@@ -1,6 +1,7 @@
+import type { paths } from '@ohana/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { assertOk } from '@/data/api-error.ts'
+import { ApiError, assertOk } from '@/data/api-error.ts'
 import {
   getActiveMemberId,
   removeSession,
@@ -17,20 +18,8 @@ import {
 
 const memberSessionQueryKey = ['member', 'session'] as const
 
-export type MemberMe = {
-  member: {
-    id: string
-    name: string
-    displayName?: string
-    email?: string
-    phone?: string
-    interfaceLanguage?: 'ru' | 'en'
-    role: 'owner' | 'regular'
-    createdAt: string
-  }
-  space: { id: string; name: string }
-  needsOnboarding: boolean
-}
+/** The GET /me response, taken from the generated contract (ADR-0013). */
+export type MemberMe = paths['/api/v1/me']['get']['responses'][200]['content']['application/json']
 
 export type MemberSessionStatus = 'pending' | 'signed-in' | 'signed-out'
 
@@ -94,10 +83,18 @@ export function useMemberSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const response = await api.DELETE('/api/v1/me/session')
+      const memberId = getActiveMemberId()
+      if (memberId === undefined) throw new ApiError('unexpected')
+      // The route requires the member's name, and the type asks for it
+      // explicitly; the middleware would also set it.
+      const response = await api.DELETE('/api/v1/me/session', {
+        params: { header: { 'x-ohana-member': memberId } },
+      })
       await assertOk(response)
     },
-    onSettled: () => {
+    // Only success forgets the sign-in: a failed request must keep the
+    // entry so the member can retry the sign-out.
+    onSuccess: () => {
       const memberId = getActiveMemberId()
       if (memberId !== undefined) removeSession(memberId)
       void queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })

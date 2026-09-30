@@ -2,15 +2,15 @@ import { createHash, randomBytes } from 'node:crypto'
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { getSpace } from '../spaces/index.ts'
+import { getSpace, getSpaceInTx, lockSpace } from '../spaces/index.ts'
 import type { AccessCodeStatus } from './contracts.ts'
 import {
-  deleteExpiredMemberSessions,
-  deleteMemberSessionByTokenHash,
+  deleteExpiredMemberSessionsAcrossSpaces,
+  deleteMemberSessionByTokenHashAcrossSpaces,
   expireAccessCodeRow,
-  getAccessCodeByHash,
+  findAccessCodeByHashAcrossSpaces,
+  findMemberSessionByTokenHashAcrossSpaces,
   getAccessCodeRow,
-  getMemberSessionByTokenHash,
   insertAccessCode,
   insertMemberSession,
   listAccessCodesInSpace,
@@ -131,6 +131,9 @@ export async function issueAccessCode(
 ): Promise<IssuedAccessCode> {
   const now = deps.clock.now()
   return deps.db.transaction(async (tx) => {
+    // The space row lock serialises concurrent issuances for the space, so
+    // two racing "issue" requests cannot both leave a live code behind.
+    await lockSpace(tx, spaceId)
     const member = await deps.findMemberInSpace(tx, spaceId, memberId)
     if (member === undefined) {
       throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
@@ -177,6 +180,9 @@ export async function listAccessCodes(
   deps: AccessDeps,
   spaceId: string,
 ): Promise<AccessCodeListItem[]> {
+  // Members of an unknown space answer 404 like every other route that
+  // names a space, instead of an empty list.
+  await getSpace(deps, spaceId)
   const rows = await listAccessCodesInSpace(deps.db, spaceId)
   const now = deps.clock.now()
   return rows.map((row) => ({
@@ -216,7 +222,7 @@ export async function revokeAccessCode(
   // An expired code materialises its status in its own transaction, so the
   // write survives the refused answer.
   if (outcome.kind === 'refused' && outcome.status === 'expired') {
-    await deps.db.transaction((tx) => expireAccessCodeRow(tx, outcome.codeId, now))
+    await deps.db.transaction((tx) => expireAccessCodeRow(tx, spaceId, outcome.codeId, now))
   }
 
   if (outcome.kind === 'unknown') {
@@ -284,22 +290,49 @@ export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promi
 
   const outcome = await deps.db.transaction(async (tx) => {
     const row = await redeemAccessCodeRow(tx, codeHash, now)
-    if (row !== undefined) return { kind: 'redeemed', row } as const
-    const existing = await getAccessCodeByHash(tx, codeHash)
-    if (existing === undefined) return { kind: 'invalid' } as const
-    const status = derivedStatus(existing, now)
-    if (status === 'issued') {
-      // Still issued but the compare-and-set lost: a concurrent redemption
-      // won the race, so this one is a used code.
-      return { kind: 'refused', status: 'redeemed', codeId: existing.id } as const
+    if (row === undefined) {
+      const existing = await findAccessCodeByHashAcrossSpaces(tx, codeHash)
+      if (existing === undefined) return { kind: 'invalid' } as const
+      const status = derivedStatus(existing, now)
+      if (status === 'issued') {
+        // Still issued but the compare-and-set lost: a concurrent
+        // redemption won the race, so this one is a used code.
+        return { kind: 'refused', status: 'redeemed', codeId: existing.id } as const
+      }
+      return {
+        kind: 'refused',
+        status,
+        codeId: existing.id,
+        spaceId: existing.spaceId,
+      } as const
     }
-    return { kind: 'refused', status, codeId: existing.id } as const
+    // The rest of the redemption shares this one transaction (architecture,
+    // "Transactions"): a code is never spent without a session to show for
+    // it, and a failure rolls the spent status back.
+    const member = await deps.findMemberInSpace(tx, row.spaceId, row.memberId)
+    if (member === undefined) {
+      // The composite foreign key makes this unreachable for a live member;
+      // a vanished row must not yield a session.
+      return { kind: 'invalid' } as const
+    }
+    const space = await getSpaceInTx(tx, row.spaceId)
+    const token = randomBytes(32).toString('base64url')
+    const expiresAt = new Date(now.getTime() + MEMBER_SESSION_TTL_MS)
+    await deleteExpiredMemberSessionsAcrossSpaces(tx, now)
+    await insertMemberSession(tx, {
+      spaceId: row.spaceId,
+      memberId: row.memberId,
+      tokenHash: codeHashOf(token),
+      now,
+      expiresAt,
+    })
+    return { kind: 'redeemed', member, spaceName: space.name, token, expiresAt } as const
   })
 
   // The refusal itself writes nothing, but an expired code materialises its
   // status in its own transaction: inside the failed one it would roll back.
   if (outcome.kind === 'refused' && outcome.status === 'expired') {
-    await deps.db.transaction((tx) => expireAccessCodeRow(tx, outcome.codeId, now))
+    await deps.db.transaction((tx) => expireAccessCodeRow(tx, outcome.spaceId, outcome.codeId, now))
   }
 
   if (outcome.kind === 'invalid') {
@@ -309,37 +342,16 @@ export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promi
     throw refusalForStatus(outcome.status, outcome.codeId)
   }
 
-  const member = await deps.findMemberInSpace(deps.db, outcome.row.spaceId, outcome.row.memberId)
-  if (member === undefined) {
-    // The composite foreign key makes this unreachable for a live member;
-    // a vanished row must not yield a session.
-    throw new DomainError('access_code_invalid', 'The code names no live member', 401)
-  }
-  const { name } = await getSpace({ db: deps.db, clock: deps.clock }, outcome.row.spaceId)
-
-  const token = randomBytes(32).toString('base64url')
-  const expiresAt = new Date(now.getTime() + MEMBER_SESSION_TTL_MS)
-  await deps.db.transaction(async (tx) => {
-    await deleteExpiredMemberSessions(tx, now)
-    await insertMemberSession(tx, {
-      spaceId: outcome.row.spaceId,
-      memberId: outcome.row.memberId,
-      tokenHash: codeHashOf(token),
-      now,
-      expiresAt,
-    })
-  })
-
   return {
-    token,
-    expiresAt,
-    memberId: member.id,
-    spaceId: member.spaceId,
-    spaceName: name,
-    role: member.role,
-    name: member.name,
-    displayName: member.displayName,
-    needsOnboarding: member.onboardedAt === null,
+    token: outcome.token,
+    expiresAt: outcome.expiresAt,
+    memberId: outcome.member.id,
+    spaceId: outcome.member.spaceId,
+    spaceName: outcome.spaceName,
+    role: outcome.member.role,
+    name: outcome.member.name,
+    displayName: outcome.member.displayName,
+    needsOnboarding: outcome.member.onboardedAt === null,
   }
 }
 
@@ -356,7 +368,11 @@ export async function authenticateMember(
 ): Promise<MemberActor | undefined> {
   if (memberId === undefined || memberId.length === 0) return undefined
   if (token === undefined || token.length === 0) return undefined
-  const session = await getMemberSessionByTokenHash(deps.db, codeHashOf(token), deps.clock.now())
+  const session = await findMemberSessionByTokenHashAcrossSpaces(
+    deps.db,
+    codeHashOf(token),
+    deps.clock.now(),
+  )
   if (session === undefined || session.memberId !== memberId) return undefined
   const member = await deps.findMemberInSpace(deps.db, session.spaceId, session.memberId)
   if (member === undefined) return undefined
@@ -366,5 +382,7 @@ export async function authenticateMember(
 /** Deletes the session the token names. Other devices keep theirs. */
 export async function signOutMember(deps: AccessDeps, token: string | undefined): Promise<void> {
   if (token === undefined || token.length === 0) return
-  await deps.db.transaction((tx) => deleteMemberSessionByTokenHash(tx, codeHashOf(token)))
+  await deps.db.transaction((tx) =>
+    deleteMemberSessionByTokenHashAcrossSpaces(tx, codeHashOf(token)),
+  )
 }

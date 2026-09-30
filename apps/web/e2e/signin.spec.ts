@@ -1,10 +1,11 @@
 import { expect, type Page, test } from '@playwright/test'
 
 /*
- * The first member end-to-end flow (issue #9, ADR-0005): the access-code
- * screen, onboarding, and the space home with its section navigation.
- * The member endpoints are intercepted at the network level: no backend
- * runs during e2e, the mocks stand in for the session lifecycle.
+ * The member sign-in flow (issue #9, ADR-0005): the access-code screen,
+ * onboarding, and the space home with its section navigation. Following
+ * the administrative specs' precedent, the member endpoints are
+ * intercepted at the network level: the real cookie and header pairing is
+ * covered by the API's HTTP tests, while this spec pins the UI flow.
  */
 
 const ME = '**/api/v1/me'
@@ -135,16 +136,16 @@ test.describe('member sign-in by access code', () => {
     // the code screen.
     await page.goto('/')
     await expect(page).toHaveURL(/\/signin$/)
-    await expect(page.getByRole('heading', { name: 'Код приглашения' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Код входа' })).toBeVisible()
 
     // A wrong code explains itself inline and stays on the screen.
-    await page.getByLabel('Код из приглашения').fill('ZZZZ-ZZZZ')
+    await page.getByLabel('Код входа').fill('ZZZZ-ZZZZ')
     await page.getByRole('button', { name: 'Войти' }).click()
     await expect(page.getByRole('alert')).toContainText('Такого кода нет')
     await expect(page).toHaveURL(/\/signin$/)
 
     // The right code leads to onboarding.
-    await page.getByLabel('Код из приглашения').fill(VALID_CODE)
+    await page.getByLabel('Код входа').fill(VALID_CODE)
     await page.getByRole('button', { name: 'Войти' }).click()
     await expect(page).toHaveURL(/\/onboarding$/)
     await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
@@ -179,7 +180,7 @@ test.describe('member sign-in by access code', () => {
     await mockMemberApi(page, { needsOnboarding: false })
     await page.goto('/signin')
 
-    await page.getByLabel('Код из приглашения').fill(VALID_CODE)
+    await page.getByLabel('Код входа').fill(VALID_CODE)
     await page.getByRole('button', { name: 'Войти' }).click()
 
     await expect(page).toHaveURL(/\/$/)
@@ -189,7 +190,7 @@ test.describe('member sign-in by access code', () => {
   test('signing out returns to the code screen', async ({ page }) => {
     await mockMemberApi(page)
     await page.goto('/signin')
-    await page.getByLabel('Код из приглашения').fill(VALID_CODE)
+    await page.getByLabel('Код входа').fill(VALID_CODE)
     await page.getByRole('button', { name: 'Войти' }).click()
     await expect(page).toHaveURL(/\/onboarding$/)
     await page.getByRole('button', { name: 'Продолжить' }).click()
@@ -199,7 +200,7 @@ test.describe('member sign-in by access code', () => {
     await page.getByRole('menuitem', { name: 'Выйти' }).click()
 
     await expect(page).toHaveURL(/\/signin$/)
-    await expect(page.getByRole('heading', { name: 'Код приглашения' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Код входа' })).toBeVisible()
   })
 
   test('renders the English sign-in screen (en)', async ({ page }) => {
@@ -207,7 +208,7 @@ test.describe('member sign-in by access code', () => {
     await page.addInitScript(() => window.localStorage.setItem('ohana.locale', 'en'))
     await page.goto('/signin')
 
-    await expect(page.getByRole('heading', { name: 'Invitation code' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Access code' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   })

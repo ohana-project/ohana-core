@@ -77,6 +77,15 @@ export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space
   return space
 }
 
+/** The same read inside a caller's transaction, for multi-step use cases. */
+export async function getSpaceInTx(tx: Tx, spaceId: string): Promise<Space> {
+  const space = await getSpaceById(tx, spaceId)
+  if (space === undefined) {
+    throw new DomainError('space_not_found', `Space ${spaceId} does not exist`, 404)
+  }
+  return space
+}
+
 /**
  * Takes the space row lock inside a transaction. A use case that must read
  * before deciding to write starts here: the space lock is the first lock

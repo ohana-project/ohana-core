@@ -232,6 +232,30 @@ describe('POST /api/v1/access-codes/redeem', () => {
     })
   })
 
+  test('of two concurrent redemptions exactly one wins', async () => {
+    const space = await harness.createSpace()
+    const member = await harness.createMember(space.id, { name: 'Аня' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const issued = await issueCode(app, adminCookie, space.id, member.id)
+
+      const [first, second] = await Promise.all([
+        redeem(app, issued.code),
+        redeem(app, issued.code),
+      ])
+      const statuses = [first.statusCode, second.statusCode].sort((a, b) => a - b)
+      expect(statuses).toEqual([200, 409])
+      const refused = first.statusCode === 409 ? first : second
+      expect(refused.json().error.code).toBe('access_code_used')
+
+      const rows = await harness.db
+        .select()
+        .from(memberSessions)
+        .where(eq(memberSessions.memberId, member.id))
+      expect(rows).toHaveLength(1)
+    })
+  })
+
   test('a revoked code is refused', async () => {
     const space = await harness.createSpace()
     const member = await harness.createMember(space.id, { name: 'Аня' })
@@ -465,6 +489,39 @@ describe('onboarding and profiles', () => {
       const names = response.json().map((profile: { name: string }) => profile.name)
       expect(names).toEqual(['Аня', 'Дима'])
       expect(JSON.stringify(response.json())).not.toContain('Пётр')
+    })
+  })
+
+  test('sign-out with a mismatched cookie deletes nothing', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня' })
+    const dima = await harness.createMember(space.id, { name: 'Дима' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const anyaSession = sessionFrom(
+        await redeem(app, (await issueCode(app, adminCookie, space.id, anya.id)).code),
+      )
+      const dimaSession = sessionFrom(
+        await redeem(app, (await issueCode(app, adminCookie, space.id, dima.id)).code),
+      )
+
+      // The cookie is looked up under the header member's name, so Дима's
+      // cookie is not even read when the request names Аня — both sessions
+      // survive the mismatched request.
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/me/session',
+        headers: { 'x-ohana-member': anyaSession.memberId, cookie: dimaSession.cookie },
+      })
+      expect(response.statusCode).toBe(204)
+      for (const session of [anyaSession, dimaSession]) {
+        const alive = await app.inject({
+          method: 'GET',
+          url: '/api/v1/me',
+          headers: memberHeaders(session),
+        })
+        expect(alive.statusCode).toBe(200)
+      }
     })
   })
 
