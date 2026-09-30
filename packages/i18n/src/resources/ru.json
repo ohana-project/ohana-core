@@ -150,7 +150,11 @@
       "profile": "Профиль",
       "settings": "Настройки",
       "switchSpace": "Сменить пространство",
-      "logout": "Выйти"
+      "logout": "Выйти",
+      "viewMenu": "Вид ленты",
+      "newestFirst": "Сначала новые",
+      "oldestFirst": "Сначала старые",
+      "withPhotos": "Только с фото"
     },
     "badges": {
       "primary": "Актуально",

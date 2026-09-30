@@ -150,7 +150,11 @@
       "profile": "Profile",
       "settings": "Settings",
       "switchSpace": "Switch space",
-      "logout": "Sign out"
+      "logout": "Sign out",
+      "viewMenu": "Feed view",
+      "newestFirst": "Newest first",
+      "oldestFirst": "Oldest first",
+      "withPhotos": "Only with photos"
     },
     "badges": {
       "primary": "Up to date",

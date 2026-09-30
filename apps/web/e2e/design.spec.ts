@@ -153,6 +153,29 @@ test.describe('overlays', () => {
     await page.keyboard.press('Escape')
     await expect(drawer).toBeHidden()
   })
+
+  test('checked menu items show an accent check', async ({ page }) => {
+    await openDesign(page)
+    await page.getByRole('button', { name: 'Вид ленты' }).click()
+    // the check is Ohana's accent (shadcn's primary), not shadcn's accent
+    // role, which is the near-invisible fg-soft hover fill
+    const accent = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--accent)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).color
+      probe.remove()
+      return colour
+    })
+    for (const item of [
+      page.getByRole('menuitemradio', { name: 'Сначала новые' }),
+      page.getByRole('menuitemcheckbox', { name: 'Только с фото' }),
+    ]) {
+      const check = item.locator('svg')
+      await expect(check).toBeVisible()
+      await expect(check).toHaveCSS('color', accent)
+    }
+  })
 })
 
 test.describe('access code input', () => {

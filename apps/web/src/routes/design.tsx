@@ -44,8 +44,11 @@ import {
 } from '@/ui/drawer.tsx'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu.tsx'
@@ -375,6 +378,8 @@ function InputsSection() {
 
 function OverlaysSection() {
   const { t } = useTranslation()
+  const [order, setOrder] = useState('newest')
+  const [withPhotos, setWithPhotos] = useState(true)
 
   return (
     <PreviewSection id="overlays" title={t('designPreview.sections.overlays')}>
@@ -464,6 +469,26 @@ function OverlaysSection() {
               <Icon name="log-out" />
               {t('designPreview.overlays.logout')}
             </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="secondary">{t('designPreview.overlays.viewMenu')}</Button>}
+          />
+          <DropdownMenuContent>
+            <DropdownMenuRadioGroup value={order} onValueChange={setOrder}>
+              <DropdownMenuRadioItem value="newest">
+                {t('designPreview.overlays.newestFirst')}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="oldest">
+                {t('designPreview.overlays.oldestFirst')}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem checked={withPhotos} onCheckedChange={setWithPhotos}>
+              {t('designPreview.overlays.withPhotos')}
+            </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
