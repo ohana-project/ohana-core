@@ -38,7 +38,7 @@ export function Sidebar({
     <aside
       data-slot="sidebar"
       className={cn(
-        'sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-border bg-background desktop:flex',
+        'sticky top-0 hidden h-dvh w-(--side-w) shrink-0 flex-col border-r border-border bg-background desktop:flex',
         className,
       )}
     >
@@ -77,7 +77,7 @@ export function Sidebar({
               aria-current={active ? 'page' : undefined}
               onClick={() => onSectionClick?.(section.id)}
               className={cn(
-                'flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[15px] font-medium transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent hover:text-foreground',
+                'flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body font-medium transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent hover:text-foreground',
                 active ? 'bg-primary-soft text-primary' : 'text-muted-foreground',
               )}
             >

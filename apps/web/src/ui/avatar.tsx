@@ -16,10 +16,10 @@ export interface AvatarProps extends AvatarPrimitive.Root.Props {
 }
 
 const avatarSizes = {
-  xs: 'size-6 text-[11px]',
-  sm: 'size-8 text-[13px]',
-  default: 'size-10 text-[15px]',
-  lg: 'size-14 text-xl',
+  xs: 'size-6 text-meta',
+  sm: 'size-8 text-sm',
+  default: 'size-10 text-body',
+  lg: 'size-14 text-h2',
 } as const
 
 function Avatar({ className, size = 'default', hue = 40, style, ...props }: AvatarProps) {

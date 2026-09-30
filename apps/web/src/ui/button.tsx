@@ -8,7 +8,7 @@ import { cn } from 'cn'
  * :focus-visible outline.
  */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding text-[15px] font-medium tracking-[-0.005em] whitespace-nowrap transition-[background,border-color,transform,box-shadow] duration-(--t-fast) ease-(--ease) select-none active:translate-y-px disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px]",
+  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding text-body font-medium tracking-[-0.005em] whitespace-nowrap transition-[background,border-color,transform,box-shadow] duration-(--t-fast) ease-(--ease) select-none active:translate-y-px disabled:pointer-events-none disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px]",
   {
     variants: {
       variant: {
@@ -23,7 +23,7 @@ const buttonVariants = cva(
       size: {
         default: 'min-h-11 px-5 py-2.5',
         sm: 'min-h-9 px-3.5 py-1.5 text-sm',
-        lg: 'w-full min-h-[52px] px-5 text-[16.5px]',
+        lg: 'w-full min-h-[52px] px-5',
         icon: 'size-11 rounded-full p-0',
       },
     },

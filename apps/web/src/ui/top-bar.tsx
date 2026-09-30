@@ -53,43 +53,21 @@ export function TopBar({
       )}
     >
       {back}
-      {userMenuItems.length > 0 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label={t('layout.space')}
-                onClick={onSpaceClick}
-                className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
-              />
-            }
-          >
-            <AvatarStack className="-ml-1">
-              {space.marks.slice(0, 2).map((mark) => (
-                <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
-                  {mark.initials}
-                </Avatar>
-              ))}
-            </AvatarStack>
-          </DropdownMenuTrigger>
-        </DropdownMenu>
-      ) : (
-        <button
-          type="button"
-          aria-label={t('layout.space')}
-          onClick={onSpaceClick}
-          className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full desktop:hidden"
-        >
-          <AvatarStack className="-ml-1">
-            {space.marks.slice(0, 2).map((mark) => (
-              <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
-                {mark.initials}
-              </Avatar>
-            ))}
-          </AvatarStack>
-        </button>
-      )}
+      <button
+        type="button"
+        data-slot="topbar-space"
+        aria-label={t('layout.space')}
+        onClick={onSpaceClick}
+        className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
+      >
+        <AvatarStack className="-ml-1">
+          {space.marks.slice(0, 2).map((mark) => (
+            <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
+              {mark.initials}
+            </Avatar>
+          ))}
+        </AvatarStack>
+      </button>
       <span className="truncate font-display text-h2 font-semibold tracking-[-0.01em]">
         {title}
       </span>

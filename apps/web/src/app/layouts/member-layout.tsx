@@ -23,6 +23,8 @@ export interface MemberLayoutProps {
   back?: React.ReactNode
   title?: string
   width?: 'default' | 'narrow' | 'wide'
+  onSpaceClick?: () => void
+  onSectionClick?: (id: string) => void
   /** The screen mounts its own FAB; the layout reserves space for it. */
   children: React.ReactNode
 }
@@ -37,6 +39,8 @@ export function MemberLayout({
   back,
   title,
   width = 'default',
+  onSpaceClick,
+  onSectionClick,
   children,
 }: MemberLayoutProps) {
   const topBarTitle =
@@ -49,6 +53,8 @@ export function MemberLayout({
         sections={sections}
         activeId={activeId}
         sync={sync ? { ...sync } : null}
+        onSpaceClick={onSpaceClick}
+        onSectionClick={onSectionClick}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
@@ -58,6 +64,7 @@ export function MemberLayout({
           back={back}
           sync={sync ? { ...sync } : null}
           userMenuItems={userMenuItems}
+          onSpaceClick={onSpaceClick}
         />
         <main
           className={cn(
@@ -70,7 +77,7 @@ export function MemberLayout({
           {children}
         </main>
       </div>
-      <TabBar sections={sections} activeId={activeId} />
+      <TabBar sections={sections} activeId={activeId} onSectionClick={onSectionClick} />
     </div>
   )
 }

@@ -26,9 +26,7 @@ export function AdminTopBar({
     >
       <span className="inline-flex items-center gap-2.5 text-foreground">
         <LogoMark className="size-[26px]" />
-        <span className="font-display text-[16.5px] font-semibold tracking-[-0.01em]">
-          Ohana · {t('layout.adminTitle')}
-        </span>
+        <span className="font-display text-h3">{t('layout.adminTitle')}</span>
       </span>
       <span className="min-w-0 flex-1" />
       {actions}

@@ -112,7 +112,10 @@ const themes: Record<string, Tokens> = {
 /* glass fill alphas, light and dark (glass.css) */
 const glassAlphas: Record<string, number> = {
   light: asPercent('glass-a', parseBlock(glassCss, ':root')),
-  dark: asPercent('glass-a', { ...parseBlock(glassCss, ':root'), ...parseBlock(glassCss, '[data-theme="dark"]') }),
+  dark: asPercent('glass-a', {
+    ...parseBlock(glassCss, ':root'),
+    ...parseBlock(glassCss, '[data-theme="dark"]'),
+  }),
 }
 
 const WHITE: Rgb = { mode: 'rgb', r: 1, g: 1, b: 1, alpha: 1 }

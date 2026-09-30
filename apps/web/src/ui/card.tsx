@@ -3,22 +3,25 @@ import type * as React from 'react'
 
 /*
  * Ohana card (`.card` in the prototype): surface, hairline border,
- * shadow-1, 18px radius, 20px padding. A card that links (render={<a/>}
- * or wrapped in one) lifts on hover with shadow-2 — see the card-link
- * classes on the preview route.
+ * shadow-1, 18px radius, 20px padding. `hoverable` is the link-card
+ * lift: shadow-2, −1px, a stronger border (README "Components").
  */
 
 function Card({
   className,
   size = 'default',
+  hoverable = false,
   ...props
-}: React.ComponentProps<'div'> & { size?: 'default' | 'sm' }) {
+}: React.ComponentProps<'div'> & { size?: 'default' | 'sm'; hoverable?: boolean }) {
   return (
     <div
       data-slot="card"
       data-size={size}
+      data-hoverable={hoverable || undefined}
       className={cn(
         'group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-lg border border-border bg-card py-(--card-spacing) text-body text-card-foreground shadow-1 [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg',
+        hoverable &&
+          'transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) hover:-translate-y-px hover:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] hover:shadow-2',
         className,
       )}
       {...props}

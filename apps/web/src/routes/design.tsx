@@ -2,11 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminLayout } from '@/app/layouts/admin-layout.tsx'
-import { AuthLayout } from '@/app/layouts/auth-layout.tsx'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { type ThemeChoice, useTheme } from '@/app/theme.tsx'
 import { LanguageSwitcher } from '@/features/language/language-switcher.tsx'
 import { AccessCodeInput } from '@/ui/access-code-input.tsx'
+import { AuthLayout } from '@/ui/auth-layout.tsx'
 import { Avatar } from '@/ui/avatar.tsx'
 import { AvatarStack } from '@/ui/avatar-stack.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -32,6 +32,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/ui/dialog.tsx'
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/ui/drawer.tsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,6 +79,13 @@ import { toast } from '@/ui/toast.tsx'
 import { Toggle } from '@/ui/toggle.tsx'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group.tsx'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip.tsx'
+
+/* The demo entry date, formatted for the active locale. */
+function demoDate(language: string): string {
+  return new Intl.DateTimeFormat(language, { day: '2-digit', month: '2-digit' }).format(
+    new Date(2026, 8, 28),
+  )
+}
 
 export const Route = createFileRoute('/design')({ component: DesignPreview })
 
@@ -251,7 +268,7 @@ function TypographySection() {
           {t('designPreview.type.sm')}: {t('designPreview.demo.membersLabel')}
         </p>
         <p className="font-mono text-meta text-muted-foreground uppercase">
-          {t('designPreview.type.meta')}: ПОНЕДЕЛЬНИК, 28 СЕНТЯБРЯ · ФОТО ×3
+          {t('designPreview.type.meta')}: {t('designPreview.type.sample')}
         </p>
       </div>
     </PreviewSection>
@@ -398,6 +415,23 @@ function OverlaysSection() {
             </SheetFooter>
           </SheetContent>
         </Sheet>
+
+        <Drawer>
+          <DrawerTrigger
+            render={<Button variant="secondary">{t('designPreview.overlays.drawer')}</Button>}
+          />
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>{t('designPreview.overlays.sheetTitle')}</DrawerTitle>
+              <DrawerDescription>{t('designPreview.overlays.sheetText')}</DrawerDescription>
+            </DrawerHeader>
+            <DrawerFooter>
+              <DrawerClose render={<Button variant="secondary" />}>
+                {t('designPreview.overlays.cancel')}
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
 
         <Popover>
           <PopoverTrigger
@@ -595,7 +629,7 @@ function FeedbackSection() {
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" onClick={() => toast(t('designPreview.feedback.toastOk'))}>
           <Icon name="check" />
-          OK
+          {t('designPreview.feedback.ok')}
         </Button>
         <Button
           variant="secondary"
@@ -645,7 +679,8 @@ function FeedbackSection() {
 /* ── lists and cards ────────────────────────────────────────────── */
 
 function ListsSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const date = demoDate(i18n.language)
 
   return (
     <PreviewSection id="lists" title={t('designPreview.sections.lists')}>
@@ -667,7 +702,7 @@ function ListsSection() {
                     {t('designPreview.lists.eventOneSub')}
                   </p>
                 </ItemContent>
-                <Badge>warn</Badge>
+                <Badge variant="warn">{t('designPreview.badges.warn')}</Badge>
               </Item>
               <Item size="lg">
                 <ItemMedia variant="icon">
@@ -756,12 +791,15 @@ function ListsSection() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <a href="#lists" className="group/link block rounded-lg">
-            <Card className="transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) group-hover/link:-translate-y-px group-hover/link:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] group-hover/link:shadow-2">
+          <a href="#lists" className="block rounded-lg">
+            <Card hoverable>
               <CardHeader>
                 <CardTitle>{t('designPreview.lists.cardTitle')}</CardTitle>
                 <CardDescription>
-                  28.09 · {t('designPreview.lists.memberSub2')} Миша
+                  {t('designPreview.lists.cardMeta', {
+                    date,
+                    author: t('designPreview.lists.misha'),
+                  })}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -795,11 +833,14 @@ function ListsSection() {
 /* ── shells ─────────────────────────────────────────────────────── */
 
 function LayoutsSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const [activeId, setActiveId] = useState('home')
+  const [sectionCount, setSectionCount] = useState(4)
+  const date = demoDate(i18n.language)
 
   const sections: { id: string; label: string; icon: IconName }[] = [
     { id: 'home', label: t('designPreview.demo.homeTitle'), icon: 'home' },
-    { id: 'diary', label: t('designPreview.demo.journalTitle'), icon: 'book' },
+    { id: 'journal', label: t('designPreview.demo.journalTitle'), icon: 'book' },
     { id: 'calendar', label: t('designPreview.demo.calendarTitle'), icon: 'calendar' },
     { id: 'wishlist', label: t('designPreview.demo.wishlistTitle'), icon: 'gift' },
   ]
@@ -831,17 +872,34 @@ function LayoutsSection() {
     <PreviewSection id="layouts" title={t('designPreview.sections.layouts')}>
       <p className="text-sm text-muted-foreground">{t('designPreview.layouts.openInPlace')}</p>
 
-      <h3 className="text-h3">{t('designPreview.layouts.member')}</h3>
+      <div className="flex flex-wrap items-center gap-4">
+        <h3 className="text-h3">{t('designPreview.layouts.member')}</h3>
+        {/* the layout must hold with one to four visible sections
+            (README "Layout") */}
+        <ToggleGroup
+          value={[String(sectionCount)]}
+          onValueChange={(values) => setSectionCount(Number(values[0] ?? 4))}
+          aria-label={t('designPreview.layouts.sectionCount')}
+        >
+          {[1, 2, 3, 4].map((count) => (
+            <ToggleGroupItem key={count} value={String(count)}>
+              {count}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
       {/* the transform turns the demo box into the containing block for the
           fixed tab bar and FAB, so they stay inside the demo */}
       <div className="overflow-hidden rounded-lg border border-border [transform:translateZ(0)]">
         <MemberLayout
           space={space}
-          sections={sections}
-          activeId="home"
+          sections={sections.slice(0, sectionCount)}
+          activeId={activeId}
           sync={{ state: 'synced', syncedAt: new Date(2026, 8, 28, 14, 32) }}
           userMenuItems={userMenuItems}
           title={t('designPreview.demo.homeTitle')}
+          onSpaceClick={() => toast(t('designPreview.layouts.spaceToast'))}
+          onSectionClick={setActiveId}
         >
           <div className="flex flex-col gap-4 pt-6">
             <h3 className="text-display-lg">{t('designPreview.demo.greeting')}</h3>
@@ -878,7 +936,7 @@ function LayoutsSection() {
             <Card>
               <CardHeader>
                 <CardTitle>{t('designPreview.lists.cardTitle')}</CardTitle>
-                <CardDescription>28.09</CardDescription>
+                <CardDescription>{date}</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>

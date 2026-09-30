@@ -69,19 +69,21 @@ test.describe('keyboard focus', () => {
     let withRing = 0
     for (let step = 0; step < 200; step += 1) {
       await page.keyboard.press('Tab')
-      const focus = await page.evaluate(([fieldSlots]) => {
-        const el = document.activeElement as HTMLElement | null
-        if (!el || el === document.body) return null
-        const style = getComputedStyle(el)
-        const outlineRing =
-          style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) >= 2
-        const fieldRing =
-          fieldSlots.includes(el.dataset.slot ?? '') && style.boxShadow !== 'none'
-        return {
-          key: `${el.tagName}.${el.dataset.slot ?? ''}.${(el.textContent ?? '').slice(0, 24)}`,
-          visible: el.matches(':focus-visible') && (outlineRing || fieldRing),
-        }
-      }, [fieldSlots])
+      const focus = await page.evaluate(
+        ([fieldSlots]) => {
+          const el = document.activeElement as HTMLElement | null
+          if (!el || el === document.body) return null
+          const style = getComputedStyle(el)
+          const outlineRing =
+            style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) >= 2
+          const fieldRing = fieldSlots.includes(el.dataset.slot ?? '') && style.boxShadow !== 'none'
+          return {
+            key: `${el.tagName}.${el.dataset.slot ?? ''}.${(el.textContent ?? '').slice(0, 24)}`,
+            visible: el.matches(':focus-visible') && (outlineRing || fieldRing),
+          }
+        },
+        [fieldSlots],
+      )
       if (!focus) continue
       if (focus.key === first) break // wrapped around to the first stop
       if (first === null) first = focus.key
@@ -131,6 +133,25 @@ test.describe('overlays', () => {
 
     await page.keyboard.press('Escape')
     await expect(sheet).toBeHidden()
+  })
+
+  test('the drawer traps focus and closes on Escape', async ({ page }) => {
+    await openDesign(page)
+    await page.getByRole('button', { name: 'Выдвижная панель' }).click()
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible()
+
+    for (let step = 0; step < 6; step += 1) {
+      await page.keyboard.press('Tab')
+      await expect
+        .poll(() =>
+          page.evaluate(() => !!document.activeElement?.closest('[data-slot="drawer-popup"]')),
+        )
+        .toBe(true)
+    }
+
+    await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
   })
 })
 

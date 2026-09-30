@@ -51,12 +51,12 @@
     "userMenu": "User menu",
     "back": "Back",
     "sections": "Sections",
-    "adminTitle": "Admin",
+    "adminTitle": "Ohana · Admin",
     "authNote": "The family album that is always with you"
   },
   "nav": {
     "home": "Home",
-    "diary": "Journal",
+    "journal": "Journal",
     "calendar": "Calendar",
     "wishlist": "Wishlists"
   },
@@ -109,7 +109,8 @@
       "h3": "Heading h3",
       "body": "Body text",
       "sm": "Secondary text",
-      "meta": "Metadata, mono"
+      "meta": "Metadata, mono",
+      "sample": "Monday, September 28 · Photos ×3"
     },
     "buttons": {
       "primary": "Primary",
@@ -142,6 +143,7 @@
       "sheet": "Sheet",
       "sheetTitle": "Люда's birthday",
       "sheetText": "Saturday, 3 October · the whole family · the Napoleon cake is already reserved by Дима.",
+      "drawer": "Drawer",
       "popover": "Popover",
       "menu": "Menu",
       "tooltip": "Hover me",
@@ -178,7 +180,8 @@
       "errorTitle": "Could not load",
       "errorText": "Check the network and try again.",
       "retry": "Retry",
-      "spinner": "Loading"
+      "spinner": "Loading",
+      "ok": "OK"
     },
     "lists": {
       "events": "Upcoming events",
@@ -195,6 +198,7 @@
       "dangerRow": "Delete the space",
       "linkRow": "Open settings",
       "cardTitle": "Поход к Чёртову креслу",
+      "cardMeta": "{{date}} · {{author}}",
       "cardText": "We hiked to Чёртово кресло before the weather turned. Миша took the photos — half are blurred, but these two are a miracle.",
       "cardLink": "Read the entry",
       "pickTitle": "Who is coming?",
@@ -214,7 +218,9 @@
       "authHeading": "Sign in by code",
       "authText": "Enter the four-and-four-character code.",
       "authAction": "Sign in",
-      "openInPlace": "The shells are assembled below, one after another."
+      "openInPlace": "The shells are assembled below, one after another.",
+      "sectionCount": "Visible sections",
+      "spaceToast": "The list of spaces will appear here"
     },
     "demo": {
       "spaceName": "«Наша семья»",
