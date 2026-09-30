@@ -7,10 +7,10 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Input } from '@/ui/input.tsx'
 import { toast } from '@/ui/toast.tsx'
 
-interface PasswordFields {
-  current?: string
-  next?: string
-  repeat?: string
+interface PasswordFieldErrors {
+  currentPassword?: string
+  newPassword?: string
+  repeatedPassword?: string
 }
 
 /*
@@ -21,33 +21,39 @@ interface PasswordFields {
 export function AdminPasswordForm() {
   const { t } = useTranslation()
   const changePassword = useAdminChangePassword()
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [repeat, setRepeat] = useState('')
-  const [problems, setProblems] = useState<PasswordFields>({})
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [repeatedPassword, setRepeatedPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<PasswordFieldErrors>({})
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (changePassword.isPending) return
-    const found: PasswordFields = {}
-    if (current.length === 0) found.current = t('admin.password.currentRequired')
-    if (next.length < 10) found.next = t('admin.password.newError')
-    if (repeat.length === 0 || repeat !== next) found.repeat = t('admin.password.repeatError')
-    setProblems(found)
-    if (found.current !== undefined || found.next !== undefined || found.repeat !== undefined) {
+    const failures: PasswordFieldErrors = {}
+    if (currentPassword.length === 0) failures.currentPassword = t('admin.password.currentRequired')
+    if (newPassword.length < 10) failures.newPassword = t('admin.password.newError')
+    if (repeatedPassword.length === 0 || repeatedPassword !== newPassword) {
+      failures.repeatedPassword = t('admin.password.repeatError')
+    }
+    setFieldErrors(failures)
+    if (
+      failures.currentPassword !== undefined ||
+      failures.newPassword !== undefined ||
+      failures.repeatedPassword !== undefined
+    ) {
       return
     }
     changePassword.mutate(
-      { currentPassword: current, newPassword: next },
+      { currentPassword, newPassword },
       {
         onSuccess: () => {
-          setCurrent('')
-          setNext('')
-          setRepeat('')
+          setCurrentPassword('')
+          setNewPassword('')
+          setRepeatedPassword('')
           toast(t('admin.password.success'))
         },
         onError: (error) => {
-          setProblems({ current: adminErrorMessage(error, t) })
+          setFieldErrors({ currentPassword: adminErrorMessage(error, t) })
         },
       },
     )
@@ -58,7 +64,7 @@ export function AdminPasswordForm() {
       <h3 className="px-1">{t('admin.password.title')}</h3>
       <Card>
         <form onSubmit={submit} noValidate className="flex flex-col gap-3.5">
-          <Field data-invalid={problems.current !== undefined || undefined}>
+          <Field data-invalid={fieldErrors.currentPassword !== undefined || undefined}>
             <FieldLabel htmlFor="admin-current-password">
               {t('admin.password.currentLabel')}
             </FieldLabel>
@@ -66,33 +72,35 @@ export function AdminPasswordForm() {
               id="admin-current-password"
               type="password"
               autoComplete="current-password"
-              value={current}
+              value={currentPassword}
               onChange={(event) => {
-                setCurrent(event.target.value)
-                setProblems((previous) => ({ ...previous, current: undefined }))
+                setCurrentPassword(event.target.value)
+                setFieldErrors((previous) => ({ ...previous, currentPassword: undefined }))
               }}
             />
-            {problems.current !== undefined ? <FieldError>{problems.current}</FieldError> : null}
+            {fieldErrors.currentPassword !== undefined ? (
+              <FieldError>{fieldErrors.currentPassword}</FieldError>
+            ) : null}
           </Field>
-          <Field data-invalid={problems.next !== undefined || undefined}>
+          <Field data-invalid={fieldErrors.newPassword !== undefined || undefined}>
             <FieldLabel htmlFor="admin-new-password">{t('admin.password.newLabel')}</FieldLabel>
             <Input
               id="admin-new-password"
               type="password"
               autoComplete="new-password"
-              value={next}
+              value={newPassword}
               onChange={(event) => {
-                setNext(event.target.value)
-                setProblems((previous) => ({ ...previous, next: undefined }))
+                setNewPassword(event.target.value)
+                setFieldErrors((previous) => ({ ...previous, newPassword: undefined }))
               }}
             />
-            {problems.next !== undefined ? (
-              <FieldError>{problems.next}</FieldError>
+            {fieldErrors.newPassword !== undefined ? (
+              <FieldError>{fieldErrors.newPassword}</FieldError>
             ) : (
               <FieldDescription>{t('admin.password.newHint')}</FieldDescription>
             )}
           </Field>
-          <Field data-invalid={problems.repeat !== undefined || undefined}>
+          <Field data-invalid={fieldErrors.repeatedPassword !== undefined || undefined}>
             <FieldLabel htmlFor="admin-repeat-password">
               {t('admin.password.repeatLabel')}
             </FieldLabel>
@@ -100,13 +108,15 @@ export function AdminPasswordForm() {
               id="admin-repeat-password"
               type="password"
               autoComplete="new-password"
-              value={repeat}
+              value={repeatedPassword}
               onChange={(event) => {
-                setRepeat(event.target.value)
-                setProblems((previous) => ({ ...previous, repeat: undefined }))
+                setRepeatedPassword(event.target.value)
+                setFieldErrors((previous) => ({ ...previous, repeatedPassword: undefined }))
               }}
             />
-            {problems.repeat !== undefined ? <FieldError>{problems.repeat}</FieldError> : null}
+            {fieldErrors.repeatedPassword !== undefined ? (
+              <FieldError>{fieldErrors.repeatedPassword}</FieldError>
+            ) : null}
           </Field>
           <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
             <Button type="submit" disabled={changePassword.isPending}>

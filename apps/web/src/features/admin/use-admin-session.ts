@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
+import { ApiError, assertOk } from '@/data/api-error.ts'
 
 /*
  * The administrative area is online-only (no local store): the session
@@ -11,24 +12,6 @@ import { api } from '@/data/api.ts'
 const adminSessionQueryKey = ['admin', 'session'] as const
 
 export type AdminSessionState = 'signed-in' | 'signed-out'
-
-export class AdminApiError extends Error {
-  readonly code: string
-
-  constructor(code: string) {
-    super(`The API rejected the request with ${code}`)
-    this.name = 'AdminApiError'
-    this.code = code
-  }
-}
-
-function extractErrorCode(body: unknown): string {
-  if (typeof body === 'object' && body !== null && 'error' in body) {
-    const code = (body as { error?: { code?: unknown } }).error?.code
-    if (typeof code === 'string') return code
-  }
-  return 'unexpected'
-}
 
 const adminMarker = { 'x-ohana-admin': '1' }
 
@@ -48,11 +31,11 @@ export function useAdminSignIn() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (password: string) => {
-      const { error } = await api.POST('/api/v1/admin/session', {
+      const response = await api.POST('/api/v1/admin/session', {
         body: { password },
         headers: adminMarker,
       })
-      if (error !== undefined) throw new AdminApiError(extractErrorCode(error))
+      await assertOk(response)
     },
     // Re-probe instead of patching the cache by hand (architecture rules).
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSessionQueryKey }),
@@ -63,8 +46,8 @@ export function useAdminSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      const { error } = await api.DELETE('/api/v1/admin/session', { headers: adminMarker })
-      if (error !== undefined) throw new AdminApiError(extractErrorCode(error))
+      const response = await api.DELETE('/api/v1/admin/session', { headers: adminMarker })
+      await assertOk(response)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminSessionQueryKey }),
   })
@@ -73,22 +56,37 @@ export function useAdminSignOut() {
 export function useAdminChangePassword() {
   return useMutation({
     mutationFn: async (input: { currentPassword: string; newPassword: string }) => {
-      const { error } = await api.POST('/api/v1/admin/password', {
+      const response = await api.POST('/api/v1/admin/password', {
         body: input,
         headers: adminMarker,
       })
-      if (error !== undefined) throw new AdminApiError(extractErrorCode(error))
+      await assertOk(response)
     },
   })
+}
+
+type AdminErrorKey =
+  | 'admin.errors.invalid_credentials'
+  | 'admin.errors.password_too_short'
+  | 'admin.errors.unauthorized'
+  | 'admin.errors.missing_admin_header'
+  | 'admin.errors.unexpected'
+
+const adminErrorKeys: Partial<Record<string, AdminErrorKey>> = {
+  invalid_credentials: 'admin.errors.invalid_credentials',
+  password_too_short: 'admin.errors.password_too_short',
+  unauthorized: 'admin.errors.unauthorized',
+  missing_admin_header: 'admin.errors.missing_admin_header',
 }
 
 /** Translates a stable API error code into the caller's locale. */
 export function adminErrorMessage(
   error: unknown,
-  translate: (key: 'admin.errors.invalid_credentials' | 'admin.errors.unexpected') => string,
+  translate: (key: AdminErrorKey) => string,
 ): string {
-  if (error instanceof AdminApiError && error.code === 'invalid_credentials') {
-    return translate('admin.errors.invalid_credentials')
+  if (error instanceof ApiError) {
+    const key = adminErrorKeys[error.code]
+    if (key !== undefined) return translate(key)
   }
   return translate('admin.errors.unexpected')
 }

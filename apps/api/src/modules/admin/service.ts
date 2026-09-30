@@ -2,17 +2,19 @@ import { createHash, randomBytes } from 'node:crypto'
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { hashPassword, verifyPassword } from '../../platform/password.ts'
+import { hashPassword, MIN_ADMIN_PASSWORD_LENGTH, verifyPassword } from '../../platform/password.ts'
 import {
   deleteAdminSessionByTokenHash,
   deleteAdminSessionsForAdministrator,
   deleteExpiredAdminSessions,
   getAdministrator,
+  getAdministratorById,
   getAdminSessionByTokenHash,
   insertAdministratorIfAbsent,
   insertAdminSession,
   updateAdministratorPassword,
 } from './repository.ts'
+import type { Administrator } from './tables.ts'
 
 export interface AdminDeps {
   db: Db
@@ -22,10 +24,10 @@ export interface AdminDeps {
 /** The actor attached to authenticated administrative requests. */
 export interface AdminActor {
   kind: 'admin'
+  administratorId: string
 }
 
-export const MIN_ADMIN_PASSWORD_LENGTH = 10
-export const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000
+const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000
 
 export type BootstrapResult = 'created' | 'exists' | 'unconfigured'
 
@@ -47,11 +49,25 @@ function tokenHashOf(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+/** Verifies the password against the administrator's stored hash. */
+async function requireAdministrator(
+  administrator: Administrator | undefined,
+  password: string,
+): Promise<Administrator> {
+  if (
+    administrator === undefined ||
+    !(await verifyPassword(password, administrator.passwordHash))
+  ) {
+    throw invalidCredentials()
+  }
+  return administrator
+}
+
 /**
  * Provisions the first instance administrator from deployment configuration
  * (ADR-0005). An administrator that already exists is never overwritten by
- * configuration; with no administrator and no configured password the
- * installation cannot be administered and the caller must refuse to start.
+ * configuration; with no administrator and no configured password the server
+ * warns and serves until the operator sets one.
  */
 export async function ensureInitialAdministrator(
   deps: AdminDeps,
@@ -76,13 +92,7 @@ export interface AdminSessionGrant {
 }
 
 export async function signInAdmin(deps: AdminDeps, password: string): Promise<AdminSessionGrant> {
-  const administrator = await getAdministrator(deps.db)
-  if (
-    administrator === undefined ||
-    !(await verifyPassword(password, administrator.passwordHash))
-  ) {
-    throw invalidCredentials()
-  }
+  const administrator = await requireAdministrator(await getAdministrator(deps.db), password)
   const now = deps.clock.now()
   const token = randomBytes(32).toString('base64url')
   const expiresAt = new Date(now.getTime() + ADMIN_SESSION_TTL_MS)
@@ -104,7 +114,9 @@ export async function authenticateAdmin(
 ): Promise<AdminActor | undefined> {
   if (token === undefined || token.length === 0) return undefined
   const session = await getAdminSessionByTokenHash(deps.db, tokenHashOf(token), deps.clock.now())
-  return session === undefined ? undefined : { kind: 'admin' }
+  return session === undefined
+    ? undefined
+    : { kind: 'admin', administratorId: session.administratorId }
 }
 
 export async function signOutAdmin(deps: AdminDeps, token: string | undefined): Promise<void> {
@@ -115,17 +127,15 @@ export async function signOutAdmin(deps: AdminDeps, token: string | undefined): 
 /** Changes the password from the administrative area. Ongoing sessions stay valid. */
 export async function changeAdminPassword(
   deps: AdminDeps,
+  actor: AdminActor,
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
   assertPasswordLength(newPassword)
-  const administrator = await getAdministrator(deps.db)
-  if (
-    administrator === undefined ||
-    !(await verifyPassword(currentPassword, administrator.passwordHash))
-  ) {
-    throw invalidCredentials()
-  }
+  const administrator = await requireAdministrator(
+    await getAdministratorById(deps.db, actor.administratorId),
+    currentPassword,
+  )
   const passwordHash = await hashPassword(newPassword)
   await deps.db.transaction((tx) =>
     updateAdministratorPassword(tx, administrator.id, passwordHash, deps.clock.now()),

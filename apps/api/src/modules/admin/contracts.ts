@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox'
-import { MIN_ADMIN_PASSWORD_LENGTH } from './service.ts'
+import { MIN_ADMIN_PASSWORD_LENGTH } from '../../platform/password.ts'
 
 export const SignInBodySchema = Type.Object(
   {
@@ -19,7 +19,9 @@ export const AdminMarkerHeadersSchema = Type.Object({
 
 export const ChangePasswordBodySchema = Type.Object(
   {
-    currentPassword: Type.String({ minLength: MIN_ADMIN_PASSWORD_LENGTH, maxLength: 1024 }),
+    // The current password carries no minimum: a mistyped short password must
+    // answer invalid_credentials, not a shape complaint about a new password.
+    currentPassword: Type.String({ minLength: 1, maxLength: 1024 }),
     newPassword: Type.String({ minLength: MIN_ADMIN_PASSWORD_LENGTH, maxLength: 1024 }),
   },
   { additionalProperties: false },

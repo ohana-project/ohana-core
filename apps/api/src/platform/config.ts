@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { type Static, type TSchema, Type } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
+import { MIN_ADMIN_PASSWORD_LENGTH } from './password.ts'
 
 const nodeEnv = Type.Union(
   [Type.Literal('development'), Type.Literal('test'), Type.Literal('production')],
@@ -34,7 +35,7 @@ const ConfigSchema = Type.Object({
   // The initial instance-administrator password (ADR-0005): used once to
   // provision the first administrator on first start. An administrator that
   // already exists is never overwritten by this value.
-  adminInitialPassword: Type.Optional(Type.String({ minLength: 10 })),
+  adminInitialPassword: Type.Optional(Type.String({ minLength: MIN_ADMIN_PASSWORD_LENGTH })),
 })
 
 const MigrationConfigSchema = Type.Object({ nodeEnv, logLevel, databaseUrl })

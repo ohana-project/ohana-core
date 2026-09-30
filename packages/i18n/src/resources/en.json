@@ -80,6 +80,9 @@
     },
     "errors": {
       "invalid_credentials": "Wrong password — try again",
+      "password_too_short": "At least 10 characters — this server is reachable from the internet",
+      "unauthorized": "Your session has ended — sign in again",
+      "missing_admin_header": "The request was rejected — reload the page and try again",
       "unexpected": "That did not work — check the network and try again."
     }
   },

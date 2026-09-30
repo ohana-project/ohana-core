@@ -1,0 +1,1 @@
+ALTER TABLE "administrators" ADD CONSTRAINT "administrators_singleton_true" CHECK ("administrators"."singleton");

@@ -4,7 +4,6 @@
   "scripts": {
     "dev": "tsx watch src/entrypoints/server.ts",
     "db:migrate": "tsx src/entrypoints/migrate.ts",
-    "admin:reset-password": "tsx src/entrypoints/reset-admin-password.ts",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

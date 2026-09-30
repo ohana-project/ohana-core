@@ -16,7 +16,13 @@ afterAll(async () => {
 const INITIAL_PASSWORD = 'first-admin-password'
 const MARKER = { [ADMIN_MARKER_HEADER]: '1' }
 
-/** Wipes bootstrap state so every test starts without an administrator. */
+/**
+ * Wipes bootstrap state so every test starts without an administrator. The
+ * administrator is one global row per installation (a singleton), so in the
+ * shared per-run database the only way to isolate tests is to re-establish
+ * this state in each test's arrange step — no other test may assume an
+ * administrator created elsewhere still exists.
+ */
 async function wipeAdministrators(): Promise<void> {
   await harness.db.delete(adminSessions)
   await harness.db.delete(administrators)
@@ -241,6 +247,21 @@ describe('administrative session lifecycle', () => {
       })
       expect(signedOut.statusCode).toBe(204)
       expect(signedOut.headers['set-cookie'] as string).toContain(`${ADMIN_SESSION_COOKIE}=;`)
+    })
+  })
+
+  test('sign-out with a stale cookie still clears it', async () => {
+    await freshAdmin()
+    await withApp(async (app) => {
+      const signedOut = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/admin/session',
+        cookies: { [ADMIN_SESSION_COOKIE]: 'already-expired-or-unknown-token' },
+        headers: MARKER,
+      })
+      expect(signedOut.statusCode).toBe(204)
+      expect(signedOut.headers['set-cookie'] as string).toContain(`${ADMIN_SESSION_COOKIE}=;`)
+      expect(signedOut.headers['set-cookie'] as string).toContain('Expires=Thu, 01 Jan 1970')
     })
   })
 })

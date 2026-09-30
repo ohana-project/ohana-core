@@ -44,7 +44,7 @@ src/
   db/migrations/  generated SQL, reviewed like code
 ```
 
-Modules: `spaces`, `members`, `access`, `admin`, `journal`, `calendar`, `wishlist`, `sync`, `media`, `notifications`. A module is added only for a new domain area, never for a technical concern. The `admin` module owns the instance administrator: bootstrap from deployment configuration, administrative sessions, and the administrative password, including the guards that member-facing modules mount to protect administrative routes.
+Modules: `spaces`, `members`, `access`, `admin`, `journal`, `calendar`, `wishlist`, `sync`, `media`, `notifications`. A module is added only for a new domain area, never for a technical concern. The `admin` module owns the instance administrator: bootstrap from deployment configuration, administrative sessions, and the administrative password. Its `index.ts` also publishes the administrative guards and the marker-header contract schema, because member-facing modules mount the same protection for their own administrative routes.
 
 ### Dependency rules
 
@@ -137,7 +137,7 @@ The sync conventions below are established in the foundation and must not be byp
 
 - Configuration is read once from the environment, validated with a TypeBox schema, and passed as a typed object.
 - Missing or invalid configuration stops startup with a clear message.
-- The initial instance-administrator password arrives as configuration and is used only while no administrator exists (ADR-0005); after that it is ignored, so rotating it out of the deployment environment is safe.
+- The initial instance-administrator password arrives as configuration and is used only while no administrator exists (ADR-0005); after that it is ignored, so rotating it out of the deployment environment is safe. An installation started without one serves normally but rejects every administrative sign-in until the operator sets the password and restarts.
 - Logs are structured Pino output. Access codes, session tokens, passwords, and cookies are redacted.
 
 ### Testing

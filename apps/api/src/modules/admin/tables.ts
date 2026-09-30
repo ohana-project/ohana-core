@@ -1,10 +1,12 @@
-import { boolean, index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { boolean, check, index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
 import { uuidv7 } from '../../platform/db/uuid.ts'
 
 /**
  * The instance administrator (ADR-0005). Not a space-owned table: there is
- * exactly one row per installation, which the `singleton` unique index
- * enforces, so concurrent first starts cannot create two administrators.
+ * exactly one row per installation, which the `singleton` unique index and
+ * its CHECK enforce, so concurrent first starts cannot create two
+ * administrators.
  */
 export const administrators = pgTable(
   'administrators',
@@ -17,7 +19,10 @@ export const administrators = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
   },
-  (table) => [unique('administrators_singleton_key').on(table.singleton)],
+  (table) => [
+    unique('administrators_singleton_key').on(table.singleton),
+    check('administrators_singleton_true', sql`${table.singleton}`),
+  ],
 )
 
 /**

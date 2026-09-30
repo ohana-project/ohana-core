@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, sql } from 'drizzle-orm'
+import { and, eq, gt, lt } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { type Administrator, type AdminSession, administrators, adminSessions } from './tables.ts'
 
@@ -22,6 +22,18 @@ export async function insertAdministratorIfAbsent(
 
 export async function getAdministrator(executor: Executor): Promise<Administrator | undefined> {
   const rows = await executor.select().from(administrators).limit(1)
+  return rows[0]
+}
+
+export async function getAdministratorById(
+  executor: Executor,
+  id: string,
+): Promise<Administrator | undefined> {
+  const rows = await executor
+    .select()
+    .from(administrators)
+    .where(eq(administrators.id, id))
+    .limit(1)
   return rows[0]
 }
 
@@ -93,9 +105,4 @@ export async function deleteAdminSessionsForAdministrator(
 
 export async function deleteExpiredAdminSessions(executor: Executor, now: Date): Promise<void> {
   await executor.delete(adminSessions).where(lt(adminSessions.expiresAt, now))
-}
-
-export async function countAdministrators(executor: Executor): Promise<number> {
-  const rows = await executor.select({ count: sql<number>`count(*)::int` }).from(administrators)
-  return rows[0]?.count ?? 0
 }

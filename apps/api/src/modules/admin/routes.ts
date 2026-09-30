@@ -89,17 +89,22 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminRoutesOptions> = async 
     },
   )
 
+  const sessionProtected = [adminMarkerGuard, adminSessionGuard(opts.deps)]
+
   app.get(
     '/session',
     { schema: { response: noContentSchema }, onRequest: adminSessionGuard(opts.deps) },
     async (_request, reply) => reply.code(204).send(null),
   )
 
+  // Sign-out is deliberately not session-guarded: a stale or expired cookie
+  // must still be cleared, so the route only requires the marker header and
+  // deletes the session when the token is still live.
   app.delete(
     '/session',
     {
       schema: { headers: AdminMarkerHeadersSchema, response: noContentSchema },
-      onRequest: [adminMarkerGuard, adminSessionGuard(opts.deps)],
+      onRequest: adminMarkerGuard,
     },
     async (request, reply) => {
       await signOutAdmin(opts.deps, request.cookies?.[ADMIN_SESSION_COOKIE])
@@ -116,10 +121,19 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminRoutesOptions> = async 
         headers: AdminMarkerHeadersSchema,
         response: noContentSchema,
       },
-      onRequest: [adminMarkerGuard, adminSessionGuard(opts.deps)],
+      onRequest: sessionProtected,
     },
     async (request, reply) => {
-      await changeAdminPassword(opts.deps, request.body.currentPassword, request.body.newPassword)
+      // The session guard in onRequest attaches the actor before the handler.
+      if (request.actor === undefined) {
+        throw new DomainError('unauthorized', 'An administrative session is required', 401)
+      }
+      await changeAdminPassword(
+        opts.deps,
+        request.actor,
+        request.body.currentPassword,
+        request.body.newPassword,
+      )
       return reply.code(204).send(null)
     },
   )

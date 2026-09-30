@@ -39,6 +39,29 @@ describe('password hashing', () => {
     await expect(verifyPassword('password', '$scrypt$wat=x$abc$def')).resolves.toBe(false)
   })
 
+  test('rejects stored hashes that would accept any password', async () => {
+    // An empty or truncated key segment would make the comparison of two
+    // short buffers succeed; it must read as malformed instead.
+    await expect(verifyPassword('any password', '$scrypt$n=65536,r=8,p=1$$')).resolves.toBe(false)
+    const salt = Buffer.from('0123456789abcdef').toString('base64')
+    const shortKey = Buffer.alloc(16).toString('base64')
+    await expect(
+      verifyPassword('any password', `$scrypt$n=65536,r=8,p=1$${salt}$${shortKey}`),
+    ).resolves.toBe(false)
+  })
+
+  test('rejects impossible cost parameters instead of throwing', async () => {
+    const { randomBytes } = await import('node:crypto')
+    const salt = randomBytes(16).toString('base64')
+    const key = Buffer.alloc(32).toString('base64')
+    await expect(verifyPassword('password', `$scrypt$n=100,r=8,p=1$${salt}$${key}`)).resolves.toBe(
+      false,
+    )
+    await expect(
+      verifyPassword('password', `$scrypt$n=65536,r=8,p=wat$${salt}$${key}`),
+    ).resolves.toBe(false)
+  })
+
   test('rejects malformed stored hashes instead of throwing', async () => {
     await expect(verifyPassword('password', '')).resolves.toBe(false)
     await expect(verifyPassword('password', 'plaintext')).resolves.toBe(false)

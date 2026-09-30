@@ -23,12 +23,11 @@ async function main(): Promise<void> {
     config.adminInitialPassword,
   )
   if (bootstrap === 'unconfigured') {
-    logger.error(
-      'No instance administrator exists. Set ADMIN_INITIAL_PASSWORD in the deployment configuration and start the server once to create it.',
+    // Served anyway: the installation is inert rather than broken, and the
+    // operator fixes it without editing a failing deployment.
+    logger.warn(
+      'No instance administrator exists yet. Set ADMIN_INITIAL_PASSWORD in the deployment configuration and restart the server once to create it; until then administrative sign-in is rejected.',
     )
-    process.exitCode = 1
-    await close()
-    return
   }
   if (bootstrap === 'exists' && config.adminInitialPassword !== undefined) {
     logger.info('The instance administrator already exists; ADMIN_INITIAL_PASSWORD is ignored')

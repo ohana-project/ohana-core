@@ -1,8 +1,9 @@
-import { MIN_ADMIN_PASSWORD_LENGTH, resetAdminPassword } from '../modules/admin/index.ts'
+import { resetAdminPassword } from '../modules/admin/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
 import { createLogger } from '../platform/logging.ts'
+import { MIN_ADMIN_PASSWORD_LENGTH } from '../platform/password.ts'
 
 function readPasswordArgument(): string | undefined {
   const index = process.argv.indexOf('--password')
@@ -15,7 +16,11 @@ async function readPasswordStdin(): Promise<string | undefined> {
   for await (const chunk of process.stdin) {
     chunks.push(chunk as Buffer)
   }
-  const password = Buffer.concat(chunks).toString('utf8').trimEnd()
+  // Strip only the newline a pipe adds; the password itself may contain or
+  // end with spaces.
+  const password = Buffer.concat(chunks)
+    .toString('utf8')
+    .replace(/\r?\n$/, '')
   return password.length > 0 ? password : undefined
 }
 
