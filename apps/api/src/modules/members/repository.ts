@@ -1,13 +1,24 @@
-import type { Tx } from '../../platform/db/index.ts'
+import { and, asc, eq, sql } from 'drizzle-orm'
+import type { Executor, Tx } from '../../platform/db/index.ts'
+import { notFound } from '../../platform/errors.ts'
 import { type Member, type memberRoles, members } from './tables.ts'
 
 export interface NewMember {
   name: string
   role: (typeof memberRoles)[number]
+  displayName?: string
+  email?: string
+  phone?: string
+  interfaceLanguage?: string
   revision: bigint
   now: Date
 }
 
+/**
+ * Every query on this space-owned table takes the space as its required
+ * first argument (architecture, "Space scoping"): there is no unscoped
+ * member access on the normal path.
+ */
 export async function insertMember(tx: Tx, spaceId: string, data: NewMember): Promise<Member> {
   const inserted = await tx
     .insert(members)
@@ -15,6 +26,10 @@ export async function insertMember(tx: Tx, spaceId: string, data: NewMember): Pr
       spaceId,
       name: data.name,
       role: data.role,
+      displayName: data.displayName,
+      email: data.email,
+      phone: data.phone,
+      interfaceLanguage: data.interfaceLanguage,
       revision: data.revision,
       createdAt: data.now,
       updatedAt: data.now,
@@ -22,5 +37,63 @@ export async function insertMember(tx: Tx, spaceId: string, data: NewMember): Pr
     .returning()
   const row = inserted[0]
   if (!row) throw new Error('Inserting a member returned no row')
+  return row
+}
+
+export async function listMembersInSpace(executor: Executor, spaceId: string): Promise<Member[]> {
+  return executor
+    .select()
+    .from(members)
+    .where(eq(members.spaceId, spaceId))
+    .orderBy(asc(members.createdAt), asc(members.id))
+}
+
+export async function getMemberInSpace(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<Member | undefined> {
+  const rows = await executor
+    .select()
+    .from(members)
+    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .limit(1)
+  return rows[0]
+}
+
+export async function countOwnersInSpace(executor: Executor, spaceId: string): Promise<number> {
+  const rows = await executor
+    .select({ count: sql<number>`count(*)::int` })
+    .from(members)
+    .where(and(eq(members.spaceId, spaceId), eq(members.role, 'owner')))
+  return rows[0]?.count ?? 0
+}
+
+/** Counts members per space in one grouped query, for administrative lists. */
+export async function countMembersBySpace(executor: Executor): Promise<Map<string, number>> {
+  const rows = await executor
+    .select({ spaceId: members.spaceId, count: sql<number>`count(*)::int` })
+    .from(members)
+    .groupBy(members.spaceId)
+  return new Map(rows.map((row) => [row.spaceId, row.count]))
+}
+
+export async function updateMemberRole(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  role: (typeof memberRoles)[number],
+  revision: bigint,
+  now: Date,
+): Promise<Member> {
+  const updated = await tx
+    .update(members)
+    .set({ role, revision, updatedAt: now })
+    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .returning()
+  const row = updated[0]
+  if (!row) {
+    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+  }
   return row
 }

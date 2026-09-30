@@ -14,6 +14,8 @@ import { Route as DesignRouteImport } from './routes/design'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminPasswordRouteImport } from './routes/admin/password'
+import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminSpacesSpaceIdRouteImport } from './routes/admin/spaces/$spaceId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,20 +42,34 @@ const AdminPasswordRoute = AdminPasswordRouteImport.update({
   path: '/admin/password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSpacesSpaceIdRoute = AdminSpacesSpaceIdRouteImport.update({
+  id: '/admin/spaces/$spaceId',
+  path: '/admin/spaces/$spaceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin': typeof AdminIndexRoute
+  '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,20 +77,38 @@ export interface FileRoutesById {
   '/design': typeof DesignRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/design' | '/admin/login' | '/admin/password' | '/admin/'
+  fullPaths:
+    | '/'
+    | '/design'
+    | '/admin/login'
+    | '/admin/password'
+    | '/admin/settings'
+    | '/admin/'
+    | '/admin/spaces/$spaceId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/design' | '/admin/login' | '/admin/password' | '/admin'
+  to:
+    | '/'
+    | '/design'
+    | '/admin/login'
+    | '/admin/password'
+    | '/admin/settings'
+    | '/admin'
+    | '/admin/spaces/$spaceId'
   id:
     | '__root__'
     | '/'
     | '/design'
     | '/admin/login'
     | '/admin/password'
+    | '/admin/settings'
     | '/admin/'
+    | '/admin/spaces/$spaceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -82,7 +116,9 @@ export interface RootRouteChildren {
   DesignRoute: typeof DesignRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminPasswordRoute: typeof AdminPasswordRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminSpacesSpaceIdRoute: typeof AdminSpacesSpaceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +158,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/spaces/$spaceId': {
+      id: '/admin/spaces/$spaceId'
+      path: '/admin/spaces/$spaceId'
+      fullPath: '/admin/spaces/$spaceId'
+      preLoaderRoute: typeof AdminSpacesSpaceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -130,7 +180,9 @@ const rootRouteChildren: RootRouteChildren = {
   DesignRoute: DesignRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminPasswordRoute: AdminPasswordRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminSpacesSpaceIdRoute: AdminSpacesSpaceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -223,7 +223,8 @@ Do not carry these into the implementation:
 - The `phone` and `install` icons use the same glyph.
 - `.dark-mode` in `ohana.css` is an unused selector.
 - The prototypes use inline styles for repeated patterns (row heights, the 38px icon tile, 34px avatars, section labels). In the implementation these are component variants, never one-off styles.
-- The admin login prototype's field hint promises «по умолчанию вход только с localhost»; no localhost-only restriction exists, so the implemented hint keeps only «Выдаётся при первом запуске сервера». The password screen is implemented as its own route until ticket #8 folds it into `admin-settings`.
+- The admin login prototype's field hint promises «по умолчанию вход только с localhost»; no localhost-only restriction exists, so the implemented hint keeps only «Выдаётся при первом запуске сервера». Ticket #8 folded the password screen into `admin-settings`; the old `/admin/password` address redirects there.
+- The admin-spaces prototype decorates each space row with an avatar stack of the members' monograms. The administrative spaces listing carries only a member count, not the members themselves, so the implemented rows show the space's own monogram instead. The confirmation dialog's «Сделать Диму владельцем?» declines a hard-coded name; ICU interpolation cannot decline names, so the implemented copy uses nominative-safe phrasing («{name} станет владельцем?»).
 
 ## Implementation
 

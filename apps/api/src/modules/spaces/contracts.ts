@@ -4,6 +4,7 @@ export const SpaceDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
     name: Type.String(),
+    timezone: Type.String({ minLength: 1, maxLength: 64 }),
     revision: Type.String({ pattern: '^[0-9]+$' }),
     createdAt: Type.String({ format: 'date-time' }),
     updatedAt: Type.String({ format: 'date-time' }),
@@ -13,9 +14,32 @@ export const SpaceDtoSchema = Type.Object(
 
 export type SpaceDto = Static<typeof SpaceDtoSchema>
 
-export const CreateSpaceBodySchema = Type.Object(
+export const SpaceWithMemberCountDtoSchema = Type.Object(
   {
-    name: Type.String({ minLength: 1, maxLength: 200 }),
+    ...SpaceDtoSchema.properties,
+    memberCount: Type.Number({ minimum: 0 }),
   },
   { additionalProperties: false },
 )
+
+export type SpaceWithMemberCountDto = Static<typeof SpaceWithMemberCountDtoSchema>
+
+export const CreateSpaceBodySchema = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 200 }),
+    timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  },
+  { additionalProperties: false },
+)
+
+export const UpdateSpaceBodySchema = Type.Object(
+  {
+    name: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  },
+  { additionalProperties: false },
+)
+
+export const SpaceIdParamsSchema = Type.Object({
+  spaceId: Type.String({ format: 'uuid' }),
+})
