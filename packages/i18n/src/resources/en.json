@@ -198,7 +198,7 @@
       "dangerRow": "Delete the space",
       "linkRow": "Open settings",
       "cardTitle": "Поход к Чёртову креслу",
-      "cardMeta": "{{date}} · {{author}}",
+      "cardMeta": "{date} · {author}",
       "cardText": "We hiked to Чёртово кресло before the weather turned. Миша took the photos — half are blurred, but these two are a miracle.",
       "cardLink": "Read the entry",
       "pickTitle": "Who is coming?",

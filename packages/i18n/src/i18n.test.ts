@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createI18n, defaultLocale, locales } from './index.ts'
+import en from './resources/en.json'
+import ru from './resources/ru.json'
+
+const catalogues = { ru, en }
+
+function* strings(node: unknown, path: string[] = []): Generator<[string, string]> {
+  if (typeof node === 'string') yield [path.join('.'), node]
+  else if (node && typeof node === 'object')
+    for (const [key, value] of Object.entries(node)) yield* strings(value, [...path, key])
+}
 
 describe('createI18n', () => {
   it('defaults to Russian with catalogues for every locale', () => {
@@ -20,5 +30,21 @@ describe('createI18n', () => {
     const i18n = createI18n({ locale: 'en' })
     expect(i18n.t('members.count', { count: 1 })).toBe('1 member')
     expect(i18n.t('members.count', { count: 5 })).toBe('5 members')
+  })
+
+  it.each(locales)('uses ICU single-brace interpolation in every %s string', (locale) => {
+    for (const [key, value] of strings(catalogues[locale])) {
+      expect(
+        value,
+        `${locale}: ${key} uses i18next {{ }} syntax, which ICU renders literally`,
+      ).not.toContain('{{')
+    }
+  })
+
+  it.each(locales)('interpolates the card meta line in %s', (locale) => {
+    const i18n = createI18n({ locale })
+    expect(i18n.t('designPreview.lists.cardMeta', { date: '28.09', author: 'Миша' })).toBe(
+      '28.09 · Миша',
+    )
   })
 })
