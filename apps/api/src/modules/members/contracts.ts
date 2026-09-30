@@ -4,6 +4,11 @@ export const MemberRoleSchema = Type.Union([Type.Literal('owner'), Type.Literal(
 
 export const InterfaceLanguageSchema = Type.Union([Type.Literal('ru'), Type.Literal('en')])
 
+/** Any non-whitespace character somewhere in the value; whitespace-only values fail. */
+const nameSchema = Type.String({ minLength: 1, maxLength: 200, pattern: '\\S' })
+const contactSchema = (maxLength: number) =>
+  Type.Optional(Type.String({ minLength: 3, maxLength, pattern: '\\S' }))
+
 export const MemberDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
@@ -25,11 +30,11 @@ export type MemberDto = Static<typeof MemberDtoSchema>
 
 export const ProvisionMemberBodySchema = Type.Object(
   {
-    name: Type.String({ minLength: 1, maxLength: 200 }),
+    name: nameSchema,
     role: MemberRoleSchema,
-    displayName: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-    email: Type.Optional(Type.String({ minLength: 3, maxLength: 200 })),
-    phone: Type.Optional(Type.String({ minLength: 3, maxLength: 40 })),
+    displayName: contactSchema(200),
+    email: contactSchema(200),
+    phone: contactSchema(40),
     interfaceLanguage: Type.Optional(InterfaceLanguageSchema),
   },
   { additionalProperties: false },

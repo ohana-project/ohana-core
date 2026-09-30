@@ -1,5 +1,8 @@
 import { type Static, Type } from '@sinclair/typebox'
 
+/** Any non-whitespace character somewhere in the value; whitespace-only names fail. */
+const nameSchema = Type.String({ minLength: 1, maxLength: 200, pattern: '\\S' })
+
 export const SpaceDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
@@ -26,7 +29,7 @@ export type SpaceWithMemberCountDto = Static<typeof SpaceWithMemberCountDtoSchem
 
 export const CreateSpaceBodySchema = Type.Object(
   {
-    name: Type.String({ minLength: 1, maxLength: 200 }),
+    name: nameSchema,
     timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   },
   { additionalProperties: false },
@@ -34,10 +37,10 @@ export const CreateSpaceBodySchema = Type.Object(
 
 export const UpdateSpaceBodySchema = Type.Object(
   {
-    name: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    name: Type.Optional(nameSchema),
     timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   },
-  { additionalProperties: false },
+  { additionalProperties: false, minProperties: 1 },
 )
 
 export const SpaceIdParamsSchema = Type.Object({

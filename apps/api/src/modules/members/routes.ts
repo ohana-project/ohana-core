@@ -21,11 +21,8 @@ function toMemberDto(member: Member): MemberDto {
     displayName: member.displayName ?? undefined,
     email: member.email ?? undefined,
     phone: member.phone ?? undefined,
-    interfaceLanguage:
-      member.interfaceLanguage === 'ru' || member.interfaceLanguage === 'en'
-        ? member.interfaceLanguage
-        : undefined,
-    role: member.role as 'owner' | 'regular',
+    interfaceLanguage: member.interfaceLanguage ?? undefined,
+    role: member.role,
     revision: member.revision.toString(),
     createdAt: member.createdAt.toISOString(),
     updatedAt: member.updatedAt.toISOString(),

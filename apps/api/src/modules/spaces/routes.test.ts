@@ -224,6 +224,59 @@ describe('administrative space management', () => {
     }
   })
 
+  test('stores the canonical IANA spelling of the time zone', async () => {
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/spaces',
+        payload: { name: 'Пояс', timezone: 'europe/moscow' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(201)
+      expect(response.json().timezone).toBe('Europe/Moscow')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('rejects a raw offset instead of an IANA name', async () => {
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/spaces',
+        payload: { name: 'Пояс', timezone: '+03:00' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(400)
+      expect(response.json().error.code).toBe('invalid_timezone')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('rejects a whitespace-only name', async () => {
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/spaces',
+        payload: { name: '   ' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(400)
+    } finally {
+      await app.close()
+    }
+  })
+
   test('lists spaces with member counts', async () => {
     const family = await harness.createSpace({ name: 'Список: семья' })
     const dacha = await harness.createSpace({ name: 'Список: дача' })
@@ -366,6 +419,67 @@ describe('administrative space management', () => {
         headers: MARKER,
       })
       expect(response.statusCode).toBe(401)
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+describe('no-op space updates', () => {
+  test('a patch equal to the stored values answers without spending a revision', async () => {
+    const space = await harness.createSpace({ name: 'Без изменений', timezone: 'Europe/Moscow' })
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/spaces/${space.id}`,
+        payload: { name: 'Без изменений', timezone: 'Europe/Moscow' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(200)
+      expect(response.json().revision).toBe('0')
+      const rows = await harness.db.select().from(spaces).where(eq(spaces.id, space.id))
+      expect(rows[0]?.revision).toBe(0n)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('a patch of only unchanged fields also skips the write', async () => {
+    const space = await harness.createSpace({ name: 'То же имя' })
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/spaces/${space.id}`,
+        payload: { name: 'То же имя' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(200)
+      expect(response.json().revision).toBe('0')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('an empty patch fails validation', async () => {
+    const space = await harness.createSpace()
+    const app = harness.buildTestApp()
+    await app.ready()
+    try {
+      const cookie = await signedInCookie(app)
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/spaces/${space.id}`,
+        payload: {},
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(400)
+      expect(response.json().error.code).toBe('validation_failed')
     } finally {
       await app.close()
     }

@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { syncTombstones } from '../sync/tables.ts'
@@ -6,8 +7,9 @@ import { members } from './tables.ts'
 /*
  * ADR-0016: space-owned rows reference each other through composite
  * (space_id, id) keys, so the database itself rejects a row in one space
- * pointing at a row in another. These tests pin that guarantee at the
- * lowest level, under the application logic.
+ * pointing at a row in another. The tombstone-level rejection is pinned in
+ * sync/service.test.ts; this file adds what only the members table can
+ * show, under the application logic.
  */
 
 const harness: TestHarness = await createTestHarness()
@@ -28,38 +30,26 @@ async function expectConstraint(rejection: Promise<unknown>, constraint: string)
 }
 
 describe('space-scoped database conventions', () => {
-  test('rejects a tombstone in one space that names a member of another', async () => {
+  test('a member cannot move to another space while a tombstone names it', async () => {
     const family = await harness.createSpace()
     const other = await harness.createSpace()
-    const familyMember = await harness.createMember(family.id, { name: 'Аня' })
-
-    await expectConstraint(
-      harness.db.insert(syncTombstones).values({
-        spaceId: other.id,
-        revision: 1n,
-        entity: 'member',
-        entityId: familyMember.id,
-        audience: 'member',
-        memberId: familyMember.id,
-        createdAt: harness.clock.now(),
-      }),
-      'sync_tombstones_member_space_fk',
-    )
-  })
-
-  test('accepts the same tombstone inside its own space', async () => {
-    const family = await harness.createSpace()
-    const familyMember = await harness.createMember(family.id, { name: 'Дима' })
-
+    const member = await harness.createMember(family.id, { name: 'Аня' })
     await harness.db.insert(syncTombstones).values({
       spaceId: family.id,
       revision: 1n,
       entity: 'member',
-      entityId: familyMember.id,
+      entityId: member.id,
       audience: 'member',
-      memberId: familyMember.id,
+      memberId: member.id,
       createdAt: harness.clock.now(),
     })
+
+    // Moving the row would leave the tombstone referencing a member of a
+    // space it does not name, so the composite key forbids the move.
+    await expectConstraint(
+      harness.db.update(members).set({ spaceId: other.id }).where(eq(members.id, member.id)),
+      'sync_tombstones_member_space_fk',
+    )
   })
 
   test('rejects a role outside owner and regular at the database level', async () => {
@@ -68,7 +58,8 @@ describe('space-scoped database conventions', () => {
       harness.db.insert(members).values({
         spaceId: space.id,
         name: 'Самозванец',
-        role: 'administrator',
+        // Deliberately invalid: the check constraint must reject it.
+        role: 'administrator' as unknown as 'owner' | 'regular',
         revision: 1n,
         createdAt: harness.clock.now(),
         updatedAt: harness.clock.now(),
@@ -83,7 +74,8 @@ describe('space-scoped database conventions', () => {
       harness.db.insert(members).values({
         spaceId: space.id,
         name: 'Пьер',
-        interfaceLanguage: 'fr',
+        // Deliberately invalid: the check constraint must reject it.
+        interfaceLanguage: 'fr' as unknown as 'ru' | 'en',
         role: 'regular',
         revision: 1n,
         createdAt: harness.clock.now(),

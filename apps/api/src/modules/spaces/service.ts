@@ -1,5 +1,5 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db, Executor, Tx } from '../../platform/db/index.ts'
+import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import {
   getSpaceById,
@@ -19,34 +19,37 @@ export interface SpacesDeps {
 export type SpaceWithMemberCount = Space & { memberCount: number }
 
 /**
- * The member counts arrive through the members module's public surface: the
- * spaces module never reaches into another module's tables (architecture
- * dependency rules).
+ * The port the composition root fills with the members module's
+ * administrative count: the spaces module never imports members (it sits
+ * below it in the dependency order).
  */
-export type MemberCounter = (executor: Executor) => Promise<Map<string, number>>
+export type SpaceMemberCounter = (db: Db) => Promise<Map<string, number>>
 
 /** Any IANA time zone name accepted by Intl is a valid space time zone. */
-export function isValidTimezone(zone: string): boolean {
+export function canonicalTimezone(zone: string): string | undefined {
+  // Intl also accepts raw offsets on some runtimes; a space zone is an
+  // IANA name, so offsets are rejected before the lookup.
+  if (/^[+-]/.test(zone)) return undefined
   try {
-    new Intl.DateTimeFormat('en', { timeZone: zone })
-    return true
+    return new Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone
   } catch {
-    return false
+    return undefined
   }
 }
 
-function assertTimezone(timezone: string): void {
-  if (!isValidTimezone(timezone)) {
+function assertTimezone(timezone: string): string {
+  const canonical = canonicalTimezone(timezone)
+  if (canonical === undefined) {
     throw new DomainError('invalid_timezone', `“${timezone}” is not an IANA time zone`, 400)
   }
+  return canonical
 }
 
 export async function createSpace(
   deps: SpacesDeps,
   data: { name: string; timezone?: string },
 ): Promise<Space> {
-  const timezone = data.timezone ?? 'UTC'
-  assertTimezone(timezone)
+  const timezone = assertTimezone(data.timezone ?? 'UTC')
   return deps.db.transaction((tx) =>
     insertSpace(tx, { name: data.name, timezone, now: deps.clock.now() }),
   )
@@ -54,7 +57,7 @@ export async function createSpace(
 
 export async function listSpaces(
   deps: SpacesDeps,
-  countMembers: MemberCounter,
+  countMembers: SpaceMemberCounter,
 ): Promise<SpaceWithMemberCount[]> {
   const [rows, counts] = await Promise.all([listSpaceRows(deps.db), countMembers(deps.db)])
   return rows.map((space) => ({ ...space, memberCount: counts.get(space.id) ?? 0 }))
@@ -68,13 +71,23 @@ export async function getSpace(deps: SpacesDeps, spaceId: string): Promise<Space
   return space
 }
 
+/**
+ * Renames the space or changes its time zone; the revision advances with
+ * the change in one statement. A patch that changes nothing is answered
+ * from the stored row so it does not spend a revision and force a resync.
+ */
 export async function updateSpace(
   deps: SpacesDeps,
   spaceId: string,
   changes: SpaceChanges,
 ): Promise<Space> {
-  if (changes.timezone !== undefined) assertTimezone(changes.timezone)
-  return deps.db.transaction((tx) => updateSpaceRow(tx, spaceId, changes, deps.clock.now()))
+  const timezone = changes.timezone !== undefined ? assertTimezone(changes.timezone) : undefined
+  const current = await getSpace(deps, spaceId)
+  const effective: SpaceChanges = {}
+  if (changes.name !== undefined && changes.name !== current.name) effective.name = changes.name
+  if (timezone !== undefined && timezone !== current.timezone) effective.timezone = timezone
+  if (Object.keys(effective).length === 0) return current
+  return deps.db.transaction((tx) => updateSpaceRow(tx, spaceId, effective, deps.clock.now()))
 }
 
 export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): Promise<bigint> {

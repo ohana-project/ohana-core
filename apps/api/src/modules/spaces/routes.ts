@@ -2,7 +2,6 @@ import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/ty
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
-import { countMembersBySpace } from '../members/index.ts'
 import {
   CreateSpaceBodySchema,
   type SpaceDto,
@@ -16,6 +15,7 @@ import {
   createSpace,
   getSpace,
   listSpaces,
+  type SpaceMemberCounter,
   type SpacesDeps,
   type SpaceWithMemberCount,
   updateSpace,
@@ -37,8 +37,14 @@ function toSpaceWithMemberCountDto(space: SpaceWithMemberCount): SpaceWithMember
   return { ...toSpaceDto(space), memberCount: space.memberCount }
 }
 
+/**
+ * The spaces module never imports the members module (it sits below it in
+ * the dependency order); the composition root injects the member counter
+ * when assembling the app.
+ */
 export interface SpacesRoutesOptions {
   deps: SpacesDeps
+  countMembers: SpaceMemberCounter
 }
 
 export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = async (app, opts) => {
@@ -51,7 +57,7 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
       '/spaces',
       { schema: { response: { 200: Type.Array(SpaceWithMemberCountDtoSchema) } } },
       async () => {
-        const rows = await listSpaces(opts.deps, countMembersBySpace)
+        const rows = await listSpaces(opts.deps, opts.countMembers)
         return rows.map(toSpaceWithMemberCountDto)
       },
     )

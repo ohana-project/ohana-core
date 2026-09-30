@@ -1,9 +1,10 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db, Executor } from '../../platform/db/index.ts'
+import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
+import { getSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
+import { adminCountMembersBySpace } from './admin-repository.ts'
 import {
-  countMembersBySpace as countMembersBySpaceRows,
   countOwnersInSpace,
   getMemberInSpace,
   insertMember,
@@ -56,6 +57,9 @@ export async function provisionMember(
 }
 
 export async function listMembers(deps: MembersDeps, spaceId: string): Promise<Member[]> {
+  // Members of an unknown space answer 404 like every other route that
+  // names a space, instead of an empty list.
+  await getSpace(deps, spaceId)
   return listMembersInSpace(deps.db, spaceId)
 }
 
@@ -105,7 +109,7 @@ export async function changeMemberRole(
   return updated
 }
 
-/** Counts members per space, for administrative listings in other modules. */
-export function countMembersBySpace(executor: Executor): Promise<Map<string, number>> {
-  return countMembersBySpaceRows(executor)
+/** Counts members per space across the installation, for administrative listings. */
+export function countMembersBySpace(deps: MembersDeps): Promise<Map<string, number>> {
+  return adminCountMembersBySpace(deps.db)
 }

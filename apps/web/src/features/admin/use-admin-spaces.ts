@@ -160,6 +160,7 @@ type AdminSpaceErrorKey =
   | 'admin.errors.invalid_timezone'
   | 'admin.errors.member_not_found'
   | 'admin.errors.last_owner'
+  | 'admin.errors.validation_failed'
   | 'admin.errors.unexpected'
 
 const adminSpaceErrorKeys: Partial<Record<string, AdminSpaceErrorKey>> = {
@@ -171,6 +172,7 @@ const adminSpaceErrorKeys: Partial<Record<string, AdminSpaceErrorKey>> = {
   invalid_timezone: 'admin.errors.invalid_timezone',
   member_not_found: 'admin.errors.member_not_found',
   last_owner: 'admin.errors.last_owner',
+  validation_failed: 'admin.errors.validation_failed',
 }
 
 /** Translates a stable API error code into the caller's locale. */

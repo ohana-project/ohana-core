@@ -9,7 +9,7 @@ export interface NewMember {
   displayName?: string
   email?: string
   phone?: string
-  interfaceLanguage?: string
+  interfaceLanguage?: 'ru' | 'en'
   revision: bigint
   now: Date
 }
@@ -67,15 +67,6 @@ export async function countOwnersInSpace(executor: Executor, spaceId: string): P
     .from(members)
     .where(and(eq(members.spaceId, spaceId), eq(members.role, 'owner')))
   return rows[0]?.count ?? 0
-}
-
-/** Counts members per space in one grouped query, for administrative lists. */
-export async function countMembersBySpace(executor: Executor): Promise<Map<string, number>> {
-  const rows = await executor
-    .select({ spaceId: members.spaceId, count: sql<number>`count(*)::int` })
-    .from(members)
-    .groupBy(members.spaceId)
-  return new Map(rows.map((row) => [row.spaceId, row.count]))
 }
 
 export async function updateMemberRole(

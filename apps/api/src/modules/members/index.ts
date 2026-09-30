@@ -1,4 +1,3 @@
-export { MemberRoleSchema } from './contracts.ts'
 export {
   changeMemberRole,
   countMembersBySpace,
@@ -8,4 +7,4 @@ export {
   type MembersDeps,
   provisionMember,
 } from './service.ts'
-export type { Member, memberRoles } from './tables.ts'
+export type { Member } from './tables.ts'

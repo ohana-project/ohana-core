@@ -237,6 +237,7 @@
                   "name": {
                     "minLength": 1,
                     "maxLength": 200,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "timezone": {
@@ -377,11 +378,13 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
+                "minProperties": 1,
                 "type": "object",
                 "properties": {
                   "name": {
                     "minLength": 1,
                     "maxLength": 200,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "timezone": {
@@ -584,6 +587,7 @@
                   "name": {
                     "minLength": 1,
                     "maxLength": 200,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "role": {
@@ -603,18 +607,21 @@
                     ]
                   },
                   "displayName": {
-                    "minLength": 1,
+                    "minLength": 3,
                     "maxLength": 200,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "email": {
                     "minLength": 3,
                     "maxLength": 200,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "phone": {
                     "minLength": 3,
                     "maxLength": 40,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "interfaceLanguage": {

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   type AdminMember,
@@ -284,7 +284,20 @@ function SpaceSettingsSheet({
   const [name, setName] = useState(initialName)
   const [timezone, setTimezone] = useState(initialTimezone)
   const [nameError, setNameError] = useState<string | undefined>()
-  const zones = timezoneOptions(i18n.language as 'ru' | 'en', new Date())
+  const zones = useMemo(
+    () => timezoneOptions(i18n.language as 'ru' | 'en', new Date()),
+    [i18n.language],
+  )
+
+  // Abandoned edits must not survive closing: every opening shows the
+  // space as the server currently has it.
+  useEffect(() => {
+    if (open) {
+      setName(initialName)
+      setTimezone(initialTimezone)
+      setNameError(undefined)
+    }
+  }, [open, initialName, initialTimezone])
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -293,16 +306,21 @@ function SpaceSettingsSheet({
       setNameError(t('admin.space.nameRequired'))
       return
     }
-    updateSpace.mutate(
-      { name: name.trim(), timezone },
-      {
-        onSuccess: () => {
-          onOpenChange(false)
-          toast(t('admin.space.savedToast'))
-        },
-        onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
+    // Only the changed fields travel; an unchanged sheet closes silently.
+    const changes: { name?: string; timezone?: string } = {}
+    if (name.trim() !== initialName) changes.name = name.trim()
+    if (timezone !== initialTimezone) changes.timezone = timezone
+    if (Object.keys(changes).length === 0) {
+      onOpenChange(false)
+      return
+    }
+    updateSpace.mutate(changes, {
+      onSuccess: () => {
+        onOpenChange(false)
+        toast(t('admin.space.savedToast'))
       },
-    )
+      onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
+    })
   }
 
   return (
@@ -317,6 +335,7 @@ function SpaceSettingsSheet({
             <Input
               id="space-settings-name"
               value={name}
+              maxLength={200}
               onChange={(event) => {
                 setName(event.target.value)
                 setNameError(undefined)
@@ -375,7 +394,7 @@ function ProvisionMemberSheet({
   const [interfaceLanguage, setInterfaceLanguage] = useState<'' | 'ru' | 'en'>('')
   const [nameError, setNameError] = useState<string | undefined>()
 
-  const close = () => {
+  const reset = () => {
     setName('')
     setRole('regular')
     setDisplayName('')
@@ -383,7 +402,12 @@ function ProvisionMemberSheet({
     setPhone('')
     setInterfaceLanguage('')
     setNameError(undefined)
-    onOpenChange(false)
+  }
+
+  // Abandoned edits must not survive closing, whatever closed the sheet.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) reset()
+    onOpenChange(next)
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -404,7 +428,7 @@ function ProvisionMemberSheet({
       },
       {
         onSuccess: () => {
-          close()
+          handleOpenChange(false)
           toast(t('admin.space.addedToast'))
         },
         onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
@@ -413,7 +437,7 @@ function ProvisionMemberSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{t('admin.space.addMemberTitle')}</SheetTitle>
@@ -427,6 +451,7 @@ function ProvisionMemberSheet({
             <Input
               id="provision-member-name"
               value={name}
+              maxLength={200}
               onChange={(event) => {
                 setName(event.target.value)
                 setNameError(undefined)
@@ -457,6 +482,7 @@ function ProvisionMemberSheet({
             <Input
               id="provision-member-display-name"
               value={displayName}
+              maxLength={200}
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </Field>
@@ -466,6 +492,7 @@ function ProvisionMemberSheet({
               id="provision-member-email"
               type="email"
               value={email}
+              maxLength={200}
               onChange={(event) => setEmail(event.target.value)}
             />
           </Field>
@@ -475,6 +502,7 @@ function ProvisionMemberSheet({
               id="provision-member-phone"
               type="tel"
               value={phone}
+              maxLength={40}
               onChange={(event) => setPhone(event.target.value)}
             />
           </Field>

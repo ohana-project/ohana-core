@@ -84,7 +84,10 @@ describe('POST /api/v1/spaces/:spaceId/members', () => {
       })
       expect(response.statusCode).toBe(403)
       expect(response.json().error.code).toBe('missing_admin_header')
-      const rows = await harness.db.select({ id: members.id }).from(members)
+      const rows = await harness.db
+        .select({ id: members.id })
+        .from(members)
+        .where(eq(members.spaceId, space.id))
       expect(rows).toHaveLength(0)
     })
   })
@@ -185,6 +188,20 @@ describe('POST /api/v1/spaces/:spaceId/members', () => {
       expect(response.statusCode).toBe(400)
     })
   })
+
+  test('rejects a whitespace-only name', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/v1/spaces/${space.id}/members`,
+        payload: { name: '   ', role: 'owner' },
+        headers: { cookie, ...MARKER },
+      })
+      expect(response.statusCode).toBe(400)
+    })
+  })
 })
 
 describe('GET /api/v1/spaces/:spaceId/members', () => {
@@ -219,12 +236,25 @@ describe('GET /api/v1/spaces/:spaceId/members', () => {
       expect(response.statusCode).toBe(401)
     })
   })
+
+  test('answers space_not_found for an unknown space', async () => {
+    await withApp(async (app) => {
+      const cookie = await signInAndGetCookie(app)
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/spaces/00000000-0000-7000-8000-000000000000/members',
+        headers: { cookie },
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('space_not_found')
+    })
+  })
 })
 
 describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
   test('promotes a regular member to owner and advances the space revision', async () => {
     const space = await harness.createSpace()
-    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
     const dima = await harness.createMember(space.id, { name: 'Дима' })
     const before = await spaceRevision(space.id)
     await withApp(async (app) => {
@@ -240,10 +270,12 @@ describe('PATCH /api/v1/spaces/:spaceId/members/:memberId', () => {
       expect(await spaceRevision(space.id)).toBe(before + 1n)
     })
     const rows = await harness.db
-      .select({ role: members.role })
+      .select({ role: members.role, revision: members.revision })
       .from(members)
-      .where(eq(members.id, anya.id))
+      .where(eq(members.id, dima.id))
     expect(rows[0]?.role).toBe('owner')
+    // The promoted row is stamped with the revision it was written at.
+    expect(rows[0]?.revision).toBe(before + 1n)
   })
 
   test('refuses to remove the owner role from the last owner', async () => {

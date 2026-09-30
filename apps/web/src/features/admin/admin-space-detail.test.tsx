@@ -83,7 +83,7 @@ describe('AdminSpaceDetail', () => {
     expect(screen.getByText('Аня')).toBeInTheDocument()
     expect(screen.getByText('Аня Смирнова · anya@example.com')).toBeInTheDocument()
     expect(screen.getByText('Владелец')).toBeInTheDocument()
-    expect(screen.getByText('Участник')).toBeInTheDocument()
+    expect(screen.getByText('Обычный участник')).toBeInTheDocument()
     expect(
       screen.getByText('Роль владельца можно передать, но не снять с последнего'),
     ).toBeInTheDocument()
@@ -148,14 +148,27 @@ describe('AdminSpaceDetail', () => {
     await user.type(nameInput, 'Семья Смирновых')
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
+    // Only the changed field travels; the time zone stayed as it was.
     expect(apiPatch).toHaveBeenCalledWith(
       '/api/v1/spaces/{spaceId}',
       expect.objectContaining({
         params: { path: { spaceId: SPACE_ID } },
-        body: { name: 'Семья Смирновых', timezone: 'Europe/Moscow' },
+        body: { name: 'Семья Смирновых' },
         headers: expect.objectContaining({ 'x-ohana-admin': '1' }),
       }),
     )
+  })
+
+  it('sends nothing when the settings sheet saves unchanged values', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Настройки' }))
+    await screen.findByLabelText('Название')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(apiPatch).not.toHaveBeenCalled()
   })
 
   it('offers no demotion while an owner is the only one', async () => {

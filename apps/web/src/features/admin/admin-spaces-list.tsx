@@ -144,6 +144,15 @@ export function CreateSpaceSheet({
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState<string | undefined>()
 
+  // Abandoned edits must not survive closing, whatever closed the sheet.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      setName('')
+      setNameError(undefined)
+    }
+    onOpenChange(next)
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (createSpace.isPending) return
@@ -155,9 +164,7 @@ export function CreateSpaceSheet({
       { name: name.trim() },
       {
         onSuccess: () => {
-          setName('')
-          setNameError(undefined)
-          onOpenChange(false)
+          handleOpenChange(false)
           toast(t('admin.spaces.createdToast'))
         },
         onError: (error) => setNameError(adminSpaceErrorMessage(error, t)),
@@ -166,7 +173,7 @@ export function CreateSpaceSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{t('admin.spaces.newTitle')}</SheetTitle>
@@ -178,6 +185,7 @@ export function CreateSpaceSheet({
             <Input
               id="new-space-name"
               value={name}
+              maxLength={200}
               placeholder={t('admin.spaces.namePlaceholder')}
               onChange={(event) => {
                 setName(event.target.value)
