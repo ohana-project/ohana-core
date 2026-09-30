@@ -1,4 +1,10 @@
-export { type AccessCodeStatus, MEMBER_HEADER, MemberHeadersSchema } from './contracts.ts'
+export {
+  type AccessCodeStatus,
+  MEMBER_HEADER,
+  MemberHeadersSchema,
+  type MemberSessionDto,
+  MemberSessionDtoSchema,
+} from './contracts.ts'
 export {
   type AccessRoutesOptions,
   accessRoutes,
@@ -14,18 +20,23 @@ export {
   type AccessCodeListItem,
   type AccessDeps,
   authenticateMember,
+  describeDevice,
   formatAccessCode,
   generateAccessCode,
   type IssuedAccessCode,
   issueAccessCode,
   listAccessCodes,
+  listMemberSessions,
+  MEMBER_SESSION_TOUCH_INTERVAL_MS,
   MEMBER_SESSION_TTL_MS,
   type MemberAccount,
   type MemberActor,
+  type MemberSessionListItem,
   normalizeAccessCode,
   type RedeemResult,
   redeemAccessCode,
   revokeAccessCode,
+  revokeMemberSession,
   signOutMember,
 } from './service.ts'
 export type { AccessCode } from './tables.ts'

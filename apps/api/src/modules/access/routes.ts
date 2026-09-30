@@ -9,8 +9,11 @@ import {
   AccessCodeParamsSchema,
   IssuedAccessCodeDtoSchema,
   MEMBER_HEADER,
+  MemberHeadersSchema,
+  MemberSessionDtoSchema,
   type MemberSessionHeaders,
   MemberSessionHeadersSchema,
+  MemberSessionParamsSchema,
   RedeemBodySchema,
   RedeemResponseSchema,
   SpaceIdParamsSchema,
@@ -21,9 +24,11 @@ import {
   authenticateMember,
   issueAccessCode,
   listAccessCodes,
+  listMemberSessions,
   type MemberActor,
   redeemAccessCode,
   revokeAccessCode,
+  revokeMemberSession,
   signOutMember,
 } from './service.ts'
 
@@ -85,6 +90,24 @@ export interface AccessRoutesOptions {
   deps: AccessDeps
 }
 
+function toMemberSessionDto(
+  item: {
+    id: string
+    device: string
+    createdAt: Date
+    lastUsedAt: Date
+  },
+  currentSessionId: string,
+) {
+  return {
+    id: item.id,
+    device: item.device,
+    createdAt: item.createdAt.toISOString(),
+    lastUsedAt: item.lastUsedAt.toISOString(),
+    current: item.id === currentSessionId,
+  }
+}
+
 export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = async (app, opts) => {
   // Redemption is the one unauthenticated member route: the code is the
   // credential. SameSite cookies and same-origin serving stay the CSRF
@@ -98,7 +121,12 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
       },
     },
     async (request, reply) => {
-      const result = await redeemAccessCode(opts.deps, request.body.code)
+      const userAgent = request.headers['user-agent']
+      const result = await redeemAccessCode(
+        opts.deps,
+        request.body.code,
+        Array.isArray(userAgent) ? userAgent[0] : userAgent,
+      )
       reply.setCookie(memberSessionCookieName(result.memberId), result.token, {
         ...cookieOptions,
         expires: result.expiresAt,
@@ -180,6 +208,51 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
         const { spaceId, codeId } = request.params
         const revoked = await revokeAccessCode(opts.deps, spaceId, codeId)
         return toAccessCodeDto(revoked)
+      },
+    )
+  })
+
+  // The member's own device review (ADR-0005): the guard is the same one
+  // other modules mount, published here for the access module's own
+  // member-facing routes. The space and member always come from the actor.
+  await app.register((memberArea: FastifyInstance) => {
+    const scoped = memberArea.withTypeProvider<TypeBoxTypeProvider>()
+    scoped.addHook('onRequest', memberSessionGuard(opts.deps))
+
+    scoped.get(
+      '/me/sessions',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          response: { 200: Type.Array(MemberSessionDtoSchema) },
+        },
+      },
+      async (request) => {
+        const actor = requireMemberActor(request)
+        const rows = await listMemberSessions(opts.deps, actor.spaceId, actor.memberId)
+        return rows.map((row) => toMemberSessionDto(row, actor.sessionId))
+      },
+    )
+
+    scoped.delete(
+      '/me/sessions/:sessionId',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberSessionParamsSchema,
+          response: { 204: Type.Null() },
+        },
+      },
+      async (request, reply) => {
+        const actor = requireMemberActor(request)
+        const { sessionId } = request.params
+        await revokeMemberSession(opts.deps, actor.spaceId, actor.memberId, sessionId)
+        // Revoking the session that made the request is also a sign-out on
+        // this device: the cookie goes with it.
+        if (sessionId === actor.sessionId) {
+          reply.clearCookie(memberSessionCookieName(actor.memberId), cookieOptions)
+        }
+        return reply.code(204).send(null)
       },
     )
   })
