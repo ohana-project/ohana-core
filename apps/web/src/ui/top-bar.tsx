@@ -61,7 +61,7 @@ export function TopBar({
                 type="button"
                 aria-label={t('layout.space')}
                 onClick={onSpaceClick}
-                className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full px-1.5 outline-none transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
+                className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
               />
             }
           >
@@ -79,7 +79,7 @@ export function TopBar({
           type="button"
           aria-label={t('layout.space')}
           onClick={onSpaceClick}
-          className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full outline-none desktop:hidden"
+          className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full desktop:hidden"
         >
           <AvatarStack className="-ml-1">
             {space.marks.slice(0, 2).map((mark) => (
@@ -115,7 +115,7 @@ function UserMenu({ items }: { items: ShellUserMenuItem[] }) {
             type="button"
             aria-label={t('layout.userMenu')}
             aria-haspopup="menu"
-            className="grid size-11 shrink-0 place-items-center rounded-full outline-none transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
+            className="grid size-11 shrink-0 place-items-center rounded-full transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
           />
         }
       >

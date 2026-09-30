@@ -19,7 +19,7 @@ export function Fab({
       type="button"
       data-slot="fab"
       className={cn(
-        'fab fixed right-4 bottom-[calc(var(--tabbar-h)+20px)] z-35 grid size-14 place-items-center rounded-full outline-none desktop:hidden',
+        'fab fixed right-4 bottom-[calc(var(--tabbar-h)+20px)] z-35 grid size-14 place-items-center rounded-full desktop:hidden',
         className,
       )}
       {...props}

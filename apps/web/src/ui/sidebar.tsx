@@ -46,7 +46,7 @@ export function Sidebar({
         type="button"
         data-slot="side-space"
         onClick={onSpaceClick}
-        className="flex w-full items-center gap-2.5 px-3.5 pt-3.5 pb-2.5 text-left outline-none transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
+        className="flex w-full items-center gap-2.5 px-3.5 pt-3.5 pb-2.5 text-left transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
       >
         <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (
@@ -77,7 +77,7 @@ export function Sidebar({
               aria-current={active ? 'page' : undefined}
               onClick={() => onSectionClick?.(section.id)}
               className={cn(
-                'flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[15px] font-medium outline-none transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent hover:text-foreground',
+                'flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[15px] font-medium transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent hover:text-foreground',
                 active ? 'bg-primary-soft text-primary' : 'text-muted-foreground',
               )}
             >

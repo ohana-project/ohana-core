@@ -57,30 +57,39 @@ test.describe('layout holds from 360px to 1440px', () => {
 })
 
 test.describe('keyboard focus', () => {
-  test('a focus ring is visible while tabbing through interactive components', async ({ page }) => {
+  test('every tab stop shows a visible focus indicator', async ({ page }) => {
     await openDesign(page)
     await page.evaluate(() => document.body.focus())
-    let ringCount = 0
-    for (let step = 0; step < 12; step += 1) {
+
+    // fields replace the outline with their own focus ring, so accept
+    // either indicator (README "Accessibility")
+    const fieldSlots = ['input', 'textarea', 'code-input']
+    let first: string | null = null
+    let stops = 0
+    let withRing = 0
+    for (let step = 0; step < 200; step += 1) {
       await page.keyboard.press('Tab')
-      const focus = await page.evaluate(() => {
+      const focus = await page.evaluate(([fieldSlots]) => {
         const el = document.activeElement as HTMLElement | null
         if (!el || el === document.body) return null
         const style = getComputedStyle(el)
+        const outlineRing =
+          style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) >= 2
+        const fieldRing =
+          fieldSlots.includes(el.dataset.slot ?? '') && style.boxShadow !== 'none'
         return {
-          matchesFocusVisible: el.matches(':focus-visible'),
-          outlineWidth: style.outlineWidth,
-          outlineStyle: style.outlineStyle,
-          outlineColor: style.outlineColor,
+          key: `${el.tagName}.${el.dataset.slot ?? ''}.${(el.textContent ?? '').slice(0, 24)}`,
+          visible: el.matches(':focus-visible') && (outlineRing || fieldRing),
         }
-      })
+      }, [fieldSlots])
       if (!focus) continue
-      expect(focus.matchesFocusVisible, `tab step ${step}`).toBe(true)
-      expect(focus.outlineStyle, `tab step ${step}`).not.toBe('none')
-      expect(parseInt(focus.outlineWidth, 10)).toBeGreaterThanOrEqual(2)
-      ringCount += 1
+      if (focus.key === first) break // wrapped around to the first stop
+      if (first === null) first = focus.key
+      stops += 1
+      expect(focus.visible, `tab stop ${stops}: ${focus.key}`).toBe(true)
+      withRing += 1
     }
-    expect(ringCount).toBeGreaterThanOrEqual(8)
+    expect(withRing, 'the page has dozens of interactive components').toBeGreaterThanOrEqual(30)
   })
 })
 

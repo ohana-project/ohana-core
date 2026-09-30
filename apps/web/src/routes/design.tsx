@@ -756,7 +756,7 @@ function ListsSection() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <a href="#lists" className="group/link block rounded-lg outline-none">
+          <a href="#lists" className="group/link block rounded-lg">
             <Card className="transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) group-hover/link:-translate-y-px group-hover/link:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] group-hover/link:shadow-2">
               <CardHeader>
                 <CardTitle>{t('designPreview.lists.cardTitle')}</CardTitle>
