@@ -138,19 +138,24 @@ export async function publishDraft(
       actor.spaceId,
       {
         writes: async (writeTx, revision) => {
-          published = await publishEntry(writeTx, actor.spaceId, entryId, now, revision, now)
+          const row = await publishEntry(writeTx, actor.spaceId, entryId, now, revision, now)
+          if (row === undefined) {
+            // Unreachable while the state check above read the entry under
+            // the space row lock; inside the transaction, so even this
+            // impossible race would spend no revision.
+            throw new DomainError(
+              'entry_already_published',
+              `Journal entry ${entryId} is already published`,
+              409,
+            )
+          }
+          published = row
         },
       },
       now,
     )
   })
-  if (published === undefined) {
-    throw new DomainError(
-      'entry_already_published',
-      `Journal entry ${entryId} is already published`,
-      409,
-    )
-  }
+  if (published === undefined) throw new Error('Publishing a journal entry produced no row')
   return published
 }
 

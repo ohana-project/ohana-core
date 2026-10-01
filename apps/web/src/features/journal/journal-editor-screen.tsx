@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getActiveMemberId } from '@/data/session-registry.ts'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -69,7 +70,9 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
 
   const me = session.me?.member
   const displayName = me?.displayName ?? me?.name ?? ''
-  const mine = existing === undefined || existing.authorId === me?.id
+  // The registry's active id is the one source of "is this mine", the same
+  // the entry screen reads.
+  const mine = existing === undefined || existing.authorId === getActiveMemberId()
 
   const goBackToFeed = () => void navigate({ to: '/journal' })
 

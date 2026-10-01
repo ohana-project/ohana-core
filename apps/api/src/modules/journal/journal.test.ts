@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from 'vitest'
+import { fixedClock } from '../../platform/clock.ts'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import {
   ADMIN_MARKER_HEADER,
@@ -6,6 +7,7 @@ import {
   ensureInitialAdministrator,
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
+import { updateEntryText } from './service.ts'
 
 const harness: TestHarness = await createTestHarness()
 afterAll(async () => {
@@ -588,8 +590,8 @@ describe('the hidden journal section (ADR-0011)', () => {
       expect(write.status).toBe(404)
       expect((write.body as { error: { code: string } }).error.code).toBe('section_hidden')
 
-      // The in-transaction recheck refuses the other writes the same way,
-      // after the section gate has already answered the reads.
+      // The section gate refuses the other writes the same way, before
+      // any handler runs.
       const edit = await patchEntry(app, regular, entry.id, { text: 'правка при скрытом' })
       expect(edit.status).toBe(404)
       expect((edit.body as { error: { code: string } }).error.code).toBe('section_hidden')
@@ -597,6 +599,17 @@ describe('the hidden journal section (ADR-0011)', () => {
       const publish = await publishEntry(app, regular, entry.id)
       expect(publish.status).toBe(404)
       expect((publish.body as { error: { code: string } }).error.code).toBe('section_hidden')
+
+      // The in-transaction recheck is what a request that slips past the
+      // gate meets: the use case, called directly, refuses the same way —
+      // a hide that commits alongside the write is still honoured.
+      const refused = await updateEntryText(
+        { db: harness.db, clock: fixedClock() },
+        { memberId: regular.memberId, spaceId: space.id },
+        entry.id,
+        { text: 'правка мимо гейта' },
+      ).catch((error: unknown) => error)
+      expect(refused).toMatchObject({ name: 'DomainError', code: 'section_hidden' })
 
       // Hiding keeps the data: showing restores the feed as it was.
       await setJournalVisible(app, owner, true)

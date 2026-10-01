@@ -153,6 +153,64 @@ describe('JournalDraftsScreen', () => {
     expect(await screen.findByText('Опубликовано в дневнике семьи')).toBeInTheDocument()
   })
 
+  it('one publish in flight does not disable the other rows', async () => {
+    seedRegistry()
+    const held = draft({
+      id: '01900000-0000-7000-8000-000000000201',
+      title: 'Долгая правка',
+      updatedAt: '2026-09-20T10:00:00.000Z',
+    })
+    const free = draft({
+      id: '01900000-0000-7000-8000-000000000202',
+      title: 'Быстрая правка',
+    })
+    await applySyncResult(ME, syncResult([held, free]))
+
+    let releaseHeld: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      releaseHeld = resolve
+    })
+    apiPost.mockImplementation(
+      async (
+        path: never,
+        opts?: { params?: { path?: { entryId?: string } } },
+      ): Promise<{ data: unknown; error: undefined; response: Response }> => {
+        if (path === '/api/v1/journal/entries/{entryId}/publish') {
+          const publishedId = opts?.params?.path?.entryId
+          if (publishedId === held.id) await gate
+          const published = publishedId === held.id ? held : free
+          return {
+            data: { ...published, state: 'published', publishedAt: '2026-10-01T09:00:00.000Z' },
+            error: undefined,
+            response: new Response(null, { status: 200 }),
+          }
+        }
+        throw new Error(`Unexpected POST ${String(path)}`)
+      },
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<JournalDraftsScreen />)
+
+    // The rows publish independently: while the first publish hangs, the
+    // other row keeps its own enabled mutation, and both toasts land.
+    const buttons = await screen.findAllByRole('button', { name: 'Опубликовать' })
+    expect(buttons).toHaveLength(2)
+
+    await user.click(buttons[1] as HTMLButtonElement)
+    await waitFor(() => expect(buttons[1]).toBeDisabled())
+    expect(buttons[0]).toBeEnabled()
+
+    // The other row publishes through its own mutation meanwhile, and its
+    // toast lands while the first is still in flight.
+    await user.click(buttons[0] as HTMLButtonElement)
+    expect(await screen.findByText('Опубликовано в дневнике семьи')).toBeInTheDocument()
+
+    releaseHeld?.()
+    await waitFor(() => expect(apiPost).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(buttons[1]).toBeEnabled())
+    expect(screen.getAllByText('Опубликовано в дневнике семьи').length).toBeGreaterThanOrEqual(1)
+  })
+
   it('offers the first entry when there are no drafts', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([]))

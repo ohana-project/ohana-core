@@ -278,6 +278,29 @@ describe('the per-member local store', () => {
     expect(upgraded.revision).toBe('7')
   })
 
+  test('a version 1 partition without a cursor stays honestly empty after the upgrade', async () => {
+    // A device whose first apply never committed holds the stores but no
+    // cursor; the upgrade must not write one, or the screens would claim
+    // empty sections for data the device does not hold.
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${ANYA}`, 1)
+      request.onupgradeneeded = () => {
+        const upgrading = request.result
+        upgrading.createObjectStore('space', { keyPath: 'id' })
+        upgrading.createObjectStore('members', { keyPath: 'id' })
+        upgrading.createObjectStore('meta', { keyPath: 'key' })
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
+    })
+    db.close()
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.revision).toBeUndefined()
+    expect(snapshot.entries).toEqual([])
+    expect(snapshot.members).toEqual([])
+  })
+
   test('each member reads only their own partition, and sign-out deletes it whole', async () => {
     await applySyncResult(ANYA, syncResult())
     await applySyncResult(DIMA, syncResult())

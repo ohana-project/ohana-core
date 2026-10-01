@@ -9,9 +9,11 @@ import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
  * The journal's server data (issue #15): reads come from the member's
  * synchronised partition — the same answer online and offline (ADR-0002) —
  * and the three mutations go to the API through the generated client. A
- * successful mutation triggers a sync; the sync's application invalidates
- * the screens' snapshot, so no hook here patches the cache by hand
- * (architecture.md, web rules).
+ * mutation triggers a sync on success and on failure alike: the store then
+ * learns the change the ordinary way, and a refusal from a stale row
+ * (already published elsewhere, removed) clears itself instead of
+ * lingering (architecture.md, web rules — no hook here patches the cache
+ * by hand).
  */
 
 export type CreatedEntry =
@@ -47,6 +49,7 @@ export function useCreateDraft() {
       return response.data
     },
     onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
   })
 }
 
@@ -63,6 +66,7 @@ export function useUpdateEntry() {
       return response.data
     },
     onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
   })
 }
 
@@ -78,6 +82,7 @@ export function usePublishEntry() {
       return response.data
     },
     onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
   })
 }
 

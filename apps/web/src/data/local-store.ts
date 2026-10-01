@@ -91,8 +91,18 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
         // A version 1 device advanced its cursor while ignoring
         // journal_entry changes, so a delta would never deliver the
         // entries past it. The reset makes the next sync replay from
-        // revision 0, the same move a re-shown section makes.
-        request.transaction?.objectStore('meta').put({ key: 'cursor', revision: '0' })
+        // revision 0, the same move a re-shown section makes. A partition
+        // whose first apply never committed holds no cursor, and stays
+        // honestly empty: resetting it would claim data it does not hold.
+        const meta = request.transaction?.objectStore('meta')
+        if (meta !== undefined) {
+          const read = meta.get('cursor')
+          read.onsuccess = () => {
+            if (read.result !== undefined) {
+              meta.put({ key: 'cursor', revision: '0' })
+            }
+          }
+        }
       }
     }
     request.onsuccess = () => resolve(request.result)

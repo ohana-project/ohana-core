@@ -263,6 +263,7 @@ describe('JournalScreen (the shared feed)', () => {
     // not with an empty feed, and offers no way to write into a hidden
     // section.
     expect(await screen.findByText('Раздел скрыт владельцем пространства.')).toBeInTheDocument()
+    expect(screen.getByText(/Ничего не удалено/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Новая запись' })).not.toBeInTheDocument()
   })
 })
