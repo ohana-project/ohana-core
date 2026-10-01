@@ -200,15 +200,39 @@ describe('JournalDraftsScreen', () => {
     await waitFor(() => expect(buttons[1]).toBeDisabled())
     expect(buttons[0]).toBeEnabled()
 
-    // The other row publishes through its own mutation meanwhile, and its
-    // toast lands while the first is still in flight.
     await user.click(buttons[0] as HTMLButtonElement)
     expect(await screen.findByText('Опубликовано в дневнике семьи')).toBeInTheDocument()
+    expect(apiPost).toHaveBeenCalledTimes(2)
 
     releaseHeld?.()
-    await waitFor(() => expect(apiPost).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(buttons[1]).toBeEnabled())
-    expect(screen.getAllByText('Опубликовано в дневнике семьи').length).toBeGreaterThanOrEqual(1)
+    await waitFor(() =>
+      expect(screen.getAllByText('Опубликовано в дневнике семьи')).toHaveLength(2),
+    )
+  })
+
+  it('a refused publish still triggers the sync, so a stale row clears itself', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([draft()]))
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries/{entryId}/publish') {
+        return {
+          data: undefined,
+          error: { error: { code: 'entry_already_published', message: 'Already shared' } },
+          response: new Response(null, { status: 409 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<JournalDraftsScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Опубликовать' }))
+
+    expect(await screen.findByText('Эта запись уже опубликована.')).toBeInTheDocument()
+    // The refusal is what carries the refresh: the sync ran although
+    // nothing succeeded.
+    expect(triggerSyncMock).toHaveBeenCalledTimes(1)
   })
 
   it('offers the first entry when there are no drafts', async () => {

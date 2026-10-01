@@ -236,6 +236,32 @@ describe('JournalScreen (the shared feed)', () => {
     expect(screen.getByRole('button', { name: 'Написать первую запись' })).toBeInTheDocument()
   })
 
+  it('says nothing is downloaded while the upgrade replay has not landed', async () => {
+    seedRegistry()
+    // A store upgrade wrote the replay promise: cursor '0', entries store
+    // not filled yet. "The journal is empty" would be a claim the device
+    // cannot make (ADR-0014).
+    await applySyncResult(ME, {
+      revision: '0',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    mockQuietSync()
+    renderWithProviders(<JournalScreen />)
+
+    expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
+  })
+
   it('says the section is hidden instead of showing a feed for it', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([entry()]))

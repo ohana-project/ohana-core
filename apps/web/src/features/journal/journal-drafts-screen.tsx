@@ -29,7 +29,7 @@ import { journalErrorMessage, useJournalData, usePublishEntry } from './use-jour
 export function JournalDraftsScreen() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { snapshot, entries } = useJournalData()
+  const { snapshot, entries, downloaded } = useJournalData()
   const drafts = journalDrafts(entries)
 
   return (
@@ -40,7 +40,7 @@ export function JournalDraftsScreen() {
           <p className="mt-1 text-muted-foreground">{t('journal.draftsSubtitle')}</p>
         </header>
 
-        {snapshot.isPending ? null : snapshot.data?.revision === undefined ? (
+        {snapshot.isPending ? null : !downloaded ? (
           // Nothing is downloaded: "no drafts" would be a claim the device
           // cannot make (ADR-0002).
           <Card>

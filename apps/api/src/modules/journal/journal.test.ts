@@ -7,7 +7,7 @@ import {
   ensureInitialAdministrator,
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
-import { updateEntryText } from './service.ts'
+import { createDraft, publishDraft, updateEntryText } from './service.ts'
 
 const harness: TestHarness = await createTestHarness()
 afterAll(async () => {
@@ -601,15 +601,22 @@ describe('the hidden journal section (ADR-0011)', () => {
       expect((publish.body as { error: { code: string } }).error.code).toBe('section_hidden')
 
       // The in-transaction recheck is what a request that slips past the
-      // gate meets: the use case, called directly, refuses the same way —
-      // a hide that commits alongside the write is still honoured.
-      const refused = await updateEntryText(
-        { db: harness.db, clock: fixedClock() },
-        { memberId: regular.memberId, spaceId: space.id },
-        entry.id,
-        { text: 'правка мимо гейта' },
-      ).catch((error: unknown) => error)
-      expect(refused).toMatchObject({ name: 'DomainError', code: 'section_hidden' })
+      // gate meets: each write use case, called directly, refuses the same
+      // way. The test is sequential — it pins that the recheck exists, not
+      // the lock ordering that makes it sound.
+      const deps = { db: harness.db, clock: fixedClock() }
+      const actor = { memberId: regular.memberId, spaceId: space.id }
+      for (const [name, useCase] of [
+        [
+          'updateEntryText',
+          () => updateEntryText(deps, actor, entry.id, { text: 'правка мимо гейта' }),
+        ],
+        ['createDraft', () => createDraft(deps, actor, { text: 'новая при скрытом' })],
+        ['publishDraft', () => publishDraft(deps, actor, entry.id)],
+      ] as const) {
+        const refused = await useCase().catch((error: unknown) => error)
+        expect(refused, name).toMatchObject({ name: 'DomainError', code: 'section_hidden' })
+      }
 
       // Hiding keeps the data: showing restores the feed as it was.
       await setJournalVisible(app, owner, true)

@@ -12,8 +12,9 @@ import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
  * mutation triggers a sync on success and on failure alike: the store then
  * learns the change the ordinary way, and a refusal from a stale row
  * (already published elsewhere, removed) clears itself instead of
- * lingering (architecture.md, web rules — no hook here patches the cache
- * by hand).
+ * lingering. The round-trip after a plain validation error is accepted as
+ * the price of one rule for every settlement (architecture.md, web rules
+ * — no hook here patches the cache by hand).
  */
 
 export type CreatedEntry =
@@ -31,12 +32,19 @@ export interface JournalInput {
 export const ENTRY_TITLE_MAX_LENGTH = 200
 export const ENTRY_TEXT_MAX_LENGTH = 20_000
 
-/** The synchronised entries and profiles the journal screens read. */
+/**
+ * The synchronised entries and profiles the journal screens read, plus
+ * whether the partition actually holds journal data: a cursor of '0' is
+ * the replay promise an upgrade or a re-shown section wrote (ADR-0014) —
+ * the entries store has not been filled yet, and "empty" would be a claim
+ * the device cannot make.
+ */
 export function useJournalData() {
   const snapshot = useSyncedSpace()
   const entries = snapshot.data?.entries ?? []
   const profiles = snapshot.data?.members ?? []
-  return { snapshot, entries, profiles }
+  const downloaded = snapshot.data?.revision !== undefined && snapshot.data.revision !== '0'
+  return { snapshot, entries, profiles, downloaded }
 }
 
 /** POST /api/v1/journal/entries — a new entry, always a draft. */

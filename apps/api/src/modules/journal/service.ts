@@ -112,8 +112,9 @@ export async function updateEntryText(
  * return to draft (issue #15). The state is refused before anything is
  * written — the entry was read under the space row lock, so the decision
  * is never made from a half-done change, and a refused publish spends no
- * revision. The UPDATE's condition is the backstop for a race this check
- * could not see.
+ * revision. The UPDATE's condition is a defensive backstop: under the
+ * space row lock it cannot fire, and if it ever did, it would throw inside
+ * the transaction and spend no revision.
  */
 export async function publishDraft(
   deps: JournalDeps,
@@ -140,9 +141,8 @@ export async function publishDraft(
         writes: async (writeTx, revision) => {
           const row = await publishEntry(writeTx, actor.spaceId, entryId, now, revision, now)
           if (row === undefined) {
-            // Unreachable while the state check above read the entry under
-            // the space row lock; inside the transaction, so even this
-            // impossible race would spend no revision.
+            // The docstring's backstop: unreachable under the space row
+            // lock, and revision-free even then.
             throw new DomainError(
               'entry_already_published',
               `Journal entry ${entryId} is already published`,

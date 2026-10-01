@@ -38,7 +38,7 @@ const PAGE_SIZE = 20
 export function JournalScreen() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { snapshot, entries, profiles } = useJournalData()
+  const { snapshot, entries, profiles, downloaded } = useJournalData()
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   const feed = journalFeed(entries)
@@ -70,7 +70,7 @@ export function JournalScreen() {
             <div className="grid place-items-center py-10">
               <Spinner className="size-6" />
             </div>
-          ) : snapshot.data?.revision === undefined ? (
+          ) : !downloaded ? (
             <Card>
               <Empty>
                 <EmptyMedia>

@@ -38,7 +38,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const session = useMemberSessionStatus()
-  const { snapshot, entries } = useJournalData()
+  const { snapshot, entries, downloaded } = useJournalData()
 
   // A publish that fails after the create leaves this editor on the entry
   // it just made: the created id is kept, so a retried submit goes through
@@ -70,9 +70,10 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
 
   const me = session.me?.member
   const displayName = me?.displayName ?? me?.name ?? ''
-  // The registry's active id is the one source of "is this mine", the same
-  // the entry screen reads.
-  const mine = existing === undefined || existing.authorId === getActiveMemberId()
+  // The authorship check reads the registry's active id, the same source
+  // the entry screen reads; the session probe still names the profile.
+  const activeId = getActiveMemberId()
+  const mine = existing === undefined || existing.authorId === activeId
 
   const goBackToFeed = () => void navigate({ to: '/journal' })
 
@@ -142,7 +143,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
             <Spinner className="size-6" />
           </div>
         ) : entryId !== undefined && existing === undefined ? (
-          snapshot.data?.revision === undefined ? (
+          !downloaded ? (
             // Nothing is downloaded: the entry may exist, this device
             // cannot say (ADR-0002).
             <Card>
@@ -171,7 +172,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
         ) : (
           <>
             <div className="flex items-center gap-3">
-              <Avatar hue={hueFromId(me?.id ?? '')}>
+              <Avatar hue={hueFromId(activeId ?? '')}>
                 <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
               </Avatar>
               <div className="flex min-w-0 flex-col">

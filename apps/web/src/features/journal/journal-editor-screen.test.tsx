@@ -12,7 +12,7 @@ import { JournalEditorScreen } from './journal-editor-screen.tsx'
 /*
  * The editor (issue #15): a new entry starts as a draft and the author can
  * publish it from here; a published entry keeps its state through the edit
- * and offers no way back to draft. Mutations go to the API; a success
+ * and offers no way back to draft. Mutations go to the API; settling
  * triggers the sync instead of patching the store by hand.
  */
 
