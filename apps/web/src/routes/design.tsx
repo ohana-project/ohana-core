@@ -6,7 +6,7 @@ import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { type ThemeChoice, useTheme } from '@/app/theme.tsx'
 import { LanguageSwitcher } from '@/features/language/language-switcher.tsx'
 import { AccessCodeInput } from '@/ui/access-code-input.tsx'
-import { AuthLayout } from '@/ui/auth-layout.tsx'
+import { AuthFrame } from '@/ui/auth-layout.tsx'
 import { Avatar } from '@/ui/avatar.tsx'
 import { AvatarStack } from '@/ui/avatar-stack.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -1008,14 +1008,14 @@ function LayoutsSection() {
 
       <h3 className="text-h3">{t('designPreview.layouts.auth')}</h3>
       <div className="overflow-hidden rounded-lg border border-border">
-        <AuthLayout footer={t('designPreview.demo.demoNote')}>
+        <AuthFrame footer={t('designPreview.demo.demoNote')}>
           <div className="flex flex-col gap-4">
             <h3 className="text-h2 text-center">{t('designPreview.layouts.authHeading')}</h3>
             <p className="text-sm text-muted-foreground">{t('designPreview.layouts.authText')}</p>
             <AccessCodeInput aria-label={t('designPreview.inputs.code')} />
             <Button size="lg">{t('designPreview.layouts.authAction')}</Button>
           </div>
-        </AuthLayout>
+        </AuthFrame>
       </div>
 
       <Fab

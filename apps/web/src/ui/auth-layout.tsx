@@ -8,7 +8,7 @@ import { Logo } from '@/ui/logo.tsx'
  * Ohana auth frame (`.auth` in the prototype): a centred column up to
  * 420px with the logo on top and a footer note.
  */
-export function AuthLayout({
+export function AuthFrame({
   children,
   footer,
   className,

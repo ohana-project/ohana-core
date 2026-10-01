@@ -45,7 +45,7 @@ describe('app update store', () => {
     const store = await importStore()
     const seen: boolean[] = []
     const stop = store.subscribeToAppUpdate(() => seen.push(store.isAppUpdateReady()))
-    expect(watch).toHaveBeenCalledTimes(1)
+    expect(watch).toHaveBeenCalledWith(navigator.serviceWorker, '/sw.js', expect.any(Function))
 
     report?.({ apply: () => {} })
 
@@ -63,6 +63,9 @@ describe('app update store', () => {
       return () => {}
     })
     const store = await importStore()
+    const stoppedSeen: boolean[] = []
+    const stop = store.subscribeToAppUpdate(() => stoppedSeen.push(store.isAppUpdateReady()))
+    stop()
 
     // Nothing waits yet: applying is a harmless no-op.
     store.applyAppUpdate()
@@ -72,12 +75,13 @@ describe('app update store', () => {
     store.applyAppUpdate()
 
     expect(apply).toHaveBeenCalledTimes(1)
+    // The unsubscribed listener heard nothing of the waiting version.
+    expect(stoppedSeen).toEqual([])
   })
 
   it('does not watch outside the built app', async () => {
     stubEnvironment('test', {})
     const store = await importStore()
-    await Promise.resolve()
 
     expect(watch).not.toHaveBeenCalled()
     expect(store.isAppUpdateReady()).toBe(false)
@@ -86,7 +90,6 @@ describe('app update store', () => {
   it('does not watch where service workers are unsupported', async () => {
     stubEnvironment('production')
     const store = await importStore()
-    await Promise.resolve()
 
     expect(watch).not.toHaveBeenCalled()
     expect(store.isAppUpdateReady()).toBe(false)
