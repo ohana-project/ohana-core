@@ -313,6 +313,45 @@ describe('the sync engine', () => {
     await vi.waitFor(() => expect(getSyncStatus(memberId)?.state).toBe('synced'))
   })
 
+  test('a second stale pass reports an error instead of looping', async () => {
+    const memberId = makeMember()
+    // Every answer speaks for a cursor the store has already moved past:
+    // the handler keeps advancing the store before responding.
+    apiGet.mockImplementation(async () => {
+      const current = (await readMemberSnapshot(memberId)).revision ?? '0'
+      await applySyncResult(
+        memberId,
+        {
+          revision: String(BigInt(current) + 1n),
+          changes: [
+            {
+              entity: 'space',
+              space: {
+                id: SPACE_ID,
+                name: 'Наш уголок',
+                timezone: 'Europe/Moscow',
+                sections: { journal: true, calendar: true, wishlist: true },
+              },
+            },
+          ],
+          tombstones: [],
+        },
+        current,
+      )
+      return {
+        data: { ...ANYA_SYNC, revision: '7' },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
+    })
+
+    await triggerSync(memberId)
+
+    // One rerun, then the honest error: two requests, no loop.
+    expect(apiGet).toHaveBeenCalledTimes(2)
+    expect(getSyncStatus(memberId)?.state).toBe('error')
+  })
+
   test('a response for a cursor the store moved past is dropped and rerun', async () => {
     const memberId = makeMember()
     const revEight: SyncResult = {

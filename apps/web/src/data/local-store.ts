@@ -176,9 +176,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
     const syncedAt = meta.find((row) => row.key === 'syncedAt')?.at as number | undefined
     const pendingReplay =
-      (meta.find((row) => row.key === 'pendingReplay')?.sections as
-        | Array<keyof StoredSpace['sections']>
-        | undefined) ?? []
+      (meta.find((row) => row.key === 'pendingReplay')?.sections as SectionName[] | undefined) ?? []
     return {
       space: (spaces[0] as StoredSpace | undefined) ?? undefined,
       members: members as StoredMemberProfile[],
@@ -196,6 +194,13 @@ type MetaRow =
   | { key: 'cursor'; revision: string }
   | { key: 'syncedAt'; at: number }
   | { key: 'pendingReplay'; sections: SectionName[] }
+
+export interface AppliedSync {
+  /** The cursor the store holds after the apply. */
+  cursor: string
+  /** Whether this response is what the store applied. */
+  applied: boolean
+}
 
 /**
  * Applies a sync response in one transaction: the tombstoned rows go, the
@@ -221,13 +226,6 @@ type MetaRow =
  * with the cursor at 0. The engine always names its `since`; without it
  * (the tests' sequential applies) the staleness guard does not engage.
  */
-export interface AppliedSync {
-  /** The cursor the store holds after the apply. */
-  cursor: string
-  /** Whether this response is what the store applied. */
-  applied: boolean
-}
-
 export async function applySyncResult(
   memberId: string,
   result: SyncResult,
@@ -300,8 +298,10 @@ export async function applySyncResult(
               nextSpace.space.sections[section],
           )
           if (reshowed.length > 0 && since !== '0') revision = '0'
+          // The replay response carries every section whole, so a re-show
+          // inside it opens no promise of its own: the cursor moves and
+          // nothing stays owed.
           const pendingReplay: SectionName[] = revision === '0' ? reshowed : []
-          if (reshowed.length > 0) revision = '0'
           storedRevision = revision
           const cursor: MetaRow = { key: 'cursor', revision }
           const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }

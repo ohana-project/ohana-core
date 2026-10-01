@@ -325,6 +325,8 @@ describe('the per-member local store', () => {
     }
     const first = await applySyncResult(ANYA, reshow, '7')
     const before = await readMemberSnapshot(ANYA)
+    // The clock moves on: a stale apply that rewrote syncedAt would show.
+    vi.setSystemTime(new Date('2026-10-01T09:05:00.000Z'))
     // Tab B's answer carries a row and a revision of its own — the stale
     // apply must not deliver them.
     const staleTab: SyncResult = {
