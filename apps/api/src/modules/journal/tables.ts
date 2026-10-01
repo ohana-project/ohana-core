@@ -58,6 +58,8 @@ export const journalEntries = pgTable(
     // The author's drafts list reads by author; the sync's author-or-published
     // filter combines both.
     index('journal_entries_author_idx').on(table.spaceId, table.authorMemberId),
+    // The sync contributor's delta scans one space's rows past a revision.
+    index('journal_entries_sync_idx').on(table.spaceId, table.revision),
     foreignKey({
       name: 'journal_entries_space_id_author_member_id_fk',
       columns: [table.spaceId, table.authorMemberId],

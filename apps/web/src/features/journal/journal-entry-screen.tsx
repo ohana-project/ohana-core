@@ -87,14 +87,18 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
           </header>
 
           <div className="flex flex-col gap-4 text-[16px] leading-relaxed">
-            {entry.text
-              .split(/\n{2,}/)
-              .map((paragraph) => ({ paragraph, key: paragraph.slice(0, 24) }))
-              .map(({ paragraph, key }) => (
-                <p key={key} className="whitespace-pre-line">
-                  {paragraph}
-                </p>
-              ))}
+            {entry.text.split(/\n{2,}/).map((paragraph, index) => (
+              <p
+                // The paragraphs are a static split of one text: they
+                // never reorder, and two of them may begin — or be —
+                // identical, so the position is the only stable identity.
+                // biome-ignore lint/suspicious/noArrayIndexKey: static list, never reordered
+                key={index}
+                className="whitespace-pre-line"
+              >
+                {paragraph}
+              </p>
+            ))}
           </div>
         </article>
       )}

@@ -207,6 +207,77 @@ describe('the per-member local store', () => {
     expect(snapshot.space?.name).toBe('Наш уголок')
   })
 
+  test('a version 1 partition upgrades in place: data reads, the cursor resets for the journal', async () => {
+    // A device that synced before the journal existed holds a version 1
+    // database: space, members, meta, no entries store — and a cursor that
+    // advanced past journal_entry revisions the old client ignored.
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${ANYA}`, 1)
+      request.onupgradeneeded = () => {
+        const upgrading = request.result
+        upgrading.createObjectStore('space', { keyPath: 'id' })
+        upgrading.createObjectStore('members', { keyPath: 'id' })
+        upgrading.createObjectStore('meta', { keyPath: 'key' })
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
+    })
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(['space', 'members', 'meta'], 'readwrite')
+      tx.objectStore('space').put({
+        id: SPACE_ID,
+        name: 'Наша семья',
+        timezone: 'Europe/Moscow',
+        sections: { journal: true, calendar: true, wishlist: true },
+      })
+      tx.objectStore('members').put({
+        id: MISHA_ID,
+        name: 'Миша',
+        role: 'regular',
+        createdAt: '2026-08-14T10:00:00.000Z',
+      })
+      tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Seeding version 1 failed'))
+    })
+    db.close()
+
+    // The read upgrades the partition instead of answering empty: the
+    // space and members still read offline (ADR-0002), the entries store
+    // appears empty, and the cursor has been reset so the next sync
+    // replays the journal from revision 0.
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.space?.id).toBe(SPACE_ID)
+    expect(snapshot.members.map((member) => member.name)).toEqual(['Миша'])
+    expect(snapshot.entries).toEqual([])
+    expect(snapshot.revision).toBe('0')
+
+    // The replay lands the journal entries and moves the cursor forward.
+    await applySyncResult(ANYA, {
+      revision: '7',
+      changes: [
+        ...syncResult().changes,
+        {
+          entity: 'journal_entry',
+          entry: {
+            id: '01900000-0000-7000-8000-000000000101',
+            authorId: MISHA_ID,
+            title: 'Поход',
+            text: 'Вид стоит каждого шага.',
+            state: 'published',
+            publishedAt: '2026-09-21T14:00:00.000Z',
+            createdAt: '2026-09-21T12:00:00.000Z',
+            updatedAt: '2026-09-21T14:00:00.000Z',
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    const upgraded = await readMemberSnapshot(ANYA)
+    expect(upgraded.entries).toHaveLength(1)
+    expect(upgraded.revision).toBe('7')
+  })
+
   test('each member reads only their own partition, and sign-out deletes it whole', async () => {
     await applySyncResult(ANYA, syncResult())
     await applySyncResult(DIMA, syncResult())

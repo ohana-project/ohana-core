@@ -62,15 +62,19 @@ function memberDbName(memberId: string): string {
 
 function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    // Version 2 added the journal entries store (issue #15); the upgrade
+    // Version 2 added the journal entries store (issue #15). The upgrade
     // runs for fresh databases and for the partitions of members who
     // synced before it existed, so every store creation is guarded.
     const request = indexedDB.open(memberDbName(memberId), 2)
-    request.onupgradeneeded = () => {
-      if (!create) {
+    request.onupgradeneeded = (event) => {
+      // The versions travel on the version-change event, not the request.
+      const oldVersion = event.oldVersion
+      if (!create && oldVersion === 0) {
         // The read path never creates: the database vanished between the
         // listing and this open (a concurrent sign-out), so the honest
-        // answer is "nothing stored", not a fresh empty database.
+        // answer is "nothing stored", not a fresh empty database. A
+        // version bump on an existing database is not that: its upgrade
+        // runs and the read proceeds.
         request.transaction?.abort()
         return
       }
@@ -83,6 +87,13 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
         db.createObjectStore('entries', { keyPath: 'id' })
       }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
+      if (oldVersion >= 1 && oldVersion < 2) {
+        // A version 1 device advanced its cursor while ignoring
+        // journal_entry changes, so a delta would never deliver the
+        // entries past it. The reset makes the next sync replay from
+        // revision 0, the same move a re-shown section makes.
+        request.transaction?.objectStore('meta').put({ key: 'cursor', revision: '0' })
+      }
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('Opening the local store failed'))

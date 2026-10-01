@@ -1,18 +1,17 @@
 import type { paths } from '@ohana/api-client'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
-import { getActiveMemberId } from '@/data/session-registry.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
-import { syncedSnapshotKey, useSyncedSpace } from '@/features/member/use-synced-space.ts'
+import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
 
 /*
  * The journal's server data (issue #15): reads come from the member's
  * synchronised partition — the same answer online and offline (ADR-0002) —
  * and the three mutations go to the API through the generated client. A
- * successful mutation triggers a sync and lets the store learn the change
- * the ordinary way instead of patching the cache by hand (architecture.md,
- * web rules).
+ * successful mutation triggers a sync; the sync's application invalidates
+ * the screens' snapshot, so no hook here patches the cache by hand
+ * (architecture.md, web rules).
  */
 
 export type CreatedEntry =
@@ -38,19 +37,8 @@ export function useJournalData() {
   return { snapshot, entries, profiles }
 }
 
-function useInvalidateJournal() {
-  const queryClient = useQueryClient()
-  const memberId = getActiveMemberId()
-  return () => {
-    if (memberId !== undefined) {
-      void queryClient.invalidateQueries({ queryKey: syncedSnapshotKey(memberId) })
-    }
-  }
-}
-
 /** POST /api/v1/journal/entries — a new entry, always a draft. */
 export function useCreateDraft() {
-  const invalidate = useInvalidateJournal()
   return useMutation({
     mutationFn: async (input: JournalInput): Promise<CreatedEntry> => {
       const response = await api.POST('/api/v1/journal/entries', { body: input })
@@ -59,13 +47,11 @@ export function useCreateDraft() {
       return response.data
     },
     onSuccess: () => void triggerSync(),
-    onSettled: invalidate,
   })
 }
 
 /** PATCH /api/v1/journal/entries/{entryId} — the author's edit, in any state. */
 export function useUpdateEntry() {
-  const invalidate = useInvalidateJournal()
   return useMutation({
     mutationFn: async (input: { entryId: string } & JournalInput): Promise<EntryDto> => {
       const response = await api.PATCH('/api/v1/journal/entries/{entryId}', {
@@ -77,13 +63,11 @@ export function useUpdateEntry() {
       return response.data
     },
     onSuccess: () => void triggerSync(),
-    onSettled: invalidate,
   })
 }
 
 /** POST /api/v1/journal/entries/{entryId}/publish — the one-way transition. */
 export function usePublishEntry() {
-  const invalidate = useInvalidateJournal()
   return useMutation({
     mutationFn: async (input: { entryId: string }): Promise<EntryDto> => {
       const response = await api.POST('/api/v1/journal/entries/{entryId}/publish', {
@@ -94,7 +78,6 @@ export function usePublishEntry() {
       return response.data
     },
     onSuccess: () => void triggerSync(),
-    onSettled: invalidate,
   })
 }
 

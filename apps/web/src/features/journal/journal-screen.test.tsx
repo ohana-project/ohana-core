@@ -235,4 +235,34 @@ describe('JournalScreen (the shared feed)', () => {
     expect(await screen.findByText('В дневнике пока пусто')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Написать первую запись' })).toBeInTheDocument()
   })
+
+  it('says the section is hidden instead of showing a feed for it', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([entry()]))
+    // The owner hides the journal: the map lands with the next sync and
+    // the client drops the section's rows in the same apply (ADR-0011).
+    await applySyncResult(ME, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    mockQuietSync()
+    renderWithProviders(<JournalScreen />)
+
+    // The shell answers a direct URL or a stale tab with the hidden state,
+    // not with an empty feed, and offers no way to write into a hidden
+    // section.
+    expect(await screen.findByText('Раздел скрыт владельцем пространства.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Новая запись' })).not.toBeInTheDocument()
+  })
 })

@@ -1,0 +1,1 @@
+CREATE INDEX "journal_entries_sync_idx" ON "journal_entries" USING btree ("space_id","revision");

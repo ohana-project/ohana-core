@@ -31,7 +31,6 @@ export function JournalDraftsScreen() {
   const navigate = useNavigate()
   const { snapshot, entries } = useJournalData()
   const drafts = journalDrafts(entries)
-  const publish = usePublishEntry()
 
   return (
     <JournalShell title={t('journal.draftsTitle')} backTo="/journal" width="narrow">
@@ -41,7 +40,19 @@ export function JournalDraftsScreen() {
           <p className="mt-1 text-muted-foreground">{t('journal.draftsSubtitle')}</p>
         </header>
 
-        {snapshot.isPending ? null : drafts.length === 0 ? (
+        {snapshot.isPending ? null : snapshot.data?.revision === undefined ? (
+          // Nothing is downloaded: "no drafts" would be a claim the device
+          // cannot make (ADR-0002).
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+            </Empty>
+          </Card>
+        ) : drafts.length === 0 ? (
           <Card>
             <Empty>
               <EmptyMedia>
@@ -66,18 +77,11 @@ export function JournalDraftsScreen() {
                   draft={draft}
                   locale={i18n.language}
                   onEdit={() =>
-                    void navigate({ to: '/journal/$entryId/edit', params: { entryId: draft.id } })
+                    void navigate({
+                      to: '/journal/$entryId/edit',
+                      params: { entryId: draft.id },
+                    })
                   }
-                  onPublish={() =>
-                    publish.mutate(
-                      { entryId: draft.id },
-                      {
-                        onSuccess: () => toast(t('journal.publishedToast')),
-                        onError: (error) => toast(journalErrorMessage(error, t), 'danger'),
-                      },
-                    )
-                  }
-                  publishPending={publish.isPending && publish.variables?.entryId === draft.id}
                 />
               ))}
             </ItemGroup>
@@ -97,16 +101,15 @@ function DraftRow({
   draft,
   locale,
   onEdit,
-  onPublish,
-  publishPending,
 }: {
   draft: StoredJournalEntry
   locale: string
   onEdit: () => void
-  onPublish: () => void
-  publishPending: boolean
 }) {
   const { t } = useTranslation()
+  // Each row owns its mutation: one publish in flight must not re-enable
+  // another row's button or drop its toast.
+  const publish = usePublishEntry()
   return (
     <Item size="lg">
       <ItemMedia>
@@ -124,7 +127,20 @@ function DraftRow({
         <Button variant="secondary" size="sm" onClick={onEdit}>
           {t('journal.continueEditing')}
         </Button>
-        <Button variant="ghost" size="sm" onClick={onPublish} disabled={publishPending}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={publish.isPending}
+          onClick={() =>
+            publish.mutate(
+              { entryId: draft.id },
+              {
+                onSuccess: () => toast(t('journal.publishedToast')),
+                onError: (error) => toast(journalErrorMessage(error, t), 'danger'),
+              },
+            )
+          }
+        >
           <Icon name="send" />
           {t('journal.publish')}
         </Button>

@@ -1,10 +1,13 @@
+import { eq, or } from 'drizzle-orm'
 import { DomainError } from '../../platform/errors.ts'
+import { journalEntries } from './tables.ts'
 
 /*
  * The journal's visibility and permission rules (issue #15): the one place
  * both the ordinary reads and the sync contributor apply. A draft belongs
  * to its author alone; a published entry belongs to the whole space. The
- * sync's SQL filter states the same rule over the module's table.
+ * sync's SQL filter is the same rule in its one other dialect, so a new
+ * state cannot make the two drift.
  */
 
 /**
@@ -17,6 +20,16 @@ export function entryVisibleTo(
   memberId: string,
 ): boolean {
   return entry.state === 'published' || entry.authorMemberId === memberId
+}
+
+/**
+ * The same rule over the module's table, for the queries that must decide
+ * visibility inside SQL (the sync contributor's delta). Kept next to
+ * `entryVisibleTo` so what a member may see is defined in exactly one
+ * place (architecture.md, "Sync contributors").
+ */
+export function entryVisibleToSql(memberId: string) {
+  return or(eq(journalEntries.state, 'published'), eq(journalEntries.authorMemberId, memberId))
 }
 
 /**

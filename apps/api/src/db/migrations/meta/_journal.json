@@ -57,6 +57,13 @@
       "when": 1790863013074,
       "tag": "0007_narrow_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790866322518,
+      "tag": "0008_futuristic_fantastic_four",
+      "breakpoints": true
     }
   ]
 }

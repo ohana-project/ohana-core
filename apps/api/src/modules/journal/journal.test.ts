@@ -213,6 +213,17 @@ async function setJournalVisible(
   expect(response.statusCode).toBe(200)
 }
 
+/** The space revision the sync endpoint answers, from revision 0. */
+async function syncRevision(app: TestApp, session: MemberSession): Promise<string> {
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/v1/sync?since=0',
+    headers: memberHeaders(session),
+  })
+  expect(response.statusCode).toBe(200)
+  return (response.json() as { revision: string }).revision
+}
+
 describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
   test('the author reads their draft; it is in no one else anywhere', async () => {
     await withApp(async (app) => {
@@ -363,10 +374,13 @@ describe('POST /api/v1/journal/entries/:entryId/publish (the one-way transition)
       const drafts = await getDrafts(app, anna)
       expect(drafts.body).toEqual([])
 
-      // Publishing again refuses instead of spending a revision.
+      // Publishing again refuses — and the refusal costs no revision: the
+      // space the sync answers after the 409 is the one the publish left.
+      const revisionAfterPublish = await syncRevision(app, anna)
       const again = await publishEntry(app, anna, draft.id)
       expect(again.status).toBe(409)
       expect((again.body as { error: { code: string } }).error.code).toBe('entry_already_published')
+      expect(await syncRevision(app, anna)).toBe(revisionAfterPublish)
     })
   })
 
@@ -573,6 +587,16 @@ describe('the hidden journal section (ADR-0011)', () => {
       const write = await createEntry(app, regular, { text: 'не должно пройти' })
       expect(write.status).toBe(404)
       expect((write.body as { error: { code: string } }).error.code).toBe('section_hidden')
+
+      // The in-transaction recheck refuses the other writes the same way,
+      // after the section gate has already answered the reads.
+      const edit = await patchEntry(app, regular, entry.id, { text: 'правка при скрытом' })
+      expect(edit.status).toBe(404)
+      expect((edit.body as { error: { code: string } }).error.code).toBe('section_hidden')
+
+      const publish = await publishEntry(app, regular, entry.id)
+      expect(publish.status).toBe(404)
+      expect((publish.body as { error: { code: string } }).error.code).toBe('section_hidden')
 
       // Hiding keeps the data: showing restores the feed as it was.
       await setJournalVisible(app, owner, true)

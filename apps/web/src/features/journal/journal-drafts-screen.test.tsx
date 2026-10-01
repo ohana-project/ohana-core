@@ -161,4 +161,12 @@ describe('JournalDraftsScreen', () => {
     expect(await screen.findByText('Черновиков нет')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Новая запись' })).toBeInTheDocument()
   })
+
+  it('says that nothing is downloaded instead of claiming there are no drafts', async () => {
+    seedRegistry()
+    renderWithProviders(<JournalDraftsScreen />)
+
+    expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
+    expect(screen.queryByText('Черновиков нет')).not.toBeInTheDocument()
+  })
 })

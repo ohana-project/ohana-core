@@ -109,9 +109,11 @@ export async function updateEntryText(
 
 /**
  * Publishes the author's draft: the shared feed gains it, and it can never
- * return to draft (issue #15). The UPDATE's state condition is the guard —
- * under the space lock a racing publish has already committed, and the
- * guard turns the second one away with a conflict.
+ * return to draft (issue #15). The state is refused before anything is
+ * written — the entry was read under the space row lock, so the decision
+ * is never made from a half-done change, and a refused publish spends no
+ * revision. The UPDATE's condition is the backstop for a race this check
+ * could not see.
  */
 export async function publishDraft(
   deps: JournalDeps,
@@ -124,6 +126,13 @@ export async function publishDraft(
     await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
     const entry = await requireVisibleEntry(tx, actor, entryId)
     assertEntryAuthoredBy(entry, actor)
+    if (entry.state !== 'draft') {
+      throw new DomainError(
+        'entry_already_published',
+        `Journal entry ${entryId} is already published`,
+        409,
+      )
+    }
     await recordChanges(
       tx,
       actor.spaceId,

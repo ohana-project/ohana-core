@@ -173,6 +173,69 @@ describe('JournalEditorScreen (a new entry)', () => {
     expect(await screen.findByRole('button', { name: 'Опубликовать' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
     expect(apiPost).not.toHaveBeenCalled()
+    // The editor's first paint is not an accusation: the blank-text error
+    // waits for the first edit.
+    expect(screen.queryByText('Добавьте текст записи')).not.toBeInTheDocument()
+  })
+
+  it('a failed publish keeps the created entry, so the retry makes no second draft', async () => {
+    seedRegistry()
+    const created = draft({ title: 'Пикник', text: 'Собрались за час.' })
+    let creates = 0
+    let publishes = 0
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries') {
+        creates += 1
+        return {
+          data: created,
+          error: undefined,
+          response: new Response(null, { status: 201 }),
+        }
+      }
+      if (path === '/api/v1/journal/entries/{entryId}/publish') {
+        publishes += 1
+        return {
+          data: undefined,
+          error: { error: { code: 'entry_already_published', message: 'Already shared' } },
+          response: new Response(null, { status: 409 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    apiPatch.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries/{entryId}') {
+        return {
+          data: created,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PATCH ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Заголовок'), 'Пикник')
+    await user.type(await screen.findByLabelText('Текст записи'), 'Собрались за час.')
+    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+
+    // The create landed, the publish refused, and the editor stays on the
+    // entry it made instead of pretending nothing happened.
+    await waitFor(() => expect(publishes).toBe(1))
+    await waitFor(() =>
+      expect(screen.getByText('Эта запись уже опубликована.')).toBeInTheDocument(),
+    )
+
+    // The retry edits the created entry and publishes it — one draft, ever.
+    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await waitFor(() =>
+      expect(apiPatch).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
+        params: { path: { entryId: created.id } },
+        body: { title: 'Пикник', text: 'Собрались за час.' },
+      }),
+    )
+    await waitFor(() => expect(publishes).toBe(2))
+    expect(creates).toBe(1)
   })
 })
 
@@ -248,5 +311,29 @@ describe('JournalEditorScreen (editing an entry)', () => {
     expect(
       await screen.findByText('Запись не найдена или ещё не синхронизировалась.'),
     ).toBeInTheDocument()
+  })
+
+  it('says that nothing is downloaded instead of claiming the entry is gone', async () => {
+    seedRegistry()
+    renderWithProviders(<JournalEditorScreen entryId="01900000-0000-7000-8000-000000000fff" />)
+
+    expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
+  })
+
+  it('does not open another member’s entry for editing', async () => {
+    seedRegistry()
+    const someoneElses = draft({
+      authorId: '01900000-0000-7000-8000-000000000009',
+      title: 'Чужое',
+      text: 'Не моё',
+    })
+    await applySyncResult(ME, syncResult([someoneElses]))
+    renderWithProviders(<JournalEditorScreen entryId={someoneElses.id} />)
+
+    // The route is reachable by URL; the editor refuses before typing into
+    // a form the API would turn away with author_required.
+    expect(await screen.findByText('Запись может изменить только её автор.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Текст записи')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Опубликовать' })).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, lt, or } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { notFound } from '../../platform/errors.ts'
+import { entryVisibleToSql } from './policy.ts'
 import { type JournalEntry, journalEntries } from './tables.ts'
 
 export interface NewJournalEntry {
@@ -177,7 +178,7 @@ export async function listChangedEntriesVisibleTo(
       and(
         eq(journalEntries.spaceId, spaceId),
         gt(journalEntries.revision, since),
-        or(eq(journalEntries.state, 'published'), eq(journalEntries.authorMemberId, memberId)),
+        entryVisibleToSql(memberId),
       ),
     )
     .orderBy(desc(journalEntries.revision), desc(journalEntries.id))

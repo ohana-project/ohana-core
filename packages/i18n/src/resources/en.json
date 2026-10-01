@@ -245,6 +245,7 @@
       "author_required": "Only the author of an entry can change it.",
       "entry_already_published": "This entry is already published.",
       "section_hidden": "The owner of the space has hidden this section.",
+      "hiddenHint": "The journal is hidden for every member. Nothing was deleted — it returns as soon as the owner shows the section again.",
       "validation_failed": "Check the fields — something is filled in wrong.",
       "unexpected": "Something went wrong. Try again."
     }
