@@ -58,14 +58,6 @@ export const MemberParamsSchema = Type.Object({
   memberId: Type.String({ format: 'uuid' }),
 })
 
-/**
- * The member-facing routes never take a space from the URL — the space
- * comes from the authenticated actor — so their params name only the member.
- */
-export const MemberIdParamsSchema = Type.Object({
-  memberId: Type.String({ format: 'uuid' }),
-})
-
 /*
  * Member-facing contracts: what a signed-in member sees of a profile. The
  * provisioned name stays visible as the fallback, contacts stay

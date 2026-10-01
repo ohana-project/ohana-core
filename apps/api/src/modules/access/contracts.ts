@@ -151,12 +151,15 @@ export const MemberIdParamsSchema = Type.Object({
  * captured browser and platform, shown as recorded. There is no `current`
  * row here — the reviewing owner is not signed in as the reviewed member.
  */
-export const MemberSessionReviewDtoSchema = Type.Object({
-  id: Type.String({ format: 'uuid' }),
-  browser: Type.String(),
-  platform: Type.String(),
-  createdAt: Type.String({ format: 'date-time' }),
-  lastUsedAt: Type.String({ format: 'date-time' }),
-})
+export const MemberSessionReviewDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    browser: Type.String(),
+    platform: Type.String(),
+    createdAt: Type.String({ format: 'date-time' }),
+    lastUsedAt: Type.String({ format: 'date-time' }),
+  },
+  { additionalProperties: false },
+)
 
 export type MemberSessionReviewDto = Static<typeof MemberSessionReviewDtoSchema>

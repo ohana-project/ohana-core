@@ -379,6 +379,11 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
       async (request, reply) => {
         const actor = requireOwnerActor(request)
         await revokeMemberSessions(opts.deps, actor.spaceId, request.params.memberId)
+        // An owner disconnecting themselves ends the session that made the
+        // request: the cookie goes with it, exactly like a sign-out.
+        if (request.params.memberId === actor.memberId) {
+          reply.clearCookie(memberSessionCookieName(actor.memberId), cookieOptions)
+        }
         return reply.code(204).send(null)
       },
     )

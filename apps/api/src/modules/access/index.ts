@@ -2,6 +2,7 @@ export {
   type AccessCodeStatus,
   MEMBER_HEADER,
   MemberHeadersSchema,
+  MemberIdParamsSchema,
   type MemberSessionDto,
   MemberSessionDtoSchema,
 } from './contracts.ts'

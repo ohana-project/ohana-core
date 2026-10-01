@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
@@ -215,6 +215,83 @@ describe('MemberCardScreen', () => {
     expect(roleSelect).toHaveValue('owner')
     const regularOption = screen.getByRole('option', { name: 'Обычный участник' })
     expect(regularOption).toBeDisabled()
+  })
+
+  it('offers revocation on the live code and revokes it through the dialog', async () => {
+    const user = userEvent.setup()
+    apiDelete.mockResolvedValue({
+      data: null,
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    await screen.findByText('Код входа')
+    expect(screen.getByText('Ждёт первого входа')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Отозвать' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Отозвать этот код?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Отозвать' }))
+
+    expect(apiDelete).toHaveBeenCalledWith(
+      '/api/v1/members/{memberId}/access-code',
+      expect.objectContaining({ params: { path: { memberId: DIMA_ID } } }),
+    )
+  })
+
+  it('signs the device out when the owner disconnects their own devices', async () => {
+    const user = userEvent.setup()
+    apiDelete.mockResolvedValue({
+      data: null,
+      error: undefined,
+      response: new Response(null, { status: 204 }),
+    })
+    // The card under review is the acting owner's own.
+    renderWithProviders(<MemberCardScreen memberId={OWNER_ID} />)
+
+    await screen.findByText('Код входа')
+    await user.click(screen.getByRole('button', { name: 'Отключить всё' }))
+    await user.click(await screen.findByRole('button', { name: 'Отключить' }))
+
+    // The member's local sign-in is forgotten, like a sign-out.
+    await vi.waitFor(() => {
+      const retained = JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')
+      expect(retained).toHaveLength(0)
+    })
+  })
+
+  it('refreshes the session probe after the member changes their own role', async () => {
+    const user = userEvent.setup()
+    // Two owners, so the acting owner may demote themselves.
+    const twoOwners = [
+      ...PROFILES,
+      {
+        id: '01900000-0000-7000-8000-000000000005',
+        name: 'Люда',
+        role: 'owner' as const,
+        createdAt: '2026-08-14T10:00:00.000Z',
+      },
+    ]
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return okBody(twoOwners)
+      if (path === '/api/v1/members/{memberId}/access-code') return okBody(CODE)
+      if (path === '/api/v1/members/{memberId}/sessions') return okBody([])
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    apiPatchMock()
+    renderWithProviders(<MemberCardScreen memberId={OWNER_ID} />)
+
+    const roleSelect = await screen.findByRole('combobox', { name: 'Права в пространстве' })
+    await user.selectOptions(roleSelect, 'regular')
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Аня Смирнова перестанет быть владельцем?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Сделать обычным' }))
+
+    // The probe (/me) is refetched, so the demoted owner's instruments on
+    // screen follow the new role.
+    const meCalls = () => apiGet.mock.calls.filter((call) => call[0] === '/api/v1/me').length
+    await vi.waitFor(() => expect(meCalls()).toBeGreaterThanOrEqual(2))
   })
 })
 

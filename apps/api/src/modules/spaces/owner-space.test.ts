@@ -111,7 +111,7 @@ describe('GET /api/v1/space (the member reads their space)', () => {
     })
   })
 
-  test('the space always comes from the actor, never from another space', async () => {
+  test('the space always comes from the actor: another space’s zone stays untouched', async () => {
     const family = await harness.createSpace({ name: 'Наша семья', timezone: 'Europe/Moscow' })
     const other = await harness.createSpace({ name: 'Аня и родители', timezone: 'UTC' })
     const member = await harness.createMember(family.id, { name: 'Аня', role: 'owner' })
@@ -123,13 +123,23 @@ describe('GET /api/v1/space (the member reads their space)', () => {
       )
 
       const response = await app.inject({
-        method: 'GET',
+        method: 'PATCH',
         url: '/api/v1/space',
         headers: memberHeaders(session),
+        payload: { timezone: 'Asia/Novosibirsk' },
       })
       expect(response.statusCode).toBe(200)
-      expect(response.json().id).toBe(family.id)
-      expect(response.json().id).not.toBe(other.id)
+      expect(response.json()).toEqual({
+        id: family.id,
+        name: 'Наша семья',
+        timezone: 'Asia/Novosibirsk',
+      })
+
+      // The patch moved the actor's own space and nothing else.
+      const rows = await harness.db.select().from(spaces)
+      const zones = new Map(rows.map((row) => [row.id, row.timezone]))
+      expect(zones.get(family.id)).toBe('Asia/Novosibirsk')
+      expect(zones.get(other.id)).toBe('UTC')
     })
   })
 })

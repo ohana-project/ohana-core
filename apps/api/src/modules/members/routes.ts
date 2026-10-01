@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import {
   type AccessDeps,
   MemberHeadersSchema,
+  MemberIdParamsSchema,
   memberSessionGuard,
   requireMemberActor,
   requireOwnerActor,
@@ -14,7 +15,6 @@ import {
   type Me,
   type MemberDto,
   MemberDtoSchema,
-  MemberIdParamsSchema,
   MemberParamsSchema,
   type MemberProfileDto,
   MemberProfileDtoSchema,

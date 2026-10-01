@@ -7,7 +7,7 @@ import {
   ensureInitialAdministrator,
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
-import { ACCESS_CODE_ALPHABET } from './index.ts'
+import { ACCESS_CODE_ALPHABET, ACCESS_CODE_TTL_MS } from './index.ts'
 import { accessCodes, memberSessions } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -272,6 +272,40 @@ describe('GET /api/v1/members/:memberId/access-code (owner reads the code status
       expect(response.json().error.code).toBe('access_code_not_found')
     })
   })
+
+  test('a regular member is rejected', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { regular, regularSession } = await arrangeOwnerAndRegular(app, space.id, adminCookie)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(regularSession),
+      })
+      expect(response.statusCode).toBe(403)
+      expect(response.json().error.code).toBe('owner_required')
+    })
+  })
+
+  test('an owner cannot read the code of another space’s member', async () => {
+    const family = await harness.createSpace()
+    const other = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { ownerSession } = await arrangeOwnerAndRegular(app, family.id, adminCookie)
+      const stranger = await harness.createMember(other.id, { name: 'Пётр', role: 'regular' })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/members/${stranger.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('member_not_found')
+    })
+  })
 })
 
 describe('DELETE /api/v1/members/:memberId/access-code (owner revokes the live code)', () => {
@@ -302,6 +336,96 @@ describe('DELETE /api/v1/members/:memberId/access-code (owner revokes the live c
       })
       expect(spent.statusCode).toBe(409)
       expect(spent.json().error.code).toBe('access_code_revoked')
+    })
+  })
+
+  test('an issued code past its expiry materialises expired and is not revoked', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { regular, ownerSession } = await arrangeOwnerAndRegular(app, space.id, adminCookie)
+
+      const issued = await app.inject({
+        method: 'POST',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      harness.clock.advance(ACCESS_CODE_TTL_MS + 1000)
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('access_code_not_found')
+
+      const rows = await harness.db
+        .select()
+        .from(accessCodes)
+        .where(eq(accessCodes.id, issued.json().id))
+      expect(rows[0]?.status).toBe('expired')
+    })
+  })
+
+  test('a regular member is rejected and the code stays live', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { regular, ownerSession, regularSession } = await arrangeOwnerAndRegular(
+        app,
+        space.id,
+        adminCookie,
+      )
+
+      const issued = await app.inject({
+        method: 'POST',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(regularSession),
+      })
+      expect(response.statusCode).toBe(403)
+      expect(response.json().error.code).toBe('owner_required')
+
+      // The code survives the refused request.
+      const spent = await app.inject({
+        method: 'POST',
+        url: '/api/v1/access-codes/redeem',
+        payload: { code: issued.json().code },
+      })
+      expect(spent.statusCode).toBe(200)
+    })
+  })
+
+  test('an owner cannot revoke for a member of another space', async () => {
+    const family = await harness.createSpace()
+    const other = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { ownerSession } = await arrangeOwnerAndRegular(app, family.id, adminCookie)
+      const stranger = await harness.createMember(other.id, { name: 'Пётр', role: 'regular' })
+      const strangerCode = await issueCodeAsAdmin(app, adminCookie, other.id, stranger.id)
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/members/${stranger.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('member_not_found')
+
+      // The stranger's code still works: the refusal touched nothing.
+      const spent = await app.inject({
+        method: 'POST',
+        url: '/api/v1/access-codes/redeem',
+        payload: { code: strangerCode.code },
+      })
+      expect(spent.statusCode).toBe(200)
     })
   })
 
@@ -370,6 +494,23 @@ describe('GET /api/v1/members/:memberId/sessions (owner reviews devices)', () =>
       expect(response.json().error.code).toBe('owner_required')
     })
   })
+  test('an owner cannot review the devices of another space’s member', async () => {
+    const family = await harness.createSpace()
+    const other = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { ownerSession } = await arrangeOwnerAndRegular(app, family.id, adminCookie)
+      const stranger = await harness.createMember(other.id, { name: 'Пётр', role: 'regular' })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/members/${stranger.id}/sessions`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(response.statusCode).toBe(404)
+      expect(response.json().error.code).toBe('member_not_found')
+    })
+  })
 })
 
 describe('DELETE /api/v1/members/:memberId/sessions (owner disconnects devices)', () => {
@@ -420,6 +561,71 @@ describe('DELETE /api/v1/members/:memberId/sessions (owner disconnects devices)'
         .from(memberSessions)
         .where(and(eq(memberSessions.spaceId, space.id), eq(memberSessions.memberId, owner.id)))
       expect(remaining.length).toBeGreaterThan(0)
+    })
+  })
+
+  test('a regular member is rejected and disconnects nothing', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { owner, ownerSession, regularSession } = await arrangeOwnerAndRegular(
+        app,
+        space.id,
+        adminCookie,
+      )
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/members/${owner.id}/sessions`,
+        headers: memberHeaders(regularSession),
+      })
+      expect(response.statusCode).toBe(403)
+      expect(response.json().error.code).toBe('owner_required')
+
+      // The owner's session survives the refused request.
+      const probe = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: memberHeaders(ownerSession),
+      })
+      expect(probe.statusCode).toBe(200)
+      const ownerRows = await harness.db
+        .select()
+        .from(memberSessions)
+        .where(eq(memberSessions.memberId, owner.id))
+      expect(ownerRows.length).toBeGreaterThan(0)
+    })
+  })
+
+  test('an owner disconnecting themselves ends their own session and clears the cookie', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { owner, ownerSession } = await arrangeOwnerAndRegular(app, space.id, adminCookie)
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/members/${owner.id}/sessions`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(response.statusCode).toBe(204)
+      // The response clears the cookie named for the acting member, exactly
+      // like a sign-out.
+      const cleared = response.cookies.find(
+        (candidate) =>
+          candidate.name === `ohana_member_session_${owner.id}` &&
+          candidate.value === '' &&
+          candidate.expires !== undefined &&
+          candidate.expires.getTime() <= Date.now(),
+      )
+      expect(cleared, 'the self-disconnect clears the member cookie').toBeDefined()
+
+      const probe = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: memberHeaders(ownerSession),
+      })
+      expect(probe.statusCode).toBe(401)
     })
   })
 

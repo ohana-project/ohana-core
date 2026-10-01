@@ -1,8 +1,9 @@
 import type { paths } from '@ohana/api-client'
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { ApiError, assertOk } from '@/data/api-error.ts'
+import { ApiError, assertOk, extractErrorCode } from '@/data/api-error.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
+import { memberSessionQueryKey } from '@/features/member/use-member-session.ts'
 
 /*
  * Owner space management (issue #12) is online-only data — no local store
@@ -65,13 +66,11 @@ function useInvalidateMemberArea() {
 }
 
 export function useUpdateTimezone() {
-  const memberId = getActiveMemberId()
   const invalidate = useInvalidateMemberArea()
   return useMutation({
     mutationFn: async (input: { timezone: string }) => {
       const response = await api.PATCH('/api/v1/space', {
         body: { timezone: input.timezone },
-        params: memberId === undefined ? undefined : { header: { 'x-ohana-member': memberId } },
       })
       await assertOk(response)
     },
@@ -80,7 +79,6 @@ export function useUpdateTimezone() {
 }
 
 export function useProvisionSpaceMember() {
-  const memberId = getActiveMemberId()
   const invalidate = useInvalidateMemberArea()
   return useMutation({
     mutationFn: async (input: {
@@ -93,7 +91,6 @@ export function useProvisionSpaceMember() {
     }): Promise<ProvisionedMember> => {
       const response = await api.POST('/api/v1/members', {
         body: input,
-        params: memberId === undefined ? undefined : { header: { 'x-ohana-member': memberId } },
       })
       await assertOk(response)
       if (response.data === undefined) throw new ApiError('unexpected')
@@ -105,6 +102,7 @@ export function useProvisionSpaceMember() {
 
 export function useChangeSpaceMemberRole() {
   const invalidate = useInvalidateMemberArea()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { memberId: string; role: 'owner' | 'regular' }) => {
       const response = await api.PATCH('/api/v1/members/{memberId}', {
@@ -115,7 +113,14 @@ export function useChangeSpaceMemberRole() {
     },
     // A refused change (last_owner) must still refresh, or the screen keeps
     // offering a change the server will refuse again.
-    onSettled: invalidate,
+    onSettled: (_data, _error, variables) => {
+      invalidate()
+      // A member whose own role just changed carries the new role in the
+      // session probe (/me): the owner instruments on screen must follow.
+      if (variables.memberId === getActiveMemberId()) {
+        void queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+      }
+    },
   })
 }
 
@@ -167,8 +172,11 @@ export function useMemberAccessCode(memberId: string) {
               },
             )
             // A member without codes is a state, not a failure: the owner
-            // sees the "no code yet" row and issues the first one.
-            if (response.status === 404) return null
+            // sees the "no code yet" row and issues the first one. Any other
+            // 404 — a member of another space, for instance — is an error.
+            if (response.status === 404 && extractErrorCode(error) === 'access_code_not_found') {
+              return null
+            }
             await assertOk({ error })
             return data ?? null
           },

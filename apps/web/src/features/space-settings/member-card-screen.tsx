@@ -1,7 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
+import { forgetMember, useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { useSpaceProfiles } from '@/features/member/use-space-profiles.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -41,6 +42,7 @@ import {
   useIssueMemberAccessCode,
   useMemberAccessCode,
   useMemberDevices,
+  useRevokeMemberAccessCode,
   useRevokeMemberDevices,
 } from './use-space-settings.ts'
 
@@ -147,22 +149,29 @@ function OwnerSections({
 }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const session = useMemberSessionStatus()
   const profiles = useSpaceProfiles()
   const changeRole = useChangeSpaceMemberRole()
   const issueCode = useIssueMemberAccessCode()
+  const revokeCode = useRevokeMemberAccessCode()
   const revokeDevices = useRevokeMemberDevices()
 
   const codeStatus = useMemberAccessCode(memberId)
   const devices = useMemberDevices(memberId)
 
   const owners = profiles.data?.filter((member) => member.role === 'owner').length ?? 0
-  const canDemote = profile.role === 'owner' && owners > 1
+  const isLastOwner = profile.role === 'owner' && owners <= 1
+  // An owner may be reviewing their own card: disconnecting then ends this
+  // device's own session and must sign the device out.
+  const isSelf = memberId === session.me?.member.id
 
   const [confirmRole, setConfirmRole] = useState<'owner' | 'regular' | undefined>()
   const [issueOpen, setIssueOpen] = useState(false)
   const [issued, setIssued] = useState<string | undefined>()
   const [issueError, setIssueError] = useState<string | undefined>()
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
+  const [confirmRevoke, setConfirmRevoke] = useState(false)
 
   const dateFormatter = new Intl.DateTimeFormat(i18n.language, {
     day: 'numeric',
@@ -234,7 +243,7 @@ function OwnerSections({
               >
                 {/* The last owner cannot return to regular: the option is
                     disabled here, and the API refuses it regardless. */}
-                <option value="regular" disabled={!canDemote}>
+                <option value="regular" disabled={isLastOwner}>
                   {t('admin.space.regularPill')}
                 </option>
                 <option value="owner">{t('admin.space.ownerPill')}</option>
@@ -291,6 +300,16 @@ function OwnerSections({
                 <Badge variant={codeStatusPill[codeStatus.data.status].variant}>
                   {t(codeStatusPill[codeStatus.data.status].label)}
                 </Badge>
+                {codeStatus.data.status === 'issued' ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => setConfirmRevoke(true)}
+                  >
+                    {t('space.card.revokeCode')}
+                  </Button>
+                ) : null}
               </ItemActions>
             </Item>
           )}
@@ -410,7 +429,10 @@ function OwnerSections({
                   <Button
                     variant="secondary"
                     disabled={issueCode.isPending}
-                    onClick={() => setIssueOpen(false)}
+                    onClick={() => {
+                      setIssueOpen(false)
+                      setIssueError(undefined)
+                    }}
                   >
                     {t('ui.close')}
                   </Button>
@@ -488,10 +510,13 @@ function OwnerSections({
                       onSuccess: () => {
                         setConfirmDisconnect(false)
                         toast(t('space.card.disconnectedToast'))
-                        // If the owner disconnected themselves, this
-                        // device's session just died: the gate at the next
-                        // navigation sends them to sign-in.
-                        void navigate({ to: '/members' })
+                        if (isSelf) {
+                          // The owner disconnected themselves: this device's
+                          // session just died, so the member's local data
+                          // goes with it, exactly like a sign-out.
+                          forgetMember(queryClient, memberId)
+                          void navigate({ to: '/' })
+                        }
                       },
                       onError: (error) => toast(spaceSettingsErrorMessage(error, t), 'danger'),
                     },
@@ -499,6 +524,54 @@ function OwnerSections({
                 }
               >
                 {t('space.card.disconnectConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {confirmRevoke ? (
+        // A mid-flight revocation owns the dialog: it cannot be dismissed
+        // until the request settles, so the callbacks land on a visible
+        // dialog.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !revokeCode.isPending) setConfirmRevoke(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.revokeCodeTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('space.card.revokeCodeText', { name: displayName })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={revokeCode.isPending}
+                onClick={() => setConfirmRevoke(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={revokeCode.isPending}
+                onClick={() =>
+                  revokeCode.mutate(
+                    { memberId },
+                    {
+                      onSuccess: () => {
+                        setConfirmRevoke(false)
+                        toast(t('space.card.revokedToast'))
+                      },
+                      onError: (error) => toast(spaceSettingsErrorMessage(error, t), 'danger'),
+                    },
+                  )
+                }
+              >
+                {t('space.card.revokeCodeConfirm')}
               </Button>
             </DialogFooter>
           </DialogContent>

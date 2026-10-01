@@ -1424,6 +1424,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
+                    "additionalProperties": false,
                     "type": "object",
                     "required": [
                       "id",

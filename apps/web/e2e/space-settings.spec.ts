@@ -196,7 +196,8 @@ test.describe('owner management of members and codes', () => {
     await page.getByRole('button', { name: 'Готово' }).click()
     await expect(page).toHaveURL(/\/members$/)
     await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
-    await expect(page.getByText('Код входа')).toBeVisible()
+    // Exact: the devices hint mentions «код входа» in the same words.
+    await expect(page.getByText('Код входа', { exact: true })).toBeVisible()
     await expect(page.getByText('Ждёт первого входа')).toBeVisible()
     await expect(page.getByText('Safari на iPhone')).toBeVisible()
     await page.getByRole('button', { name: 'Отключить всё' }).click()

@@ -152,9 +152,52 @@ describe('InviteMemberScreen', () => {
     // shell renders a drawer with the same role, so the confirm dialog is
     // addressed by its title.
     const dialog = await screen.findByRole('dialog', { name: 'Перевыпустить код?' })
-    expect(within(dialog).getByText(/SASF-KQLV отзовётся/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/SASF-KQLV заменится/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Перевыпустить' }))
     expect(await screen.findByText('QWEE-4455')).toBeInTheDocument()
+    expect(apiPost).toHaveBeenCalledTimes(3)
+  })
+
+  it('offers a retry when issuing the code fails after the member exists', async () => {
+    const user = userEvent.setup()
+    let attempts = 0
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/members') return okBody(NEW_MEMBER, 201)
+      if (path === '/api/v1/members/{memberId}/access-code') {
+        attempts += 1
+        if (attempts === 1) {
+          return {
+            data: undefined,
+            error: { error: { code: 'unexpected', message: 'boom' } },
+            response: new Response(null, { status: 500 }),
+          }
+        }
+        return okBody(
+          {
+            id: '01900000-0000-7000-8000-000000000003',
+            memberId: NEW_MEMBER.id,
+            code: 'SASF-KQLV',
+            status: 'issued',
+            createdAt: '2026-09-29T10:00:00.000Z',
+            expiresAt: '2026-09-30T10:00:00.000Z',
+            statusChangedAt: '2026-09-29T10:00:00.000Z',
+          },
+          201,
+        )
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    renderWithProviders(<InviteMemberScreen />)
+
+    await screen.findByRole('heading', { name: 'Пригласить участника' })
+    await user.type(screen.getByLabelText('Имя'), 'Дима')
+    await user.click(screen.getByRole('button', { name: 'Пригласить и выпустить код' }))
+
+    // The failure is a state with a way out, not an endless spinner: the
+    // member already exists, so only the issuance retries.
+    const retry = await screen.findByRole('button', { name: 'Выпустить код ещё раз' })
+    await user.click(retry)
+    expect(await screen.findByText('SASF-KQLV')).toBeInTheDocument()
     expect(apiPost).toHaveBeenCalledTimes(3)
   })
 

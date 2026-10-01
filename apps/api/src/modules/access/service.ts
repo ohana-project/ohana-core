@@ -14,12 +14,14 @@ import {
   findMemberSessionByTokenHashAcrossSpaces,
   getAccessCodeRow,
   getLatestAccessCodeForMember,
+  getLiveAccessCodeForMember,
   insertAccessCode,
   insertMemberSession,
   listAccessCodesInSpace,
   listLiveMemberSessionsForMember,
   redeemAccessCodeByHashAcrossSpaces,
   revokeAccessCodeRow,
+  revokeLiveAccessCodeForMember,
   sweepMemberCodesForIssue,
   touchMemberSessionByTokenHashAcrossSpaces,
 } from './repository.ts'
@@ -562,8 +564,11 @@ async function requireMemberInSpace(
 
 /**
  * The member's current code for the owner's member card (issue #12): its
- * derived status and timestamps. Expiry is derived at read time — a GET
- * never writes. A member without codes answers access_code_not_found.
+ * derived status and timestamps. The live code is picked by status — under
+ * concurrent issuance it is not always the newest row — and falls back to
+ * the newest terminal row, so the card shows what became of the last
+ * invitation. Expiry is derived at read time — a GET never writes. A member
+ * without codes answers access_code_not_found.
  */
 export async function getMemberAccessCode(
   deps: AccessDeps,
@@ -571,7 +576,9 @@ export async function getMemberAccessCode(
   memberId: string,
 ): Promise<AccessCodeListItem> {
   await requireMemberInSpace(deps, spaceId, memberId)
-  const row = await getLatestAccessCodeForMember(deps.db, spaceId, memberId)
+  const row =
+    (await getLiveAccessCodeForMember(deps.db, spaceId, memberId)) ??
+    (await getLatestAccessCodeForMember(deps.db, spaceId, memberId))
   if (row === undefined) {
     throw new DomainError('access_code_not_found', `Member ${memberId} has no access codes`, 404)
   }
@@ -588,11 +595,11 @@ export async function getMemberAccessCode(
 
 /**
  * Revokes the member's outstanding invitation: their live code (issue #12).
- * Issuing is replacing, so a live code is always the member's newest; a
- * refusal of the compare-and-set therefore means the newest code is already
- * spent and there is nothing outstanding — the same access_code_not_found
- * as having no codes at all. An issued-past-expiry code materialises its
- * status first, the way the administrative revocation does.
+ * The revocation is one member-scoped compare-and-set, so it takes no space
+ * row lock and is exact under concurrent issuance. A miss means there is no
+ * outstanding code — the same access_code_not_found as having no codes at
+ * all — and an issued-past-expiry code materialises its status first, the
+ * way the administrative revocation does.
  */
 export async function revokeMemberAccessCode(
   deps: AccessDeps,
@@ -601,20 +608,18 @@ export async function revokeMemberAccessCode(
 ): Promise<AccessCodeListItem> {
   await requireMemberInSpace(deps, spaceId, memberId)
   const now = deps.clock.now()
-  const outcome = await deps.db.transaction(async (tx) => {
-    const latest = await getLatestAccessCodeForMember(tx, spaceId, memberId)
-    if (latest === undefined) return { kind: 'none' } as const
-    const row = await revokeAccessCodeRow(tx, spaceId, latest.id, now)
-    if (row !== undefined) return { kind: 'revoked', row } as const
-    const existing = await getAccessCodeRow(tx, spaceId, latest.id)
-    if (existing === undefined) return { kind: 'none' } as const
-    return { kind: 'refused', status: derivedStatus(existing, now), codeId: existing.id } as const
-  })
+  const row = await deps.db.transaction((tx) =>
+    revokeLiveAccessCodeForMember(tx, spaceId, memberId, now),
+  )
 
-  if (outcome.kind === 'refused' && outcome.status === 'expired') {
-    await deps.db.transaction((tx) => expireAccessCodeRow(tx, spaceId, outcome.codeId, now))
-  }
-  if (outcome.kind !== 'revoked') {
+  if (row === undefined) {
+    // The write may have missed because the issued code is past its expiry:
+    // materialise that status in its own transaction, so the write survives
+    // the refused answer, then refuse like the administrative revocation.
+    const stale = await getLiveAccessCodeForMember(deps.db, spaceId, memberId)
+    if (stale !== undefined && stale.expiresAt.getTime() <= now.getTime()) {
+      await deps.db.transaction((tx) => expireAccessCodeRow(tx, spaceId, stale.id, now))
+    }
     throw new DomainError(
       'access_code_not_found',
       `Member ${memberId} has no outstanding access code`,
@@ -623,12 +628,12 @@ export async function revokeMemberAccessCode(
   }
 
   return {
-    id: outcome.row.id,
-    memberId: outcome.row.memberId,
+    id: row.id,
+    memberId: row.memberId,
     status: 'revoked',
-    createdAt: outcome.row.createdAt,
-    expiresAt: outcome.row.expiresAt,
-    statusChangedAt: outcome.row.statusChangedAt,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    statusChangedAt: row.statusChangedAt,
   }
 }
 

@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { Button } from '@/ui/button.tsx'
+import { Card } from '@/ui/card.tsx'
 import { CodeDisplay } from '@/ui/code-display.tsx'
 import {
   Dialog,
@@ -12,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog.tsx'
+import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
@@ -132,7 +134,29 @@ export function InviteMemberScreen() {
             </p>
           </header>
 
-          {issued === undefined ? (
+          {issued === undefined && issueCode.isError ? (
+            // The member exists but the code never arrived: retry issuance —
+            // resubmitting the whole form would create a duplicate member.
+            <>
+              <Card>
+                <Empty>
+                  <EmptyMedia>
+                    <Icon name="alert" />
+                  </EmptyMedia>
+                  <EmptyTitle>{formError ?? t('space.errors.unexpected')}</EmptyTitle>
+                </Empty>
+              </Card>
+              <div className="flex flex-col gap-2.5">
+                <Button onClick={() => issue(provisioned.memberId)} disabled={issueCode.isPending}>
+                  <Icon name="repeat" className="size-4" />
+                  {t('space.invite.retryIssue')}
+                </Button>
+                <Button variant="secondary" onClick={() => void navigate({ to: '/members' })}>
+                  {t('space.invite.done')}
+                </Button>
+              </div>
+            </>
+          ) : issued === undefined ? (
             <div className="grid place-items-center py-10">
               <Spinner className="size-6" />
             </div>
@@ -153,7 +177,9 @@ export function InviteMemberScreen() {
               </div>
             </>
           )}
-          {formError !== undefined ? <p className="text-sm text-destructive">{formError}</p> : null}
+          {issued !== undefined && formError !== undefined ? (
+            <p className="text-sm text-destructive">{formError}</p>
+          ) : null}
           <p className="text-sm leading-relaxed text-muted-foreground">{t('space.invite.hint')}</p>
         </div>
 
