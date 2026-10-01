@@ -108,14 +108,16 @@ export function useSwitchMember() {
  * cached answers are cleared without refetching — their headers are
  * pinned to the member, so a request under that name could only be
  * refused — and the remaining queries reset for whoever is active now.
- * The registry changes first, so the next render can only rebuild queries
- * for that member. Called after the API has ended the member's session
- * (sign-out, or revoking the session this device is using).
+ * The queries are reset in place rather than removed: a screen still
+ * observing the departed member's key keeps the same query, and a reset
+ * query does not fetch again on re-render — a removed query would be
+ * rebuilt and refetched under the pinned header. Called after the API has
+ * ended the member's session (sign-out, or revoking the session this
+ * device is using).
  */
 export function forgetMember(queryClient: QueryClient, memberId: string): void {
   removeSession(memberId)
   for (const query of queryClient.getQueryCache().findAll({ queryKey: ['member', memberId] })) {
-    void query.cancel({ silent: true })
     query.reset()
   }
   void queryClient.resetQueries({

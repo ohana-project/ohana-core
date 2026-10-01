@@ -109,10 +109,16 @@ describe('SpaceHomeScreen', () => {
     )
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
     expect(JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')).toEqual([])
+    // The forget sweep re-runs the probe, which answers signed out with no
+    // request at all (nobody is retained); the screen takes that state
+    // down. Once it has, the refetch window is closed for the negative
+    // assertion.
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('heading', { name: /Аня Смирнова/ })).not.toBeInTheDocument(),
+    )
     // The signed-out member's cached data is cleared, not refetched: the
     // header is pinned and the session is gone, so the request could only
     // be refused.
-    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(apiGet).not.toHaveBeenCalledWith('/api/v1/members', {
       params: { header: { 'x-ohana-member': ME.member.id } },
     })

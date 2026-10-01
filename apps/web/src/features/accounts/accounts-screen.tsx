@@ -116,8 +116,10 @@ export function AccountsScreen() {
           if (wasCurrent) {
             // Ending the session that this device is using is also a
             // sign-out: the member's local data goes with it, exactly like
-            // signing out.
+            // signing out. The screen follows the registry at once, so no
+            // observer lingers on the departed member's key.
             forgetMember(queryClient, activeId)
+            setActiveId(getActiveMemberId())
             void navigate({ to: '/' })
           } else {
             // Another device lost access; only this list changes.
@@ -292,7 +294,9 @@ export function AccountsScreen() {
                     onSuccess: () => {
                       setSignOutOpen(false)
                       // The registry falls back to another retained
-                      // sign-in; the gate at / decides where that leads.
+                      // sign-in; the screen follows it at once, and the
+                      // gate at / decides where that leads.
+                      setActiveId(getActiveMemberId())
                       void navigate({ to: '/' })
                     },
                     onError: () => toast(t('accounts.signOutFailed'), 'danger'),

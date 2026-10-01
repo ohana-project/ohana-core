@@ -228,9 +228,13 @@ describe('AccountsScreen', () => {
       // Another retained sign-in becomes active, with its own data.
       expect(window.localStorage.getItem('ohana.activeMember')).toBe(DACHA_ANYA.memberId)
     })
-    // Settle any post-forget refetch before the negative assertion: the
-    // failure this pins arrived through a later re-render once already.
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The screen follows the registry: the next retained member's review
+    // loads before the refetch window is closed for the negative assertion.
+    await vi.waitFor(() =>
+      expect(apiGet).toHaveBeenCalledWith('/api/v1/me/sessions', {
+        params: { header: { 'x-ohana-member': DACHA_ANYA.memberId } },
+      }),
+    )
     // The departed member's data is cleared, not refetched: the header is
     // pinned and the session is gone, so the request could only be refused.
     expect(apiGet).not.toHaveBeenCalledWith('/api/v1/me/sessions', {
