@@ -1,6 +1,6 @@
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { type MemberSnapshot, readMemberSnapshot } from '@/data/local-store.ts'
+import { type MemberSnapshot, readMemberSnapshot, type SectionName } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { onSyncApplied, triggerSync } from '@/data/sync-engine.ts'
 
@@ -24,7 +24,7 @@ export function syncedSnapshotKey(memberId: string | undefined) {
  */
 export function sectionDownloaded(
   snapshot: MemberSnapshot | undefined,
-  section: 'journal' | 'calendar' | 'wishlist',
+  section: SectionName,
 ): boolean {
   if (snapshot === undefined || snapshot.revision === undefined) return false
   return !snapshot.pendingReplay.includes(section)

@@ -22,6 +22,7 @@ export async function seedVersionOnePartition(
   memberId: string,
   space: { id: string; name: string; timezone?: string },
   members: StoredMemberProfile[] = [],
+  options: { cursor?: string | null } = {},
 ): Promise<void> {
   const openVersionOne = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(`ohana.sync.${memberId}`, 1)
@@ -44,7 +45,11 @@ export async function seedVersionOnePartition(
         sections: { journal: true, calendar: true, wishlist: true },
       })
       for (const member of members) tx.objectStore('members').put(member)
-      tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
+      // A partition whose first apply never committed holds no cursor at
+      // all — the honest empty answer after the upgrade.
+      if (options.cursor !== null) {
+        tx.objectStore('meta').put({ key: 'cursor', revision: options.cursor ?? '5' })
+      }
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error ?? new Error('Seeding version 1 failed'))
     })

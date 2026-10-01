@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
-import { applySyncResult } from '@/data/local-store.ts'
+import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalEntryScreen } from './journal-entry-screen.tsx'
@@ -205,6 +205,9 @@ describe('JournalEntryScreen', () => {
       },
       '8',
     )
+    // The precondition is the promise: without it the test would only pin
+    // that a stored entry shows.
+    expect((await readMemberSnapshot(ME)).pendingReplay).toEqual(['journal'])
     mockQuietSync()
     renderWithProviders(<JournalEntryScreen entryId={row.id} />)
 

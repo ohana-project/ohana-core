@@ -4,7 +4,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
-import { applySyncResult } from '@/data/local-store.ts'
+import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
@@ -326,7 +326,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
     const existing = draft()
     await applySyncResult(ME, syncResult([existing]))
     // The journal hides, re-shows, and the re-show's delta carries the
-    // draft — the replay itself has not landed. A held row is real.
+    // draft again — the replay itself has not landed. A held row is real.
     await applySyncResult(ME, {
       revision: '8',
       changes: [
@@ -362,12 +362,9 @@ describe('JournalEditorScreen (editing an entry)', () => {
       },
       '8',
     )
-    apiPatch.mockImplementation(async (path: never) => {
-      if (path === '/api/v1/journal/entries/{entryId}') {
-        return { data: existing, error: undefined, response: new Response(null, { status: 200 }) }
-      }
-      throw new Error(`Unexpected PATCH ${String(path)}`)
-    })
+    // The precondition is the promise: without it the test would only pin
+    // that a stored draft opens.
+    expect((await readMemberSnapshot(ME)).pendingReplay).toEqual(['journal'])
     renderWithProviders(<JournalEditorScreen entryId={existing.id} />)
 
     const titleField = await screen.findByLabelText('Заголовок')

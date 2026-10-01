@@ -20,6 +20,8 @@ export interface StoredSpace {
   sections: { journal: boolean; calendar: boolean; wishlist: boolean }
 }
 
+export type SectionName = keyof StoredSpace['sections']
+
 export interface StoredMemberProfile {
   id: string
   name: string
@@ -60,7 +62,7 @@ export interface MemberSnapshot {
    * one row may still show a row it holds — real, the server having
    * filtered it — without claiming anything about the rest.
    */
-  pendingReplay: Array<keyof StoredSpace['sections']>
+  pendingReplay: SectionName[]
 }
 
 const DB_PREFIX = 'ohana.sync.'
@@ -190,8 +192,6 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
   }
 }
 
-type SectionName = keyof StoredSpace['sections']
-
 type MetaRow =
   | { key: 'cursor'; revision: string }
   | { key: 'syncedAt'; at: number }
@@ -216,26 +216,34 @@ type MetaRow =
  * stored cursor has moved on (another tab's apply, a run that landed
  * meanwhile), the response is stale — writing it would clobber a replay
  * promise or resurrect dropped rows — and nothing is written; the engine
- * reruns from the stored cursor. The replay promise clears only when the
- * response answered a request from revision 0, which is the replay itself.
- * The engine always names its `since`; without it (the tests' sequential
- * applies) the staleness guard does not engage.
+ * reruns from the stored cursor. The replay promise clears when an apply
+ * lands without a re-show, and the re-show's own apply writes the promise
+ * with the cursor at 0. The engine always names its `since`; without it
+ * (the tests' sequential applies) the staleness guard does not engage.
  */
+export interface AppliedSync {
+  /** The cursor the store holds after the apply. */
+  cursor: string
+  /** Whether this response is what the store applied. */
+  applied: boolean
+}
+
 export async function applySyncResult(
   memberId: string,
   result: SyncResult,
   since?: string,
-): Promise<string> {
+): Promise<AppliedSync> {
   const db = await openMemberDb(memberId)
   try {
     // The stored cursor is only resolved once the transaction has committed.
-    return await new Promise<string>((resolve, reject) => {
+    return await new Promise<AppliedSync>((resolve, reject) => {
       const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readwrite')
       const spaceStore = tx.objectStore('space')
       const memberStore = tx.objectStore('members')
       const entryStore = tx.objectStore('entries')
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
+      let applied = true
 
       // The previous map and replay promise are read before anything is
       // written, so the hidden-to-visible decision sees the state the
@@ -246,9 +254,11 @@ export async function applySyncResult(
         const metaRows = metaRequest.result as MetaRow[]
         const storedCursor = metaRows.find((row) => row.key === 'cursor')?.revision ?? '0'
         if (since !== undefined && storedCursor !== since) {
-          // Stale: the store moved past the cursor this response answered.
+          // Stale: the store no longer sits on the cursor this request was
+          // sent from (another tab's apply, a run that landed meanwhile).
           // Nothing of it may land — write nothing, and hand the engine the
           // stored cursor so its rerun asks for what the store now needs.
+          applied = false
           storedRevision = storedCursor
           return
         }
@@ -278,11 +288,10 @@ export async function applySyncResult(
           // A re-shown section writes the replay promise: the cursor goes
           // to 0 and the section's full data has to come again before the
           // screens may claim it (ADR-0014). The promise is per section, so
-          // another section's replay never questions this one's rows. The
-          // engine asks from the stored cursor, so a response that answered
-          // a request from revision 0 is the replay itself: whatever
-          // promises were open, this response carried the sections whole —
-          // and a re-show inside it would name only itself.
+          // another section's replay never questions this one's rows, and
+          // any apply that lands without a re-show — the replay above all,
+          // which carries every section whole — clears the promises with
+          // its cursor.
           const reshowed = (Object.keys(previous?.sections ?? {}) as SectionName[]).filter(
             (section) =>
               previous !== undefined &&
@@ -291,7 +300,8 @@ export async function applySyncResult(
               nextSpace.space.sections[section],
           )
           if (reshowed.length > 0 && since !== '0') revision = '0'
-          const pendingReplay: SectionName[] = revision === '0' || since === '0' ? reshowed : []
+          const pendingReplay: SectionName[] = revision === '0' ? reshowed : []
+          if (reshowed.length > 0) revision = '0'
           storedRevision = revision
           const cursor: MetaRow = { key: 'cursor', revision }
           const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }
@@ -303,7 +313,7 @@ export async function applySyncResult(
           reject(previousRequest.error ?? new Error('The read failed'))
       }
       metaRequest.onerror = () => reject(metaRequest.error ?? new Error('The read failed'))
-      tx.oncomplete = () => resolve(storedRevision)
+      tx.oncomplete = () => resolve({ cursor: storedRevision, applied })
       tx.onerror = () => reject(tx.error ?? new Error('Applying the sync result failed'))
       tx.onabort = () => reject(tx.error ?? new Error('Applying the sync result was aborted'))
     })

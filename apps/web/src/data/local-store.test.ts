@@ -1,5 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { seedVersionOnePartition } from '../testing/fixtures.ts'
 import type { StoredJournalEntry, SyncResult } from './local-store.ts'
 import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-store.ts'
 
@@ -298,7 +299,7 @@ describe('the per-member local store', () => {
     expect(replayed.entries).toHaveLength(1)
   })
 
-  test('the same re-show response applied twice writes the promise once', async () => {
+  test('a stale response for a cursor the store moved past writes nothing', async () => {
     const row = entry()
     const spaceAt = (journal: boolean): SyncResult['changes'] => [
       {
@@ -312,9 +313,10 @@ describe('the per-member local store', () => {
       },
     ]
 
-    // The journal hides at revision 7; both tabs then ask from that cursor
-    // and get the same re-show response. The first apply writes the
-    // re-show; the second is stale and must not clobber the promise.
+    // The journal hides at revision 7; two tabs then ask from that cursor.
+    // Tab A's re-show response lands; tab B's is the same request, but by
+    // the time its answer arrives the store has moved on — nothing of it
+    // may land, and the promise stays as the first apply wrote it.
     await applySyncResult(ANYA, { revision: '7', changes: spaceAt(false), tombstones: [] })
     const reshow: SyncResult = {
       revision: '9',
@@ -322,13 +324,29 @@ describe('the per-member local store', () => {
       tombstones: [],
     }
     const first = await applySyncResult(ANYA, reshow, '7')
-    const second = await applySyncResult(ANYA, reshow, '7')
+    const before = await readMemberSnapshot(ANYA)
+    // Tab B's answer carries a row and a revision of its own — the stale
+    // apply must not deliver them.
+    const staleTab: SyncResult = {
+      revision: '11',
+      changes: [
+        ...spaceAt(true),
+        {
+          entity: 'journal_entry',
+          entry: { ...row, id: '01900000-0000-7000-8000-000000000102', text: 'позже' },
+        },
+      ],
+      tombstones: [],
+    }
+    const second = await applySyncResult(ANYA, staleTab, '7')
 
-    expect(first).toBe('0')
-    expect(second).toBe('0')
-    const snapshot = await readMemberSnapshot(ANYA)
-    expect(snapshot.revision).toBe('0')
-    expect(snapshot.pendingReplay).toEqual(['journal'])
+    expect(first).toEqual({ cursor: '0', applied: true })
+    expect(second).toEqual({ cursor: '0', applied: false })
+    const after = await readMemberSnapshot(ANYA)
+    expect(after.revision).toBe('0')
+    expect(after.pendingReplay).toEqual(['journal'])
+    expect(after.entries.map((entry) => entry.id)).toEqual(before.entries.map((entry) => entry.id))
+    expect(after.syncedAt).toBe(before.syncedAt)
   })
 
   test('a re-show writes its own promise, and the replay answers for the space whole', async () => {
@@ -369,7 +387,7 @@ describe('the per-member local store', () => {
       },
       '8',
     )
-    expect(reshow).toBe('0')
+    expect(reshow).toEqual({ cursor: '0', applied: true })
     expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual(['journal'])
 
     // The replay answers a request from revision 0 and carries every
@@ -394,7 +412,7 @@ describe('the per-member local store', () => {
       },
       '0',
     )
-    expect(replay).toBe('10')
+    expect(replay).toEqual({ cursor: '10', applied: true })
     expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual([])
   })
 
@@ -402,36 +420,14 @@ describe('the per-member local store', () => {
     // A device that synced before the journal existed holds a version 1
     // database: space, members, meta, no entries store — and a cursor that
     // advanced past journal_entry revisions the old client ignored.
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(`ohana.sync.${ANYA}`, 1)
-      request.onupgradeneeded = () => {
-        const upgrading = request.result
-        upgrading.createObjectStore('space', { keyPath: 'id' })
-        upgrading.createObjectStore('members', { keyPath: 'id' })
-        upgrading.createObjectStore('meta', { keyPath: 'key' })
-      }
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
-    })
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(['space', 'members', 'meta'], 'readwrite')
-      tx.objectStore('space').put({
-        id: SPACE_ID,
-        name: 'Наша семья',
-        timezone: 'Europe/Moscow',
-        sections: { journal: true, calendar: true, wishlist: true },
-      })
-      tx.objectStore('members').put({
+    await seedVersionOnePartition(ANYA, { id: SPACE_ID, name: 'Наша семья' }, [
+      {
         id: MISHA_ID,
         name: 'Миша',
         role: 'regular',
         createdAt: '2026-08-14T10:00:00.000Z',
-      })
-      tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error ?? new Error('Seeding version 1 failed'))
-    })
-    db.close()
+      },
+    ])
 
     // The read upgrades the partition instead of answering empty: the
     // space and members still read offline (ADR-0002), the entries store
@@ -474,18 +470,9 @@ describe('the per-member local store', () => {
     // A device whose first apply never committed holds the stores but no
     // cursor; the upgrade must not write one, or the screens would claim
     // empty sections for data the device does not hold.
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(`ohana.sync.${ANYA}`, 1)
-      request.onupgradeneeded = () => {
-        const upgrading = request.result
-        upgrading.createObjectStore('space', { keyPath: 'id' })
-        upgrading.createObjectStore('members', { keyPath: 'id' })
-        upgrading.createObjectStore('meta', { keyPath: 'key' })
-      }
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
+    await seedVersionOnePartition(ANYA, { id: SPACE_ID, name: 'Наша семья' }, [], {
+      cursor: null,
     })
-    db.close()
 
     const snapshot = await readMemberSnapshot(ANYA)
     expect(snapshot.revision).toBeUndefined()

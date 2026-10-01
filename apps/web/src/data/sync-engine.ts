@@ -186,8 +186,16 @@ async function runSync(memberId: string): Promise<void> {
   try {
     // The answer of a departed member is never written back.
     if (forgotten()) return
-    const storedRevision = await applySyncResult(memberId, result, snapshot.revision ?? '0')
+    const { cursor, applied } = await applySyncResult(memberId, result, snapshot.revision ?? '0')
     if (forgotten()) return
+    if (!applied) {
+      // The store moved past the cursor this response answered while it was
+      // in flight (another tab's apply, a run that landed first): nothing
+      // of it was written, so this run asks again from where the store is
+      // instead of reporting a freshness it does not have.
+      await runSync(memberId)
+      return
+    }
     setStatus(memberId, { state: 'synced', syncedAt: Date.now() })
     for (const listener of appliedListeners) {
       try {
@@ -199,7 +207,7 @@ async function runSync(memberId: string): Promise<void> {
 
     // A re-shown section reset the cursor to 0 inside the apply (ADR-0014):
     // the next sync, run right away, carries the section's full data again.
-    if (storedRevision === '0') await runSync(memberId)
+    if (cursor === '0') await runSync(memberId)
   } catch {
     // Applying failed locally — the response was fine, the store refused
     // it. The stored data is whatever the last successful apply left.
