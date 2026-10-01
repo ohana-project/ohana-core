@@ -19,10 +19,15 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminPasswordRouteImport } from './routes/admin/password'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as JournalIndexRouteImport } from './routes/journal/index'
+import { Route as JournalEntryIdRouteImport } from './routes/journal/$entryId'
+import { Route as JournalDraftsRouteImport } from './routes/journal/drafts'
+import { Route as JournalNewRouteImport } from './routes/journal/new'
 import { Route as MembersIndexRouteImport } from './routes/members/index'
 import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
 import { Route as MembersInviteRouteImport } from './routes/members/invite'
 import { Route as AdminSpacesSpaceIdRouteImport } from './routes/admin/spaces/$spaceId'
+import { Route as JournalEntryIdEditRouteImport } from './routes/journal/$entryId_.edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -74,6 +79,26 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JournalIndexRoute = JournalIndexRouteImport.update({
+  id: '/journal/',
+  path: '/journal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JournalEntryIdRoute = JournalEntryIdRouteImport.update({
+  id: '/journal/$entryId',
+  path: '/journal/$entryId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JournalDraftsRoute = JournalDraftsRouteImport.update({
+  id: '/journal/drafts',
+  path: '/journal/drafts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JournalNewRoute = JournalNewRouteImport.update({
+  id: '/journal/new',
+  path: '/journal/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MembersIndexRoute = MembersIndexRouteImport.update({
   id: '/members/',
   path: '/members/',
@@ -94,6 +119,11 @@ const AdminSpacesSpaceIdRoute = AdminSpacesSpaceIdRouteImport.update({
   path: '/admin/spaces/$spaceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JournalEntryIdEditRoute = JournalEntryIdEditRouteImport.update({
+  id: '/journal/$entryId_/edit',
+  path: '/journal/$entryId/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -105,11 +135,16 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/journal/$entryId': typeof JournalEntryIdRoute
+  '/journal/drafts': typeof JournalDraftsRoute
+  '/journal/new': typeof JournalNewRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/admin/': typeof AdminIndexRoute
+  '/journal/': typeof JournalIndexRoute
   '/members/': typeof MembersIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
+  '/journal/$entryId/edit': typeof JournalEntryIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -121,11 +156,16 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/journal/$entryId': typeof JournalEntryIdRoute
+  '/journal/drafts': typeof JournalDraftsRoute
+  '/journal/new': typeof JournalNewRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/admin': typeof AdminIndexRoute
+  '/journal': typeof JournalIndexRoute
   '/members': typeof MembersIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
+  '/journal/$entryId/edit': typeof JournalEntryIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -138,11 +178,16 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/journal/$entryId': typeof JournalEntryIdRoute
+  '/journal/drafts': typeof JournalDraftsRoute
+  '/journal/new': typeof JournalNewRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/admin/': typeof AdminIndexRoute
+  '/journal/': typeof JournalIndexRoute
   '/members/': typeof MembersIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
+  '/journal/$entryId_/edit': typeof JournalEntryIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -156,11 +201,16 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/journal/$entryId'
+    | '/journal/drafts'
+    | '/journal/new'
     | '/members/$memberId'
     | '/members/invite'
     | '/admin/'
+    | '/journal/'
     | '/members/'
     | '/admin/spaces/$spaceId'
+    | '/journal/$entryId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -172,11 +222,16 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/journal/$entryId'
+    | '/journal/drafts'
+    | '/journal/new'
     | '/members/$memberId'
     | '/members/invite'
     | '/admin'
+    | '/journal'
     | '/members'
     | '/admin/spaces/$spaceId'
+    | '/journal/$entryId/edit'
   id:
     | '__root__'
     | '/'
@@ -188,11 +243,16 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/journal/$entryId'
+    | '/journal/drafts'
+    | '/journal/new'
     | '/members/$memberId'
     | '/members/invite'
     | '/admin/'
+    | '/journal/'
     | '/members/'
     | '/admin/spaces/$spaceId'
+    | '/journal/$entryId_/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -205,11 +265,16 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminPasswordRoute: typeof AdminPasswordRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  JournalEntryIdRoute: typeof JournalEntryIdRoute
+  JournalDraftsRoute: typeof JournalDraftsRoute
+  JournalNewRoute: typeof JournalNewRoute
   MembersMemberIdRoute: typeof MembersMemberIdRoute
   MembersInviteRoute: typeof MembersInviteRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  JournalIndexRoute: typeof JournalIndexRoute
   MembersIndexRoute: typeof MembersIndexRoute
   AdminSpacesSpaceIdRoute: typeof AdminSpacesSpaceIdRoute
+  JournalEntryIdEditRoute: typeof JournalEntryIdEditRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -284,6 +349,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/journal/': {
+      id: '/journal/'
+      path: '/journal'
+      fullPath: '/journal/'
+      preLoaderRoute: typeof JournalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/journal/$entryId': {
+      id: '/journal/$entryId'
+      path: '/journal/$entryId'
+      fullPath: '/journal/$entryId'
+      preLoaderRoute: typeof JournalEntryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/journal/drafts': {
+      id: '/journal/drafts'
+      path: '/journal/drafts'
+      fullPath: '/journal/drafts'
+      preLoaderRoute: typeof JournalDraftsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/journal/new': {
+      id: '/journal/new'
+      path: '/journal/new'
+      fullPath: '/journal/new'
+      preLoaderRoute: typeof JournalNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/members/': {
       id: '/members/'
       path: '/members'
@@ -312,6 +405,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSpacesSpaceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/journal/$entryId_/edit': {
+      id: '/journal/$entryId_/edit'
+      path: '/journal/$entryId/edit'
+      fullPath: '/journal/$entryId/edit'
+      preLoaderRoute: typeof JournalEntryIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -325,11 +425,16 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminPasswordRoute: AdminPasswordRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  JournalEntryIdRoute: JournalEntryIdRoute,
+  JournalDraftsRoute: JournalDraftsRoute,
+  JournalNewRoute: JournalNewRoute,
   MembersMemberIdRoute: MembersMemberIdRoute,
   MembersInviteRoute: MembersInviteRoute,
   AdminIndexRoute: AdminIndexRoute,
+  JournalIndexRoute: JournalIndexRoute,
   MembersIndexRoute: MembersIndexRoute,
   AdminSpacesSpaceIdRoute: AdminSpacesSpaceIdRoute,
+  JournalEntryIdEditRoute: JournalEntryIdEditRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

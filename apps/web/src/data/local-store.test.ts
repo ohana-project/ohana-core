@@ -70,6 +70,7 @@ describe('the per-member local store', () => {
     expect(snapshot).toEqual({
       space: undefined,
       members: [],
+      entries: [],
       revision: undefined,
       syncedAt: undefined,
     })
@@ -215,6 +216,7 @@ describe('the per-member local store', () => {
     expect(await readMemberSnapshot(ANYA)).toEqual({
       space: undefined,
       members: [],
+      entries: [],
       revision: undefined,
       syncedAt: undefined,
     })

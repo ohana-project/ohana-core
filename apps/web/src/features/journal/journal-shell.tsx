@@ -5,34 +5,35 @@ import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { useNavSections } from '@/features/member/use-nav-sections.ts'
 import { useSectionNav } from '@/features/member/use-section-nav.ts'
+import { useSyncStatus } from '@/features/member/use-sync-status.ts'
 import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 
 /*
- * The space settings area (docs/design/screens/members.html,
- * member-card.html, invite.html, space-settings.html): the member shell
- * with the screen's title in the top bar and a back arrow — to the members
- * screen inside the area, to home at its edge. The section navigation is
- * the space's own visible sections (issue #13); the user menu travels with
- * the shell, so every screen of the area reaches the others and the
- * accounts screen the same way the home does.
+ * The journal area's shell (docs/design/screens/diary.html): the member
+ * shell with the journal section active, a back arrow where the screen
+ * sits below the feed, and the user menu the other member areas carry.
+ * Everything reads the local store, so the shell answers offline like the
+ * screens inside it (ADR-0002).
  */
-
-export function SettingsShell({
+export function JournalShell({
   title,
-  backTo = '/',
-  width = 'narrow',
+  backTo,
+  width = 'default',
+  actions,
   children,
 }: {
-  title: string
-  backTo?: '/' | '/members'
-  width?: 'default' | 'narrow'
+  title?: string
+  backTo?: string
+  width?: 'default' | 'narrow' | 'wide'
+  actions?: ReactNode
   children: ReactNode
 }) {
   const { t } = useTranslation()
   const session = useMemberSessionStatus()
   const sections = useNavSections()
+  const sync = useSyncStatus()
   const userMenuItems = useMemberUserMenu()
   const onSectionClick = useSectionNav()
 
@@ -48,17 +49,22 @@ export function SettingsShell({
     <MemberLayout
       space={{ name: session.me?.space.name ?? '', marks: [] }}
       sections={sections}
+      activeId="journal"
+      sync={sync}
       title={title}
       width={width}
       userMenuItems={userMenuItems}
+      actions={actions}
       back={
-        <Link
-          to={backTo}
-          aria-label={t('space.back')}
-          className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <Icon name="chevron-left" className="size-5" />
-        </Link>
+        backTo === undefined ? undefined : (
+          <Link
+            to={backTo}
+            aria-label={t('layout.back')}
+            className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Icon name="chevron-left" className="size-5" />
+          </Link>
+        )
       }
       onSectionClick={onSectionClick}
     >

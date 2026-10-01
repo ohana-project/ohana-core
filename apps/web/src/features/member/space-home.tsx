@@ -1,10 +1,11 @@
-import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
-import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
+import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { ALL_SECTIONS_VISIBLE, useNavSections } from '@/features/member/use-nav-sections.ts'
+import { useSectionNav } from '@/features/member/use-section-nav.ts'
 import { useSyncStatus } from '@/features/member/use-sync-status.ts'
 import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
+import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -14,9 +15,7 @@ import { ErrorState } from '@/ui/error-state.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
-import type { ShellUserMenuItem } from '@/ui/shell.ts'
 import { Spinner } from '@/ui/spinner.tsx'
-import { toast } from '@/ui/toast.tsx'
 
 /*
  * The space home (docs/design/screens/home.html): the greeting with the
@@ -41,55 +40,16 @@ function greetingKey(hour: number): keyof typeof greetings {
 
 export function SpaceHomeScreen() {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
   const session = useMemberSessionStatus()
-  const signOut = useMemberSignOut()
   const snapshot = useSyncedSpace()
   const sync = useSyncStatus()
   const sections = useNavSections()
+  const userMenuItems = useMemberUserMenu()
+  const onSectionClick = useSectionNav()
 
   if (session.me === undefined) return null
   const me = session.me
   const displayName = me.member.displayName ?? me.member.name
-
-  const userMenuItems: ShellUserMenuItem[] = [
-    {
-      id: 'members',
-      label: t('space.members.title'),
-      icon: 'users',
-      onSelect: () => void navigate({ to: '/members' }),
-    },
-    // The space settings are an owner instrument (issue #12); the menu
-    // shows the entry only where the API would accept it.
-    ...(me.member.role === 'owner'
-      ? [
-          {
-            id: 'space-settings',
-            label: t('space.settings.title'),
-            icon: 'settings' as const,
-            onSelect: () => void navigate({ to: '/settings' }),
-          },
-        ]
-      : []),
-    {
-      id: 'accounts',
-      label: t('member.home.accounts'),
-      icon: 'users',
-      onSelect: () => void navigate({ to: '/accounts' }),
-    },
-    {
-      id: 'sign-out',
-      label: t('member.home.signOut'),
-      icon: 'log-out',
-      danger: true,
-      onSelect: () =>
-        signOut.mutate(me.member.id, {
-          // A failed sign-out keeps the member signed in; it must not look
-          // like the menu did nothing.
-          onError: () => toast(t('member.home.signOutFailed'), 'danger'),
-        }),
-    },
-  ]
 
   const dateLabel = new Intl.DateTimeFormat(i18n.language, {
     weekday: 'long',
@@ -114,11 +74,7 @@ export function SpaceHomeScreen() {
       activeId="home"
       sync={sync}
       userMenuItems={userMenuItems}
-      onSectionClick={(id) => {
-        // Journal, calendar, and wishlist screens arrive with their own
-        // tickets; until then only home is a real destination.
-        if (id === 'home') void navigate({ to: '/' })
-      }}
+      onSectionClick={onSectionClick}
     >
       <div className="flex flex-col gap-6 pt-6">
         <header>

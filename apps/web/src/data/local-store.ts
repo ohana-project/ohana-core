@@ -31,9 +31,22 @@ export interface StoredMemberProfile {
   createdAt: string
 }
 
+/** A journal entry as the sync response carries it (issue #15). */
+export interface StoredJournalEntry {
+  id: string
+  authorId: string
+  title?: string
+  text: string
+  state: 'draft' | 'published'
+  publishedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface MemberSnapshot {
   space: StoredSpace | undefined
   members: StoredMemberProfile[]
+  entries: StoredJournalEntry[]
   /** The last revision the device has applied; undefined until the first sync lands. */
   revision: string | undefined
   /** When the last sync succeeded, in epoch milliseconds. */
@@ -49,7 +62,10 @@ function memberDbName(memberId: string): string {
 
 function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(memberDbName(memberId), 1)
+    // Version 2 added the journal entries store (issue #15); the upgrade
+    // runs for fresh databases and for the partitions of members who
+    // synced before it existed, so every store creation is guarded.
+    const request = indexedDB.open(memberDbName(memberId), 2)
     request.onupgradeneeded = () => {
       if (!create) {
         // The read path never creates: the database vanished between the
@@ -62,6 +78,9 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('space')) db.createObjectStore('space', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('members')) {
         db.createObjectStore('members', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('entries')) {
+        db.createObjectStore('entries', { keyPath: 'id' })
       }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
     }
@@ -79,14 +98,21 @@ function requestAsPromise<T>(request: IDBRequest<T>): Promise<T> {
 
 /** Reads the member's whole partition; a device without data reads an empty snapshot. */
 export async function readMemberSnapshot(memberId: string): Promise<MemberSnapshot> {
+  const empty: MemberSnapshot = {
+    space: undefined,
+    members: [],
+    entries: [],
+    revision: undefined,
+    syncedAt: undefined,
+  }
   if (typeof indexedDB === 'undefined' || !indexedDB.databases) {
     // Every browser this supports implements both; the guard keeps the
     // empty answer honest where storage does not exist at all.
-    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+    return empty
   }
   const names = await indexedDB.databases()
   if (!names.some((database) => database.name === memberDbName(memberId))) {
-    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+    return empty
   }
   const db = await openMemberDb(memberId, false).catch((error: unknown) => {
     // A database that vanished mid-read reads as nothing stored. The name
@@ -98,13 +124,14 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     throw error
   })
   if (db === undefined) {
-    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+    return empty
   }
   try {
-    const tx = db.transaction(['space', 'members', 'meta'], 'readonly')
-    const [spaces, members, meta] = await Promise.all([
+    const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readonly')
+    const [spaces, members, entries, meta] = await Promise.all([
       requestAsPromise(tx.objectStore('space').getAll()),
       requestAsPromise(tx.objectStore('members').getAll()),
+      requestAsPromise(tx.objectStore('entries').getAll()),
       requestAsPromise(tx.objectStore('meta').getAll()),
     ])
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
@@ -112,6 +139,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     return {
       space: (spaces[0] as StoredSpace | undefined) ?? undefined,
       members: members as StoredMemberProfile[],
+      entries: entries as StoredJournalEntry[],
       revision: cursor,
       syncedAt,
     }
@@ -129,21 +157,22 @@ type MetaRow = { key: 'cursor'; revision: string } | { key: 'syncedAt'; at: numb
  * and a row delivered with both an upsert and a tombstone in one response
  * ends up stored.
  *
- * When the new sections map shows a section that was hidden before, the
- * cursor is written as 0 instead of the response's revision (ADR-0014):
- * a delta cannot carry rows older than the cursor, so the next sync
- * fetches the section's full data. The same rule will make the client
- * drop a hidden section's rows when the section stores arrive — the map
- * is applied here, in the same transaction.
+ * When the new sections map hides a section, the section's rows are
+ * dropped in the same transaction (ADR-0011, ADR-0014): the map on the
+ * space row is what the client's copy follows. When it shows a section
+ * that was hidden before, the cursor is written as 0 instead of the
+ * response's revision: a delta cannot carry rows older than the cursor,
+ * so the next sync fetches the section's full data.
  */
 export async function applySyncResult(memberId: string, result: SyncResult): Promise<string> {
   const db = await openMemberDb(memberId)
   try {
     // The stored cursor is only resolved once the transaction has committed.
     return await new Promise<string>((resolve, reject) => {
-      const tx = db.transaction(['space', 'members', 'meta'], 'readwrite')
+      const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readwrite')
       const spaceStore = tx.objectStore('space')
       const memberStore = tx.objectStore('members')
+      const entryStore = tx.objectStore('entries')
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
 
@@ -159,14 +188,19 @@ export async function applySyncResult(memberId: string, result: SyncResult): Pro
         // revision 0 replays the space's whole tombstone history.
         for (const tombstone of result.tombstones) {
           if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
+          if (tombstone.entity === 'journal_entry') entryStore.delete(tombstone.entityId)
         }
         for (const change of result.changes) {
           if (change.entity === 'space') spaceStore.put(change.space)
           if (change.entity === 'member') memberStore.put(change.member)
+          if (change.entity === 'journal_entry') entryStore.put(change.entry)
         }
 
         let revision = result.revision
         const nextSpace = result.changes.find((change) => change.entity === 'space')
+        if (nextSpace !== undefined) {
+          if (!nextSpace.space.sections.journal) entryStore.clear()
+        }
         if (previous !== undefined && nextSpace !== undefined) {
           const reshow = (
             Object.keys(previous.sections) as Array<keyof StoredSpace['sections']>
