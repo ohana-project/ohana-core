@@ -21,7 +21,7 @@ export function AuthFrame({
 
   return (
     <div
-      data-slot="auth-layout"
+      data-slot="auth-frame"
       className={cn('flex min-h-dvh flex-col items-center justify-center px-5 py-8', className)}
     >
       <div className="w-full max-w-[420px]">

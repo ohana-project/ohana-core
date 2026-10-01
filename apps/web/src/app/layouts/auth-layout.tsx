@@ -1,7 +1,7 @@
 import type * as React from 'react'
 
 import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
-import { AuthFrame } from '@/ui/auth-layout.tsx'
+import { AuthFrame } from '@/ui/auth-frame.tsx'
 
 /*
  * Auth shell (docs/design/README.md, "Layout"): the centred frame plus

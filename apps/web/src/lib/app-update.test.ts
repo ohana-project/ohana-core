@@ -45,6 +45,7 @@ describe('app update store', () => {
     const store = await importStore()
     const seen: boolean[] = []
     const stop = store.subscribeToAppUpdate(() => seen.push(store.isAppUpdateReady()))
+    expect(watch).toHaveBeenCalledTimes(1)
     expect(watch).toHaveBeenCalledWith(navigator.serviceWorker, '/sw.js', expect.any(Function))
 
     report?.({ apply: () => {} })
