@@ -9,6 +9,7 @@ import {
   type JournalDeps,
   trashEntry,
 } from '../modules/journal/service.ts'
+import { fixedClock } from '../platform/clock.ts'
 import { createDb } from '../platform/db/index.ts'
 import { createPgBossJobSender, startJobQueue } from '../platform/jobs/pgboss.ts'
 import { createSilentLogger } from '../platform/logging.ts'
@@ -52,9 +53,13 @@ describe('buildWorker', () => {
       // The worker starts first, as the deployment does: its start() is
       // what ensures the queues exist — a send into a queue nobody created
       // is refused outright, and the api must not depend on this order.
+      // Its clock stands past the retention, so the purge is due whenever
+      // the handler runs: the job is claimable the moment the trash
+      // commits, and the test must not race the worker's first poll for a
+      // clock advance.
       const worker = buildWorker({
         db: harness.db,
-        clock: harness.clock,
+        clock: fixedClock(new Date(harness.clock.now().getTime() + 31 * DAY_MS)),
         logger: createSilentLogger(),
         boss,
       })
@@ -71,13 +76,12 @@ describe('buildWorker', () => {
       const created = await createDraft(deps, actor, { text: 'ждёт своего часа' })
       const { entry, purgeAt } = await trashEntry(deps, actor, created.id)
 
-      // pg-boss compares a job's start-after with the database's own
-      // clock, not the harness's: the harness epoch is in the real past,
-      // so the job is runnable the moment the worker polls. The handler
-      // then re-checks due-ness on the controllable clock — which this
-      // test has to move for the purge to be due.
-      expect(purgeAt.getTime()).toBeLessThan(Date.now())
-      harness.clock.advance(31 * DAY_MS)
+      // The start-after must sit in the database's real past for the job to
+      // be runnable the moment the worker polls; the harness epoch plus the
+      // default retention guarantees it.
+      expect(purgeAt.getTime(), 'harness epoch + retention must be in the real past').toBeLessThan(
+        Date.now(),
+      )
 
       // The wait is bounded, and the queue's own rows tell the story when
       // it times out.
