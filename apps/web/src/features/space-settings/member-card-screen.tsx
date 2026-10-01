@@ -569,9 +569,11 @@ function OwnerSections({
                         // member is gone, the session died — is spent: it is
                         // answered behind the refreshed row, not inside a
                         // dialog offering a doomed action. A lost network or
-                        // a blind 500 keeps the dialog open for the retry.
+                        // a server fault keeps the dialog open for the retry.
                         const retryable =
-                          !(error instanceof ApiError) || error.code === 'unexpected'
+                          !(error instanceof ApiError) ||
+                          error.code === 'unexpected' ||
+                          error.code === 'internal_error'
                         if (!retryable) setConfirmRevoke(false)
                         toast(spaceSettingsErrorMessage(error, t), 'danger')
                       },
