@@ -320,6 +320,58 @@ describe('JournalEditorScreen (editing an entry)', () => {
     expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
   })
 
+  it('a refused edit still triggers the sync, so a stale row clears itself', async () => {
+    seedRegistry()
+    const existing = draft()
+    await applySyncResult(ME, syncResult([existing]))
+    apiPatch.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries/{entryId}') {
+        return {
+          data: undefined,
+          error: { error: { code: 'entry_not_found', message: 'Removed elsewhere' } },
+          response: new Response(null, { status: 404 }),
+        }
+      }
+      throw new Error(`Unexpected PATCH ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen entryId={existing.id} />)
+
+    await user.clear(await screen.findByLabelText('Текст записи'))
+    await user.type(screen.getByLabelText('Текст записи'), 'Исправленный текст')
+    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+
+    expect(
+      await screen.findByText('Запись не найдена или ещё не синхронизировалась.'),
+    ).toBeInTheDocument()
+    // The refusal is what carries the refresh: the sync ran although
+    // nothing succeeded.
+    expect(triggerSyncMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a refused create still triggers the sync', async () => {
+    seedRegistry()
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries') {
+        return {
+          data: undefined,
+          error: { error: { code: 'section_hidden', message: 'Hidden meanwhile' } },
+          response: new Response(null, { status: 404 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Текст записи'), 'Текст новой записи')
+    await user.click(screen.getByRole('button', { name: 'Сохранить черновик' }))
+
+    expect(await screen.findByText('Раздел скрыт владельцем пространства.')).toBeInTheDocument()
+    expect(triggerSyncMock).toHaveBeenCalledTimes(1)
+    expect(apiPost).toHaveBeenCalledTimes(1)
+  })
+
   it('does not open another member’s entry for editing', async () => {
     seedRegistry()
     const someoneElses = draft({

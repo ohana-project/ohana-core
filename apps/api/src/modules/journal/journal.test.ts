@@ -571,6 +571,8 @@ describe('the hidden journal section (ADR-0011)', () => {
       const created = await createEntry(app, regular, { text: 'береги запись' })
       const entry = created.body as EntryDto
       expect((await publishEntry(app, regular, entry.id)).status).toBe(200)
+      const stillDraft = await createEntry(app, regular, { text: 'ждёт публикации' })
+      const draftEntry = stillDraft.body as EntryDto
 
       await setJournalVisible(app, owner, false)
 
@@ -612,7 +614,7 @@ describe('the hidden journal section (ADR-0011)', () => {
           () => updateEntryText(deps, actor, entry.id, { text: 'правка мимо гейта' }),
         ],
         ['createDraft', () => createDraft(deps, actor, { text: 'новая при скрытом' })],
-        ['publishDraft', () => publishDraft(deps, actor, entry.id)],
+        ['publishDraft', () => publishDraft(deps, actor, draftEntry.id)],
       ] as const) {
         const refused = await useCase().catch((error: unknown) => error)
         expect(refused, name).toMatchObject({ name: 'DomainError', code: 'section_hidden' })

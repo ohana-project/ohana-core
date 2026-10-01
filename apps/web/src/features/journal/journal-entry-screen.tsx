@@ -22,7 +22,7 @@ import { useJournalData } from './use-journal.ts'
 export function JournalEntryScreen({ entryId }: { entryId: string }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const { snapshot, entries, profiles } = useJournalData()
+  const { snapshot, entries, profiles, downloaded } = useJournalData()
 
   const entry = entryById(entries, entryId)
   const author = entry
@@ -36,7 +36,7 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
         <div className="grid place-items-center py-10">
           <Spinner className="size-6" />
         </div>
-      ) : snapshot.data?.revision === undefined ? (
+      ) : !downloaded ? (
         <Card className="mt-6">
           <Empty>
             <EmptyMedia>

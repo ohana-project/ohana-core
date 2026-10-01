@@ -262,6 +262,50 @@ describe('JournalScreen (the shared feed)', () => {
     expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
   })
 
+  it('keeps the feed readable while another section replays', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([entry()]))
+    // The owner hides and re-shows the calendar: the re-show writes the
+    // replay promise (cursor '0') but leaves the journal's rows alone.
+    await applySyncResult(ME, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: false, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    await applySyncResult(ME, {
+      revision: '9',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    mockQuietSync()
+    renderWithProviders(<JournalScreen />)
+
+    // The stored entries are real (the server filtered them): they stay
+    // readable while the cursor still says '0'.
+    expect(await screen.findByText('Запись')).toBeInTheDocument()
+    expect(screen.queryByText('Пока нечего читать без сети')).not.toBeInTheDocument()
+  })
+
   it('says the section is hidden instead of showing a feed for it', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([entry()]))

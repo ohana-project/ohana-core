@@ -6,11 +6,11 @@ import { getActiveMemberId } from '@/data/session-registry.ts'
 /*
  * The sync engine (issue #14, ADR-0014): for the active member it calls the
  * sync endpoint with the stored cursor and applies the answer to the
- * member's IndexedDB partition. Mutations trigger it when they settle —
- * success or refusal; screens re-read their partition when it lands. The status it reports
- * drives the indicator (ADR-0002): initial, in progress, up to date,
- * offline, server unavailable, and error — cached data stays readable in
- * every one of them.
+ * member's IndexedDB partition. Mutations trigger it when they settle, and
+ * a refusal of theirs as well when it can come from a stale row; screens
+ * re-read their partition when it lands. The status it reports drives the
+ * indicator (ADR-0002): initial, in progress, up to date, offline, server
+ * unavailable, and error — cached data stays readable in every one of them.
  */
 
 export type SyncEngineState = 'first' | 'updating' | 'synced' | 'offline' | 'unreachable' | 'error'

@@ -34,16 +34,21 @@ export const ENTRY_TEXT_MAX_LENGTH = 20_000
 
 /**
  * The synchronised entries and profiles the journal screens read, plus
- * whether the partition actually holds journal data: a cursor of '0' is
- * the replay promise an upgrade or a re-shown section wrote (ADR-0014) —
- * the entries store has not been filled yet, and "empty" would be a claim
- * the device cannot make.
+ * whether the partition actually holds journal data. A cursor of '0' is
+ * the replay promise an upgrade or a re-shown section wrote (ADR-0014):
+ * until the replay lands the store may know nothing about the journal, and
+ * "empty" would be a claim the device cannot make. Entries the store does
+ * hold are real — the server filtered them — so they count as downloaded
+ * even while the cursor still says '0'. (The server never answers revision
+ * '0' to a signed-in member: provisioning a member already bumps the
+ * space's counter.)
  */
 export function useJournalData() {
   const snapshot = useSyncedSpace()
   const entries = snapshot.data?.entries ?? []
   const profiles = snapshot.data?.members ?? []
-  const downloaded = snapshot.data?.revision !== undefined && snapshot.data.revision !== '0'
+  const revision = snapshot.data?.revision
+  const downloaded = revision !== undefined && (revision !== '0' || entries.length > 0)
   return { snapshot, entries, profiles, downloaded }
 }
 

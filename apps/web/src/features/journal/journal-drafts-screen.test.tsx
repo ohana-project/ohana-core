@@ -251,4 +251,28 @@ describe('JournalDraftsScreen', () => {
     expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
     expect(screen.queryByText('Черновиков нет')).not.toBeInTheDocument()
   })
+
+  it('says the same while the upgrade replay has not landed', async () => {
+    seedRegistry()
+    // The upgrade wrote the replay promise: cursor '0', nothing held.
+    await applySyncResult(ME, {
+      revision: '0',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    renderWithProviders(<JournalDraftsScreen />)
+
+    expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
+    expect(screen.queryByText('Черновиков нет')).not.toBeInTheDocument()
+  })
 })
