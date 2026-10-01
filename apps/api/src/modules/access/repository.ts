@@ -170,6 +170,8 @@ export interface NewMemberSession {
   spaceId: string
   memberId: string
   tokenHash: string
+  browser: string
+  platform: string
   now: Date
   expiresAt: Date
 }
@@ -179,7 +181,10 @@ export async function insertMemberSession(tx: Tx, data: NewMemberSession): Promi
     spaceId: data.spaceId,
     memberId: data.memberId,
     tokenHash: data.tokenHash,
+    browser: data.browser,
+    platform: data.platform,
     createdAt: data.now,
+    lastUsedAt: data.now,
     expiresAt: data.expiresAt,
   })
 }
@@ -197,6 +202,43 @@ export async function findMemberSessionByTokenHashAcrossSpaces(
   return rows[0]
 }
 
+/**
+ * Stamps last-used time, at most once per throttle interval: one
+ * compare-and-set on the row, so the request path stays free of extra
+ * writes while the session list shows a fresh "last used".
+ */
+export async function touchMemberSessionByTokenHashAcrossSpaces(
+  executor: Executor,
+  tokenHash: string,
+  staleBefore: Date,
+  now: Date,
+): Promise<void> {
+  await executor
+    .update(memberSessions)
+    .set({ lastUsedAt: now })
+    .where(and(eq(memberSessions.tokenHash, tokenHash), lt(memberSessions.lastUsedAt, staleBefore)))
+}
+
+/** A member's live sessions for the device review, last used first. */
+export async function listLiveMemberSessionsForMember(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+  now: Date,
+): Promise<MemberSession[]> {
+  return executor
+    .select()
+    .from(memberSessions)
+    .where(
+      and(
+        eq(memberSessions.spaceId, spaceId),
+        eq(memberSessions.memberId, memberId),
+        gt(memberSessions.expiresAt, now),
+      ),
+    )
+    .orderBy(desc(memberSessions.lastUsedAt), desc(memberSessions.id))
+}
+
 export async function deleteMemberSessionByTokenHashAcrossSpaces(
   tx: Tx,
   memberId: string,
@@ -205,6 +247,31 @@ export async function deleteMemberSessionByTokenHashAcrossSpaces(
   await tx
     .delete(memberSessions)
     .where(and(eq(memberSessions.memberId, memberId), eq(memberSessions.tokenHash, tokenHash)))
+}
+
+/**
+ * Revokes one of the member's own sessions by id, reporting whether a row
+ * was actually deleted. The delete is scoped to the space and member the
+ * actor authenticated as, so a session id of another member or space
+ * deletes nothing.
+ */
+export async function deleteMemberSessionById(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  sessionId: string,
+): Promise<boolean> {
+  const deleted = await tx
+    .delete(memberSessions)
+    .where(
+      and(
+        eq(memberSessions.spaceId, spaceId),
+        eq(memberSessions.memberId, memberId),
+        eq(memberSessions.id, sessionId),
+      ),
+    )
+    .returning({ id: memberSessions.id })
+  return deleted.length > 0
 }
 
 /** Opportunistic hygiene on sign-in: expired sessions of every member go. */

@@ -6,6 +6,7 @@ import { getSpace, getSpaceInTx, lockSpace } from '../spaces/index.ts'
 import type { AccessCodeStatus } from './contracts.ts'
 import {
   deleteExpiredMemberSessionsAcrossSpaces,
+  deleteMemberSessionById,
   deleteMemberSessionByTokenHashAcrossSpaces,
   expireAccessCodeRow,
   findAccessCodeByHashAcrossSpaces,
@@ -14,11 +15,13 @@ import {
   insertAccessCode,
   insertMemberSession,
   listAccessCodesInSpace,
+  listLiveMemberSessionsForMember,
   redeemAccessCodeByHashAcrossSpaces,
   revokeAccessCodeRow,
   sweepMemberCodesForIssue,
+  touchMemberSessionByTokenHashAcrossSpaces,
 } from './repository.ts'
-import type { AccessCode } from './tables.ts'
+import type { AccessCode, MemberSession } from './tables.ts'
 
 export interface AccessDeps {
   db: Db
@@ -51,6 +54,8 @@ export interface MemberActor {
   memberId: string
   spaceId: string
   role: 'owner' | 'regular'
+  /** The session that authorised the request, for the device review. */
+  sessionId: string
 }
 
 /*
@@ -69,6 +74,9 @@ export const ACCESS_CODE_TTL_MS = 24 * 60 * 60 * 1000
 // short-lived because they protect every space at once.
 export const MEMBER_SESSION_TTL_MS = 180 * 24 * 60 * 60 * 1000
 
+/** Last-used time is stamped at most once per interval of activity. */
+export const MEMBER_SESSION_TOUCH_INTERVAL_MS = 60_000
+
 /** Draws eight alphabet characters from 5 cryptographically random bytes. */
 export function generateAccessCode(): string {
   const bytes = randomBytes(5)
@@ -85,6 +93,63 @@ export function generateAccessCode(): string {
 /** The displayed form: XXXX-XXXX. */
 export function formatAccessCode(code: string): string {
   return `${code.slice(0, 4)}-${code.slice(4)}`
+}
+
+/*
+ * The device description (ADR-0005's minimal device review) derives from
+ * the sign-in request's user agent as two parts — browser and platform.
+ * The parts are stored untranslated and composed in the client, whose
+ * language decides the connecting word; the product names (Chrome, iPhone)
+ * look the same in every locale.
+ */
+
+export interface DeviceDescription {
+  browser: string
+  platform: string
+}
+
+function firstMatch(userAgent: string, pairs: readonly (readonly [string, string])[]): string {
+  for (const [fragment, name] of pairs) {
+    if (userAgent.includes(fragment)) return name
+  }
+  return ''
+}
+
+/**
+ * Reads the browser and the platform out of a user agent. Order matters:
+ * Chromium-based agents embed other browsers' fragments, so the specific
+ * browser is checked first, and each platform's token comes before the
+ * generic ones (Edge ships Edg/, EdgA/ on Android, EdgiOS on iOS; Chrome
+ * on iOS is CriOS; Firefox on iOS is FxiOS). Samsung Internet and Opera on
+ * iOS are deliberately left unread — they would need vendor tokens no
+ * other agent carries — and fall back to the honest engine-level answer
+ * (Chrome and Safari respectively). iPadOS 13+ Safari sends the desktop
+ * Mac agent, so such an iPad reads as macOS — indistinguishable
+ * server-side and accepted as such.
+ */
+export function describeDevice(userAgent: string | undefined): DeviceDescription {
+  if (userAgent === undefined || userAgent.length === 0) return { browser: '', platform: '' }
+  const browser = firstMatch(userAgent, [
+    ['Edg/', 'Edge'],
+    ['EdgA/', 'Edge'],
+    ['EdgiOS', 'Edge'],
+    ['OPR', 'Opera'],
+    ['FxiOS', 'Firefox'],
+    ['Firefox', 'Firefox'],
+    ['CriOS', 'Chrome'],
+    ['Chrome', 'Chrome'],
+    ['Safari', 'Safari'],
+  ])
+  const platform = firstMatch(userAgent, [
+    ['iPhone', 'iPhone'],
+    ['iPad', 'iPad'],
+    ['Android', 'Android'],
+    ['Windows', 'Windows'],
+    ['Mac OS X', 'macOS'],
+    ['CrOS', 'ChromeOS'],
+    ['Linux', 'Linux'],
+  ])
+  return { browser, platform }
 }
 
 /**
@@ -282,9 +347,14 @@ export interface RedeemResult {
  * transaction, so a code is never spent without a session to show for it.
  * No space row lock is taken: the redemption is one compare-and-set on the
  * code row, and no synchronised row changes, so the revision-lock order
- * has nothing to serialise here.
+ * has nothing to serialise here. The device description is derived from
+ * the sign-in request's user agent and stored for the device review.
  */
-export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promise<RedeemResult> {
+export async function redeemAccessCode(
+  deps: AccessDeps,
+  rawCode: string,
+  userAgent?: string,
+): Promise<RedeemResult> {
   const normalized = normalizeAccessCode(rawCode)
   if (normalized === undefined) {
     throw new DomainError('access_code_invalid', 'The code is not shaped like a code', 401)
@@ -328,6 +398,7 @@ export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promi
       spaceId: row.spaceId,
       memberId: row.memberId,
       tokenHash: codeHashOf(token),
+      ...describeDevice(userAgent),
       now,
       expiresAt,
     })
@@ -364,7 +435,9 @@ export async function redeemAccessCode(deps: AccessDeps, rawCode: string): Promi
  * Resolves the request's member from the X-Ohana-Member header and the
  * session cookie named for that same member (ADR-0005). Any other cookie
  * the browser sends grants nothing, and an administrative session never
- * authorises a member route.
+ * authorises a member route. A live authentication also stamps the
+ * session's last-used time, throttled to one write per interval so the
+ * device review shows a fresh "last used" without writing on every read.
  */
 export async function authenticateMember(
   deps: AccessDeps,
@@ -373,15 +446,25 @@ export async function authenticateMember(
 ): Promise<MemberActor | undefined> {
   if (memberId === undefined || memberId.length === 0) return undefined
   if (token === undefined || token.length === 0) return undefined
-  const session = await findMemberSessionByTokenHashAcrossSpaces(
-    deps.db,
-    codeHashOf(token),
-    deps.clock.now(),
-  )
+  const tokenHash = codeHashOf(token)
+  const now = deps.clock.now()
+  const session = await findMemberSessionByTokenHashAcrossSpaces(deps.db, tokenHash, now)
   if (session === undefined || session.memberId !== memberId) return undefined
+  const staleBefore = new Date(now.getTime() - MEMBER_SESSION_TOUCH_INTERVAL_MS)
+  // Strictly older, matching the compare-and-set's `lt`: at the boundary
+  // exactly one of the two decides, and it is the SQL.
+  if (session.lastUsedAt.getTime() < staleBefore.getTime()) {
+    await touchMemberSessionByTokenHashAcrossSpaces(deps.db, tokenHash, staleBefore, now)
+  }
   const member = await deps.findMemberInSpace(deps.db, session.spaceId, session.memberId)
   if (member === undefined) return undefined
-  return { kind: 'member', memberId: member.id, spaceId: member.spaceId, role: member.role }
+  return {
+    kind: 'member',
+    memberId: member.id,
+    spaceId: member.spaceId,
+    role: member.role,
+    sessionId: session.id,
+  }
 }
 
 /**
@@ -398,4 +481,60 @@ export async function signOutMember(
   await deps.db.transaction((tx) =>
     deleteMemberSessionByTokenHashAcrossSpaces(tx, memberId, codeHashOf(token)),
   )
+}
+
+export interface MemberSessionListItem {
+  id: string
+  /** The browser and platform captured at sign-in; '' when unknown. */
+  browser: string
+  platform: string
+  createdAt: Date
+  lastUsedAt: Date
+}
+
+/**
+ * Lists the member's own live sessions for the device review (ADR-0005's
+ * minimal session controls): device description, created, last used. The
+ * list is a read; expired sessions filter out at read time and materialise
+ * nowhere — the next sign-in sweeps them.
+ */
+export async function listMemberSessions(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+): Promise<MemberSessionListItem[]> {
+  const rows = await listLiveMemberSessionsForMember(deps.db, spaceId, memberId, deps.clock.now())
+  return rows.map((row: MemberSession) => ({
+    id: row.id,
+    browser: row.browser,
+    platform: row.platform,
+    createdAt: row.createdAt,
+    lastUsedAt: row.lastUsedAt,
+  }))
+}
+
+/**
+ * Revokes one of the member's own sessions (ADR-0005). The delete is
+ * scoped to the authenticated member and space, so another member's or
+ * space's session id deletes nothing and reads back as unknown — 404,
+ * like every resource the actor cannot see. Revoking revokes exactly one
+ * session: the other devices, and other members on the same device, keep
+ * theirs.
+ */
+export async function revokeMemberSession(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+  sessionId: string,
+): Promise<void> {
+  const deleted = await deps.db.transaction((tx) =>
+    deleteMemberSessionById(tx, spaceId, memberId, sessionId),
+  )
+  if (!deleted) {
+    throw new DomainError(
+      'member_session_not_found',
+      `Member session ${sessionId} does not exist`,
+      404,
+    )
+  }
 }

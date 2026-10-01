@@ -73,6 +73,12 @@ describe('SpaceHomeScreen', () => {
     expect(screen.getByText('Свежее в дневнике')).toBeInTheDocument()
     expect(screen.getByText('Ближайшие события')).toBeInTheDocument()
     expect(screen.getByText('Участники')).toBeInTheDocument()
+    // The profiles query names its member explicitly.
+    await vi.waitFor(() =>
+      expect(apiGet).toHaveBeenCalledWith('/api/v1/members', {
+        params: { header: { 'x-ohana-member': ME.member.id } },
+      }),
+    )
   })
 
   it('signs out through the user menu and forgets the registry entry', async () => {
@@ -89,6 +95,7 @@ describe('SpaceHomeScreen', () => {
     // Both probes settle before the menu opens, so no re-render replaces
     // the trigger under the pointer mid-interaction.
     await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+    apiGet.mockClear()
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     // The menu mounts into a portal; under jsdom it can land outside the
     // a11y tree, so the item is clicked by its text.
@@ -102,6 +109,19 @@ describe('SpaceHomeScreen', () => {
     )
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
     expect(JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')).toEqual([])
+    // The forget sweep re-runs the probe, which answers signed out with no
+    // request at all (nobody is retained); the screen takes that state
+    // down. Once it has, the refetch window is closed for the negative
+    // assertion.
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('heading', { name: /Аня Смирнова/ })).not.toBeInTheDocument(),
+    )
+    // The signed-out member's cached data is cleared, not refetched: the
+    // header is pinned and the session is gone, so the request could only
+    // be refused.
+    expect(apiGet).not.toHaveBeenCalledWith('/api/v1/members', {
+      params: { header: { 'x-ohana-member': ME.member.id } },
+    })
   })
 
   it('keeps the sign-in and explains itself when sign-out fails', async () => {

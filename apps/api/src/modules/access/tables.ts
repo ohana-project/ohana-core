@@ -80,9 +80,12 @@ export const accessCodes = pgTable(
 
 /**
  * Member sessions, one per signed-in device (ADR-0005). Only the SHA-256
- * hash of the cookie token is stored. Sessions never authorise anything
- * administrative: administrative routes read a different cookie backed by
- * a different table.
+ * hash of the cookie token is stored. The device description is captured
+ * from the sign-in request's user agent as two untranslated parts — the
+ * client composes and translates them — and last-used time is stamped by
+ * authentication (throttled), so the session list can review devices.
+ * Sessions never authorise anything administrative: administrative routes
+ * read a different cookie backed by a different table.
  */
 export const memberSessions = pgTable(
   'member_sessions',
@@ -95,7 +98,12 @@ export const memberSessions = pgTable(
       .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
     memberId: uuid('member_id').notNull(),
     tokenHash: text('token_hash').notNull(),
+    /** The browser read from the sign-in's user agent; '' when unknown. */
+    browser: text('browser').notNull().default(''),
+    /** The platform read from the sign-in's user agent; '' when unknown. */
+    platform: text('platform').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
   (table) => [

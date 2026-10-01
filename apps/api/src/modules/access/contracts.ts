@@ -111,3 +111,28 @@ export const AccessCodeParamsSchema = Type.Object({
   spaceId: Type.String({ format: 'uuid' }),
   codeId: Type.String({ format: 'uuid' }),
 })
+
+/**
+ * One row of the device review (ADR-0005): the browser and platform are
+ * captured data shown as recorded — the client composes and translates
+ * them, falling back when a part is empty. `current` marks the session
+ * that made the request.
+ */
+export const MemberSessionDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    browser: Type.String(),
+    platform: Type.String(),
+    createdAt: Type.String({ format: 'date-time' }),
+    lastUsedAt: Type.String({ format: 'date-time' }),
+    current: Type.Boolean(),
+  },
+  { additionalProperties: false },
+)
+
+export type MemberSessionDto = Static<typeof MemberSessionDtoSchema>
+
+/** Only the session-revocation route names a session. */
+export const MemberSessionParamsSchema = Type.Object({
+  sessionId: Type.String({ format: 'uuid' }),
+})

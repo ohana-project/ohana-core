@@ -33,11 +33,19 @@ declare module 'fastify' {
     /**
      * The authenticated actor. Member routes attach the member variant with
      * the same field (the access module's memberSessionGuard), so the type
-     * is the union; each route narrows with its own guard.
+     * is the union; each route narrows with its own guard. The member shape
+     * mirrors the access module's MemberActor structurally — admin cannot
+     * import it, because access already imports admin.
      */
     actor?:
       | AdminActor
-      | { kind: 'member'; memberId: string; spaceId: string; role: 'owner' | 'regular' }
+      | {
+          kind: 'member'
+          memberId: string
+          spaceId: string
+          role: 'owner' | 'regular'
+          sessionId: string
+        }
   }
 }
 
