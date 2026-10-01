@@ -1786,12 +1786,13 @@
                 "properties": {
                   "title": {
                     "maxLength": 200,
+                    "pattern": "^[^\\u0000]*$",
                     "type": "string"
                   },
                   "text": {
                     "minLength": 1,
                     "maxLength": 20000,
-                    "pattern": "\\S",
+                    "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
                     "type": "string"
                   }
                 }
@@ -1979,12 +1980,13 @@
                 "properties": {
                   "title": {
                     "maxLength": 200,
+                    "pattern": "^[^\\u0000]*$",
                     "type": "string"
                   },
                   "text": {
                     "minLength": 1,
                     "maxLength": 20000,
-                    "pattern": "\\S",
+                    "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
                     "type": "string"
                   }
                 }

@@ -219,7 +219,7 @@
     "draftEditedAt": "edited {moment}",
     "continueEditing": "Continue",
     "publish": "Publish",
-    "publishedToast": "Published to the family journal",
+    "publishedToast": "Published to the space's journal",
     "draftSavedToast": "Draft saved — visible only to you",
     "savedToast": "Saved",
     "editorNewTitle": "New entry",

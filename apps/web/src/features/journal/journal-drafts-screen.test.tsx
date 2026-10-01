@@ -151,7 +151,7 @@ describe('JournalDraftsScreen', () => {
       }),
     )
     await waitFor(() => expect(triggerSyncMock).toHaveBeenCalled())
-    expect(await screen.findByText('Опубликовано в дневнике семьи')).toBeInTheDocument()
+    expect(await screen.findByText('Опубликовано в дневнике пространства')).toBeInTheDocument()
   })
 
   it('one publish in flight does not disable the other rows', async () => {
@@ -202,13 +202,13 @@ describe('JournalDraftsScreen', () => {
     expect(buttons[0]).toBeEnabled()
 
     await user.click(buttons[0] as HTMLButtonElement)
-    expect(await screen.findByText('Опубликовано в дневнике семьи')).toBeInTheDocument()
+    expect(await screen.findByText('Опубликовано в дневнике пространства')).toBeInTheDocument()
     expect(apiPost).toHaveBeenCalledTimes(2)
 
     releaseHeld?.()
     await waitFor(() => expect(buttons[1]).toBeEnabled())
     await waitFor(() =>
-      expect(screen.getAllByText('Опубликовано в дневнике семьи')).toHaveLength(2),
+      expect(screen.getAllByText('Опубликовано в дневнике пространства')).toHaveLength(2),
     )
   })
 

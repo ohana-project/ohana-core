@@ -318,11 +318,19 @@ describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
       expect(blankTitle.status).toBe(201)
       expect((blankTitle.body as EntryDto).title).toBeUndefined()
 
-      for (const text of ['', '   ']) {
+      // A NUL never reaches PostgreSQL: it refuses the byte, so the
+      // contract refuses the payload first.
+      for (const text of ['', '   ', 'текст\u0000с нулём']) {
         const refused = await createEntry(app, anna, { text })
         expect(refused.status).toBe(400)
         expect((refused.body as { error: { code: string } }).error.code).toBe('validation_failed')
       }
+      const nulTitle = await createEntry(app, anna, {
+        title: 'Заголовок\u0000с нулём',
+        text: 'Текст есть',
+      })
+      expect(nulTitle.status).toBe(400)
+      expect((nulTitle.body as { error: { code: string } }).error.code).toBe('validation_failed')
     })
   })
 
@@ -533,6 +541,49 @@ describe('GET /api/v1/journal/feed (the paginated shared feed)', () => {
       const otherHalf = await getFeed(app, dima, { beforeId: last.id })
       expect(otherHalf.status).toBe(400)
       expect((otherHalf.body as { error: { code: string } }).error.code).toBe('invalid_cursor')
+    })
+  })
+
+  test('entries published in the same instant page once each, by id', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace({ name: 'Наша семья' })
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      // Two entries share one published instant — the clock is not
+      // advanced between them — so the page boundary inside that instant
+      // is decided by the id tie-break, and the keyset has to cross it
+      // without dropping or repeating an entry.
+      const ids: string[] = []
+      for (const text of ['Первая', 'Вторая'] as const) {
+        const created = await createEntry(app, anna, { text })
+        expect(created.status).toBe(201)
+        const published = await publishEntry(app, anna, (created.body as EntryDto).id)
+        expect(published.status).toBe(200)
+        ids.push((published.body as EntryDto).id)
+      }
+      const [one, two] = ids
+      if (one === undefined || two === undefined) throw new Error('The entries came back missing')
+      const newest = one > two ? one : two
+      const oldest = one > two ? two : one
+
+      const firstPage = await getFeed(app, anna, { limit: 1 })
+      expect(firstPage.status).toBe(200)
+      const page = firstPage.body as Feed
+      expect(page.entries.map((entry) => entry.id)).toEqual([newest])
+      expect(page.hasMore).toBe(true)
+
+      const last = page.entries[0]
+      if (last === undefined) throw new Error('The page came back empty')
+      const secondPage = await getFeed(app, anna, {
+        limit: 1,
+        before: last.publishedAt,
+        beforeId: last.id,
+      })
+      expect(secondPage.status).toBe(200)
+      const finalPage = secondPage.body as Feed
+      expect(finalPage.entries.map((entry) => entry.id)).toEqual([oldest])
+      expect(finalPage.hasMore).toBe(false)
     })
   })
 

@@ -68,8 +68,11 @@ export function entryMoment(iso: string, locale: string): string {
 /** The first lines of an entry for the feed's excerpt. */
 export function entryExcerpt(text: string, limit = 160): string {
   const singleSpaced = text.replace(/\s+/g, ' ').trim()
-  if (singleSpaced.length <= limit) return singleSpaced
-  return `${singleSpaced.slice(0, limit).trimEnd()}…`
+  // Cut by code points, not UTF-16 units: an emoji at the boundary must
+  // not leave a lone surrogate before the ellipsis.
+  const characters = Array.from(singleSpaced)
+  if (characters.length <= limit) return singleSpaced
+  return `${characters.slice(0, limit).join('').trimEnd()}…`
 }
 
 /** A published entry is shown with the moment it was shared, a draft with its last edit. */

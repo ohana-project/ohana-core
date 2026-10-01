@@ -249,6 +249,53 @@ describe('JournalScreen (the shared feed)', () => {
     expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
   })
 
+  it('hides the drafts corner while the journal replay is still owed', async () => {
+    seedRegistry()
+    const draft = entry({ title: 'Черновик', state: 'draft', publishedAt: undefined })
+    // The owner hid the journal and re-showed it; the re-show delta carried
+    // the author's draft while writing the replay promise (cursor '0',
+    // ADR-0014). The row is real, but it is a fraction of the section.
+    await applySyncResult(ME, syncResult([]))
+    await applySyncResult(ME, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    await applySyncResult(ME, {
+      revision: '9',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+        { entity: 'journal_entry', entry: draft },
+      ],
+      tombstones: [],
+    })
+    mockQuietSync()
+    renderWithProviders(<JournalScreen />)
+
+    // The feed column and the drafts corner say the same thing: without
+    // the replay, nothing of the section is downloaded yet.
+    expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
+    expect(screen.queryByText('Мои черновики')).not.toBeInTheDocument()
+  })
+
   it('keeps the feed readable while another section replays', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([entry()]))

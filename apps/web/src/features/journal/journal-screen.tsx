@@ -44,6 +44,11 @@ export function JournalScreen() {
   const feed = journalFeed(entries)
   const drafts = journalDrafts(entries)
   const visible = feed.slice(0, visibleCount)
+  // The corner counts drafts only when the device may claim the section:
+  // while the journal's replay is owed, the rows an interrupted replay
+  // left are a fraction, and a partial count beside the offline message
+  // would contradict it.
+  const showDrafts = downloaded && drafts.length > 0
 
   const newEntry = (
     <Button size="sm" onClick={() => void navigate({ to: '/journal/new' })}>
@@ -56,13 +61,11 @@ export function JournalScreen() {
     <JournalShell
       title={t('journal.title')}
       actions={newEntry}
-      width={drafts.length > 0 ? 'wide' : 'default'}
+      width={showDrafts ? 'wide' : 'default'}
     >
       <div
         className={
-          drafts.length > 0
-            ? 'grid gap-8 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:items-start'
-            : 'pt-6'
+          showDrafts ? 'grid gap-8 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:items-start' : 'pt-6'
         }
       >
         <div className="flex min-w-0 flex-col gap-4">
@@ -118,7 +121,7 @@ export function JournalScreen() {
           )}
         </div>
 
-        {drafts.length > 0 && (
+        {showDrafts && (
           <aside className="flex flex-col gap-3 desktop:sticky desktop:top-20">
             <SectionHeader title={t('journal.onlyForYou')} />
             <Card className="py-0">

@@ -219,7 +219,7 @@
     "draftEditedAt": "правки {moment}",
     "continueEditing": "Дописать",
     "publish": "Опубликовать",
-    "publishedToast": "Опубликовано в дневнике семьи",
+    "publishedToast": "Опубликовано в дневнике пространства",
     "draftSavedToast": "Черновик сохранён — виден только вам",
     "savedToast": "Сохранено",
     "editorNewTitle": "Новая запись",

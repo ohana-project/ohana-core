@@ -12,13 +12,22 @@ import type { JournalEntry } from './tables.ts'
 export const ENTRY_TITLE_MAX_LENGTH = 200
 export const ENTRY_TEXT_MAX_LENGTH = 20_000
 
-const titleSchema = Type.Optional(Type.String({ maxLength: ENTRY_TITLE_MAX_LENGTH }))
+// PostgreSQL refuses NUL inside text, so the contracts refuse it at the
+// door: a payload that slips through would turn the write into a 500
+// instead of a validation answer.
+const titleSchema = Type.Optional(
+  Type.String({ maxLength: ENTRY_TITLE_MAX_LENGTH, pattern: '^[^\\u0000]*$' }),
+)
 
-/** Any non-whitespace character somewhere in the text; whitespace-only fails. */
+/**
+ * NUL-free text carrying at least one visible character: the middle class
+ * asks for a char that is neither whitespace nor NUL (\S alone would match
+ * the NUL itself), and the anchored NUL-free classes refuse the rest.
+ */
 const textSchema = Type.String({
   minLength: 1,
   maxLength: ENTRY_TEXT_MAX_LENGTH,
-  pattern: '\\S',
+  pattern: '^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$',
 })
 
 export const EntryStateSchema = Type.Union([Type.Literal('draft'), Type.Literal('published')])
