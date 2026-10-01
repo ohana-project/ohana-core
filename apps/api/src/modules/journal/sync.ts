@@ -1,10 +1,10 @@
 import { getSpaceInTx, sectionVisibility } from '../spaces/index.ts'
 import type { SyncContributor } from '../sync/index.ts'
-import { JournalEntrySyncChangeSchema, toEntryDto } from './contracts.ts'
+import { JOURNAL_ENTRY_SYNC_ENTITY, JournalEntrySyncChangeSchema, toEntryDto } from './contracts.ts'
 import { listChangedEntriesFor } from './service.ts'
 
-/** The journal module's entity name in the tombstone table. */
-export const JOURNAL_ENTRY_SYNC_ENTITY = 'journal_entry'
+/** The journal module's entity name in the tombstone table (contracts.ts owns the name). */
+export { JOURNAL_ENTRY_SYNC_ENTITY }
 
 /*
  * The journal sync contributor (issues #14 and #15): the entries the

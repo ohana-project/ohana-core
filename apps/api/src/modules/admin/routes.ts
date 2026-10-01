@@ -4,16 +4,20 @@ import type { FastifyRequest } from 'fastify'
 import { DomainError } from '../../platform/errors.ts'
 import {
   AdminMarkerHeadersSchema,
+  AdminSettingsDtoSchema,
   ChangePasswordBodySchema,
   SignInBodySchema,
+  UpdateSettingsBodySchema,
 } from './contracts.ts'
 import {
   type AdminActor,
   type AdminDeps,
   authenticateAdmin,
   changeAdminPassword,
+  getSettings,
   signInAdmin,
   signOutAdmin,
+  updateSettings,
 } from './service.ts'
 
 export const ADMIN_SESSION_COOKIE = 'ohana_admin_session'
@@ -150,6 +154,36 @@ export const adminRoutes: FastifyPluginAsyncTypebox<AdminRoutesOptions> = async 
         request.body.newPassword,
       )
       return reply.code(204).send(null)
+    },
+  )
+
+  // The installation's settings (ADR-0007): the trash retention today. The
+  // read needs only the session; the write is a state change, so it asks
+  // for the marker header too.
+  app.get(
+    '/settings',
+    {
+      schema: { response: { 200: AdminSettingsDtoSchema } },
+      onRequest: adminSessionGuard(opts.deps),
+    },
+    async () => getSettings(opts.deps),
+  )
+
+  app.put(
+    '/settings',
+    {
+      schema: {
+        body: UpdateSettingsBodySchema,
+        headers: AdminMarkerHeadersSchema,
+        response: { 200: AdminSettingsDtoSchema },
+      },
+      onRequest: sessionProtected,
+    },
+    async (request) => {
+      if (request.actor === undefined || request.actor.kind !== 'admin') {
+        throw new DomainError('unauthorized', 'An administrative session is required', 401)
+      }
+      return updateSettings(opts.deps, request.body)
     },
   )
 }

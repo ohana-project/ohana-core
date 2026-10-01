@@ -1,17 +1,31 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
+import type { JobSender } from '../../platform/jobs/index.ts'
+import { readTrashRetentionDays } from '../admin/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
-import { recordChanges } from '../sync/index.ts'
+import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import type { CreateEntryBody, FeedQuery } from './contracts.ts'
-import { DEFAULT_FEED_LIMIT } from './contracts.ts'
-import { assertEntryAuthoredBy, entryVisibleTo } from './policy.ts'
+import { DEFAULT_FEED_LIMIT, JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
+import { JOURNAL_PURGE_JOB, type JournalPurgeJobData } from './jobs.ts'
+import {
+  assertEntryAuthoredBy,
+  assertEntryTrashableBy,
+  assertTrashedEntryRestorableBy,
+  entryVisibleTo,
+  purgeAtFor,
+  trashedAtOf,
+  trashedEntryVisibleTo,
+} from './policy.ts'
 import {
   getEntryInSpace,
   insertEntry,
   listChangedEntriesVisibleTo,
   listDraftsOfAuthor,
   listFeedPage,
+  listTrashedEntries,
+  markEntryRestored,
+  markEntryTrashed,
   publishEntry,
   updateEntry,
 } from './repository.ts'
@@ -20,16 +34,21 @@ import type { JournalEntry } from './tables.ts'
 export interface JournalDeps {
   db: Db
   clock: Clock
+  /** The jobs port: the trash use case schedules the entry's purge job. */
+  jobs: JobSender
 }
 
 /**
  * The member a journal use case runs for: the space always comes from the
  * authenticated actor (architecture.md, request lifecycle). The routes pass
- * the access module's MemberActor, which satisfies this structurally.
+ * the access module's MemberActor, which satisfies this structurally — the
+ * role rides along for the owner's moderation rights over published
+ * entries (issue #16).
  */
 export interface JournalActor {
   memberId: string
   spaceId: string
+  role: 'owner' | 'regular'
 }
 
 /**
@@ -169,13 +188,10 @@ export async function publishDraft(
 /**
  * One entry, the way the requesting member may see it: their own draft or
  * any published entry; a stranger's draft answers 404, its existence
- * unrevealed (architecture.md, "Errors").
+ * unrevealed (architecture.md, "Errors"). A trashed entry answers 404 too —
+ * it has left the ordinary views; the trash view is its only audience.
  */
-export async function getEntry(
-  deps: JournalDeps,
-  actor: JournalActor,
-  entryId: string,
-): Promise<JournalEntry> {
+export async function getEntry(deps: JournalDeps, actor: JournalActor, entryId: string) {
   return requireVisibleEntry(deps.db, actor, entryId)
 }
 
@@ -183,7 +199,7 @@ async function requireVisibleEntry(
   executor: Parameters<typeof getEntryInSpace>[0],
   actor: JournalActor,
   entryId: string,
-): Promise<JournalEntry> {
+): Promise<JournalEntry & { state: 'draft' | 'published' }> {
   const entry = await getEntryInSpace(executor, actor.spaceId, entryId)
   if (entry === undefined || !entryVisibleTo(entry, actor.memberId)) {
     throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
@@ -244,10 +260,163 @@ export async function listDrafts(deps: JournalDeps, actor: JournalActor): Promis
 /** The sync contributor's delta: the entries this member may see, changed since the cursor. */
 export async function listChangedEntriesFor(
   tx: Parameters<typeof listChangedEntriesVisibleTo>[0],
-  actor: JournalActor,
+  actor: { memberId: string; spaceId: string },
   since: bigint,
 ): Promise<JournalEntry[]> {
   return listChangedEntriesVisibleTo(tx, actor.spaceId, actor.memberId, since)
+}
+
+/**
+ * The trash view's rows (issue #16): the trashed entries the member may
+ * see, each naming its permanent-deletion date — trashedAt plus the
+ * instance's retention, read here so a changed retention applies to
+ * entries already in trash.
+ */
+export async function listTrash(
+  deps: JournalDeps,
+  actor: JournalActor,
+): Promise<Array<{ entry: JournalEntry; purgeAt: Date }>> {
+  const now = deps.clock.now()
+  const [entries, retentionDays] = await Promise.all([
+    listTrashedEntries(deps.db, actor.spaceId, actor.memberId),
+    readTrashRetentionDays(deps.db),
+  ])
+  return (
+    entries
+      .map((entry) => ({
+        entry,
+        purgeAt: purgeAtFor(trashedAtOf(entry), retentionDays),
+      }))
+      // The window restore honours is the window the view shows: an entry
+      // whose deletion date has passed leaves the list, the same rule the
+      // restore use case refuses by.
+      .filter((row) => row.purgeAt > now)
+  )
+}
+
+/**
+ * Removes the entry into trash (issue #16, ADR-0007): the author trashes
+ * their own draft or published entry, an owner any published entry. The
+ * row remembers the state it came from and the moment of removal, the
+ * tombstone tells the audience it had — everyone for a published entry,
+ * the author alone for a draft — and the entry's purge job is scheduled
+ * inside the same transaction, so a rollback takes the job with the change.
+ * The deletion date follows the current retention at read time, but the
+ * scheduled job lands on it; the recurring sweep re-checks against the
+ * retention of the moment before acting.
+ */
+export async function trashEntry(
+  deps: JournalDeps,
+  actor: JournalActor,
+  entryId: string,
+): Promise<{ entry: JournalEntry; purgeAt: Date }> {
+  const now = deps.clock.now()
+  let trashed: { entry: JournalEntry; purgeAt: Date } | undefined
+  await deps.db.transaction(async (tx) => {
+    await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
+    const entry = await requireVisibleEntry(tx, actor, entryId)
+    assertEntryTrashableBy(entry, actor)
+    const retentionDays = await readTrashRetentionDays(tx)
+    const purgeAt = purgeAtFor(now, retentionDays)
+    const tombstone: TombstoneInput =
+      entry.state === 'published'
+        ? { entity: JOURNAL_ENTRY_SYNC_ENTITY, entityId: entry.id, audience: { kind: 'all' } }
+        : {
+            entity: JOURNAL_ENTRY_SYNC_ENTITY,
+            entityId: entry.id,
+            audience: { kind: 'member', memberId: entry.authorMemberId },
+          }
+    await recordChanges(
+      tx,
+      actor.spaceId,
+      {
+        writes: async (writeTx, revision) => {
+          const row = await markEntryTrashed(writeTx, actor.spaceId, entryId, now, revision)
+          if (row === undefined) {
+            // The defensive backstop: the row was read under the same space
+            // row lock, so it cannot vanish before the UPDATE — and a
+            // refusal here spends no revision.
+            throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
+          }
+          trashed = { entry: row, purgeAt }
+        },
+        tombstones: [tombstone],
+      },
+      now,
+    )
+    const job: JournalPurgeJobData = { spaceId: actor.spaceId, entryId }
+    await deps.jobs.sendInTx(tx, { name: JOURNAL_PURGE_JOB, data: job, startAfter: purgeAt })
+  })
+  if (trashed === undefined) throw new Error('Trashing a journal entry produced no row')
+  return trashed
+}
+
+/**
+ * The way back (issue #16, ADR-0007): the entry returns to the state it
+ * was trashed from, published moment and last-edit time included. The
+ * author restores their own entry, an owner any entry trashed from
+ * published; a trashed draft is invisible to everyone else, so a
+ * stranger's answer is 404. The window closes at the permanent-deletion
+ * date the trash view shows — past it the answer is 409 `entry_purge_due`:
+ * the retention of the moment decides, and the worker's sweep would have
+ * the row moments later anyway. No tombstone is written — the restored
+ * row carries a fresh revision, and the sync's rule that an upsert
+ * outranks a tombstone of the same row delivers it back to the devices it
+ * had reached before.
+ */
+export async function restoreTrashedEntry(
+  deps: JournalDeps,
+  actor: JournalActor,
+  entryId: string,
+): Promise<JournalEntry> {
+  const now = deps.clock.now()
+  let restored: JournalEntry | undefined
+  await deps.db.transaction(async (tx) => {
+    await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
+    const entry = await getEntryInSpace(tx, actor.spaceId, entryId)
+    if (
+      entry === undefined ||
+      entry.state !== 'trashed' ||
+      !trashedEntryVisibleTo(entry, actor.memberId)
+    ) {
+      throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
+    }
+    assertTrashedEntryRestorableBy(entry, actor)
+    // The window: ADR-0007 lets the entry be restored before its retention
+    // expires, and the date the trash view shows is trashedAt plus the
+    // retention read here, so the two can never disagree.
+    const retentionDays = await readTrashRetentionDays(tx)
+    if (purgeAtFor(trashedAtOf(entry), retentionDays) <= now) {
+      throw new DomainError(
+        'entry_purge_due',
+        `Journal entry ${entryId} is due to be permanently deleted`,
+        409,
+      )
+    }
+    await recordChanges(
+      tx,
+      actor.spaceId,
+      {
+        writes: async (writeTx, revision) => {
+          const row = await markEntryRestored(writeTx, actor.spaceId, entryId, revision)
+          if (row === undefined) {
+            // The defensive backstop, like publish's: unreachable under the
+            // space row lock, and revision-free even then. The state can
+            // only have stopped being trashed, which the read above excludes.
+            throw new DomainError(
+              'entry_not_trashed',
+              `Journal entry ${entryId} is not in the trash`,
+              409,
+            )
+          }
+          restored = row
+        },
+      },
+      now,
+    )
+  })
+  if (restored === undefined) throw new Error('Restoring a journal entry produced no row')
+  return restored
 }
 
 /** The schema already validates the raw title; this applies to what is stored. */

@@ -15,12 +15,15 @@ import { members } from '../members/tables.ts'
 import { spaces } from '../spaces/tables.ts'
 
 /**
- * The states a journal entry takes in version 1.0 up to the trash ticket:
- * a new entry starts as a draft only its author sees, and publishing moves
- * it to the space's shared feed. A published entry never returns to draft
- * (CONTEXT.md, draft).
+ * The states a journal entry takes (ADR-0007): a new entry starts as a draft
+ * only its author sees, publishing moves it to the space's shared feed, and
+ * removal moves it to trash — recoverable until its permanent deletion. A
+ * published entry never returns to draft (CONTEXT.md, draft); restore
+ * returns the entry to the state it was trashed from.
  */
-export const entryStates = ['draft', 'published'] as const
+export const entryStates = ['draft', 'published', 'trashed'] as const
+
+export const trashedFromStates = ['draft', 'published'] as const
 
 export const journalEntries = pgTable(
   'journal_entries',
@@ -38,20 +41,47 @@ export const journalEntries = pgTable(
     title: text('title'),
     text: text('text').notNull(),
     state: text('state').notNull().$type<(typeof entryStates)[number]>(),
-    // Set once, when the draft is published; the feed orders on it.
+    // The state the entry was trashed from — set when it is trashed, cleared
+    // when it is restored. Null while the entry is not trashed.
+    trashedFromState: text('trashed_from_state').$type<(typeof trashedFromStates)[number]>(),
+    // Set once, when the draft is published; the feed orders on it. A trashed
+    // entry keeps it — restore returns the entry as it was, published moment
+    // included.
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    // Set when the entry is trashed; the retention clock and the trash list
+    // order on it. Null while the entry is not trashed.
+    trashedAt: timestamp('trashed_at', { withTimezone: true }),
     revision: bigint('revision', { mode: 'bigint' }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
   },
   (table) => [
     unique('journal_entries_space_id_id_key').on(table.spaceId, table.id),
-    check('journal_entries_state_allowed', sql`${table.state} in ('draft', 'published')`),
+    check(
+      'journal_entries_state_allowed',
+      sql`${table.state} in ('draft', 'published', 'trashed')`,
+    ),
+    check(
+      'journal_entries_trashed_from_state_allowed',
+      sql`${table.trashedFromState} in ('draft', 'published')`,
+    ),
     // A published entry carries the moment it was shared; a draft has none.
+    // A trashed entry matches the state it came from.
     check(
       'journal_entries_published_at_matches_state',
       sql`(${table.state} = 'published' and ${table.publishedAt} is not null)
-        or (${table.state} = 'draft' and ${table.publishedAt} is null)`,
+        or (${table.state} = 'draft' and ${table.publishedAt} is null)
+        or (${table.state} = 'trashed'
+            and ${table.trashedFromState} is not null
+            and ${table.trashedAt} is not null
+            and ((${table.trashedFromState} = 'published' and ${table.publishedAt} is not null)
+              or (${table.trashedFromState} = 'draft' and ${table.publishedAt} is null)))`,
+    ),
+    // The trash columns exist exactly when the state says so.
+    check(
+      'journal_entries_trash_columns_match_state',
+      sql`(${table.state} = 'trashed') = (${table.trashedAt} is not null)
+        and (${table.state} = 'trashed') = (${table.trashedFromState} is not null)`,
     ),
     // The shared feed pages through published entries newest first.
     index('journal_entries_feed_idx').on(table.spaceId, table.state, table.publishedAt, table.id),
@@ -60,6 +90,12 @@ export const journalEntries = pgTable(
     index('journal_entries_author_idx').on(table.spaceId, table.authorMemberId),
     // The sync contributor's delta scans one space's rows past a revision.
     index('journal_entries_sync_idx').on(table.spaceId, table.revision),
+    // The trash list reads one space's trashed rows, newest removal first.
+    index('journal_entries_trash_idx').on(table.spaceId, table.state, table.trashedAt),
+    // The purge job's sweep asks across spaces for rows whose retention has
+    // run out — a clearly named maintenance query (architecture.md, "Space
+    // scoping"), the access module's *AcrossSpaces precedent.
+    index('journal_entries_purge_idx').on(table.state, table.trashedAt),
     foreignKey({
       name: 'journal_entries_space_id_author_member_id_fk',
       columns: [table.spaceId, table.authorMemberId],

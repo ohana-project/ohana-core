@@ -173,7 +173,13 @@
       "unknownMember": "unknown member"
     },
     "settings": {
-      "title": "Instance settings"
+      "title": "Instance settings",
+      "trashTitle": "Trash",
+      "trashRetentionLabel": "Keep deleted entries for",
+      "trashRetentionOption": "{days, plural, one {# day} other {# days}}",
+      "trashRetentionHint": "When the time runs out, entries are deleted for good. The default is 30 days.",
+      "trashRetentionSave": "Save the retention",
+      "trashSavedToast": "The retention is updated"
     },
     "errors": {
       "validation_failed": "Check the fields — some values are not acceptable",
@@ -249,8 +255,28 @@
       "entry_already_published": "This entry is already published.",
       "section_hidden": "The owner of the space has hidden this section.",
       "validation_failed": "Check the fields — something is filled in wrong.",
-      "unexpected": "Something went wrong. Try again."
-    }
+      "unexpected": "Something went wrong. Try again.",
+      "trash_forbidden": "Only the author can trash an entry — or, for a published one, the space's owner.",
+      "restore_forbidden": "Only the author can restore an entry — or, for one trashed from published, the space's owner.",
+      "entry_not_trashed": "This entry is no longer in the trash.",
+      "entry_purge_due": "Its time has run out — the entry is being deleted for good."
+    },
+    "trashTitle": "Trash",
+    "trashSubtitle": "Deleted entries wait here until they are gone for good.",
+    "trashRowMeta": "deleted {deleted} · gone for good {purgeAt}",
+    "restore": "Restore",
+    "restoredToast": "Restored — the entry is back in the journal",
+    "trashEmptyTitle": "The trash is empty",
+    "trashEmptyText": "Deleted entries will appear here — the family has time to change its mind.",
+    "trashNote": "Restoring an entry is one step. After the permanent deletion only a fresh server backup can bring it back.",
+    "myTrash": "Trash",
+    "trashHint": "Deleted entries wait here until they are gone for good.",
+    "deleteEntry": "Delete entry",
+    "deleteDraft": "Delete draft",
+    "trashConfirmTitle": "Delete this entry?",
+    "trashConfirmText": "“{name}” moves to the trash. Until the permanent-deletion date it comes back with one tap.",
+    "trashConfirmLabel": "Delete",
+    "trashedToast": "In the trash · gone for good {date}"
   },
   "signin": {
     "title": "Access code",

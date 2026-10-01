@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Executor } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import { hashPassword, MIN_ADMIN_PASSWORD_LENGTH, verifyPassword } from '../../platform/password.ts'
+import { MAX_TRASH_RETENTION_DAYS, MIN_TRASH_RETENTION_DAYS } from './contracts.ts'
 import {
   deleteAdminSessionByTokenHash,
   deleteAdminSessionsForAdministrator,
@@ -10,9 +11,11 @@ import {
   getAdministrator,
   getAdministratorById,
   getAdminSessionByTokenHash,
+  getInstanceSettings,
   insertAdministratorIfAbsent,
   insertAdminSession,
   updateAdministratorPassword,
+  upsertInstanceSettings,
 } from './repository.ts'
 import type { Administrator } from './tables.ts'
 
@@ -160,4 +163,55 @@ export async function resetAdminPassword(deps: AdminDeps, newPassword: string): 
     await updateAdministratorPassword(tx, existing.id, passwordHash, now)
     await deleteAdminSessionsForAdministrator(tx, existing.id)
   })
+}
+
+/*
+ * Installation settings (ADR-0007): the trash retention the worker purges
+ * by. The settings row may not exist (nothing was ever changed), so reads
+ * answer the default ADR-0007 names.
+ */
+
+export const DEFAULT_TRASH_RETENTION_DAYS = 30
+
+export interface InstanceSettingsView {
+  trashRetentionDays: number
+}
+
+/**
+ * The trash retention every trash read and the purge job compute with. Runs
+ * inside the caller's transaction when one is passed, so a use case that
+ * both changes data and derives a date from the setting sees one value.
+ */
+export async function readTrashRetentionDays(executor: Executor): Promise<number> {
+  const settings = await getInstanceSettings(executor)
+  return settings?.trashRetentionDays ?? DEFAULT_TRASH_RETENTION_DAYS
+}
+
+/** The instance settings as the administrative area reads them. */
+export async function getSettings(deps: AdminDeps): Promise<InstanceSettingsView> {
+  return { trashRetentionDays: await readTrashRetentionDays(deps.db) }
+}
+
+/** Saves the instance settings; unknown fields never reach this surface. */
+export async function updateSettings(
+  deps: AdminDeps,
+  changes: { trashRetentionDays?: number },
+): Promise<InstanceSettingsView> {
+  const trashRetentionDays = changes.trashRetentionDays
+  if (
+    trashRetentionDays === undefined ||
+    !Number.isInteger(trashRetentionDays) ||
+    trashRetentionDays < MIN_TRASH_RETENTION_DAYS ||
+    trashRetentionDays > MAX_TRASH_RETENTION_DAYS
+  ) {
+    throw new DomainError(
+      'invalid_trash_retention',
+      `Trash retention must be between ${MIN_TRASH_RETENTION_DAYS} and ${MAX_TRASH_RETENTION_DAYS} days`,
+      400,
+    )
+  }
+  const saved = await deps.db.transaction((tx) =>
+    upsertInstanceSettings(tx, { trashRetentionDays, now: deps.clock.now() }),
+  )
+  return { trashRetentionDays: saved.trashRetentionDays }
 }

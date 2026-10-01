@@ -7,6 +7,7 @@ import { recordChanges } from '../modules/sync/index.ts'
 import type { FixedClock } from '../platform/clock.ts'
 import { fixedClock } from '../platform/clock.ts'
 import { createDb, type Db, type Tx } from '../platform/db/index.ts'
+import type { JobSender, JobSubmission } from '../platform/jobs/index.ts'
 import { createSilentLogger } from '../platform/logging.ts'
 import { createS3Storage, type ObjectStorageWithSetup } from '../platform/storage/s3.ts'
 
@@ -38,10 +39,34 @@ export function readTestEnvironment(): TestEnvironment {
 
 let factoryCounter = 0
 
+/**
+ * The recording jobs port the harness wires by default: every submission is
+ * kept for the test's assertions, and nothing reaches a queue. The real
+ * pg-boss is exercised by the queue's own integration tests and by
+ * buildWorker's, which build it over the same test database.
+ */
+export interface RecordingJobSender extends JobSender {
+  submissions: JobSubmission[]
+}
+
+export function recordingJobSender(): RecordingJobSender {
+  const sender: RecordingJobSender = {
+    submissions: [],
+    async sendInTx(tx: Tx, submission: JobSubmission) {
+      void tx
+      sender.submissions.push(submission)
+    },
+  }
+  return sender
+}
+
 export interface TestHarness {
   db: Db
   clock: FixedClock
   storage: ObjectStorageWithSetup
+  jobs: RecordingJobSender
+  /** The test run's container endpoints, for pieces that build their own connections. */
+  environment: TestEnvironment
   createSpace(input?: { name?: string; timezone?: string }): Promise<Space>
   createMember(
     spaceId: string,
@@ -62,12 +87,15 @@ export async function createTestHarness(): Promise<TestHarness> {
     secretAccessKey: environment.storageSecretKey,
     bucket: environment.storageBucket,
   })
-  const deps: AppDeps = { db, clock, storage, logger: createSilentLogger() }
+  const jobs = recordingJobSender()
+  const deps: AppDeps = { db, clock, storage, logger: createSilentLogger(), jobs }
 
   return {
     db,
     clock,
     storage,
+    jobs,
+    environment,
     createSpace: (input) =>
       createSpace(
         { db, clock },

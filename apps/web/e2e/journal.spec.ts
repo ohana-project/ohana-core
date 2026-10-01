@@ -16,6 +16,9 @@ const REDEEM = '**/api/v1/access-codes/redeem'
 const ENTRIES = '**/api/v1/journal/entries'
 const ENTRY = '**/api/v1/journal/entries/*'
 const PUBLISH = '**/api/v1/journal/entries/*/publish'
+const TRASH = '**/api/v1/journal/entries/*/trash'
+const RESTORE = '**/api/v1/journal/entries/*/restore'
+const TRASH_LIST = '**/api/v1/journal/trash'
 // The sync request carries ?since=…, so the glob spans the query too.
 const SYNC = '**/api/v1/sync*'
 
@@ -78,8 +81,10 @@ interface StoredEntry {
   authorId: string
   title?: string
   text: string
-  state: 'draft' | 'published'
+  state: 'draft' | 'published' | 'trashed'
   publishedAt?: string
+  trashedAt?: string
+  purgeAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -87,12 +92,16 @@ interface StoredEntry {
 /**
  * The mocked member API over a small stateful journal: the mutations the
  * editor sends change what the next sync answers, the way the server's
- * revision would deliver them.
+ * revision would deliver them. Trashing removes the row from the sync's
+ * upserts and answers the removal as a tombstone for its author, the way
+ * the server does (issue #16); the trash list carries the trashed rows
+ * with their deletion dates.
  */
 async function mockJournalApi(page: Page) {
   const signedIn = new Set<string>([ANYA_ID])
   const entries: StoredEntry[] = [SEEDED_PUBLISHED]
   let nextId = 0x200
+  let revision = 7
 
   await page.route(REDEEM, (route) =>
     route.fulfill({
@@ -118,13 +127,44 @@ async function mockJournalApi(page: Page) {
     if (memberId === undefined || !signedIn.has(memberId)) return route.fulfill(json(401, {}))
     return route.fulfill(
       json(200, {
-        revision: '7',
+        revision: String(revision),
         changes: [
           { entity: 'space', space: SPACE },
           ...PROFILES.map((profile) => ({ entity: 'member', member: profile })),
-          ...entries.map((entry) => ({ entity: 'journal_entry', entry })),
+          ...entries
+            .filter((entry) => entry.state !== 'trashed')
+            .map((entry) => ({ entity: 'journal_entry', entry })),
         ],
-        tombstones: [],
+        tombstones: entries
+          .filter((entry) => entry.state === 'trashed')
+          .map((entry) => ({
+            entity: 'journal_entry',
+            entityId: entry.id,
+            audience: 'member',
+            memberId: ANYA_ID,
+          })),
+      }),
+    )
+  })
+
+  await page.route(TRASH_LIST, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(401, {}))
+    return route.fulfill(
+      json(200, {
+        entries: entries
+          .filter((entry) => entry.state === 'trashed')
+          .map((entry) => ({
+            id: entry.id,
+            authorId: entry.authorId,
+            ...(entry.title === undefined ? {} : { title: entry.title }),
+            text: entry.text,
+            previousState: entry.publishedAt === undefined ? 'draft' : 'published',
+            trashedAt: entry.trashedAt,
+            purgeAt: entry.purgeAt,
+            createdAt: entry.createdAt,
+            updatedAt: entry.updatedAt,
+          })),
       }),
     )
   })
@@ -167,7 +207,71 @@ async function mockJournalApi(page: Page) {
       updatedAt: '2026-10-01T09:30:00.000Z',
     }
     entries.push(published)
+    revision += 1
     return route.fulfill(json(200, published))
+  })
+
+  await page.route(TRASH, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const entryId = route.request().url().split('/').at(-2) as string
+    const entry = entries.find((row) => row.id === entryId)
+    if (entry === undefined || entry.state === 'trashed') {
+      return route.fulfill(
+        json(404, { error: { code: 'entry_not_found', message: 'No such entry' } }),
+      )
+    }
+    entries.splice(entries.indexOf(entry), 1)
+    const trashed: StoredEntry = {
+      ...entry,
+      state: 'trashed',
+      trashedAt: '2026-10-01T10:15:00.000Z',
+      // The permanent-deletion date is the removal plus 30 days (the
+      // default retention, ADR-0007).
+      purgeAt: '2026-10-31T10:15:00.000Z',
+      updatedAt: '2026-10-01T10:15:00.000Z',
+    }
+    entries.push(trashed)
+    revision += 1
+    return route.fulfill(
+      json(200, {
+        id: trashed.id,
+        authorId: trashed.authorId,
+        ...(trashed.title === undefined ? {} : { title: trashed.title }),
+        text: trashed.text,
+        previousState: trashed.publishedAt === undefined ? 'draft' : 'published',
+        trashedAt: trashed.trashedAt,
+        purgeAt: trashed.purgeAt,
+        createdAt: trashed.createdAt,
+        updatedAt: trashed.updatedAt,
+      }),
+    )
+  })
+
+  await page.route(RESTORE, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const entryId = route.request().url().split('/').at(-2) as string
+    const entry = entries.find((row) => row.id === entryId)
+    if (entry === undefined || entry.state !== 'trashed') {
+      return route.fulfill(
+        json(404, { error: { code: 'entry_not_found', message: 'No such entry' } }),
+      )
+    }
+    entries.splice(entries.indexOf(entry), 1)
+    const restored: StoredEntry = {
+      id: entry.id,
+      authorId: entry.authorId,
+      ...(entry.title === undefined ? {} : { title: entry.title }),
+      text: entry.text,
+      state: entry.publishedAt === undefined ? 'draft' : 'published',
+      ...(entry.publishedAt === undefined ? {} : { publishedAt: entry.publishedAt }),
+      createdAt: entry.createdAt,
+      updatedAt: '2026-10-01T10:20:00.000Z',
+    }
+    entries.push(restored)
+    revision += 1
+    return route.fulfill(json(200, restored))
   })
 
   await page.route(ENTRY, (route) => {
@@ -281,5 +385,54 @@ test.describe('the journal', () => {
     // The edit lands in the shared feed through the sync, state unchanged.
     await expect(page).toHaveURL(/\/journal$/)
     await expect(page.getByText('Собрались за час: бутерброды и термос.')).toBeVisible()
+  })
+
+  test('a draft is trashed from its menu and restored from the trash view', async ({ page }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    // A draft to lose.
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await expect(page).toHaveURL(/\/journal$/)
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await page.getByLabel('Заголовок').fill('Черновик под нож')
+    await page.getByLabel('Текст записи').fill('Его удалю, а потом верну.')
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+    await expect(page.getByText('Черновик сохранён — виден только вам')).toBeVisible()
+
+    // The removal hides behind the row's overflow menu with a dialog
+    // between: one tap must not trash a draft (docs/design/screens/drafts.html).
+    await page.getByText('Мои черновики').click()
+    await expect(page).toHaveURL(/\/journal\/drafts$/)
+    await expect(page.getByText('Черновик под нож')).toBeVisible()
+    await page.getByRole('button', { name: 'Действия с черновиком' }).click()
+    await page.getByRole('menuitem', { name: 'Удалить черновик' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Удалить' }).click()
+
+    // The toast names the date the answer computed; the sync takes the row
+    // off the drafts list.
+    await expect(page.getByText(/исчезнет окончательно 31 октября/)).toBeVisible()
+    await expect(page.getByText('Черновик под нож')).toHaveCount(0)
+
+    // The feed's own corner leads to the trash; the row is there with its
+    // deletion date, and restoring puts it back among the drafts.
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await expect(page).toHaveURL(/\/journal$/)
+    await page.getByText('Корзина').click()
+    await expect(page).toHaveURL(/\/journal\/trash$/)
+    await expect(page.getByText('Черновик под нож')).toBeVisible()
+    // The row names the removal and the permanent-deletion date.
+    await expect(page.getByText(/удалено .* · исчезнет окончательно 31 октября/)).toBeVisible()
+    await page.getByRole('button', { name: 'Восстановить' }).click()
+    await expect(page.getByText('Восстановлено — запись снова в дневнике')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await page.getByText('Мои черновики').click()
+    await expect(page).toHaveURL(/\/journal\/drafts$/)
+    await expect(page.getByText('Черновик под нож')).toBeVisible()
   })
 })

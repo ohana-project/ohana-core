@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from 'vitest'
 import { fixedClock } from '../../platform/clock.ts'
-import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
+import { createTestHarness, recordingJobSender, type TestHarness } from '../../testing/harness.ts'
 import {
   ADMIN_MARKER_HEADER,
   ADMIN_SESSION_COOKIE,
@@ -729,8 +729,8 @@ describe('the hidden journal section (ADR-0011)', () => {
       // gate meets: each write use case, called directly, refuses the same
       // way. The test is sequential — it pins that the recheck exists, not
       // the lock ordering that makes it sound.
-      const deps = { db: harness.db, clock: fixedClock() }
-      const actor = { memberId: regular.memberId, spaceId: space.id }
+      const deps = { db: harness.db, clock: fixedClock(), jobs: recordingJobSender() }
+      const actor = { memberId: regular.memberId, spaceId: space.id, role: 'regular' as const }
       for (const [name, useCase] of [
         [
           'updateEntryText',

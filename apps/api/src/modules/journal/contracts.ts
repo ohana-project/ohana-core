@@ -2,11 +2,14 @@ import { type Static, Type } from '@sinclair/typebox'
 import type { JournalEntry } from './tables.ts'
 
 /*
- * The journal contracts (issue #15). An entry is a text record with an
- * optional title; photos arrive with their own ticket. The DTO names the
- * author by id only: the space's profiles travel on their own sync entity,
- * so the client attributes entries from the member store it already holds
- * and never keeps a stale name inside an entry.
+ * The journal contracts (issues #15 and #16). An entry is a text record
+ * with an optional title; photos arrive with their own ticket. The DTO
+ * names the author by id only: the space's profiles travel on their own
+ * sync entity, so the client attributes entries from the member store it
+ * already holds and never keeps a stale name inside an entry. A trashed
+ * entry travels on its own contract — the trash view's — because it has
+ * left every ordinary view (policy.ts); the tombstones its removal wrote
+ * carry it to the devices that saw it before.
  */
 
 export const ENTRY_TITLE_MAX_LENGTH = 200
@@ -32,6 +35,9 @@ const textSchema = Type.String({
 
 export const EntryStateSchema = Type.Union([Type.Literal('draft'), Type.Literal('published')])
 
+/** The journal module's entity name in the tombstone table. */
+export const JOURNAL_ENTRY_SYNC_ENTITY = 'journal_entry'
+
 export const EntryIdParamsSchema = Type.Object({
   entryId: Type.String({ format: 'uuid' }),
 })
@@ -52,8 +58,16 @@ export const JournalEntryDtoSchema = Type.Object(
 
 export type JournalEntryDto = Static<typeof JournalEntryDtoSchema>
 
-/** Projects the entry row onto the wire shape the reads and sync share. */
+/**
+ * Projects the entry row onto the wire shape the reads and sync share.
+ * The ordinary reads and sync never deliver a trashed row (policy.ts); a
+ * trashed row arriving here is a programming error, and refusing loudly
+ * keeps the wire contract honest.
+ */
 export function toEntryDto(entry: JournalEntry): JournalEntryDto {
+  if (entry.state === 'trashed') {
+    throw new Error('A trashed entry has no ordinary entry DTO; it travels on the trash view')
+  }
   return {
     id: entry.id,
     authorId: entry.authorMemberId,
@@ -116,3 +130,56 @@ export const JournalEntrySyncChangeSchema = Type.Object(
   { entity: Type.Literal('journal_entry'), entry: JournalEntryDtoSchema },
   { additionalProperties: false },
 )
+
+/*
+ * The trash view's contract (issue #16, ADR-0007): the row remembers the
+ * state it was trashed from, and the view names the permanent-deletion
+ * date — trashedAt plus the instance's trash retention, computed at read
+ * time so a changed retention applies to entries already in trash.
+ */
+
+export const PreviousStateSchema = Type.Union([Type.Literal('draft'), Type.Literal('published')])
+
+export const TrashedEntryDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    authorId: Type.String({ format: 'uuid' }),
+    title: Type.Optional(Type.String()),
+    text: Type.String(),
+    previousState: PreviousStateSchema,
+    trashedAt: Type.String({ format: 'date-time' }),
+    purgeAt: Type.String({ format: 'date-time' }),
+    createdAt: Type.String({ format: 'date-time' }),
+    updatedAt: Type.String({ format: 'date-time' }),
+  },
+  { additionalProperties: false },
+)
+
+export type TrashedEntryDto = Static<typeof TrashedEntryDtoSchema>
+
+/** Projects a trashed row onto the trash view's wire shape. The trash reads
+ *  deliver trashed rows only (policy.ts); anything else arriving here is a
+ *  programming error, and refusing loudly keeps the wire contract honest. */
+export function toTrashedEntryDto(entry: JournalEntry, purgeAt: Date): TrashedEntryDto {
+  if (entry.state !== 'trashed' || entry.trashedFromState === null || entry.trashedAt === null) {
+    throw new Error('The trash view carries trashed rows only')
+  }
+  return {
+    id: entry.id,
+    authorId: entry.authorMemberId,
+    title: entry.title ?? undefined,
+    text: entry.text,
+    previousState: entry.trashedFromState,
+    trashedAt: entry.trashedAt.toISOString(),
+    purgeAt: purgeAt.toISOString(),
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString(),
+  }
+}
+
+export const TrashListDtoSchema = Type.Object(
+  { entries: Type.Array(TrashedEntryDtoSchema) },
+  { additionalProperties: false },
+)
+
+export type TrashListDto = Static<typeof TrashListDtoSchema>

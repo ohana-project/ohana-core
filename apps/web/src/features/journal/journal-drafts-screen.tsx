@@ -1,8 +1,17 @@
 import { useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { StoredJournalEntry } from '@/data/local-store.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog.tsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,20 +30,25 @@ import {
   ItemTitle,
 } from '@/ui/item.tsx'
 import { toast } from '@/ui/toast.tsx'
-import { entryExcerpt, entryMoment, journalDrafts } from './journal-entries.ts'
+import { entryDay, entryExcerpt, entryMoment, journalDrafts } from './journal-entries.ts'
 import { JournalShell } from './journal-shell.tsx'
-import { journalErrorMessage, useJournalData, usePublishEntry } from './use-journal.ts'
+import {
+  journalErrorMessage,
+  useJournalData,
+  usePublishEntry,
+  useTrashEntry,
+} from './use-journal.ts'
 
 /*
  * The author's drafts (docs/design/screens/drafts.html): the separate list
  * only the author sees (issue #15). A draft continues in the editor, and
  * sharing goes through the row's overflow menu — publishing is one-way,
  * so it does not sit a stray tap away, as the prototype puts it. The
- * trigger keeps the design system's 44px icon button where the prototype
- * draws a smaller one: docs/design/README.md sets 44px as the touch-target
- * floor, and one row is not a reason to mint a smaller size. The trash
- * arrives with its own ticket (#16). The list reads the synchronised
- * partition, so it answers offline exactly as online (ADR-0002).
+ * removal goes through the same menu with a dialog between (issue #16):
+ * drafts land in the trash like any entry — ADR-0007 gives the author the
+ * same recovery window, and the trashed draft stays visible only to its
+ * author. The list reads the synchronised partition, so it answers
+ * offline exactly as online (ADR-0002).
  */
 export function JournalDraftsScreen() {
   const { t, i18n } = useTranslation()
@@ -117,9 +131,11 @@ function DraftRow({
   onEdit: () => void
 }) {
   const { t } = useTranslation()
-  // Each row owns its mutation: one publish in flight must not re-enable
-  // another row's button or drop its toast.
+  // Each row owns its mutations: one publish or trash in flight must not
+  // re-enable another row's button or drop its toast.
   const publish = usePublishEntry()
+  const trash = useTrashEntry()
+  const [confirmTrash, setConfirmTrash] = useState(false)
   return (
     <Item size="lg">
       <ItemMedia>
@@ -159,9 +175,70 @@ function DraftRow({
               <Icon name="send" />
               {t('journal.publishNow')}
             </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setConfirmTrash(true)}>
+              <Icon name="trash" />
+              {t('journal.deleteDraft')}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </ItemActions>
+
+      {confirmTrash ? (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !trash.isPending) setConfirmTrash(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('journal.trashConfirmTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('journal.trashConfirmText', {
+                  name: draft.title ?? entryExcerpt(draft.text, 40),
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={trash.isPending}
+                onClick={() => setConfirmTrash(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={trash.isPending}
+                onClick={() =>
+                  trash.mutate(
+                    { entryId: draft.id },
+                    {
+                      onSuccess: (trashed) => {
+                        setConfirmTrash(false)
+                        // The trashed draft left the synchronised
+                        // partition through its tombstone; the sync the
+                        // mutation triggered takes the row off this list.
+                        toast(
+                          t('journal.trashedToast', {
+                            date: entryDay(trashed.purgeAt, locale),
+                          }),
+                        )
+                      },
+                      onError: (error) => {
+                        setConfirmTrash(false)
+                        toast(journalErrorMessage(error, t), 'danger')
+                      },
+                    },
+                  )
+                }
+              >
+                {t('journal.trashConfirmLabel')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </Item>
   )
 }
