@@ -49,6 +49,9 @@ export async function listSpaces(executor: Executor): Promise<Space[]> {
 export interface SpaceChanges {
   name?: string
   timezone?: string
+  journalVisible?: boolean
+  calendarVisible?: boolean
+  wishlistVisible?: boolean
 }
 
 /**

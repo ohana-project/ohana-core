@@ -107,6 +107,7 @@ describe('GET /api/v1/space (the member reads their space)', () => {
         id: space.id,
         name: 'Наша семья',
         timezone: 'Asia/Novosibirsk',
+        sections: { journal: true, calendar: true, wishlist: true },
       })
     })
   })
@@ -136,6 +137,7 @@ describe('GET /api/v1/space (the member reads their space)', () => {
         id: family.id,
         name: 'Наша семья',
         timezone: 'Europe/Moscow',
+        sections: { journal: true, calendar: true, wishlist: true },
       })
     })
   })
@@ -164,6 +166,7 @@ describe('PATCH /api/v1/space (the owner sets the default time zone)', () => {
         id: family.id,
         name: 'Наша семья',
         timezone: 'Asia/Novosibirsk',
+        sections: { journal: true, calendar: true, wishlist: true },
       })
 
       const rows = await harness.db.select().from(spaces)
@@ -194,6 +197,7 @@ describe('PATCH /api/v1/space (the owner sets the default time zone)', () => {
         id: space.id,
         name: 'Наша семья',
         timezone: 'Asia/Novosibirsk',
+        sections: { journal: true, calendar: true, wishlist: true },
       })
 
       const rows = await harness.db.select().from(spaces).where(eq(spaces.id, space.id))

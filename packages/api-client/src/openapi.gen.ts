@@ -260,6 +260,11 @@ export interface paths {
                             id: string;
                             name: string;
                             timezone: string;
+                            sections: {
+                                journal: boolean;
+                                calendar: boolean;
+                                wishlist: boolean;
+                            };
                         };
                     };
                 };
@@ -282,7 +287,12 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        timezone: string;
+                        timezone?: string;
+                        sections?: {
+                            journal?: boolean;
+                            calendar?: boolean;
+                            wishlist?: boolean;
+                        };
                     };
                 };
             };
@@ -298,6 +308,11 @@ export interface paths {
                             id: string;
                             name: string;
                             timezone: string;
+                            sections: {
+                                journal: boolean;
+                                calendar: boolean;
+                                wishlist: boolean;
+                            };
                         };
                     };
                 };

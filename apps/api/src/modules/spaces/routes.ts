@@ -24,6 +24,7 @@ import {
   type SpaceWithMemberCount,
   updateSpace,
 } from './service.ts'
+import { sectionVisibility } from './policy.ts'
 import type { Space } from './tables.ts'
 
 function toSpaceDto(space: Space): SpaceDto {
@@ -38,7 +39,12 @@ function toSpaceDto(space: Space): SpaceDto {
 }
 
 function toMemberSpaceDto(space: Space): MemberSpaceDto {
-  return { id: space.id, name: space.name, timezone: space.timezone }
+  return {
+    id: space.id,
+    name: space.name,
+    timezone: space.timezone,
+    sections: sectionVisibility(space),
+  }
 }
 
 function toSpaceWithMemberCountDto(space: SpaceWithMemberCount): SpaceWithMemberCountDto {
@@ -135,9 +141,9 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
     )
   })
 
-  // The member-facing space settings (issue #12): the actor's own space,
-  // its default time zone changeable by an owner. Section visibility
-  // arrives with its own ticket.
+  // The member-facing space settings (issues #12 and #13): the actor's own
+  // space, its default time zone and section visibility changeable by an
+  // owner. Renaming stays with the instance administrator.
   await app.register((memberArea: FastifyInstance) => {
     const scoped = memberArea.withTypeProvider<TypeBoxTypeProvider>()
     scoped.addHook('onRequest', opts.memberArea.guard)
@@ -169,6 +175,7 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
         const actor = opts.memberArea.requireOwner(request)
         const space = await updateSpace(opts.deps, actor.spaceId, {
           timezone: request.body.timezone,
+          sections: request.body.sections,
         })
         return toMemberSpaceDto(space)
       },
