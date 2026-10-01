@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot, type SyncResult } from '@/data/local-store.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
+import { MemberSessionGate } from './member-session-gate.tsx'
 import { SpaceHomeScreen } from './space-home.tsx'
 
 /*
@@ -25,10 +26,26 @@ vi.mock('@/data/api.ts', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => async () => {},
+  // The gate redirects through Navigate; the tests decide the session
+  // state, so it never renders.
+  Navigate: () => null,
 }))
 
 const apiGet = vi.mocked(api.GET)
 const apiDelete = vi.mocked(api.DELETE)
+
+/**
+ * The home as its route mounts it: the session gate around the screen,
+ * because the gate carries the member area's one sync lifecycle (issue
+ * #14) — a bare screen would never sync.
+ */
+function HomeRoute() {
+  return (
+    <MemberSessionGate require="signed-in" redirectTo="/signin">
+      <SpaceHomeScreen />
+    </MemberSessionGate>
+  )
+}
 
 let memberCounter = 0
 
@@ -160,7 +177,7 @@ describe('SpaceHomeScreen', () => {
     const world = makeWorld()
     seedRegistry(world)
     mockResponses(world, syncResultFor(world))
-    renderWithProviders(<SpaceHomeScreen />)
+    renderWithProviders(<HomeRoute />)
 
     expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
     // The home answers from the store once the first sync has landed.
@@ -178,6 +195,9 @@ describe('SpaceHomeScreen', () => {
     expect(apiGet).toHaveBeenCalledWith('/api/v1/sync', {
       params: { query: { since: '0' }, header: { 'x-ohana-member': world.memberId } },
     })
+    // The home mounts the snapshot query twice — its own, and the
+    // navigation's — but the gate's single lifecycle runs the engine once.
+    expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
   })
 
   it('hides a hidden section from the navigation and the home columns', async () => {
@@ -202,7 +222,7 @@ describe('SpaceHomeScreen', () => {
       changes: hidden.changes.filter((change) => change.entity === 'space'),
     })
 
-    const { container } = renderWithProviders(<SpaceHomeScreen />)
+    const { container } = renderWithProviders(<HomeRoute />)
 
     expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
     await screen.findByText('Ближайшие события')
@@ -226,7 +246,7 @@ describe('SpaceHomeScreen', () => {
       throw new Error(`Unexpected GET ${String(path)}`)
     })
 
-    const { container } = renderWithProviders(<SpaceHomeScreen />)
+    const { container } = renderWithProviders(<HomeRoute />)
 
     expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
     // The empty device does not pretend the space is empty: no sections,
@@ -250,10 +270,12 @@ describe('SpaceHomeScreen', () => {
       throw new Error(`Unexpected GET ${String(path)}`)
     })
 
-    renderWithProviders(<SpaceHomeScreen />)
+    renderWithProviders(<HomeRoute />)
 
     expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
-    expect(screen.getByText('Свежее в дневнике')).toBeInTheDocument()
+    // The partition read runs beside the identity assembly; both answer
+    // from the local store.
+    expect(await screen.findByText('Свежее в дневнике')).toBeInTheDocument()
     expect(screen.getByText('Миша')).toBeInTheDocument()
   })
 
@@ -268,7 +290,7 @@ describe('SpaceHomeScreen', () => {
       response: new Response(null, { status: 204 }),
     })
     const user = userEvent.setup()
-    const { container } = renderWithProviders(<SpaceHomeScreen />)
+    const { container } = renderWithProviders(<HomeRoute />)
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
     // The session probe and the sync runs settle before the menu opens, so
@@ -309,7 +331,7 @@ describe('SpaceHomeScreen', () => {
     mockResponses(world, syncResultFor(world))
     apiDelete.mockRejectedValue(new TypeError('Network unreachable'))
     const user = userEvent.setup()
-    renderWithProviders(<SpaceHomeScreen />)
+    renderWithProviders(<HomeRoute />)
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
     // The session probe and the sync runs settle before the menu opens.

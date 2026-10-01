@@ -7,9 +7,7 @@ import { onSyncApplied, triggerSync } from '@/data/sync-engine.ts'
 /*
  * The member's synchronised partition (issue #14): one query over the
  * IndexedDB snapshot, invalidated when the sync engine applies a response.
- * Mounting it also runs the sync — on entering a member area and again
- * whenever the connection returns — so the same read serves online and
- * offline, from local data (ADR-0002).
+ * The same read serves online and offline, from local data (ADR-0002).
  */
 
 export function syncedSnapshotKey(memberId: string | undefined) {
@@ -18,10 +16,28 @@ export function syncedSnapshotKey(memberId: string | undefined) {
 
 export function useSyncedSpace() {
   const memberId = getActiveMemberId()
+  return useQuery({
+    queryKey: syncedSnapshotKey(memberId),
+    queryFn:
+      memberId === undefined
+        ? skipToken
+        : (): Promise<MemberSnapshot> => readMemberSnapshot(memberId),
+  })
+}
+
+/**
+ * Runs and re-runs the sync while a member session is active: on entering
+ * the member area and again whenever the connection returns. Mounted once,
+ * by the member session gate, so every member surface shares one trigger
+ * and one re-read — a screen that mounts the snapshot query twice must not
+ * mount two engines (mutations trigger their own syncs besides this).
+ */
+export function useSyncLifecycle(active: boolean): void {
   const queryClient = useQueryClient()
+  const memberId = getActiveMemberId()
 
   useEffect(() => {
-    if (memberId === undefined) return
+    if (!active || memberId === undefined) return
     void triggerSync(memberId)
     const applied = onSyncApplied((who) => {
       if (who === memberId) {
@@ -34,13 +50,5 @@ export function useSyncedSpace() {
       applied()
       window.removeEventListener('online', backOnline)
     }
-  }, [memberId, queryClient])
-
-  return useQuery({
-    queryKey: syncedSnapshotKey(memberId),
-    queryFn:
-      memberId === undefined
-        ? skipToken
-        : (): Promise<MemberSnapshot> => readMemberSnapshot(memberId),
-  })
+  }, [active, memberId, queryClient])
 }

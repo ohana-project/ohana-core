@@ -1,7 +1,12 @@
-import type { TSchema } from '@sinclair/typebox'
+import type { Static, TSchema } from '@sinclair/typebox'
 import type { Db, Tx } from '../../platform/db/index.ts'
 import { advanceSpaceRevision, getSpaceInTx } from '../spaces/index.ts'
-import { type SyncTombstoneEntry, type TombstoneInput, writeTombstones } from './repository.ts'
+import {
+  readTombstonesSince,
+  type SyncTombstoneEntry,
+  type TombstoneInput,
+  writeTombstones,
+} from './repository.ts'
 
 export interface ChangePlan {
   writes?: (tx: Tx, revision: bigint) => Promise<unknown>
@@ -39,31 +44,23 @@ export interface SyncActor {
 }
 
 /**
- * What one module contributes for one sync request. The upserts are
- * wire-ready change objects, each satisfying the contributor's own change
- * schema; within one response an upsert of a row always outranks a
- * tombstone of the same row — the contributor's rows are what exists now,
- * so the client applies tombstones first and upserts second.
- */
-export interface SyncContribution {
-  upserts: readonly unknown[]
-  tombstones: readonly SyncTombstoneEntry[]
-}
-
-/**
  * The extension point a synchronised module exports (architecture.md,
  * "Sync contributors"): `changesSince(tx, actor, revision)` delivering the
- * rows and tombstones newer than the cursor, already filtered by the
- * module's policy — plus the wire schema of its changes, which the sync
- * route composes into the response contract, and the tombstone entities it
- * is responsible for.
+ * rows newer than the cursor, already filtered by the module's policy —
+ * plus the wire schema of its change objects, which the sync route
+ * composes into the response contract, and the tombstone entities it
+ * answers for. The shared tombstone table is read once per request by the
+ * sync service, so the audience filter (everyone, or the one member
+ * something left) lives in exactly one place; within one response an
+ * upsert of a row always outranks a tombstone of the same row, because the
+ * contributor's rows are what exists now.
  */
-export interface SyncContributor {
+export interface SyncContributor<S extends TSchema = TSchema> {
   /** The wire schema every upsert of this contributor satisfies. */
-  changeSchema: TSchema
-  /** The entity names whose tombstones this contributor delivers. */
+  changeSchema: S
+  /** The entity names whose tombstones this contributor answers for. */
   entities: readonly string[]
-  changesSince(tx: Tx, actor: SyncActor, since: bigint): Promise<SyncContribution>
+  changesSince(tx: Tx, actor: SyncActor, since: bigint): Promise<{ upserts: readonly Static<S>[] }>
 }
 
 export interface SyncResult {
@@ -88,12 +85,12 @@ export async function syncSince(
   return db.transaction(async (tx) => {
     const space = await getSpaceInTx(tx, actor.spaceId)
     const changes: unknown[] = []
-    const tombstones: SyncTombstoneEntry[] = []
     for (const contributor of contributors) {
-      const contribution = await contributor.changesSince(tx, actor, since)
-      changes.push(...contribution.upserts)
-      tombstones.push(...contribution.tombstones)
+      const { upserts } = await contributor.changesSince(tx, actor, since)
+      changes.push(...upserts)
     }
+    const entities = contributors.flatMap((contributor) => [...contributor.entities])
+    const tombstones = await readTombstonesSince(tx, actor.spaceId, actor.memberId, since, entities)
     return { revision: space.revision.toString(), changes, tombstones }
   })
 }

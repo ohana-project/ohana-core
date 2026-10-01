@@ -117,9 +117,9 @@ The sync conventions below are established in the foundation and must not be byp
 
 **Sync contributors:**
 
-- Each module with synchronised data exports a sync contributor: a `changesSince(tx, actor, revision) → { upserts, tombstones }` function, plus the wire schema of its change objects and the tombstone entities it is responsible for.
+- Each module with synchronised data exports a sync contributor: a `changesSince(tx, actor, revision) → { upserts }` function, plus the wire schema of its change objects and the tombstone entities it answers for.
 - The contributor applies the module's `policy.ts`. Ordinary reads apply the same policy, so what a member may see is defined in exactly one place per module.
-- Tombstones live in the one shared table the sync module owns; a contributor reads the entries of its own entities through the sync module's `readTombstonesSince`, which applies the audience filter (everyone, or the one member something left) in exactly one place. Within one response an upsert of a row always outranks a tombstone of the same row — the contributor's rows are what exists now — so clients apply tombstones first and upserts second.
+- Tombstones live in the one shared table the sync module owns; the sync service reads them once per request for the contributors' entities, and `readTombstonesSince` applies the audience filter (everyone, or the one member something left) in exactly one place. Within one response an upsert of a row always outranks a tombstone of the same row — the contributor's rows are what exists now — so clients apply tombstones first and upserts second.
 - The `spaces` module contributes the space row (name, time zone, `sections`) as an upsert whenever `spaces.revision` is newer than the cursor, so section visibility reaches offline clients (ADR-0011, ADR-0014).
 - The sync module merges contributors and returns `{ revision, changes, tombstones }`; `GET /api/v1/sync?since=<revision>` answers it to the requesting member, the space always the actor's own. The response contract is composed from the wired contributors in the composition root, so a section module plugs in without editing the sync module.
 

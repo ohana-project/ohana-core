@@ -1,5 +1,4 @@
 import type { Tx } from '../../platform/db/index.ts'
-import type { SyncContribution, SyncContributor } from '../sync/index.ts'
 import { SpaceSyncChangeSchema, toMemberSpaceDto } from './contracts.ts'
 import { getSpaceById } from './repository.ts'
 
@@ -11,19 +10,23 @@ import { getSpaceById } from './repository.ts'
  * no per-row tombstones — the client drops a hidden section's rows when it
  * applies the new map, and resyncs from revision 0 once when a section
  * comes back (architecture.md, "Visibility changes").
+ *
+ * The contributor satisfies the sync module's SyncContributor structurally,
+ * where the composition root wires it: the spaces module keeps no import on
+ * the sync module, which sits above it.
  */
-export const spacesSyncContributor: SyncContributor = {
+export const spacesSyncContributor = {
   changeSchema: SpaceSyncChangeSchema,
   entities: ['space'],
   changesSince: async (
     tx: Tx,
     actor: { spaceId: string },
     since: bigint,
-  ): Promise<SyncContribution> => {
+  ): Promise<{ upserts: readonly unknown[] }> => {
     const space = await getSpaceById(tx, actor.spaceId)
     if (space === undefined || space.revision <= since) {
-      return { upserts: [], tombstones: [] }
+      return { upserts: [] }
     }
-    return { upserts: [{ entity: 'space', space: toMemberSpaceDto(space) }], tombstones: [] }
+    return { upserts: [{ entity: 'space', space: toMemberSpaceDto(space) }] }
   },
 }

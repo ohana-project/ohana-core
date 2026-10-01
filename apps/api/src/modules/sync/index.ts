@@ -9,7 +9,6 @@ export {
   type ChangePlan,
   recordChanges,
   type SyncActor,
-  type SyncContribution,
   type SyncContributor,
   type SyncResult,
   syncSince,

@@ -92,7 +92,8 @@ export function buildApp(deps: AppDeps) {
   // modules join when their data lands (architecture.md, "Sync
   // contributors"). The route plugin is imported directly, like the other
   // routes here, so the sync module's public surface stays free of the
-  // response contract and no module cycle can close through it.
+  // response contract, and the response schema is composed from exactly
+  // the wired contributors.
   app.register(syncRoutes, {
     prefix: '/api/v1',
     deps: accessDeps,

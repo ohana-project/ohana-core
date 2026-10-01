@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import { applySyncResult } from '@/data/local-store.ts'
+import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import {
   forgetMember,
@@ -12,6 +12,18 @@ import {
   useMemberSessionStatus,
   useRedeemedSignIn,
 } from './use-member-session.ts'
+import { useSyncLifecycle } from './use-synced-space.ts'
+
+const ME = {
+  member: {
+    id: '01900000-0000-7000-8000-000000000001',
+    name: 'Аня',
+    role: 'owner' as const,
+    createdAt: '2026-08-12T10:00:00.000Z',
+  },
+  space: { id: '01900000-0000-7000-8000-00000000000a', name: 'Наша семья' },
+  needsOnboarding: false,
+}
 
 vi.mock('@/data/api.ts', () => ({ api: { GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() } }))
 
@@ -140,6 +152,9 @@ describe('the member session probe', () => {
 
   function SessionProbe() {
     const session = useMemberSessionStatus()
+    // The gate carries the sync lifecycle beside the probe in the real
+    // route; the tests exercise them together.
+    useSyncLifecycle(session.status === 'signed-in')
     return <span data-testid="session">{JSON.stringify(session)}</span>
   }
 
@@ -217,8 +232,56 @@ describe('the member session probe', () => {
     // synchronised partition are gone, so an offline open cannot resurrect
     // the space (issue #14).
     expect(window.localStorage.getItem('ohana.activeMember')).toBeNull()
-    const { readMemberSnapshot } = await import('@/data/local-store.ts')
     const snapshot = await readMemberSnapshot(MEMBER)
     expect(snapshot.revision).toBeUndefined()
+  })
+
+  it('a sign-out forgets a sync in flight, so its answer is never applied', async () => {
+    seedRegistry()
+    const stale = { ...STORED, revision: '5' }
+    await applySyncResult(MEMBER, stale)
+    let releaseRequest: (() => void) | undefined
+    const request = new Promise<void>((resolve) => {
+      releaseRequest = resolve
+    })
+    let sessionRevoked = false
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        if (sessionRevoked) {
+          return {
+            data: undefined,
+            error: { error: { code: 'unauthorized', message: 'A member session is required' } },
+            response: new Response(null, { status: 401 }),
+          }
+        }
+        return { data: ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/sync') {
+        await request
+        return { data: STORED, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<SessionProbe />)
+    await vi.waitFor(() =>
+      expect(apiGet).toHaveBeenCalledWith('/api/v1/sync', {
+        params: { query: { since: '5' }, header: { 'x-ohana-member': MEMBER } },
+      }),
+    )
+
+    // The member signs out while the sync request is in the air: the
+    // forget bumps the engine's generation, so the answer of a departed
+    // member is never written back.
+    forgetMember(client(), MEMBER)
+    sessionRevoked = true
+    releaseRequest?.()
+    // The registry entry is gone at once; the probe, reset in place, waits
+    // on the spinner path until it is observed again.
+    await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
+    // The partition is deleted whole, and — with the sync still in the
+    // air — the released answer never resurrects it.
+    const snapshot = await readMemberSnapshot(MEMBER)
+    expect(snapshot.revision).toBeUndefined()
+    expect(snapshot.members).toEqual([])
   })
 })

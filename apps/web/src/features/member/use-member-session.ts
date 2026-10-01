@@ -1,5 +1,6 @@
 import type { paths } from '@ohana/api-client'
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { api } from '@/data/api.ts'
 import { assertOk, responseStatus } from '@/data/api-error.ts'
 import { deleteMemberData, readMemberSnapshot } from '@/data/local-store.ts'
@@ -11,6 +12,7 @@ import {
   saveSession,
   setActiveMemberId,
 } from '@/data/session-registry.ts'
+import { forgetSync, onMemberRefused } from '@/data/sync-engine.ts'
 
 /*
  * The member session probe mirrors the administrative one: 200 means the
@@ -68,6 +70,9 @@ async function offlineIdentity(memberId: string): Promise<MemberMe | undefined> 
 
 export function useMemberSession() {
   const queryClient = useQueryClient()
+  // The engine reports a refused session (401 on the sync); this is the one
+  // place that turns it into the full sign-out cleanup, screens included.
+  useEffect(() => onMemberRefused((memberId) => forgetMember(queryClient, memberId)), [queryClient])
   return useQuery({
     queryKey: memberSessionQueryKey,
     // A short stale time keeps route mounts from refetching the probe every
@@ -179,6 +184,9 @@ export function useSwitchMember() {
  * device is using).
  */
 export function forgetMember(queryClient: QueryClient, memberId: string): void {
+  // A sync still in flight for the departing member must not write its
+  // answer back into a partition that is about to be deleted (issue #14).
+  forgetSync(memberId)
   removeSession(memberId)
   // The member's synchronised partition goes with the sign-out (issue #14):
   // one database per member, deleted whole. A storage failure must not keep

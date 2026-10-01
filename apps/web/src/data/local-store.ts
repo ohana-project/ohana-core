@@ -47,10 +47,17 @@ function memberDbName(memberId: string): string {
   return `${DB_PREFIX}${memberId}`
 }
 
-function openMemberDb(memberId: string): Promise<IDBDatabase> {
+function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(memberDbName(memberId), 1)
     request.onupgradeneeded = () => {
+      if (!create) {
+        // The read path never creates: the database vanished between the
+        // listing and this open (a concurrent sign-out), so the honest
+        // answer is "nothing stored", not a fresh empty database.
+        request.transaction?.abort()
+        return
+      }
       const db = request.result
       if (!db.objectStoreNames.contains('space')) db.createObjectStore('space', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('members')) {
@@ -81,7 +88,18 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
   if (!names.some((database) => database.name === memberDbName(memberId))) {
     return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
   }
-  const db = await openMemberDb(memberId)
+  const db = await openMemberDb(memberId, false).catch((error: unknown) => {
+    // A database that vanished mid-read reads as nothing stored. The name
+    // check is structural: AbortError is a DOMException, which is not an
+    // Error instance in every implementation.
+    if ((error as { name?: string } | undefined)?.name === 'AbortError') {
+      return undefined
+    }
+    throw error
+  })
+  if (db === undefined) {
+    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+  }
   try {
     const tx = db.transaction(['space', 'members', 'meta'], 'readonly')
     const [spaces, members, meta] = await Promise.all([

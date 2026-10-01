@@ -215,14 +215,46 @@ describe('the sync engine', () => {
     })
 
     const running = triggerSync(memberId)
-    // The member signs out while the request is in the air.
+    // The member signs out while the request is in the air — properly in
+    // flight, not merely queued behind the snapshot read.
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalled())
+    expect(getSyncStatus(memberId)?.state).toBe('updating')
     forgetSync(memberId)
-    await vi.waitFor(() => releaseRequest !== undefined)
     releaseRequest?.()
     await running
 
-    // The answer of a departed member is never written back: the stored
-    // revision stays whatever the last accepted apply left.
+    // The answer of a departed member is never written back, and the run
+    // that was forgotten left no status behind.
+    expect((await readMemberSnapshot(memberId)).revision).toBe('5')
+    expect(getSyncStatus(memberId)).toBeUndefined()
+  })
+
+  test('a forget between the answer and the apply keeps the stored revision', async () => {
+    const memberId = makeMember()
+    const stale = { ...ANYA_SYNC, revision: '5' }
+    await applySyncResult(memberId, stale)
+    let releaseRequest: (() => void) | undefined
+    const request = new Promise<void>((resolve) => {
+      releaseRequest = resolve
+    })
+    apiGet.mockImplementationOnce(async () => {
+      await request
+      return {
+        data: ANYA_SYNC,
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
+    })
+
+    const running = triggerSync(memberId)
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalled())
+    // The sign-out lands after the response arrived but before the apply
+    // has its turn: releasing the request and forgetting are one synchronous
+    // step, so the generation guard between the two is what the run sees.
+    releaseRequest?.()
+    forgetSync(memberId)
+    await running
+
     expect((await readMemberSnapshot(memberId)).revision).toBe('5')
     expect(getSyncStatus(memberId)).toBeUndefined()
   })

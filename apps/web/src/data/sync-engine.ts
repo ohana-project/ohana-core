@@ -37,6 +37,9 @@ const statusListeners = new Set<StatusListener>()
 type AppliedListener = (memberId: string) => void
 const appliedListeners = new Set<AppliedListener>()
 
+type RefusedListener = (memberId: string) => void
+const refusedListeners = new Set<RefusedListener>()
+
 /** Subscribes to status changes; returns the unsubscribe function. */
 export function subscribeSyncStatus(listener: StatusListener): () => void {
   statusListeners.add(listener)
@@ -54,6 +57,17 @@ export function onSyncApplied(listener: AppliedListener): () => void {
   return () => appliedListeners.delete(listener)
 }
 
+/**
+ * Notified when the API refused the member's session (401). The data-side
+ * cleanup happens here in the engine; the screens' caches and the session
+ * probe are reset by the member layer that subscribes to this — one
+ * cleanup path for every way a member leaves the device.
+ */
+export function onMemberRefused(listener: RefusedListener): () => void {
+  refusedListeners.add(listener)
+  return () => refusedListeners.delete(listener)
+}
+
 function setStatus(memberId: string, status: SyncStatus): void {
   statuses.set(memberId, status)
   for (const listener of statusListeners) listener()
@@ -65,22 +79,10 @@ const inFlight = new Set<string>()
 const rerun = new Set<string>()
 
 /**
- * The API refused this member outright (401): the session is gone —
- * revoked or expired — so the retained sign-in and the synchronised
- * partition go with it, the way a sign-out would (issue #14, ADR-0005).
- * The screens learn on their next probe, which answers signed out with no
- * request at all.
- */
-function forgetRefusedMember(memberId: string): void {
-  forgetSync(memberId)
-  removeSession(memberId)
-  void deleteMemberData(memberId).catch(() => {})
-}
-
-/**
  * Forgets everything the engine holds for the member: a running sync will
  * not apply its answer to a partition that was deleted meanwhile, and the
- * status does not outlive the member. Called when the member signs out.
+ * status does not outlive the member. Called when the member signs out and
+ * when the API refuses their session.
  */
 export function forgetSync(memberId: string): void {
   generations.set(memberId, (generations.get(memberId) ?? 0) + 1)
@@ -101,13 +103,17 @@ export async function triggerSync(memberId?: string): Promise<void> {
     rerun.add(who)
     return
   }
+  const generation = generations.get(who) ?? 0
   inFlight.add(who)
   try {
     await runSync(who)
   } catch {
     // A failure the request handling did not expect — storage refusing to
-    // open, for instance — is still a sync that failed.
-    setStatus(who, { state: 'error', syncedAt: getSyncStatus(who)?.syncedAt })
+    // open, for instance — is still a sync that failed. A member forgotten
+    // mid-run stays forgotten.
+    if ((generations.get(who) ?? 0) === generation) {
+      setStatus(who, { state: 'error', syncedAt: getSyncStatus(who)?.syncedAt })
+    }
   } finally {
     inFlight.delete(who)
     if (rerun.delete(who)) void triggerSync(who)
@@ -145,7 +151,13 @@ async function runSync(memberId: string): Promise<void> {
       // is an error. The stored data stays as it is either way.
       const status = responseStatus(response)
       if (status === 401) {
-        forgetRefusedMember(memberId)
+        forgetSync(memberId)
+        // The session is gone — revoked or expired. The retained sign-in
+        // and the synchronised partition go with it, the way a sign-out
+        // would (ADR-0005); the member layer resets the screens' caches.
+        removeSession(memberId)
+        void deleteMemberData(memberId).catch(() => {})
+        for (const listener of refusedListeners) listener(memberId)
         return
       }
       if (forgotten()) return
