@@ -15,7 +15,6 @@ export function useSpaceProfiles() {
   const memberId = getActiveMemberId()
   return useQuery({
     queryKey: ['member', memberId, 'profiles'],
-    enabled: memberId !== undefined,
     queryFn:
       memberId === undefined
         ? skipToken

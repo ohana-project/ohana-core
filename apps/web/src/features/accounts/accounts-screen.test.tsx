@@ -102,13 +102,17 @@ describe('AccountsScreen', () => {
     await vi.waitFor(() =>
       expect(window.localStorage.getItem('ohana.activeMember')).toBe(DACHA_ANYA.memberId),
     )
-    // The reset refetches the mounted review under its own key's member —
-    // not under whichever member happens to be active by then.
+    // The member now looking at the screen gets their own device review.
     await vi.waitFor(() =>
       expect(apiGet).toHaveBeenCalledWith('/api/v1/me/sessions', {
-        params: { header: { 'x-ohana-member': FAMILY_ANYA.memberId } },
+        params: { header: { 'x-ohana-member': DACHA_ANYA.memberId } },
       }),
     )
+    // A still-mounted observer of the previous member's key refetches under
+    // its own pinned member — never under the new active one.
+    expect(apiGet).toHaveBeenCalledWith('/api/v1/me/sessions', {
+      params: { header: { 'x-ohana-member': FAMILY_ANYA.memberId } },
+    })
   })
 
   it('queries nothing for the device review without an active member', async () => {
@@ -211,6 +215,7 @@ describe('AccountsScreen', () => {
     renderWithProviders(<AccountsScreen />)
 
     await screen.findByText('Chrome на Windows')
+    apiGet.mockClear()
     // The current row is the first revoke button.
     const currentRow = screen.getAllByRole('button', { name: 'Завершить сессию' }).at(0)
     if (currentRow === undefined) throw new Error('The mock lists no session to revoke')
@@ -222,6 +227,11 @@ describe('AccountsScreen', () => {
       expect(retained).toEqual([DACHA_ANYA])
       // Another retained sign-in becomes active, with its own data.
       expect(window.localStorage.getItem('ohana.activeMember')).toBe(DACHA_ANYA.memberId)
+    })
+    // The departed member's list is dropped, not refetched: its header is
+    // pinned and the session is gone, so the request could only be refused.
+    expect(apiGet).not.toHaveBeenCalledWith('/api/v1/me/sessions', {
+      params: { header: { 'x-ohana-member': FAMILY_ANYA.memberId } },
     })
   })
 

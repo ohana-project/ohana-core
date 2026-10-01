@@ -1,7 +1,7 @@
 import type { paths } from '@ohana/api-client'
 import { skipToken, useMutation, useQuery } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { ApiError, assertOk } from '@/data/api-error.ts'
+import { assertOk } from '@/data/api-error.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 
 /*
@@ -25,7 +25,6 @@ export function useMemberSessions() {
   const memberId = getActiveMemberId()
   return useQuery({
     queryKey: memberSessionsQueryKey(memberId),
-    enabled: memberId !== undefined,
     // The header is pinned to this key's member, not re-read at request
     // time: a refetch that races a switch answers for the key's member.
     queryFn:
@@ -42,17 +41,21 @@ export function useMemberSessions() {
 }
 
 /**
- * Revokes one of the active member's own sessions by id, named explicitly
- * so a revoke confirmed around a switch can never act for another member.
- * The cache is the caller's business: only it knows whether the revoked
- * row was the current session (which is also a sign-out here) or another
- * device's.
+ * Revokes one of the member's own sessions by id. The member travels with
+ * the mutation, so a revoke confirmed around a switch can never act for
+ * another member. The cache is the caller's business: only it knows
+ * whether the revoked row was the current session (which is also a
+ * sign-out here) or another device's.
  */
 export function useRevokeMemberSession() {
   return useMutation({
-    mutationFn: async (sessionId: string): Promise<string> => {
-      const memberId = getActiveMemberId()
-      if (memberId === undefined) throw new ApiError('unexpected')
+    mutationFn: async ({
+      memberId,
+      sessionId,
+    }: {
+      memberId: string
+      sessionId: string
+    }): Promise<string> => {
       const response = await api.DELETE('/api/v1/me/sessions/{sessionId}', {
         params: { path: { sessionId }, header: { 'x-ohana-member': memberId } },
       })

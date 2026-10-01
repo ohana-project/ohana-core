@@ -122,9 +122,9 @@ function firstMatch(userAgent: string, pairs: readonly (readonly [string, string
  * generic ones (Edge ships Edg/, EdgA/ on Android, EdgiOS on iOS; Chrome
  * on iOS is CriOS; Firefox on iOS is FxiOS). Samsung Internet and Opera on
  * iOS are deliberately left unread — they would need vendor tokens no
- * other agent carries — and fall back to the honest engine-level answer.
- * iPadOS 13+ Safari sends the
- * desktop Mac agent, so such an iPad reads as macOS — indistinguishable
+ * other agent carries — and fall back to the honest engine-level answer
+ * (Chrome and Safari respectively). iPadOS 13+ Safari sends the desktop
+ * Mac agent, so such an iPad reads as macOS — indistinguishable
  * server-side and accepted as such.
  */
 export function describeDevice(userAgent: string | undefined): DeviceDescription {

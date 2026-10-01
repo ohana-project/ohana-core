@@ -98,29 +98,35 @@ export function AccountsScreen() {
   }
 
   const applyRevoke = () => {
-    if (revoking === undefined) return
+    if (revoking === undefined || activeId === undefined) return
     // Captured before the request: the dialog state clears on success, and
     // the row itself already knows whether this device is the one revoked.
     const wasCurrent = revoking.current
-    const sessionId = revoking.id
-    revoke.mutate(sessionId, {
-      onSuccess: () => {
-        setRevoking(undefined)
-        if (wasCurrent && activeId !== undefined) {
-          // Ending the session that this device is using is also a sign-out:
-          // the member's local data goes with it, exactly like signing out.
-          removeSession(activeId)
-          void queryClient.resetQueries()
-          void navigate({ to: '/' })
-        } else {
-          // Another device lost access; only this list changes.
-          void queryClient.invalidateQueries({
-            queryKey: memberSessionsQueryKey(activeId),
-          })
-        }
+    revoke.mutate(
+      { memberId: activeId, sessionId: revoking.id },
+      {
+        onSuccess: () => {
+          setRevoking(undefined)
+          if (wasCurrent) {
+            // Ending the session that this device is using is also a
+            // sign-out: the member's local data goes with it, exactly like
+            // signing out. The departed member's queries are dropped, not
+            // reset — their headers are pinned, so a refetch under that
+            // name could only be refused.
+            removeSession(activeId)
+            queryClient.removeQueries({ queryKey: ['member', activeId] })
+            void queryClient.resetQueries()
+            void navigate({ to: '/' })
+          } else {
+            // Another device lost access; only this list changes.
+            void queryClient.invalidateQueries({
+              queryKey: memberSessionsQueryKey(activeId),
+            })
+          }
+        },
+        onError: (error) => toast(revokeSessionErrorMessage(error, t), 'danger'),
       },
-      onError: (error) => toast(revokeSessionErrorMessage(error, t), 'danger'),
-    })
+    )
   }
 
   return (

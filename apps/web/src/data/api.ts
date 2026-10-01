@@ -16,7 +16,7 @@ export const api = createClient<paths>()
  */
 export function ohanaMemberMiddleware(): Middleware {
   return {
-    async onRequest({ request }) {
+    onRequest({ request }) {
       const memberId = getActiveMemberId()
       if (memberId !== undefined && !request.headers.has('x-ohana-member')) {
         request.headers.set('x-ohana-member', memberId)

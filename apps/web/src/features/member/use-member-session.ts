@@ -17,7 +17,8 @@ import {
  * X-Ohana-Member; the API client injects it (data/api.ts).
  */
 
-const memberSessionQueryKey = ['member', 'session'] as const
+/** The active member's probe key; every member change resets it. */
+export const memberSessionQueryKey = ['member', 'session'] as const
 
 /** The GET /me response, taken from the generated contract (ADR-0013). */
 export type MemberMe = paths['/api/v1/me']['get']['responses'][200]['content']['application/json']
@@ -115,8 +116,8 @@ export function useMemberSignOut() {
     mutationFn: async () => {
       const memberId = getActiveMemberId()
       if (memberId === undefined) throw new ApiError('unexpected')
-      // The route requires the member's name, and the type asks for it
-      // explicitly; the middleware would also set it.
+      // The member is named explicitly: signing out acts on exactly the
+      // member whose entry the success handler will drop.
       const response = await api.DELETE('/api/v1/me/session', {
         params: { header: { 'x-ohana-member': memberId } },
       })
@@ -128,8 +129,11 @@ export function useMemberSignOut() {
     // settles. A failed request keeps the entry so the member can retry.
     onSuccess: (memberId) => {
       removeSession(memberId)
-      // The reset refetches what is mounted under the next active member —
-      // or the signed-out probe answer when nobody is retained.
+      // The departing member's queries are dropped, not reset: their
+      // headers are pinned, so a refetch under that name could only be
+      // refused. The reset refreshes the rest — another retained member's
+      // screens, or the probe that now answers signed out.
+      queryClient.removeQueries({ queryKey: ['member', memberId] })
       void queryClient.resetQueries()
     },
   })

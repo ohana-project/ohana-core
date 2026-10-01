@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/testing/render.tsx'
-import { useRedeemedSignIn } from './use-member-session.ts'
+import { memberSessionQueryKey, useRedeemedSignIn } from './use-member-session.ts'
 
 /*
  * Adding a sign-in is a cache-boundary event (ADR-0005): another member's
@@ -17,9 +17,14 @@ import { useRedeemedSignIn } from './use-member-session.ts'
 const SPACE = { id: 's-1', name: 'Наша семья' }
 const PROFILES_KEY = ['member', 'm-1', 'profiles'] as const
 const PROFILES = [{ id: 'm-1', name: 'Аня' }]
-const PROBE_KEY = ['member', 'session'] as const
+const PROBE_KEY = memberSessionQueryKey
 
 let probeClient: ReturnType<typeof useQueryClient> | undefined
+
+function client(): ReturnType<typeof useQueryClient> {
+  if (probeClient === undefined) throw new Error('The probe never mounted')
+  return probeClient
+}
 
 function SignInProbe({ member }: { member: { id: string; name: string } }) {
   const signIn = useRedeemedSignIn()
@@ -42,11 +47,12 @@ describe('useRedeemedSignIn cache boundaries', () => {
     const user = userEvent.setup()
     renderWithProviders(<SignInProbe member={{ id: 'm-2', name: 'Аня' }} />)
 
-    probeClient?.setQueryData(PROFILES_KEY, PROFILES)
+    client().setQueryData(PROFILES_KEY, PROFILES)
+    expect(client().getQueryData(PROFILES_KEY)).toEqual(PROFILES)
     await user.click(screen.getByRole('button', { name: 'sign-in' }))
 
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBe('m-2'))
-    expect(probeClient?.getQueryData(PROFILES_KEY)).toBeUndefined()
+    expect(client().getQueryData(PROFILES_KEY)).toBeUndefined()
   })
 
   it('keeps member-scoped data and refreshes the probe when the same member signs in again', async () => {
@@ -54,11 +60,11 @@ describe('useRedeemedSignIn cache boundaries', () => {
     const user = userEvent.setup()
     renderWithProviders(<SignInProbe member={{ id: 'm-1', name: 'Аня' }} />)
 
-    probeClient?.setQueryData(PROFILES_KEY, PROFILES)
-    probeClient?.setQueryData(PROBE_KEY, { status: 'signed-in' })
+    client().setQueryData(PROFILES_KEY, PROFILES)
+    client().setQueryData(PROBE_KEY, { status: 'signed-in' })
     await user.click(screen.getByRole('button', { name: 'sign-in' }))
 
-    await vi.waitFor(() => expect(probeClient?.getQueryState(PROBE_KEY)?.isInvalidated).toBe(true))
-    expect(probeClient?.getQueryData(PROFILES_KEY)).toEqual(PROFILES)
+    await vi.waitFor(() => expect(client().getQueryState(PROBE_KEY)?.isInvalidated).toBe(true))
+    expect(client().getQueryData(PROFILES_KEY)).toEqual(PROFILES)
   })
 })
