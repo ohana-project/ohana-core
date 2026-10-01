@@ -1,4 +1,5 @@
 import { type Static, Type } from '@sinclair/typebox'
+import type { Member } from './tables.ts'
 
 export const MemberRoleSchema = Type.Union([Type.Literal('owner'), Type.Literal('regular')])
 
@@ -78,6 +79,26 @@ export const MemberProfileDtoSchema = Type.Object(
 )
 
 export type MemberProfileDto = Static<typeof MemberProfileDtoSchema>
+
+/** Projects the member row onto the profile shape (GET /members, the sync response). */
+export function toMemberProfileDto(member: Member): MemberProfileDto {
+  return {
+    id: member.id,
+    name: member.name,
+    displayName: member.displayName ?? undefined,
+    email: member.email ?? undefined,
+    phone: member.phone ?? undefined,
+    interfaceLanguage: member.interfaceLanguage ?? undefined,
+    role: member.role,
+    createdAt: member.createdAt.toISOString(),
+  }
+}
+
+/** A member's change in the sync response (issue #14): the published profile. */
+export const MemberSyncChangeSchema = Type.Object(
+  { entity: Type.Literal('member'), member: MemberProfileDtoSchema },
+  { additionalProperties: false },
+)
 
 export const MeSchema = Type.Object(
   {

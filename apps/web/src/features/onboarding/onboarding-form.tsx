@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
 import { renameSession } from '@/data/session-registry.ts'
+import { triggerSync } from '@/data/sync-engine.ts'
 import { type MemberMe, memberSessionQueryKey } from '@/features/member/use-member-session.ts'
 import { storeLocale } from '@/lib/locale-storage.ts'
 import { Button } from '@/ui/button.tsx'
@@ -55,6 +56,9 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
     },
     onSuccess: async () => {
       renameSession(me.member.id, displayName.trim() || undefined)
+      // The stored profile is refreshed through the sync, not patched by
+      // hand (issue #14).
+      void triggerSync(me.member.id)
       // The session probe carries the member's profile; the next screen
       // must greet the member by their new name, not the pre-onboarding one.
       await queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })

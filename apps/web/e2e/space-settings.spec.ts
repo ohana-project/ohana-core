@@ -15,6 +15,8 @@ const MEMBERS = '**/api/v1/members'
 const ACCESS_CODE = '**/api/v1/members/*/access-code'
 const SESSIONS = '**/api/v1/members/*/sessions'
 const SPACE = '**/api/v1/space'
+// The sync request carries ?since=…, so the glob spans the query too.
+const SYNC = '**/api/v1/sync*'
 const REDEEM = '**/api/v1/access-codes/redeem'
 
 const OWNER_CODE = 'QWEE-4455'
@@ -172,6 +174,43 @@ async function mockOwnerApi(page: Page) {
       return route.fulfill(json(200, space))
     }
     return route.fulfill(json(200, space))
+  })
+
+  // The home reads the synchronised partition (issue #14): the answer
+  // mirrors the mutable space row and the profiles list, so the sync a
+  // visibility change triggers carries the new map to the store.
+  await page.route(SYNC, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId === undefined || !signedIn.has(memberId)) return route.fulfill(json(401, {}))
+    return route.fulfill(
+      json(200, {
+        revision: '5',
+        changes: [
+          {
+            entity: 'space',
+            space: {
+              id: space.id,
+              name: space.name,
+              timezone: space.timezone,
+              sections: space.sections,
+            },
+          },
+          ...PROFILES.map((profile) => ({
+            entity: 'member',
+            member: {
+              id: profile.id,
+              name: profile.name,
+              displayName: profile.displayName,
+              // Дима's mock profile has no contacts; the field stays absent.
+              ...('email' in profile ? { email: profile.email } : {}),
+              role: profile.role,
+              createdAt: profile.createdAt,
+            },
+          })),
+        ],
+        tombstones: [],
+      }),
+    )
   })
 }
 

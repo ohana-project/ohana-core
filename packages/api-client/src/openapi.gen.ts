@@ -1272,6 +1272,85 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    since: string;
+                };
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            revision: string;
+                            changes: ({
+                                /** @enum {string} */
+                                entity: "space";
+                                space: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    timezone: string;
+                                    sections: {
+                                        journal: boolean;
+                                        calendar: boolean;
+                                        wishlist: boolean;
+                                    };
+                                };
+                            } | {
+                                /** @enum {string} */
+                                entity: "member";
+                                member: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    displayName?: string;
+                                    email?: string;
+                                    phone?: string;
+                                    interfaceLanguage?: "ru" | "en";
+                                    role: "owner" | "regular";
+                                    /** Format: date-time */
+                                    createdAt: string;
+                                };
+                            })[];
+                            tombstones: {
+                                entity: string;
+                                /** Format: uuid */
+                                entityId: string;
+                                audience: "all" | "member";
+                                /** Format: uuid */
+                                memberId?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/session": {
         parameters: {
             query?: never;

@@ -13,6 +13,8 @@ const REDEEM = '**/api/v1/access-codes/redeem'
 const ONBOARDING = '**/api/v1/me/onboarding'
 const MEMBERS = '**/api/v1/members'
 const SESSION = '**/api/v1/me/session'
+// The sync request carries ?since=…, so the glob spans the query too.
+const SYNC = '**/api/v1/sync*'
 
 const VALID_CODE = 'QWEE-4455'
 
@@ -125,6 +127,51 @@ async function mockMemberApi(page: Page, options: MockOptions = {}) {
     signedIn = false
     onboarded = false
     return route.fulfill({ status: 204 })
+  })
+
+  // The home reads the synchronised partition (issue #14); the answer
+  // describes the same world the other endpoints do.
+  await page.route(SYNC, (route) => {
+    if (!signedIn) return route.fulfill(unauthorized)
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        revision: '2',
+        changes: [
+          {
+            entity: 'space',
+            space: {
+              id: '01900000-0000-7000-8000-00000000000a',
+              name: 'Наша семья',
+              timezone: 'Europe/Moscow',
+              sections: { journal: true, calendar: true, wishlist: true },
+            },
+          },
+          {
+            entity: 'member',
+            member: {
+              id: ANYA.id,
+              name: 'Аня',
+              displayName: 'Аня Смирнова',
+              email: 'anya@example.com',
+              role: 'owner',
+              createdAt: '2026-08-12T10:00:00.000Z',
+            },
+          },
+          {
+            entity: 'member',
+            member: {
+              id: '01900000-0000-7000-8000-000000000002',
+              name: 'Дима',
+              role: 'regular',
+              createdAt: '2026-08-13T10:00:00.000Z',
+            },
+          },
+        ],
+        tombstones: [],
+      }),
+    })
   })
 }
 

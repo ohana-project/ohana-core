@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { notFound } from '../../platform/errors.ts'
 import { type interfaceLanguages, type Member, type memberRoles, members } from './tables.ts'
@@ -45,6 +45,19 @@ export async function listMembersInSpace(executor: Executor, spaceId: string): P
     .select()
     .from(members)
     .where(eq(members.spaceId, spaceId))
+    .orderBy(asc(members.createdAt), asc(members.id))
+}
+
+/** The rows changed after `since` — the delta the sync contributor delivers. */
+export async function listChangedMembersInSpace(
+  tx: Tx,
+  spaceId: string,
+  since: bigint,
+): Promise<Member[]> {
+  return tx
+    .select()
+    .from(members)
+    .where(and(eq(members.spaceId, spaceId), gt(members.revision, since)))
     .orderBy(asc(members.createdAt), asc(members.id))
 }
 

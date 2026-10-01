@@ -1,3 +1,4 @@
+import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
 import type { Tx } from '../../platform/db/index.ts'
 import { syncTombstones } from './tables.ts'
 
@@ -7,6 +8,14 @@ export interface TombstoneInput {
   entity: string
   entityId: string
   audience: TombstoneAudience
+}
+
+/** One delivered deletion, in the wire shape the sync response carries. */
+export interface SyncTombstoneEntry {
+  entity: string
+  entityId: string
+  audience: 'all' | 'member'
+  memberId?: string
 }
 
 export async function writeTombstones(
@@ -28,4 +37,48 @@ export async function writeTombstones(
       createdAt: now,
     })),
   )
+}
+
+/**
+ * The tombstones of the named entities that happened in the space after
+ * `since` and concern the requesting member: audience `all` reaches
+ * everyone, a member-scoped one only that member. The sync service calls
+ * this once per request for the wired contributors' entities
+ * (architecture.md, "Sync contributors") — the shared table keeps one
+ * tombstone shape, the audience filter lives here once.
+ */
+export async function readTombstonesSince(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  since: bigint,
+  entities: readonly string[],
+): Promise<SyncTombstoneEntry[]> {
+  if (entities.length === 0) return []
+  const rows = await tx
+    .select({
+      entity: syncTombstones.entity,
+      entityId: syncTombstones.entityId,
+      audience: syncTombstones.audience,
+      memberId: syncTombstones.memberId,
+    })
+    .from(syncTombstones)
+    .where(
+      and(
+        eq(syncTombstones.spaceId, spaceId),
+        gt(syncTombstones.revision, since),
+        inArray(syncTombstones.entity, [...entities]),
+        or(
+          eq(syncTombstones.audience, 'all'),
+          and(eq(syncTombstones.audience, 'member'), eq(syncTombstones.memberId, memberId)),
+        ),
+      ),
+    )
+    .orderBy(asc(syncTombstones.revision), asc(syncTombstones.id))
+  return rows.map((row) => ({
+    entity: row.entity,
+    entityId: row.entityId,
+    audience: row.audience as 'all' | 'member',
+    memberId: row.memberId ?? undefined,
+  }))
 }

@@ -41,10 +41,12 @@
     "first": "First sync…",
     "updating": "Updating…",
     "synced": "Up to date · {time}",
-    "offline": "Offline — changes are saved on this device",
+    "offline": "Offline — showing saved data",
     "unreachable": "Server unreachable",
     "error": "Sync failed",
-    "retry": "Retry"
+    "retry": "Retry",
+    "nothingOffline": "Nothing to read offline yet",
+    "nothingOfflineHint": "Open Ohana while online and your space will be saved on this device."
   },
   "layout": {
     "space": "Space",

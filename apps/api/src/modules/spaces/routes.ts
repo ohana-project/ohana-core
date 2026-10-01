@@ -5,7 +5,6 @@ import { DomainError } from '../../platform/errors.ts'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
   CreateSpaceBodySchema,
-  type MemberSpaceDto,
   MemberSpaceDtoSchema,
   type SpaceDto,
   SpaceDtoSchema,
@@ -13,10 +12,11 @@ import {
   SpaceMemberHeadersSchema,
   type SpaceWithMemberCountDto,
   SpaceWithMemberCountDtoSchema,
+  toMemberSpaceDto,
   UpdateMemberSpaceBodySchema,
   UpdateSpaceBodySchema,
 } from './contracts.ts'
-import { type SectionId, sectionVisibility } from './policy.ts'
+import type { SectionId } from './policy.ts'
 import {
   createSpace,
   getSpace,
@@ -54,15 +54,6 @@ function toSpaceDto(space: Space): SpaceDto {
     revision: space.revision.toString(),
     createdAt: space.createdAt.toISOString(),
     updatedAt: space.updatedAt.toISOString(),
-  }
-}
-
-function toMemberSpaceDto(space: Space): MemberSpaceDto {
-  return {
-    id: space.id,
-    name: space.name,
-    timezone: space.timezone,
-    sections: sectionVisibility(space),
   }
 }
 

@@ -5,11 +5,13 @@ import { getActiveMemberId } from '@/data/session-registry.ts'
 import type { MemberMe } from '@/features/member/use-member-session.ts'
 
 /*
- * Member-facing profile data is online-only for now; the synchronised
- * store arrives with the sync engine (issue #14). The API names no space —
- * the member's own space is the only one a member can ever read. The key
- * is member-scoped and the header pinned to it: a cached answer must never
- * surface for, or be fetched under the name of, another member.
+ * The owner instruments' profile list (issue #12): online-only, because
+ * the owner screens manage live membership. The member home reads the same
+ * profiles from the synchronised local store (issue #14) instead. The API
+ * names no space — the member's own space is the only one a member can
+ * ever read. The key is member-scoped and the header pinned to it: a
+ * cached answer must never surface for, or be fetched under the name of,
+ * another member.
  */
 export function useSpaceProfiles() {
   const memberId = getActiveMemberId()

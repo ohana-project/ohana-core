@@ -2670,6 +2670,243 @@
         }
       }
     },
+    "/api/v1/sync": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9]+$",
+              "maxLength": 18,
+              "type": "string"
+            },
+            "in": "query",
+            "name": "since",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "revision",
+                    "changes",
+                    "tombstones"
+                  ],
+                  "properties": {
+                    "revision": {
+                      "pattern": "^[0-9]+$",
+                      "type": "string"
+                    },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "entity",
+                              "space"
+                            ],
+                            "properties": {
+                              "entity": {
+                                "type": "string",
+                                "enum": [
+                                  "space"
+                                ]
+                              },
+                              "space": {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "timezone",
+                                  "sections"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "timezone": {
+                                    "minLength": 1,
+                                    "maxLength": 64,
+                                    "type": "string"
+                                  },
+                                  "sections": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "journal",
+                                      "calendar",
+                                      "wishlist"
+                                    ],
+                                    "properties": {
+                                      "journal": {
+                                        "type": "boolean"
+                                      },
+                                      "calendar": {
+                                        "type": "boolean"
+                                      },
+                                      "wishlist": {
+                                        "type": "boolean"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "entity",
+                              "member"
+                            ],
+                            "properties": {
+                              "entity": {
+                                "type": "string",
+                                "enum": [
+                                  "member"
+                                ]
+                              },
+                              "member": {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "role",
+                                  "createdAt"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "displayName": {
+                                    "type": "string"
+                                  },
+                                  "email": {
+                                    "type": "string"
+                                  },
+                                  "phone": {
+                                    "type": "string"
+                                  },
+                                  "interfaceLanguage": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "ru"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "en"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "role": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "owner"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "regular"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "createdAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "tombstones": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "entity",
+                          "entityId",
+                          "audience"
+                        ],
+                        "properties": {
+                          "entity": {
+                            "type": "string"
+                          },
+                          "entityId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "audience": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "all"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "member"
+                                ]
+                              }
+                            ]
+                          },
+                          "memberId": {
+                            "format": "uuid",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/session": {
       "post": {
         "requestBody": {

@@ -25,3 +25,12 @@ export function extractErrorCode(body: unknown): string {
 export async function assertOk(response: { error?: unknown }): Promise<void> {
   if (response.error !== undefined) throw new ApiError(extractErrorCode(response.error))
 }
+
+/**
+ * The HTTP status of a response, without arguing with the generated
+ * client's narrowing: a route that declares only success responses still
+ * answers 401 or 5xx, and the caller needs the number to tell them apart.
+ */
+export function responseStatus(response: unknown): number {
+  return response instanceof Response ? response.status : 0
+}
