@@ -1,7 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
+import { applySyncResult, readMemberSnapshot, type SyncResult } from '@/data/local-store.ts'
 import {
   forgetSync,
   getSyncStatus,
@@ -313,13 +313,116 @@ describe('the sync engine', () => {
     await vi.waitFor(() => expect(getSyncStatus(memberId)?.state).toBe('synced'))
   })
 
+  test('repeated stale passes are retried, then answered with an error', async () => {
+    const memberId = makeMember()
+    // Every answer speaks for a cursor the store has already moved past:
+    // the handler keeps advancing the store before responding.
+    apiGet.mockImplementation(async () => {
+      const current = (await readMemberSnapshot(memberId)).revision ?? '0'
+      await applySyncResult(
+        memberId,
+        {
+          revision: String(BigInt(current) + 1n),
+          changes: [
+            {
+              entity: 'space',
+              space: {
+                id: SPACE_ID,
+                name: 'Наш уголок',
+                timezone: 'Europe/Moscow',
+                sections: { journal: true, calendar: true, wishlist: true },
+              },
+            },
+          ],
+          tombstones: [],
+        },
+        current,
+      )
+      return {
+        data: { ...ANYA_SYNC, revision: '7' },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
+    })
+
+    await triggerSync(memberId)
+
+    // Two retries, then the honest error: three requests, no loop, and
+    // the stale answers wrote nothing.
+    expect(apiGet).toHaveBeenCalledTimes(3)
+    expect(getSyncStatus(memberId)?.state).toBe('error')
+    expect((await readMemberSnapshot(memberId)).revision).toBe('3')
+  })
+
+  test('a response for a cursor the store moved past is dropped and rerun', async () => {
+    const memberId = makeMember()
+    const revEight: SyncResult = {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наш уголок',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    }
+    apiGet.mockImplementation(async (_path, options) => {
+      const since = (options as { params: { query: { since: string } } }).params.query.since
+      if (since === '0') {
+        // Another tab's apply lands revision 8 while this run's request is
+        // in flight; the answer it receives still speaks for revision 0.
+        await applySyncResult(memberId, revEight, '0')
+        return {
+          data: ANYA_SYNC,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      // The rerun asks from where the store is, and is answered for it.
+      return { data: revEight, error: undefined, response: new Response(null, { status: 200 }) }
+    })
+
+    await triggerSync(memberId)
+
+    // The stale answer was dropped — the run asked again from where the
+    // store is, and that answer landed.
+    const calls = apiGet.mock.calls.map((call) => {
+      const options = call[1] as { params: { query: { since: string } } }
+      return options.params.query.since
+    })
+    expect(calls).toEqual(['0', '8'])
+    expect(getSyncStatus(memberId)?.state).toBe('synced')
+    const snapshot = await readMemberSnapshot(memberId)
+    expect(snapshot.revision).toBe('8')
+    expect(snapshot.space?.name).toBe('Наш уголок')
+  })
+
   test('an interrupted resync restarts from revision 0 on the next run', async () => {
     const memberId = makeMember()
-    // The store sits on a cursor of 0: the section came back and the
-    // resync is still owed.
+    // The journal is hidden and re-shown: the re-show apply sits on a
+    // cursor of 0 with the replay promise open (ADR-0014).
     await applySyncResult(memberId, {
       ...ANYA_SYNC,
-      revision: '0',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+    })
+    await applySyncResult(memberId, {
+      ...ANYA_SYNC,
+      revision: '8',
       changes: ANYA_SYNC.changes.filter((change) => change.entity === 'space'),
     })
 
@@ -327,8 +430,10 @@ describe('the sync engine', () => {
     await triggerSync(memberId)
     expect(getSyncStatus(memberId)?.state).toBe('unreachable')
     expect((await readMemberSnapshot(memberId)).revision).toBe('0')
+    expect((await readMemberSnapshot(memberId)).pendingReplay).toEqual(['journal'])
 
-    // The next run asks from the beginning again, and the full data lands.
+    // The next run asks from the beginning again, and the full data lands:
+    // the replay promise clears with the new cursor.
     apiGet.mockResolvedValue({
       data: ANYA_SYNC,
       error: undefined,
@@ -339,6 +444,7 @@ describe('the sync engine', () => {
       params: { query: { since: '0' }, header: { 'x-ohana-member': memberId } },
     })
     expect((await readMemberSnapshot(memberId)).revision).toBe('7')
+    expect((await readMemberSnapshot(memberId)).pendingReplay).toEqual([])
   })
 
   test('a failing applied listener does not skip the resync', async () => {
@@ -410,6 +516,7 @@ describe('the sync engine', () => {
     expect(calls).toEqual(['7', '0'])
     const snapshot = await readMemberSnapshot(memberId)
     expect(snapshot.revision).toBe('7')
+    expect(snapshot.pendingReplay).toEqual([])
     expect(snapshot.space?.sections.journal).toBe(true)
   })
 

@@ -1,6 +1,6 @@
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { type MemberSnapshot, readMemberSnapshot } from '@/data/local-store.ts'
+import { type MemberSnapshot, readMemberSnapshot, type SectionName } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { onSyncApplied, triggerSync } from '@/data/sync-engine.ts'
 
@@ -12,6 +12,22 @@ import { onSyncApplied, triggerSync } from '@/data/sync-engine.ts'
 
 export function syncedSnapshotKey(memberId: string | undefined) {
   return ['member', memberId, 'synced'] as const
+}
+
+/**
+ * Whether the device may claim a section's data: a partition without a
+ * cursor has nothing at all, and a partition whose replay promise names
+ * the section (ADR-0014) — a re-show or a store upgrade wrote cursor '0'
+ * for it and the full data has not landed again — may hold only a fraction
+ * of it. Everything else the store holds is the section's whole visible
+ * data, the server having filtered it.
+ */
+export function sectionDownloaded(
+  snapshot: MemberSnapshot | undefined,
+  section: SectionName,
+): boolean {
+  if (snapshot === undefined || snapshot.revision === undefined) return false
+  return !snapshot.pendingReplay.includes(section)
 }
 
 export function useSyncedSpace() {

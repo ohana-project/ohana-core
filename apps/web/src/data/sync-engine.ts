@@ -6,11 +6,11 @@ import { getActiveMemberId } from '@/data/session-registry.ts'
 /*
  * The sync engine (issue #14, ADR-0014): for the active member it calls the
  * sync endpoint with the stored cursor and applies the answer to the
- * member's IndexedDB partition. Mutations trigger it after they succeed;
- * screens re-read their partition when it lands. The status it reports
- * drives the indicator (ADR-0002): initial, in progress, up to date,
- * offline, server unavailable, and error — cached data stays readable in
- * every one of them.
+ * member's IndexedDB partition. Mutations trigger it when they succeed,
+ * and when they are refused by a row or map the device holds stale; screens
+ * re-read their partition when it lands. The status it reports drives the
+ * indicator (ADR-0002): initial, in progress, up to date, offline, server
+ * unavailable, and error — cached data stays readable in every one of them.
  */
 
 export type SyncEngineState = 'first' | 'updating' | 'synced' | 'offline' | 'unreachable' | 'error'
@@ -115,7 +115,12 @@ export async function triggerSync(memberId?: string): Promise<void> {
   }
 }
 
-async function runSync(memberId: string): Promise<void> {
+// A response that loses a race is retried from where the store is; more
+// than this many stale passes in one run means the two reads of the store
+// disagree, and the honest answer is the error state, not a request loop.
+const MAX_STALE_RETRIES = 2
+
+async function runSync(memberId: string, staleRetries = 0): Promise<void> {
   const generation = generations.get(memberId) ?? 0
   // A member forgotten mid-run (a sign-out, a refused session) leaves no
   // status behind and receives no writes.
@@ -186,8 +191,20 @@ async function runSync(memberId: string): Promise<void> {
   try {
     // The answer of a departed member is never written back.
     if (forgotten()) return
-    const storedRevision = await applySyncResult(memberId, result)
+    const { cursor, applied } = await applySyncResult(memberId, result, snapshot.revision ?? '0')
     if (forgotten()) return
+    if (!applied) {
+      // The store moved past the cursor this response answered while it was
+      // in flight (another tab's apply, a run that landed first): nothing
+      // of it was written, so this run asks again from where the store is
+      // instead of reporting a freshness it does not have.
+      if (staleRetries >= MAX_STALE_RETRIES) {
+        setStatus(memberId, { state: 'error', syncedAt: snapshot.syncedAt })
+        return
+      }
+      await runSync(memberId, staleRetries + 1)
+      return
+    }
     setStatus(memberId, { state: 'synced', syncedAt: Date.now() })
     for (const listener of appliedListeners) {
       try {
@@ -199,7 +216,9 @@ async function runSync(memberId: string): Promise<void> {
 
     // A re-shown section reset the cursor to 0 inside the apply (ADR-0014):
     // the next sync, run right away, carries the section's full data again.
-    if (storedRevision === '0') await runSync(memberId)
+    // The replay is a fresh request, not a retry — an apply answering a
+    // request from revision 0 can no longer leave the cursor there.
+    if (cursor === '0') await runSync(memberId)
   } catch {
     // Applying failed locally — the response was fine, the store refused
     // it. The stored data is whatever the last successful apply left.

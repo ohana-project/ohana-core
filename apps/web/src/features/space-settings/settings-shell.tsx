@@ -1,23 +1,22 @@
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
-import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
+import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { useNavSections } from '@/features/member/use-nav-sections.ts'
+import { useSectionNav } from '@/features/member/use-section-nav.ts'
+import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
 import { Icon } from '@/ui/icon.tsx'
-import type { ShellUserMenuItem } from '@/ui/shell.ts'
 import { Spinner } from '@/ui/spinner.tsx'
-import { toast } from '@/ui/toast.tsx'
 
 /*
  * The space settings area (docs/design/screens/members.html,
  * member-card.html, invite.html, space-settings.html): the member shell
  * with the screen's title in the top bar and a back arrow — to the members
  * screen inside the area, to home at its edge. The section navigation is
- * the space's own visible sections (issue #13); only home is a real
- * destination so far. The user menu travels with the shell, so every
- * screen of the area reaches the others and the accounts screen the same
- * way the home does.
+ * the space's own visible sections (issue #13); the user menu travels with
+ * the shell, so every screen of the area reaches the others and the
+ * accounts screen the same way the home does.
  */
 
 export function SettingsShell({
@@ -32,52 +31,10 @@ export function SettingsShell({
   children: ReactNode
 }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const session = useMemberSessionStatus()
-  const signOut = useMemberSignOut()
   const sections = useNavSections()
-
-  const me = session.me
-  const userMenuItems: ShellUserMenuItem[] = me
-    ? [
-        {
-          id: 'members',
-          label: t('space.members.title'),
-          icon: 'users',
-          onSelect: () => void navigate({ to: '/members' }),
-        },
-        // The space settings are an owner instrument (issue #12); the menu
-        // shows the entry only where the API would accept it.
-        ...(me.member.role === 'owner'
-          ? [
-              {
-                id: 'space-settings',
-                label: t('space.settings.title'),
-                icon: 'settings' as const,
-                onSelect: () => void navigate({ to: '/settings' }),
-              },
-            ]
-          : []),
-        {
-          id: 'accounts',
-          label: t('member.home.accounts'),
-          icon: 'users',
-          onSelect: () => void navigate({ to: '/accounts' }),
-        },
-        {
-          id: 'sign-out',
-          label: t('member.home.signOut'),
-          icon: 'log-out',
-          danger: true,
-          onSelect: () =>
-            signOut.mutate(me.member.id, {
-              // A failed sign-out keeps the member signed in; it must not
-              // look like the menu did nothing.
-              onError: () => toast(t('member.home.signOutFailed'), 'danger'),
-            }),
-        },
-      ]
-    : []
+  const userMenuItems = useMemberUserMenu()
+  const onSectionClick = useSectionNav()
 
   if (session.status === 'pending') {
     return (
@@ -89,7 +46,7 @@ export function SettingsShell({
 
   return (
     <MemberLayout
-      space={{ name: me?.space.name ?? '', marks: [] }}
+      space={{ name: session.me?.space.name ?? '', marks: [] }}
       sections={sections}
       title={title}
       width={width}
@@ -103,11 +60,7 @@ export function SettingsShell({
           <Icon name="chevron-left" className="size-5" />
         </Link>
       }
-      onSectionClick={(id) => {
-        // Journal, calendar, and wishlist screens arrive with their own
-        // tickets; until then only home is a real destination.
-        if (id === 'home') void navigate({ to: '/' })
-      }}
+      onSectionClick={onSectionClick}
     >
       {children}
     </MemberLayout>

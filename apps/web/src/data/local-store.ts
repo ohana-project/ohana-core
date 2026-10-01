@@ -20,6 +20,8 @@ export interface StoredSpace {
   sections: { journal: boolean; calendar: boolean; wishlist: boolean }
 }
 
+export type SectionName = keyof StoredSpace['sections']
+
 export interface StoredMemberProfile {
   id: string
   name: string
@@ -31,13 +33,36 @@ export interface StoredMemberProfile {
   createdAt: string
 }
 
+/** A journal entry as the sync response carries it (issue #15). */
+export interface StoredJournalEntry {
+  id: string
+  authorId: string
+  title?: string
+  text: string
+  state: 'draft' | 'published'
+  publishedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface MemberSnapshot {
   space: StoredSpace | undefined
   members: StoredMemberProfile[]
+  entries: StoredJournalEntry[]
   /** The last revision the device has applied; undefined until the first sync lands. */
   revision: string | undefined
   /** When the last sync succeeded, in epoch milliseconds. */
   syncedAt: number | undefined
+  /**
+   * The sections whose full data the device has promised to fetch again but
+   * has not yet: a re-shown section or a store upgrade wrote the replay
+   * promise (cursor '0'), and the replay has not landed (ADR-0014). List
+   * screens whose section is here say "nothing downloaded" instead of
+   * showing the partial rows an interrupted replay left; a screen showing
+   * one row may still show a row it holds — real, the server having
+   * filtered it — without claiming anything about the rest.
+   */
+  pendingReplay: SectionName[]
 }
 
 const DB_PREFIX = 'ohana.sync.'
@@ -49,12 +74,19 @@ function memberDbName(memberId: string): string {
 
 function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(memberDbName(memberId), 1)
-    request.onupgradeneeded = () => {
-      if (!create) {
+    // Version 2 added the journal entries store (issue #15). The upgrade
+    // runs for fresh databases and for the partitions of members who
+    // synced before it existed, so every store creation is guarded.
+    const request = indexedDB.open(memberDbName(memberId), 2)
+    request.onupgradeneeded = (event) => {
+      // The versions travel on the version-change event, not the request.
+      const oldVersion = event.oldVersion
+      if (!create && oldVersion === 0) {
         // The read path never creates: the database vanished between the
         // listing and this open (a concurrent sign-out), so the honest
-        // answer is "nothing stored", not a fresh empty database.
+        // answer is "nothing stored", not a fresh empty database. A
+        // version bump on an existing database is not that: its upgrade
+        // runs and the read proceeds.
         request.transaction?.abort()
         return
       }
@@ -63,7 +95,32 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('members')) {
         db.createObjectStore('members', { keyPath: 'id' })
       }
+      if (!db.objectStoreNames.contains('entries')) {
+        db.createObjectStore('entries', { keyPath: 'id' })
+      }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
+      if (oldVersion >= 1 && oldVersion < 2) {
+        // A version 1 device advanced its cursor while ignoring
+        // journal_entry changes, so a delta would never deliver the
+        // entries past it. The reset makes the next sync replay from
+        // revision 0, the same move a re-shown section makes; the replay
+        // promise names the section, so the screens answer honestly until
+        // the replay lands. A partition whose first apply never committed
+        // holds no cursor, and stays honestly empty: resetting it would
+        // claim data it does not hold.
+        const meta = request.transaction?.objectStore('meta')
+        if (meta !== undefined) {
+          const read = meta.get('cursor')
+          read.onsuccess = () => {
+            if (read.result !== undefined) {
+              meta.put({ key: 'cursor', revision: '0' })
+              // v1 to v2 adds the journal; a later upgrade that adds a
+              // store must merge with a promise this write may find open.
+              meta.put({ key: 'pendingReplay', sections: ['journal'] })
+            }
+          }
+        }
+      }
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('Opening the local store failed'))
@@ -79,14 +136,22 @@ function requestAsPromise<T>(request: IDBRequest<T>): Promise<T> {
 
 /** Reads the member's whole partition; a device without data reads an empty snapshot. */
 export async function readMemberSnapshot(memberId: string): Promise<MemberSnapshot> {
+  const empty: MemberSnapshot = {
+    space: undefined,
+    members: [],
+    entries: [],
+    revision: undefined,
+    syncedAt: undefined,
+    pendingReplay: [],
+  }
   if (typeof indexedDB === 'undefined' || !indexedDB.databases) {
     // Every browser this supports implements both; the guard keeps the
     // empty answer honest where storage does not exist at all.
-    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+    return empty
   }
   const names = await indexedDB.databases()
   if (!names.some((database) => database.name === memberDbName(memberId))) {
-    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+    return empty
   }
   const db = await openMemberDb(memberId, false).catch((error: unknown) => {
     // A database that vanished mid-read reads as nothing stored. The name
@@ -98,29 +163,44 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     throw error
   })
   if (db === undefined) {
-    return { space: undefined, members: [], revision: undefined, syncedAt: undefined }
+    return empty
   }
   try {
-    const tx = db.transaction(['space', 'members', 'meta'], 'readonly')
-    const [spaces, members, meta] = await Promise.all([
+    const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readonly')
+    const [spaces, members, entries, meta] = await Promise.all([
       requestAsPromise(tx.objectStore('space').getAll()),
       requestAsPromise(tx.objectStore('members').getAll()),
+      requestAsPromise(tx.objectStore('entries').getAll()),
       requestAsPromise(tx.objectStore('meta').getAll()),
     ])
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
     const syncedAt = meta.find((row) => row.key === 'syncedAt')?.at as number | undefined
+    const pendingReplay =
+      (meta.find((row) => row.key === 'pendingReplay')?.sections as SectionName[] | undefined) ?? []
     return {
       space: (spaces[0] as StoredSpace | undefined) ?? undefined,
       members: members as StoredMemberProfile[],
+      entries: entries as StoredJournalEntry[],
       revision: cursor,
       syncedAt,
+      pendingReplay,
     }
   } finally {
     db.close()
   }
 }
 
-type MetaRow = { key: 'cursor'; revision: string } | { key: 'syncedAt'; at: number }
+type MetaRow =
+  | { key: 'cursor'; revision: string }
+  | { key: 'syncedAt'; at: number }
+  | { key: 'pendingReplay'; sections: SectionName[] }
+
+export interface AppliedSync {
+  /** The cursor the store holds after the apply. */
+  cursor: string
+  /** Whether this response is what the store applied. */
+  applied: boolean
+}
 
 /**
  * Applies a sync response in one transaction: the tombstoned rows go, the
@@ -129,58 +209,113 @@ type MetaRow = { key: 'cursor'; revision: string } | { key: 'syncedAt'; at: numb
  * and a row delivered with both an upsert and a tombstone in one response
  * ends up stored.
  *
- * When the new sections map shows a section that was hidden before, the
- * cursor is written as 0 instead of the response's revision (ADR-0014):
- * a delta cannot carry rows older than the cursor, so the next sync
- * fetches the section's full data. The same rule will make the client
- * drop a hidden section's rows when the section stores arrive — the map
- * is applied here, in the same transaction.
+ * When the new sections map hides a section, the section's rows are
+ * dropped in the same transaction (ADR-0011, ADR-0014): the map on the
+ * space row is what the client's copy follows. When it shows a section
+ * that was hidden before, the cursor is written as 0 instead of the
+ * response's revision, and the replay promise names the section: a delta
+ * cannot carry rows older than the cursor, so the next sync fetches the
+ * section's full data.
+ *
+ * The apply answers the request the engine sent at `since`: when the
+ * stored cursor has moved on (another tab's apply, a run that landed
+ * meanwhile), the response is stale — writing it would clobber a replay
+ * promise or resurrect dropped rows — and nothing is written; the engine
+ * reruns from the stored cursor. The replay promise clears when an apply
+ * lands without a re-show, and the re-show's own apply writes the promise
+ * with the cursor at 0 — except inside the replay itself, which already
+ * carries every section whole, so a re-show there only moves the cursor.
+ * The engine always names its `since`; without it (the tests' sequential
+ * applies) the staleness guard does not engage.
  */
-export async function applySyncResult(memberId: string, result: SyncResult): Promise<string> {
+export async function applySyncResult(
+  memberId: string,
+  result: SyncResult,
+  since?: string,
+): Promise<AppliedSync> {
   const db = await openMemberDb(memberId)
   try {
     // The stored cursor is only resolved once the transaction has committed.
-    return await new Promise<string>((resolve, reject) => {
-      const tx = db.transaction(['space', 'members', 'meta'], 'readwrite')
+    return await new Promise<AppliedSync>((resolve, reject) => {
+      const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readwrite')
       const spaceStore = tx.objectStore('space')
       const memberStore = tx.objectStore('members')
+      const entryStore = tx.objectStore('entries')
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
+      let applied = true
 
-      // The previous map is read before anything is written, so the
-      // hidden-to-visible decision sees the state the device had.
-      const previousRequest = spaceStore.getAll()
-      previousRequest.onsuccess = () => {
-        const previous = previousRequest.result[0] as StoredSpace | undefined
+      // The previous map and replay promise are read before anything is
+      // written, so the hidden-to-visible decision sees the state the
+      // device had. The reads run in order: a request's result is only its
+      // own once that request has succeeded.
+      const metaRequest = metaStore.getAll()
+      metaRequest.onsuccess = () => {
+        const metaRows = metaRequest.result as MetaRow[]
+        const storedCursor = metaRows.find((row) => row.key === 'cursor')?.revision ?? '0'
+        if (since !== undefined && storedCursor !== since) {
+          // Stale: the store no longer sits on the cursor this request was
+          // sent from (another tab's apply, a run that landed meanwhile).
+          // Nothing of it may land — write nothing, and hand the engine the
+          // stored cursor so its rerun asks for what the store now needs.
+          applied = false
+          storedRevision = storedCursor
+          return
+        }
+        const previousRequest = spaceStore.getAll()
+        previousRequest.onsuccess = () => {
+          const previous = previousRequest.result[0] as StoredSpace | undefined
 
-        // Tombstones go first: within one response, an upsert of a row is
-        // the newer fact (the contributor's rows are what exists now), so
-        // it must outrank a tombstone of the same row — a resync from
-        // revision 0 replays the space's whole tombstone history.
-        for (const tombstone of result.tombstones) {
-          if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
-        }
-        for (const change of result.changes) {
-          if (change.entity === 'space') spaceStore.put(change.space)
-          if (change.entity === 'member') memberStore.put(change.member)
-        }
+          // Tombstones go first: within one response, an upsert of a row is
+          // the newer fact (the contributor's rows are what exists now), so
+          // it must outrank a tombstone of the same row — a resync from
+          // revision 0 replays the space's whole tombstone history.
+          for (const tombstone of result.tombstones) {
+            if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
+            if (tombstone.entity === 'journal_entry') entryStore.delete(tombstone.entityId)
+          }
+          for (const change of result.changes) {
+            if (change.entity === 'space') spaceStore.put(change.space)
+            if (change.entity === 'member') memberStore.put(change.member)
+            if (change.entity === 'journal_entry') entryStore.put(change.entry)
+          }
 
-        let revision = result.revision
-        const nextSpace = result.changes.find((change) => change.entity === 'space')
-        if (previous !== undefined && nextSpace !== undefined) {
-          const reshow = (
-            Object.keys(previous.sections) as Array<keyof StoredSpace['sections']>
-          ).some((section) => !previous.sections[section] && nextSpace.space.sections[section])
-          if (reshow) revision = '0'
+          let revision = result.revision
+          const nextSpace = result.changes.find((change) => change.entity === 'space')
+          if (nextSpace !== undefined) {
+            if (!nextSpace.space.sections.journal) entryStore.clear()
+          }
+          // A re-shown section writes the replay promise: the cursor goes
+          // to 0 and the section's full data has to come again before the
+          // screens may claim it (ADR-0014). The promise is per section, so
+          // another section's replay never questions this one's rows, and
+          // any apply that lands without a re-show — the replay above all,
+          // which carries every section whole — clears the promises with
+          // its cursor.
+          const reshowed = (Object.keys(previous?.sections ?? {}) as SectionName[]).filter(
+            (section) =>
+              previous !== undefined &&
+              nextSpace !== undefined &&
+              !previous.sections[section] &&
+              nextSpace.space.sections[section],
+          )
+          if (reshowed.length > 0 && since !== '0') revision = '0'
+          // The replay response carries every section whole, so a re-show
+          // inside it opens no promise of its own: the cursor moves and
+          // nothing stays owed.
+          const pendingReplay: SectionName[] = revision === '0' ? reshowed : []
+          storedRevision = revision
+          const cursor: MetaRow = { key: 'cursor', revision }
+          const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }
+          metaStore.put(cursor)
+          metaStore.put(stamped)
+          metaStore.put({ key: 'pendingReplay', sections: pendingReplay })
         }
-        storedRevision = revision
-        const cursor: MetaRow = { key: 'cursor', revision }
-        const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }
-        metaStore.put(cursor)
-        metaStore.put(stamped)
+        previousRequest.onerror = () =>
+          reject(previousRequest.error ?? new Error('The read failed'))
       }
-      previousRequest.onerror = () => reject(previousRequest.error ?? new Error('The read failed'))
-      tx.oncomplete = () => resolve(storedRevision)
+      metaRequest.onerror = () => reject(metaRequest.error ?? new Error('The read failed'))
+      tx.oncomplete = () => resolve({ cursor: storedRevision, applied })
       tx.onerror = () => reject(tx.error ?? new Error('Applying the sync result failed'))
       tx.onabort = () => reject(tx.error ?? new Error('Applying the sync result was aborted'))
     })

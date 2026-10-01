@@ -10,6 +10,7 @@ import {
   requireOwnerActor,
 } from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
+import { journalRoutes, journalSyncContributor } from '../modules/journal/index.ts'
 import {
   adminCountMembersBySpace,
   findMemberInSpace,
@@ -82,22 +83,30 @@ export function buildApp(deps: AppDeps) {
     },
   })
   app.register(accessRoutes, { prefix: '/api/v1', deps: accessDeps })
+  // The journal is a section module (ADR-0011): its routes mount the access
+  // module's guard and the spaces module's section gate, and its writes
+  // recheck visibility inside their transactions.
+  app.register(journalRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock },
+    access: accessDeps,
+  })
   app.register(membersRoutes, {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
   })
   // The sync module merges the contributors of every module with
-  // synchronised data; spaces and members contribute today, the section
-  // modules join when their data lands (architecture.md, "Sync
-  // contributors"). The route plugin is imported directly, like the other
-  // routes here, so the sync module's public surface stays free of the
+  // synchronised data; spaces, members, and journal contribute today, the
+  // remaining section modules join when their data lands (architecture.md,
+  // "Sync contributors"). The route plugin is imported directly, like the
+  // other routes here, so the sync module's public surface stays free of the
   // response contract, and the response schema is composed from exactly
   // the wired contributors.
   app.register(syncRoutes, {
     prefix: '/api/v1',
     deps: accessDeps,
-    contributors: [spacesSyncContributor, membersSyncContributor],
+    contributors: [spacesSyncContributor, membersSyncContributor, journalSyncContributor],
   })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
   if (deps.webDist !== undefined) {
