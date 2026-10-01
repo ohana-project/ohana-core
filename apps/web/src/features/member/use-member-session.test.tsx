@@ -1,9 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/testing/render.tsx'
-import { memberSessionQueryKey, useRedeemedSignIn } from './use-member-session.ts'
+import { forgetMember, memberSessionQueryKey, useRedeemedSignIn } from './use-member-session.ts'
 
 /*
  * Adding a sign-in is a cache-boundary event (ADR-0005): another member's
@@ -67,5 +67,33 @@ describe('useRedeemedSignIn cache boundaries', () => {
       expect(client().getQueryState(memberSessionQueryKey)?.isInvalidated).toBe(true),
     )
     expect(client().getQueryData(PROFILES_KEY)).toEqual(PROFILES)
+  })
+})
+
+describe('forgetMember', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('clears the departing member’s data and resets everything else', () => {
+    const queryClient = new QueryClient()
+    const profilesOf = (memberId: string) => ['member', memberId, 'profiles'] as const
+    window.localStorage.setItem(
+      'ohana.sessions',
+      JSON.stringify([{ memberId: 'm-1', spaceId: 's-1', spaceName: 'С', name: 'Аня' }]),
+    )
+    queryClient.setQueryData(profilesOf('m-1'), [{ id: 'm-1' }])
+    queryClient.setQueryData(profilesOf('m-2'), [{ id: 'm-2' }])
+    queryClient.setQueryData(memberSessionQueryKey, { status: 'signed-in' })
+
+    forgetMember(queryClient, 'm-1')
+
+    // The forgotten member's answers are cleared outright.
+    expect(queryClient.getQueryData(profilesOf('m-1'))).toBeUndefined()
+    expect(window.localStorage.getItem('ohana.sessions')).toBe('[]')
+    // Everything else is reset for whoever is active now: no cached answer
+    // survives the boundary.
+    expect(queryClient.getQueryData(memberSessionQueryKey)).toBeUndefined()
+    expect(queryClient.getQueryData(profilesOf('m-2'))).toBeUndefined()
   })
 })

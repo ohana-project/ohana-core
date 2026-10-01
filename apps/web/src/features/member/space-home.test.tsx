@@ -95,6 +95,7 @@ describe('SpaceHomeScreen', () => {
     // Both probes settle before the menu opens, so no re-render replaces
     // the trigger under the pointer mid-interaction.
     await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+    apiGet.mockClear()
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     // The menu mounts into a portal; under jsdom it can land outside the
     // a11y tree, so the item is clicked by its text.
@@ -108,6 +109,13 @@ describe('SpaceHomeScreen', () => {
     )
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
     expect(JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')).toEqual([])
+    // The signed-out member's cached data is cleared, not refetched: the
+    // header is pinned and the session is gone, so the request could only
+    // be refused.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(apiGet).not.toHaveBeenCalledWith('/api/v1/members', {
+      params: { header: { 'x-ohana-member': ME.member.id } },
+    })
   })
 
   it('keeps the sign-in and explains itself when sign-out fails', async () => {

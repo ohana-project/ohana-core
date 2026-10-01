@@ -104,20 +104,22 @@ export function useSwitchMember() {
 }
 
 /**
- * Forgets a member on this device: the registry entry goes, and the
- * remaining queries reset — except the departing member's own, which are
- * left unreachable instead of reset. Their headers are pinned to the
- * member, so a refetch under that name could only be refused; the stale
- * answers sit under member-scoped keys no other member can match until
- * the device unmounts them and the cache collects them. The registry
- * changes before the reset, so the next render can only rebuild queries
- * for whoever is active now. Called after the API has ended the member's
- * session (sign-out, or revoking the session this device is using).
+ * Forgets a member on this device: the registry entry goes, the member's
+ * cached answers are cleared without refetching — their headers are
+ * pinned to the member, so a request under that name could only be
+ * refused — and the remaining queries reset for whoever is active now.
+ * The registry changes first, so the next render can only rebuild queries
+ * for that member. Called after the API has ended the member's session
+ * (sign-out, or revoking the session this device is using).
  */
 export function forgetMember(queryClient: QueryClient, memberId: string): void {
   removeSession(memberId)
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: ['member', memberId] })) {
+    void query.cancel({ silent: true })
+    query.reset()
+  }
   void queryClient.resetQueries({
-    predicate: (query) => query.queryKey[1] !== memberId,
+    predicate: (query) => query.queryKey[0] !== 'member' || query.queryKey[1] !== memberId,
   })
 }
 
