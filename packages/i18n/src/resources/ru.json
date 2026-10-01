@@ -219,6 +219,8 @@
     "draftEditedAt": "правки {moment}",
     "continueEditing": "Дописать",
     "publish": "Опубликовать",
+    "publishNow": "Опубликовать сейчас",
+    "draftActions": "Действия с черновиком",
     "publishedToast": "Опубликовано в дневнике пространства",
     "draftSavedToast": "Черновик сохранён — виден только вам",
     "savedToast": "Сохранено",

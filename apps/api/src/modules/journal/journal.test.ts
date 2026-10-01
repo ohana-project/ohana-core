@@ -124,14 +124,14 @@ async function createEntry(
   return { status: response.statusCode, body: response.json() }
 }
 
-async function patchEntry(
+async function editEntry(
   app: TestApp,
   session: MemberSession,
   entryId: string,
   body: { title?: string; text: string },
 ): Promise<{ status: number; body: EntryDto | { error: { code: string } } }> {
   const response = await app.inject({
-    method: 'PATCH',
+    method: 'PUT',
     url: `/api/v1/journal/entries/${entryId}`,
     headers: memberHeaders(session),
     payload: body,
@@ -257,7 +257,7 @@ describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
       expect(strangerRead.status).toBe(404)
       expect((strangerRead.body as { error: { code: string } }).error.code).toBe('entry_not_found')
 
-      const strangerEdit = await patchEntry(app, dima, draft.id, { text: 'чужой текст' })
+      const strangerEdit = await editEntry(app, dima, draft.id, { text: 'чужой текст' })
       expect(strangerEdit.status).toBe(404)
       expect((strangerEdit.body as { error: { code: string } }).error.code).toBe('entry_not_found')
 
@@ -290,7 +290,7 @@ describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
       const draft = created.body as EntryDto
       expect(draft.title).toBeUndefined()
 
-      const edited = await patchEntry(app, anna, draft.id, {
+      const edited = await editEntry(app, anna, draft.id, {
         title: '  Появилось имя  ',
         text: '  Текст с пробелами по краям  ',
       })
@@ -299,7 +299,7 @@ describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
       expect((edited.body as EntryDto).title).toBe('Появилось имя')
       expect((edited.body as EntryDto).text).toBe('Текст с пробелами по краям')
 
-      const cleared = await patchEntry(app, anna, draft.id, { text: 'Текст остался' })
+      const cleared = await editEntry(app, anna, draft.id, { text: 'Текст остался' })
       expect(cleared.status).toBe(200)
       expect((cleared.body as EntryDto).title).toBeUndefined()
     })
@@ -331,6 +331,38 @@ describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
       })
       expect(nulTitle.status).toBe(400)
       expect((nulTitle.body as { error: { code: string } }).error.code).toBe('validation_failed')
+    })
+  })
+
+  test('the length bounds answer exactly at the edge', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      // The bounds live in the contract, and the web editor mirrors the
+      // numbers by hand: an off-by-one on either side would drift silently.
+      const longestTitle = await createEntry(app, anna, {
+        title: 'З'.repeat(200),
+        text: 'Текст есть',
+      })
+      expect(longestTitle.status).toBe(201)
+
+      const tooLongTitle = await createEntry(app, anna, {
+        title: 'З'.repeat(201),
+        text: 'Текст есть',
+      })
+      expect(tooLongTitle.status).toBe(400)
+      expect((tooLongTitle.body as { error: { code: string } }).error.code).toBe(
+        'validation_failed',
+      )
+
+      const longestText = await createEntry(app, anna, { text: 'Т'.repeat(20_000) })
+      expect(longestText.status).toBe(201)
+
+      const tooLongText = await createEntry(app, anna, { text: 'Т'.repeat(20_001) })
+      expect(tooLongText.status).toBe(400)
+      expect((tooLongText.body as { error: { code: string } }).error.code).toBe('validation_failed')
     })
   })
 
@@ -406,7 +438,7 @@ describe('POST /api/v1/journal/entries/:entryId/publish (the one-way transition)
       // The edit contract carries no state at all: a client that tries to
       // unpublish fails validation before anything else.
       const unpublish = await app.inject({
-        method: 'PATCH',
+        method: 'PUT',
         url: `/api/v1/journal/entries/${draft.id}`,
         headers: memberHeaders(anna),
         payload: { text: 'Текст', state: 'draft' },
@@ -440,7 +472,7 @@ describe('POST /api/v1/journal/entries/:entryId/publish (the one-way transition)
       // take over the authoring.
       expect((await publishEntry(app, anna, draft.id)).status).toBe(200)
 
-      const ownerEdit = await patchEntry(app, owner, draft.id, { text: 'правка владельца' })
+      const ownerEdit = await editEntry(app, owner, draft.id, { text: 'правка владельца' })
       expect(ownerEdit.status).toBe(403)
       expect((ownerEdit.body as { error: { code: string } }).error.code).toBe('author_required')
 
@@ -451,7 +483,7 @@ describe('POST /api/v1/journal/entries/:entryId/publish (the one-way transition)
   })
 })
 
-describe('PATCH /api/v1/journal/entries/:entryId (only the author edits, in any state)', () => {
+describe('PUT /api/v1/journal/entries/:entryId (only the author edits, in any state)', () => {
   test('the author edits a published entry, and nobody else does', async () => {
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
@@ -463,7 +495,7 @@ describe('PATCH /api/v1/journal/entries/:entryId (only the author edits, in any 
       const draft = created.body as EntryDto
       expect((await publishEntry(app, anna, draft.id)).status).toBe(200)
 
-      const edited = await patchEntry(app, anna, draft.id, {
+      const edited = await editEntry(app, anna, draft.id, {
         title: 'Поход',
         text: 'Исправленный текст',
       })
@@ -472,7 +504,7 @@ describe('PATCH /api/v1/journal/entries/:entryId (only the author edits, in any 
       expect((edited.body as EntryDto).publishedAt).toBeDefined()
 
       // A regular member sees the entry but cannot write under Аня's name.
-      const strangerEdit = await patchEntry(app, dima, draft.id, { text: 'чужая правка' })
+      const strangerEdit = await editEntry(app, dima, draft.id, { text: 'чужая правка' })
       expect(strangerEdit.status).toBe(403)
       expect((strangerEdit.body as { error: { code: string } }).error.code).toBe('author_required')
     })
@@ -541,6 +573,15 @@ describe('GET /api/v1/journal/feed (the paginated shared feed)', () => {
       const otherHalf = await getFeed(app, dima, { beforeId: last.id })
       expect(otherHalf.status).toBe(400)
       expect((otherHalf.body as { error: { code: string } }).error.code).toBe('invalid_cursor')
+
+      // A moment the Date constructor cannot read (ajv's date-time admits
+      // a leap second) is refused too, before it can poison the query.
+      const unreadable = await getFeed(app, dima, {
+        before: '2016-12-31T23:59:60Z',
+        beforeId: last.id,
+      })
+      expect(unreadable.status).toBe(400)
+      expect((unreadable.body as { error: { code: string } }).error.code).toBe('invalid_cursor')
     })
   })
 
@@ -645,7 +686,7 @@ describe('the hidden journal section (ADR-0011)', () => {
 
       // The section gate refuses the other writes the same way, before
       // any handler runs.
-      const edit = await patchEntry(app, regular, entry.id, { text: 'правка при скрытом' })
+      const edit = await editEntry(app, regular, entry.id, { text: 'правка при скрытом' })
       expect(edit.status).toBe(404)
       expect((edit.body as { error: { code: string } }).error.code).toBe('section_hidden')
 

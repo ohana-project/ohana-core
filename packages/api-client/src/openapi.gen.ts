@@ -1051,12 +1051,7 @@ export interface paths {
                 };
             };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: {
+        put: {
             parameters: {
                 query?: never;
                 header?: {
@@ -1101,6 +1096,11 @@ export interface paths {
                 };
             };
         };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/journal/entries/{entryId}/publish": {

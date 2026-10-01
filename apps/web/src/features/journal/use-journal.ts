@@ -62,11 +62,11 @@ export function useCreateDraft() {
   })
 }
 
-/** PATCH /api/v1/journal/entries/{entryId} — the author's edit, in any state. */
+/** PUT /api/v1/journal/entries/{entryId} — the author's edit, in any state: the whole pair is replaced. */
 export function useUpdateEntry() {
   return useMutation({
     mutationFn: async (input: { entryId: string } & JournalInput): Promise<EntryDto> => {
-      const response = await api.PATCH('/api/v1/journal/entries/{entryId}', {
+      const response = await api.PUT('/api/v1/journal/entries/{entryId}', {
         params: { path: { entryId: input.entryId } },
         body: { title: input.title, text: input.text },
       })

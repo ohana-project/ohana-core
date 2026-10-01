@@ -3,8 +3,8 @@ import type { Db } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
-import type { CreateEntryBody, FeedQuery, JournalEntryDto, JournalFeedDto } from './contracts.ts'
-import { DEFAULT_FEED_LIMIT, toEntryDto } from './contracts.ts'
+import type { CreateEntryBody, FeedQuery } from './contracts.ts'
+import { DEFAULT_FEED_LIMIT } from './contracts.ts'
 import { assertEntryAuthoredBy, entryVisibleTo } from './policy.ts'
 import {
   getEntryInSpace,
@@ -90,7 +90,7 @@ export async function updateEntryText(
       actor.spaceId,
       {
         writes: async (writeTx, revision) => {
-          updated = await updateEntry(
+          const row = await updateEntry(
             writeTx,
             actor.spaceId,
             entryId,
@@ -98,6 +98,13 @@ export async function updateEntryText(
             revision,
             now,
           )
+          if (row === undefined) {
+            // The defensive backstop: the row was read under the same space
+            // row lock, so it cannot vanish before the UPDATE — and a
+            // refusal here spends no revision.
+            throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
+          }
+          updated = row
         },
       },
       now,
@@ -187,18 +194,18 @@ async function requireVisibleEntry(
 /**
  * The shared feed: every published entry of the space, newest first,
  * keyset-paginated (issue #15). Drafts never appear here, whoever asks.
+ * The rows go back raw; the route maps them onto the wire shape.
  */
 export async function listFeed(
   deps: JournalDeps,
   actor: JournalActor,
   query: FeedQuery,
-): Promise<JournalFeedDto> {
+): Promise<{ entries: JournalEntry[]; hasMore: boolean }> {
   const before = readCursor(query)
   const limit = query.limit ?? DEFAULT_FEED_LIMIT
   const rows = await listFeedPage(deps.db, actor.spaceId, before, limit + 1)
-  const page = rows.slice(0, limit)
   return {
-    entries: page.map(toEntryDto),
+    entries: rows.slice(0, limit),
     hasMore: rows.length > limit,
   }
 }
@@ -213,16 +220,22 @@ function readCursor(query: FeedQuery): { at: Date; id: string } | undefined {
       400,
     )
   }
-  return { at: new Date(before), id: beforeId }
+  // The date-time format is wide enough to admit a leap second, which the
+  // Date constructor cannot read — and a cursor that answers Invalid Date
+  // would poison the query instead of naming its page.
+  const at = new Date(before)
+  if (Number.isNaN(at.getTime())) {
+    throw new DomainError('invalid_cursor', 'A feed cursor names a real moment', 400)
+  }
+  return { at, id: beforeId }
 }
 
-/** The author's own drafts, newest edit first — the separate list (issue #15). */
-export async function listDrafts(
-  deps: JournalDeps,
-  actor: JournalActor,
-): Promise<JournalEntryDto[]> {
-  const rows = await listDraftsOfAuthor(deps.db, actor.spaceId, actor.memberId)
-  return rows.map(toEntryDto)
+/**
+ * The author's own drafts, newest edit first — the separate list (issue
+ * #15). The rows go back raw; the route maps them onto the wire shape.
+ */
+export async function listDrafts(deps: JournalDeps, actor: JournalActor): Promise<JournalEntry[]> {
+  return listDraftsOfAuthor(deps.db, actor.spaceId, actor.memberId)
 }
 
 /** The sync contributor's delta: the entries this member may see, changed since the cursor. */

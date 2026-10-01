@@ -151,14 +151,14 @@ async function publishEntry(app: TestApp, session: MemberSession, entryId: strin
   expect(response.statusCode).toBe(200)
 }
 
-async function patchEntry(
+async function editEntry(
   app: TestApp,
   session: MemberSession,
   entryId: string,
   body: { text: string },
 ): Promise<void> {
   const response = await app.inject({
-    method: 'PATCH',
+    method: 'PUT',
     url: `/api/v1/journal/entries/${entryId}`,
     headers: memberHeaders(session),
     payload: body,
@@ -221,7 +221,7 @@ describe('the journal sync contributor (issues #14 and #15)', () => {
       const seen = await sync(app, dima, '0')
       const cursor = seen.revision
 
-      await patchEntry(app, anna, entry.id, { text: 'Исправленный текст' })
+      await editEntry(app, anna, entry.id, { text: 'Исправленный текст' })
 
       const delta = await sync(app, dima, cursor)
       const entries = entryChanges(delta)

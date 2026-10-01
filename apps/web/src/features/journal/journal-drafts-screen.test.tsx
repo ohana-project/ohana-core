@@ -124,7 +124,7 @@ describe('JournalDraftsScreen', () => {
     const second = screen.getByText('Старый черновик')
     expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getAllByRole('button', { name: 'Дописать' })).toHaveLength(2)
-    expect(screen.getAllByRole('button', { name: 'Опубликовать' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Действия с черновиком' })).toHaveLength(2)
   })
 
   it('publishes a draft through the API and triggers the sync', async () => {
@@ -143,7 +143,10 @@ describe('JournalDraftsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<JournalDraftsScreen />)
 
-    await user.click(await screen.findByRole('button', { name: 'Опубликовать' }))
+    // Publishing hides behind the row's overflow menu: one tap must not
+    // share a private draft for good (docs/design/screens/drafts.html).
+    await user.click(await screen.findByRole('button', { name: 'Действия с черновиком' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Опубликовать сейчас' }))
 
     await waitFor(() =>
       expect(apiPost).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}/publish', {
@@ -193,22 +196,39 @@ describe('JournalDraftsScreen', () => {
     renderWithProviders(<JournalDraftsScreen />)
 
     // The rows publish independently: while the first publish hangs, the
-    // other row keeps its own enabled mutation, and both toasts land.
-    const buttons = await screen.findAllByRole('button', { name: 'Опубликовать' })
-    expect(buttons).toHaveLength(2)
+    // other row keeps its own enabled action, and both toasts land.
+    const triggers = await screen.findAllByRole('button', { name: 'Действия с черновиком' })
+    expect(triggers).toHaveLength(2)
 
-    await user.click(buttons[1] as HTMLButtonElement)
-    await waitFor(() => expect(buttons[1]).toBeDisabled())
-    expect(buttons[0]).toBeEnabled()
+    // The older edit lists last; its publish hangs in flight.
+    await user.click(triggers[1] as HTMLButtonElement)
+    await user.click(await screen.findByRole('menuitem', { name: 'Опубликовать сейчас' }))
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}/publish', {
+        params: { path: { entryId: held.id } },
+      }),
+    )
 
-    await user.click(buttons[0] as HTMLButtonElement)
+    // The other row's menu still offers a live action of its own.
+    await user.click(triggers[0] as HTMLButtonElement)
+    const freeItem = await screen.findByRole('menuitem', { name: 'Опубликовать сейчас' })
+    expect(freeItem).toBeEnabled()
+    await user.click(freeItem)
     expect(await screen.findByText('Опубликовано в дневнике пространства')).toBeInTheDocument()
     expect(apiPost).toHaveBeenCalledTimes(2)
 
+    // The held publish lands. Its row waits for the sync that removes it,
+    // and until then its menu's action stays dark: a second tap cannot
+    // re-publish what has already been shared.
     releaseHeld?.()
-    await waitFor(() => expect(buttons[1]).toBeEnabled())
     await waitFor(() =>
       expect(screen.getAllByText('Опубликовано в дневнике пространства')).toHaveLength(2),
+    )
+    await user.click(triggers[1] as HTMLButtonElement)
+    // Base UI marks the disabled item with aria-disabled on a div.
+    expect(await screen.findByRole('menuitem', { name: 'Опубликовать сейчас' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
     )
   })
 
@@ -228,7 +248,8 @@ describe('JournalDraftsScreen', () => {
     const user = userEvent.setup()
     renderWithProviders(<JournalDraftsScreen />)
 
-    await user.click(await screen.findByRole('button', { name: 'Опубликовать' }))
+    await user.click(await screen.findByRole('button', { name: 'Действия с черновиком' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Опубликовать сейчас' }))
 
     expect(await screen.findByText('Эта запись уже опубликована.')).toBeInTheDocument()
     // The refusal is what carries the refresh: the sync ran although

@@ -18,7 +18,7 @@ import { JournalEditorScreen } from './journal-editor-screen.tsx'
  */
 
 vi.mock('@/data/api.ts', () => ({
-  api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn(), DELETE: vi.fn() },
+  api: { GET: vi.fn(), POST: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() },
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -35,7 +35,7 @@ vi.mock('@/data/sync-engine.ts', async (importOriginal) => ({
 }))
 
 const apiPost = vi.mocked(api.POST)
-const apiPatch = vi.mocked(api.PATCH)
+const apiPut = vi.mocked(api.PUT)
 const triggerSyncMock = vi.mocked(triggerSync)
 
 const ME = '01900000-0000-7000-8000-000000000001'
@@ -203,7 +203,7 @@ describe('JournalEditorScreen (a new entry)', () => {
       }
       throw new Error(`Unexpected POST ${String(path)}`)
     })
-    apiPatch.mockImplementation(async (path: never) => {
+    apiPut.mockImplementation(async (path: '/api/v1/journal/entries/{entryId}') => {
       if (path === '/api/v1/journal/entries/{entryId}') {
         return {
           data: created,
@@ -211,7 +211,7 @@ describe('JournalEditorScreen (a new entry)', () => {
           response: new Response(null, { status: 200 }),
         }
       }
-      throw new Error(`Unexpected PATCH ${String(path)}`)
+      throw new Error(`Unexpected PUT ${String(path)}`)
     })
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen />)
@@ -230,7 +230,7 @@ describe('JournalEditorScreen (a new entry)', () => {
     // The retry edits the created entry and publishes it — one draft, ever.
     await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
     await waitFor(() =>
-      expect(apiPatch).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
+      expect(apiPut).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
         params: { path: { entryId: created.id } },
         body: { title: 'Пикник', text: 'Собрались за час.' },
       }),
@@ -245,7 +245,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
     seedRegistry()
     const existing = draft()
     await applySyncResult(ME, syncResult([existing]))
-    apiPatch.mockImplementation(async (path: never) => {
+    apiPut.mockImplementation(async (path: '/api/v1/journal/entries/{entryId}') => {
       if (path === '/api/v1/journal/entries/{entryId}') {
         return {
           data: { ...existing, text: 'Исправленный текст' },
@@ -253,7 +253,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
           response: new Response(null, { status: 200 }),
         }
       }
-      throw new Error(`Unexpected PATCH ${String(path)}`)
+      throw new Error(`Unexpected PUT ${String(path)}`)
     })
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen entryId={existing.id} />)
@@ -266,7 +266,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
     await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
 
     await waitFor(() =>
-      expect(apiPatch).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
+      expect(apiPut).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
         params: { path: { entryId: existing.id } },
         body: { title: 'Черновик', text: 'Исправленный текст' },
       }),
@@ -286,7 +286,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
       updatedAt: '2026-09-21T15:00:00.000Z',
     })
     await applySyncResult(ME, syncResult([published]))
-    apiPatch.mockImplementation(async () => ({
+    apiPut.mockImplementation(async () => ({
       data: published,
       error: undefined,
       response: new Response(null, { status: 200 }),
@@ -300,7 +300,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-    await waitFor(() => expect(apiPatch).toHaveBeenCalled())
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
     expect(apiPost).not.toHaveBeenCalled()
   })
 
@@ -390,7 +390,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
     seedRegistry()
     const existing = draft()
     await applySyncResult(ME, syncResult([existing]))
-    apiPatch.mockImplementation(async (path: never) => {
+    apiPut.mockImplementation(async (path: '/api/v1/journal/entries/{entryId}') => {
       if (path === '/api/v1/journal/entries/{entryId}') {
         return {
           data: undefined,
@@ -398,7 +398,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
           response: new Response(null, { status: 404 }),
         }
       }
-      throw new Error(`Unexpected PATCH ${String(path)}`)
+      throw new Error(`Unexpected PUT ${String(path)}`)
     })
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen entryId={existing.id} />)

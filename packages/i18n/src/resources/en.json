@@ -219,6 +219,8 @@
     "draftEditedAt": "edited {moment}",
     "continueEditing": "Continue",
     "publish": "Publish",
+    "publishNow": "Publish now",
+    "draftActions": "Draft actions",
     "publishedToast": "Published to the space's journal",
     "draftSavedToast": "Draft saved — visible only to you",
     "savedToast": "Saved",

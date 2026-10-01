@@ -1966,7 +1966,7 @@
           }
         }
       },
-      "patch": {
+      "put": {
         "requestBody": {
           "required": true,
           "content": {

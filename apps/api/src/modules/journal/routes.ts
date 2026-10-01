@@ -59,7 +59,8 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
       },
       async (request) => {
         const actor: JournalActor = requireMemberActor(request)
-        return listFeed(opts.deps, actor, request.query)
+        const page = await listFeed(opts.deps, actor, request.query)
+        return { entries: page.entries.map(toEntryDto), hasMore: page.hasMore }
       },
     )
 
@@ -74,7 +75,7 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
       },
       async (request) => {
         const actor: JournalActor = requireMemberActor(request)
-        return listDrafts(opts.deps, actor)
+        return (await listDrafts(opts.deps, actor)).map(toEntryDto)
       },
     )
 
@@ -109,9 +110,10 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
       },
     )
 
-    // The author's edit of a draft or a published entry; the state is
-    // never an input here.
-    scoped.patch(
+    // The author's edit of a draft or a published entry — a PUT, because it
+    // replaces the whole title-and-text pair (an absent title names "no
+    // title", never "keep the old one"); the state is never an input here.
+    scoped.put(
       '/journal/entries/:entryId',
       {
         schema: {

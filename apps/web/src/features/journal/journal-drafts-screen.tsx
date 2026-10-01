@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 import type { StoredJournalEntry } from '@/data/local-store.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import {
@@ -21,10 +27,12 @@ import { journalErrorMessage, useJournalData, usePublishEntry } from './use-jour
 
 /*
  * The author's drafts (docs/design/screens/drafts.html): the separate list
- * only the author sees (issue #15). A draft continues in the editor or
- * shares with the space from here; the trash arrives with its own ticket
- * (#16). The list reads the synchronised partition, so it answers offline
- * exactly as online (ADR-0002).
+ * only the author sees (issue #15). A draft continues in the editor, and
+ * sharing goes through the row's overflow menu — publishing is one-way,
+ * so it does not sit a stray tap away, as the prototype puts it. The
+ * trash arrives with its own ticket (#16). The list reads the
+ * synchronised partition, so it answers offline exactly as online
+ * (ADR-0002).
  */
 export function JournalDraftsScreen() {
   const { t, i18n } = useTranslation()
@@ -127,23 +135,37 @@ function DraftRow({
         <Button variant="secondary" size="sm" onClick={onEdit}>
           {t('journal.continueEditing')}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={publish.isPending}
-          onClick={() =>
-            publish.mutate(
-              { entryId: draft.id },
-              {
-                onSuccess: () => toast(t('journal.publishedToast')),
-                onError: (error) => toast(journalErrorMessage(error, t), 'danger'),
-              },
-            )
-          }
-        >
-          <Icon name="send" />
-          {t('journal.publish')}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label={t('journal.draftActions')}
+                aria-haspopup="menu"
+                className="grid size-9 shrink-0 place-items-center rounded-full transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
+              />
+            }
+          >
+            <Icon name="more-h" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={publish.isPending || publish.isSuccess}
+              onClick={() =>
+                publish.mutate(
+                  { entryId: draft.id },
+                  {
+                    onSuccess: () => toast(t('journal.publishedToast')),
+                    onError: (error) => toast(journalErrorMessage(error, t), 'danger'),
+                  },
+                )
+              }
+            >
+              <Icon name="send" />
+              {t('journal.publishNow')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </ItemActions>
     </Item>
   )

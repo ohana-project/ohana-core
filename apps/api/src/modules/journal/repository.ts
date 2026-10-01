@@ -1,6 +1,5 @@
 import { and, desc, eq, gt, lt, or } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { notFound } from '../../platform/errors.ts'
 import { entryVisibleToSql } from './policy.ts'
 import { type JournalEntry, journalEntries } from './tables.ts'
 
@@ -56,7 +55,11 @@ export async function getEntryInSpace(
   return rows[0]
 }
 
-/** The author-only edit, stamped with the transaction's revision. */
+/**
+ * The author's replace of the title-and-text pair, stamped with the
+ * transaction's revision. No row means the entry is not in this space —
+ * the use case decides what that answers, as its sibling publishEntry does.
+ */
 export async function updateEntry(
   tx: Tx,
   spaceId: string,
@@ -64,7 +67,7 @@ export async function updateEntry(
   changes: { title: string | null; text: string },
   revision: bigint,
   now: Date,
-): Promise<JournalEntry> {
+): Promise<JournalEntry | undefined> {
   const updated = await tx
     .update(journalEntries)
     .set({
@@ -75,11 +78,7 @@ export async function updateEntry(
     })
     .where(and(eq(journalEntries.spaceId, spaceId), eq(journalEntries.id, entryId)))
     .returning()
-  const row = updated[0]
-  if (!row) {
-    throw notFound('entry_not_found', `Journal entry ${entryId} does not exist in space ${spaceId}`)
-  }
-  return row
+  return updated[0]
 }
 
 /**
