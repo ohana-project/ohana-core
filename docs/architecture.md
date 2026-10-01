@@ -117,11 +117,11 @@ The sync conventions below are established in the foundation and must not be byp
 
 **Sync contributors:**
 
-- Each module with synchronised data exports a sync contributor: `changesSince(tx, actor, revision) → { upserts, tombstones }`.
+- Each module with synchronised data exports a sync contributor: a `changesSince(tx, actor, revision) → { upserts, tombstones }` function, plus the wire schema of its change objects and the tombstone entities it is responsible for.
 - The contributor applies the module's `policy.ts`. Ordinary reads apply the same policy, so what a member may see is defined in exactly one place per module.
-- Tombstones live in the one shared table the sync module owns; a contributor reads the entries of its own entities through the sync module's `readTombstonesSince`, which applies the audience filter (everyone, or the one member something left) in exactly one place.
+- Tombstones live in the one shared table the sync module owns; a contributor reads the entries of its own entities through the sync module's `readTombstonesSince`, which applies the audience filter (everyone, or the one member something left) in exactly one place. Within one response an upsert of a row always outranks a tombstone of the same row — the contributor's rows are what exists now — so clients apply tombstones first and upserts second.
 - The `spaces` module contributes the space row (name, time zone, `sections`) as an upsert whenever `spaces.revision` is newer than the cursor, so section visibility reaches offline clients (ADR-0011, ADR-0014).
-- The sync module merges contributors and returns `{ revision, changes, tombstones }`; `GET /api/v1/sync?since=<revision>` answers it to the requesting member, the space always the actor's own.
+- The sync module merges contributors and returns `{ revision, changes, tombstones }`; `GET /api/v1/sync?since=<revision>` answers it to the requesting member, the space always the actor's own. The response contract is composed from the wired contributors in the composition root, so a section module plugs in without editing the sync module.
 
 **Visibility changes:** when something stops being visible to a member (an entry is trashed, a member is archived), the transaction writes tombstones for the affected audience. Hiding a section is the exception (ADR-0011, ADR-0014): the sections map travels on the space row inside the sync response, so a hide writes no per-row tombstones — the client drops a hidden section's rows when it applies the new map, and the client that sees a section go from hidden to visible discards its cursor and syncs from revision 0 once, because a delta cannot carry rows older than its cursor; the reset is stored in the same local-store transaction that applies the new map (the cursor is written as 0 instead of the response's revision), so an interrupted resync restarts from 0.
 

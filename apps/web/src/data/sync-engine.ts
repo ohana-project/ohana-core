@@ -1,6 +1,12 @@
 import { api } from '@/data/api.ts'
-import { applySyncResult, readMemberSnapshot, type SyncResult } from '@/data/local-store.ts'
-import { getActiveMemberId } from '@/data/session-registry.ts'
+import { responseStatus } from '@/data/api-error.ts'
+import {
+  applySyncResult,
+  deleteMemberData,
+  readMemberSnapshot,
+  type SyncResult,
+} from '@/data/local-store.ts'
+import { getActiveMemberId, removeSession } from '@/data/session-registry.ts'
 
 /*
  * The sync engine (issue #14, ADR-0014): for the active member it calls the
@@ -21,6 +27,9 @@ export interface SyncStatus {
 }
 
 const statuses = new Map<string, SyncStatus>()
+// Bumped whenever a member is forgotten, so a sync in flight during
+// sign-out knows its answer is no longer wanted.
+const generations = new Map<string, number>()
 
 type StatusListener = () => void
 const statusListeners = new Set<StatusListener>()
@@ -51,15 +60,47 @@ function setStatus(memberId: string, status: SyncStatus): void {
 }
 
 const inFlight = new Set<string>()
+// Members whose sync was asked for while one was already running: the
+// mutation or reconnect that came second still gets its own run.
+const rerun = new Set<string>()
 
 /**
- * Runs one sync for the member (default: the active one). Concurrent runs
- * for the same member collapse into the one already going, so a mutation
- * and a reconnect cannot race two responses into the store.
+ * The API refused this member outright (401): the session is gone —
+ * revoked or expired — so the retained sign-in and the synchronised
+ * partition go with it, the way a sign-out would (issue #14, ADR-0005).
+ * The screens learn on their next probe, which answers signed out with no
+ * request at all.
+ */
+function forgetRefusedMember(memberId: string): void {
+  forgetSync(memberId)
+  removeSession(memberId)
+  void deleteMemberData(memberId).catch(() => {})
+}
+
+/**
+ * Forgets everything the engine holds for the member: a running sync will
+ * not apply its answer to a partition that was deleted meanwhile, and the
+ * status does not outlive the member. Called when the member signs out.
+ */
+export function forgetSync(memberId: string): void {
+  generations.set(memberId, (generations.get(memberId) ?? 0) + 1)
+  rerun.delete(memberId)
+  statuses.delete(memberId)
+  for (const listener of statusListeners) listener()
+}
+
+/**
+ * Runs one sync for the member (default: the active one). A run asked for
+ * while one is already going is queued, not dropped: a mutation's sync
+ * must not lose its turn to the mount's or the reconnect's.
  */
 export async function triggerSync(memberId?: string): Promise<void> {
   const who = memberId ?? getActiveMemberId()
-  if (who === undefined || inFlight.has(who)) return
+  if (who === undefined) return
+  if (inFlight.has(who)) {
+    rerun.add(who)
+    return
+  }
   inFlight.add(who)
   try {
     await runSync(who)
@@ -69,11 +110,17 @@ export async function triggerSync(memberId?: string): Promise<void> {
     setStatus(who, { state: 'error', syncedAt: getSyncStatus(who)?.syncedAt })
   } finally {
     inFlight.delete(who)
+    if (rerun.delete(who)) void triggerSync(who)
   }
 }
 
 async function runSync(memberId: string): Promise<void> {
+  const generation = generations.get(memberId) ?? 0
+  // A member forgotten mid-run (a sign-out, a refused session) leaves no
+  // status behind and receives no writes.
+  const forgotten = () => (generations.get(memberId) ?? 0) !== generation
   const snapshot = await readMemberSnapshot(memberId)
+  if (forgotten()) return
   const hasData = snapshot.revision !== undefined
 
   if (!window.navigator.onLine) {
@@ -85,22 +132,34 @@ async function runSync(memberId: string): Promise<void> {
 
   let result: SyncResult
   try {
-    const { data, error } = await api.GET('/api/v1/sync', {
+    const { data, error, response } = await api.GET('/api/v1/sync', {
       params: {
         query: { since: snapshot.revision ?? '0' },
         header: { 'x-ohana-member': memberId },
       },
     })
     if (error !== undefined || data === undefined) {
-      // The server answered and refused: a dead session or an outage with
-      // a response. The stored data stays as it is either way.
-      setStatus(memberId, { state: 'error', syncedAt: snapshot.syncedAt })
+      // The server answered and refused. A 401 ends the member's presence
+      // on the device; a 5xx behind a restarting proxy is the server being
+      // unavailable, not an error of this device (ADR-0002); anything else
+      // is an error. The stored data stays as it is either way.
+      const status = responseStatus(response)
+      if (status === 401) {
+        forgetRefusedMember(memberId)
+        return
+      }
+      if (forgotten()) return
+      setStatus(memberId, {
+        state: status >= 500 ? 'unreachable' : 'error',
+        syncedAt: snapshot.syncedAt,
+      })
       return
     }
     result = data
   } catch {
     // The request never produced an answer: no connection, or the server
     // did not respond at all.
+    if (forgotten()) return
     setStatus(memberId, {
       state: window.navigator.onLine ? 'unreachable' : 'offline',
       syncedAt: snapshot.syncedAt,
@@ -109,7 +168,10 @@ async function runSync(memberId: string): Promise<void> {
   }
 
   try {
+    // The answer of a departed member is never written back.
+    if (forgotten()) return
     const storedRevision = await applySyncResult(memberId, result)
+    if (forgotten()) return
     setStatus(memberId, { state: 'synced', syncedAt: Date.now() })
     for (const listener of appliedListeners) listener(memberId)
 
@@ -119,6 +181,7 @@ async function runSync(memberId: string): Promise<void> {
   } catch {
     // Applying failed locally — the response was fine, the store refused
     // it. The stored data is whatever the last successful apply left.
+    if (forgotten()) return
     setStatus(memberId, { state: 'error', syncedAt: snapshot.syncedAt })
   }
 }

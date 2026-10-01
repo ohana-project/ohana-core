@@ -1,7 +1,7 @@
 import type { paths } from '@ohana/api-client'
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { ApiError, assertOk } from '@/data/api-error.ts'
+import { assertOk, responseStatus } from '@/data/api-error.ts'
 import { deleteMemberData, readMemberSnapshot } from '@/data/local-store.ts'
 import {
   getActiveMemberId,
@@ -67,6 +67,7 @@ async function offlineIdentity(memberId: string): Promise<MemberMe | undefined> 
 }
 
 export function useMemberSession() {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: memberSessionQueryKey,
     // A short stale time keeps route mounts from refetching the probe every
@@ -78,16 +79,29 @@ export function useMemberSession() {
       const memberId = getActiveMemberId()
       if (memberId === undefined) return { status: 'signed-out' }
       try {
-        const { data, error } = await api.GET('/api/v1/me')
-        await assertOk({ error })
-        if (data === undefined) return { status: 'signed-out' }
-        return { status: 'signed-in', me: data }
-      } catch (error) {
-        // The API answered and refused: signed out. Anything else never
-        // reached it — read on, from the local store.
-        if (error instanceof ApiError) throw error
+        const { data, error, response } = await api.GET('/api/v1/me')
+        if (error === undefined && data !== undefined) {
+          return { status: 'signed-in', me: data }
+        }
+        // The API answered and refused. A 5xx behind a restarting proxy is
+        // the server being unavailable, not an answer about the session —
+        // a retained sign-in keeps working from the local store (ADR-0002,
+        // issue #14). A 401 is the answer: the session is gone — revoked or
+        // expired — and the member's presence on the device goes with it,
+        // the way a sign-out would (ADR-0005). Anything else is signed out.
+        const status = responseStatus(response)
+        if (status >= 500) {
+          const identity = await offlineIdentity(memberId)
+          if (identity !== undefined) return { status: 'signed-in', me: identity }
+          return { status: 'signed-out' }
+        }
+        if (status === 401) forgetMember(queryClient, memberId)
+        return { status: 'signed-out' }
+      } catch (caught) {
+        // The request never reached the API — offline, or no answer at all:
+        // read on, from the local store.
         const identity = await offlineIdentity(memberId)
-        if (identity === undefined) throw error
+        if (identity === undefined) throw caught
         return { status: 'signed-in', me: identity }
       }
     },

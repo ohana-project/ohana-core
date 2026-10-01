@@ -6,7 +6,7 @@ import {
   memberSessionGuard,
   requireMemberActor,
 } from '../access/index.ts'
-import { SyncQuerySchema, SyncResponseSchema } from './contracts.ts'
+import { SyncQuerySchema, syncResponseSchema } from './contracts.ts'
 import { type SyncContributor, syncSince } from './service.ts'
 
 export interface SyncRoutesOptions {
@@ -15,7 +15,8 @@ export interface SyncRoutesOptions {
   /**
    * The contributors the composition root merges (architecture.md, "Sync
    * contributors"): spaces and members today, the section modules as their
-   * data lands.
+   * data lands. The response contract is composed from this list, so a
+   * section module plugs in without editing the sync module.
    */
   contributors: readonly SyncContributor[]
 }
@@ -35,7 +36,11 @@ export const syncRoutes: FastifyPluginAsyncTypebox<SyncRoutesOptions> = async (a
         schema: {
           headers: MemberHeadersSchema,
           querystring: SyncQuerySchema,
-          response: { 200: SyncResponseSchema },
+          response: {
+            200: syncResponseSchema(
+              opts.contributors.map((contributor) => contributor.changeSchema),
+            ),
+          },
         },
       },
       async (request) => {

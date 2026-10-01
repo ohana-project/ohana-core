@@ -134,6 +134,8 @@ export function useProvisionSpaceMember() {
       if (response.data === undefined) throw new ApiError('unexpected')
       return response.data
     },
+    // The new member's profile reaches the local store through the sync.
+    onSuccess: () => void triggerSync(),
     onSettled: invalidate,
   })
 }
@@ -149,6 +151,8 @@ export function useChangeSpaceMemberRole() {
       })
       await assertOk(response)
     },
+    // The member's role in the local store is refreshed through the sync.
+    onSuccess: () => void triggerSync(),
     // A refused change (last_owner) must still refresh, or the screen keeps
     // offering a change the server will refuse again.
     onSettled: (_data, _error, variables) => {

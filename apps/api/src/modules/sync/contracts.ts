@@ -1,33 +1,21 @@
-import { type Static, Type } from '@sinclair/typebox'
-import { MemberProfileDtoSchema } from '../members/index.ts'
-import { MemberSpaceDtoSchema } from '../spaces/index.ts'
+import { type Static, type TSchema, Type } from '@sinclair/typebox'
 
-/*
+/**
  * The delta-sync contract (issue #14, ADR-0014): a member hands over the
  * last revision they have seen and receives the changes and tombstones
- * since it, plus the new revision. The payload schemas are the modules'
- * own published DTOs — the sync response carries exactly what the ordinary
- * reads carry, so the client stores one shape per entity.
+ * since it, plus the new revision. The change variants live with the
+ * modules that own them — spaces and members export their change schemas,
+ * and the sync route composes the response union from the wired
+ * contributors (architecture.md, "Sync contributors"), so a section module
+ * plugs in without editing the sync module.
  */
 
-/** The cursor: a plain non-negative integer, well inside bigint range. */
+/** The cursor: a plain non-negative integer. 18 digits keep every accepted
+ * value inside the space revision's bigint range, so an out-of-range
+ * cursor is a 400 here instead of a database error later. */
 export const SyncQuerySchema = Type.Object({
-  since: Type.String({ pattern: '^[0-9]+$', maxLength: 20 }),
+  since: Type.String({ pattern: '^[0-9]+$', maxLength: 18 }),
 })
-
-export const SyncSpaceChangeSchema = Type.Object(
-  { entity: Type.Literal('space'), space: MemberSpaceDtoSchema },
-  { additionalProperties: false },
-)
-
-export const SyncMemberChangeSchema = Type.Object(
-  { entity: Type.Literal('member'), member: MemberProfileDtoSchema },
-  { additionalProperties: false },
-)
-
-export const SyncChangeSchema = Type.Union([SyncSpaceChangeSchema, SyncMemberChangeSchema])
-
-export type SyncChange = Static<typeof SyncChangeSchema>
 
 export const SyncTombstoneDtoSchema = Type.Object(
   {
@@ -41,13 +29,16 @@ export const SyncTombstoneDtoSchema = Type.Object(
 
 export type SyncTombstoneDto = Static<typeof SyncTombstoneDtoSchema>
 
-export const SyncResponseSchema = Type.Object(
-  {
-    revision: Type.String({ pattern: '^[0-9]+$' }),
-    changes: Type.Array(SyncChangeSchema),
-    tombstones: Type.Array(SyncTombstoneDtoSchema),
-  },
-  { additionalProperties: false },
-)
-
-export type SyncResponseDto = Static<typeof SyncResponseSchema>
+/** The response contract for one set of wired contributors. */
+export function syncResponseSchema(changeSchemas: readonly TSchema[]): TSchema {
+  return Type.Object(
+    {
+      revision: Type.String({ pattern: '^[0-9]+$' }),
+      changes: Type.Array(
+        changeSchemas.length > 0 ? Type.Union([...changeSchemas]) : Type.Unknown(),
+      ),
+      tombstones: Type.Array(SyncTombstoneDtoSchema),
+    },
+    { additionalProperties: false },
+  )
+}

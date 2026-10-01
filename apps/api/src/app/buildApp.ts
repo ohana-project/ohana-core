@@ -18,7 +18,7 @@ import {
 import { membersRoutes } from '../modules/members/routes.ts'
 import { spacesSyncContributor } from '../modules/spaces/index.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
-import { syncRoutes } from '../modules/sync/index.ts'
+import { syncRoutes } from '../modules/sync/routes.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
@@ -90,7 +90,9 @@ export function buildApp(deps: AppDeps) {
   // The sync module merges the contributors of every module with
   // synchronised data; spaces and members contribute today, the section
   // modules join when their data lands (architecture.md, "Sync
-  // contributors").
+  // contributors"). The route plugin is imported directly, like the other
+  // routes here, so the sync module's public surface stays free of the
+  // response contract and no module cycle can close through it.
   app.register(syncRoutes, {
     prefix: '/api/v1',
     deps: accessDeps,

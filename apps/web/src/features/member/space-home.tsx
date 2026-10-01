@@ -130,7 +130,14 @@ export function SpaceHomeScreen() {
           </h1>
         </header>
 
-        {!hasData ? (
+        {snapshot.isPending ? (
+          // The partition read is quick, but it is the honest first state.
+          <div className="grid place-items-center py-10">
+            <Spinner className="size-6" />
+          </div>
+        ) : snapshot.isError ? (
+          <ErrorState onRetry={() => void snapshot.refetch()} />
+        ) : !hasData ? (
           <Card>
             <Empty>
               <EmptyMedia>
@@ -172,40 +179,32 @@ export function SpaceHomeScreen() {
 
             <section>
               <SectionHeader title={t('member.home.membersSection')} />
-              {snapshot.isPending ? (
-                <div className="grid place-items-center py-10">
-                  <Spinner className="size-6" />
-                </div>
-              ) : snapshot.isError ? (
-                <ErrorState onRetry={() => void snapshot.refetch()} />
-              ) : (
-                <Card className="py-0">
-                  <ItemGroup>
-                    {snapshot.data?.members.map((profile) => {
-                      const profileName = profile.displayName ?? profile.name
-                      const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
-                      return (
-                        <Item key={profile.id} size="lg">
-                          <Avatar size="sm" hue={hueFromId(profile.id)}>
-                            <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
-                          </Avatar>
-                          <ItemContent>
-                            <ItemTitle>{profileName}</ItemTitle>
-                            {contacts.length > 0 ? (
-                              <ItemDescription>{contacts}</ItemDescription>
-                            ) : null}
-                          </ItemContent>
-                          <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
-                            {profile.role === 'owner'
-                              ? t('admin.space.ownerPill')
-                              : t('admin.space.regularPill')}
-                          </Badge>
-                        </Item>
-                      )
-                    })}
-                  </ItemGroup>
-                </Card>
-              )}
+              <Card className="py-0">
+                <ItemGroup>
+                  {snapshot.data?.members.map((profile) => {
+                    const profileName = profile.displayName ?? profile.name
+                    const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
+                    return (
+                      <Item key={profile.id} size="lg">
+                        <Avatar size="sm" hue={hueFromId(profile.id)}>
+                          <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
+                        </Avatar>
+                        <ItemContent>
+                          <ItemTitle>{profileName}</ItemTitle>
+                          {contacts.length > 0 ? (
+                            <ItemDescription>{contacts}</ItemDescription>
+                          ) : null}
+                        </ItemContent>
+                        <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
+                          {profile.role === 'owner'
+                            ? t('admin.space.ownerPill')
+                            : t('admin.space.regularPill')}
+                        </Badge>
+                      </Item>
+                    )
+                  })}
+                </ItemGroup>
+              </Card>
             </section>
           </>
         )}

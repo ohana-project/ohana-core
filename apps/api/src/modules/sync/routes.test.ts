@@ -316,6 +316,47 @@ describe('GET /api/v1/sync', () => {
       // A hide writes no per-row tombstones (ADR-0011, ADR-0014): the client
       // drops the hidden section's rows when it applies the new map.
       expect(delta.tombstones).toEqual([])
+
+      const show = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/space',
+        payload: { sections: { journal: true } },
+        headers: memberHeaders(owner),
+      })
+      expect(show.statusCode).toBe(200)
+
+      // The client that saw the re-show discards its cursor and syncs from
+      // revision 0 once (ADR-0014): the response then carries the section's
+      // full data again — the space and every member row.
+      const resync = await sync(app, owner, '0')
+      expect(resync.changes).toEqual([
+        {
+          entity: 'space',
+          space: {
+            id: space.id,
+            name: space.name,
+            timezone: 'UTC',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+        { entity: 'member', member: expect.objectContaining({ id: owner.memberId, name: 'Аня' }) },
+      ])
+    })
+  })
+
+  test('a cursor ahead of the space revision answers empty and truthful', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const owner = await memberSession(app, adminCookie, space.id, 'Аня', 'owner')
+
+      // A client whose cursor is above the server revision (a restored
+      // database, say) gets an empty delta — never older rows it cannot
+      // apply — and the revision to keep.
+      const result = await sync(app, owner, '999999999999999999')
+      expect(result.changes).toEqual([])
+      expect(result.tombstones).toEqual([])
+      expect(BigInt(result.revision)).toBe(await spaceRevision(space.id))
     })
   })
 
@@ -324,7 +365,15 @@ describe('GET /api/v1/sync', () => {
       const adminCookie = await signInAdmin(app)
       const space = await harness.createSpace()
       const owner = await memberSession(app, adminCookie, space.id, 'Аня', 'owner')
-      for (const since of ['-1', '1.5', 'abc', '99999999999999999999999999']) {
+      // 18 digits fit the space revision's bigint; beyond that the request
+      // is refused here instead of failing in the database.
+      for (const since of [
+        '-1',
+        '1.5',
+        'abc',
+        '9223372036854775808',
+        '99999999999999999999999999',
+      ]) {
         const response = await app.inject({
           method: 'GET',
           url: `/api/v1/sync?since=${since}`,
@@ -332,6 +381,13 @@ describe('GET /api/v1/sync', () => {
         })
         expect(response.statusCode).toBe(400)
       }
+      // The largest accepted cursor is a valid request.
+      const largest = await app.inject({
+        method: 'GET',
+        url: '/api/v1/sync?since=999999999999999999',
+        headers: memberHeaders(owner),
+      })
+      expect(largest.statusCode).toBe(200)
     })
   })
 })

@@ -2676,7 +2676,7 @@
           {
             "schema": {
               "pattern": "^[0-9]+$",
-              "maxLength": 20,
+              "maxLength": 18,
               "type": "string"
             },
             "in": "query",

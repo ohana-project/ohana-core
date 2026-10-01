@@ -1,6 +1,6 @@
 import type { Tx } from '../../platform/db/index.ts'
 import type { SyncContribution, SyncContributor } from '../sync/index.ts'
-import { toMemberSpaceDto } from './contracts.ts'
+import { SpaceSyncChangeSchema, toMemberSpaceDto } from './contracts.ts'
 import { getSpaceById } from './repository.ts'
 
 /*
@@ -12,14 +12,18 @@ import { getSpaceById } from './repository.ts'
  * applies the new map, and resyncs from revision 0 once when a section
  * comes back (architecture.md, "Visibility changes").
  */
-export const spacesSyncContributor: SyncContributor = async (
-  tx: Tx,
-  actor: { spaceId: string },
-  since: bigint,
-): Promise<SyncContribution> => {
-  const space = await getSpaceById(tx, actor.spaceId)
-  if (space === undefined || space.revision <= since) {
-    return { upserts: [], tombstones: [] }
-  }
-  return { upserts: [{ entity: 'space', space: toMemberSpaceDto(space) }], tombstones: [] }
+export const spacesSyncContributor: SyncContributor = {
+  changeSchema: SpaceSyncChangeSchema,
+  entities: ['space'],
+  changesSince: async (
+    tx: Tx,
+    actor: { spaceId: string },
+    since: bigint,
+  ): Promise<SyncContribution> => {
+    const space = await getSpaceById(tx, actor.spaceId)
+    if (space === undefined || space.revision <= since) {
+      return { upserts: [], tombstones: [] }
+    }
+    return { upserts: [{ entity: 'space', space: toMemberSpaceDto(space) }], tombstones: [] }
+  },
 }

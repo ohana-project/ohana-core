@@ -1,6 +1,7 @@
 export {
   type MemberSpaceDto,
   MemberSpaceDtoSchema,
+  SpaceSyncChangeSchema,
   toMemberSpaceDto,
 } from './contracts.ts'
 export {

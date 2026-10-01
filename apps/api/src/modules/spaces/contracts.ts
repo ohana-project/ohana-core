@@ -108,6 +108,12 @@ export function toMemberSpaceDto(space: Space): MemberSpaceDto {
   }
 }
 
+/** The space's change in the sync response (issue #14): the row with its sections map. */
+export const SpaceSyncChangeSchema = Type.Object(
+  { entity: Type.Literal('space'), space: MemberSpaceDtoSchema },
+  { additionalProperties: false },
+)
+
 export const UpdateMemberSpaceBodySchema = Type.Object(
   {
     timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),

@@ -105,9 +105,11 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
 type MetaRow = { key: 'cursor'; revision: string } | { key: 'syncedAt'; at: number }
 
 /**
- * Applies a sync response in one transaction: the upserts land, the
- * tombstoned rows go, and the cursor is written with them — so an
- * interrupted apply leaves the previous revision and is simply retried.
+ * Applies a sync response in one transaction: the tombstoned rows go, the
+ * upserts land over them, and the cursor is written with both — so an
+ * interrupted apply leaves the previous revision and is simply retried,
+ * and a row delivered with both an upsert and a tombstone in one response
+ * ends up stored.
  *
  * When the new sections map shows a section that was hidden before, the
  * cursor is written as 0 instead of the response's revision (ADR-0014):
@@ -133,12 +135,16 @@ export async function applySyncResult(memberId: string, result: SyncResult): Pro
       previousRequest.onsuccess = () => {
         const previous = previousRequest.result[0] as StoredSpace | undefined
 
+        // Tombstones go first: within one response, an upsert of a row is
+        // the newer fact (the contributor's rows are what exists now), so
+        // it must outrank a tombstone of the same row — a resync from
+        // revision 0 replays the space's whole tombstone history.
+        for (const tombstone of result.tombstones) {
+          if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
+        }
         for (const change of result.changes) {
           if (change.entity === 'space') spaceStore.put(change.space)
           if (change.entity === 'member') memberStore.put(change.member)
-        }
-        for (const tombstone of result.tombstones) {
-          if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
         }
 
         let revision = result.revision

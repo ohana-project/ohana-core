@@ -1,6 +1,7 @@
 export {
   type MemberProfileDto,
   MemberProfileDtoSchema,
+  MemberSyncChangeSchema,
   MeSchema,
   OnboardingBodySchema,
   toMemberProfileDto,

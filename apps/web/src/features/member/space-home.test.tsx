@@ -268,12 +268,12 @@ describe('SpaceHomeScreen', () => {
       response: new Response(null, { status: 204 }),
     })
     const user = userEvent.setup()
-    renderWithProviders(<SpaceHomeScreen />)
+    const { container } = renderWithProviders(<SpaceHomeScreen />)
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
-    // The session probe and the first sync settle before the menu opens,
-    // so no re-render replaces the trigger under the pointer mid-interaction.
-    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+    // The session probe and the sync runs settle before the menu opens, so
+    // no re-render replaces the trigger under the pointer mid-interaction.
+    await vi.waitFor(() => expect(chipState(container)).toBe('synced'))
     apiGet.mockClear()
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     // The menu mounts into a portal; under jsdom it can land outside the
@@ -312,8 +312,8 @@ describe('SpaceHomeScreen', () => {
     renderWithProviders(<SpaceHomeScreen />)
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
-    // The session probe and the first sync settle before the menu opens.
-    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+    // The session probe and the sync runs settle before the menu opens.
+    await vi.waitFor(() => expect(screen.getByText('Миша')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     await user.click(await screen.findByText('Выйти'))
 

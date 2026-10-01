@@ -115,6 +115,29 @@ describe('the per-member local store', () => {
     expect(snapshot.revision).toBe('9')
   })
 
+  test('an upsert outranks a tombstone of the same row in one response', async () => {
+    // A resync from revision 0 replays the space's whole tombstone history
+    // next to the current rows; the stored row must be the current one.
+    await applySyncResult(ANYA, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'member',
+          member: {
+            id: MISHA_ID,
+            name: 'Миша',
+            role: 'regular',
+            createdAt: '2026-08-14T10:00:00.000Z',
+          },
+        },
+      ],
+      tombstones: [{ entity: 'member', entityId: MISHA_ID, audience: 'all' }],
+    })
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.members.map((member) => member.id)).toEqual([MISHA_ID])
+  })
+
   test('a section shown again resets the cursor to 0 inside the same apply', async () => {
     await applySyncResult(ANYA, syncResult())
 

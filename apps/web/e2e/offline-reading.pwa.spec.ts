@@ -140,5 +140,5 @@ test('the space opens offline from the data the sync brought', async ({ page, co
     'offline',
   )
   // Both shells carry the chip; the first wording is enough.
-  await expect(page.getByText('Офлайн — изменения сохраняются локально').first()).toBeVisible()
+  await expect(page.getByText('Офлайн — показаны сохранённые данные').first()).toBeVisible()
 })

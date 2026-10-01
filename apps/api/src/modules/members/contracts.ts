@@ -94,6 +94,12 @@ export function toMemberProfileDto(member: Member): MemberProfileDto {
   }
 }
 
+/** A member's change in the sync response (issue #14): the published profile. */
+export const MemberSyncChangeSchema = Type.Object(
+  { entity: Type.Literal('member'), member: MemberProfileDtoSchema },
+  { additionalProperties: false },
+)
+
 export const MeSchema = Type.Object(
   {
     member: MemberProfileDtoSchema,
