@@ -1,5 +1,6 @@
 import { cn } from 'cn'
 import type * as React from 'react'
+import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
 import type { ShellSection, ShellSyncState, ShellUserMenuItem, SpaceSummary } from '@/ui/shell.ts'
 import { Sidebar } from '@/ui/sidebar.tsx'
 import { TabBar } from '@/ui/tab-bar.tsx'
@@ -74,6 +75,7 @@ export function MemberLayout({
             width === 'wide' && 'max-w-[var(--content-w-wide)]',
           )}
         >
+          <UpdatePrompt className="pt-4" />
           {children}
         </main>
       </div>

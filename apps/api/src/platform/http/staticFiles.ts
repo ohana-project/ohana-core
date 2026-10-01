@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { join, sep } from 'node:path'
+import { basename, join, sep } from 'node:path'
 import fastifyStatic from '@fastify/static'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
@@ -18,6 +18,10 @@ export async function registerStaticFiles(
     setHeaders: (reply, filePath) => {
       if (filePath.includes(`${sep}assets${sep}`)) {
         reply.header('cache-control', 'public, max-age=31536000, immutable')
+      } else if (basename(filePath) === 'sw.js') {
+        // Explicit so no proxy or older browser ever serves a stale worker
+        // script; the browser revalidates it on every update check.
+        reply.header('cache-control', 'no-cache')
       }
     },
   })

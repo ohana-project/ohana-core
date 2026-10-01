@@ -12,8 +12,15 @@ describe('SPA static files', () => {
     harness = await createTestHarness()
     webDist = await mkdtemp(join(tmpdir(), 'ohana-web-'))
     await mkdir(join(webDist, 'assets'), { recursive: true })
+    await mkdir(join(webDist, 'icons'), { recursive: true })
     await writeFile(join(webDist, 'index.html'), '<!doctype html><title>Ohana</title>')
     await writeFile(join(webDist, 'assets', 'app-C1234.js'), 'console.log("app")')
+    await writeFile(join(webDist, 'sw.js'), '// the service worker')
+    await writeFile(
+      join(webDist, 'manifest.webmanifest'),
+      JSON.stringify({ name: 'Ohana', display: 'standalone' }),
+    )
+    await writeFile(join(webDist, 'icons', 'pwa-192.png'), 'png-bytes')
   })
 
   afterAll(async () => {
@@ -47,6 +54,29 @@ describe('SPA static files', () => {
       expect(response.headers['content-type']).toContain('javascript')
       expect(response.headers['cache-control']).toContain('immutable')
       expect(response.body).toBe('console.log("app")')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('serves the PWA artefacts the browser needs to install the app', async () => {
+    const app = await buildAppWithWebDist()
+    try {
+      // Explicit so no proxy or older browser ever serves a stale worker
+      // script; the browser revalidates it on every update check.
+      const worker = await app.inject({ method: 'GET', url: '/sw.js' })
+      expect(worker.statusCode).toBe(200)
+      expect(worker.headers['content-type']).toContain('javascript')
+      expect(worker.headers['cache-control']).toBe('no-cache')
+
+      const manifest = await app.inject({ method: 'GET', url: '/manifest.webmanifest' })
+      expect(manifest.statusCode).toBe(200)
+      expect(manifest.headers['content-type']).toContain('json')
+      expect(manifest.json().display).toBe('standalone')
+
+      const icon = await app.inject({ method: 'GET', url: '/icons/pwa-192.png' })
+      expect(icon.statusCode).toBe(200)
+      expect(icon.headers['content-type']).toContain('png')
     } finally {
       await app.close()
     }

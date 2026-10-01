@@ -8,7 +8,7 @@ import { Logo } from '@/ui/logo.tsx'
  * Ohana auth frame (`.auth` in the prototype): a centred column up to
  * 420px with the logo on top and a footer note.
  */
-export function AuthLayout({
+export function AuthFrame({
   children,
   footer,
   className,
@@ -21,7 +21,7 @@ export function AuthLayout({
 
   return (
     <div
-      data-slot="auth-layout"
+      data-slot="auth-frame"
       className={cn('flex min-h-dvh flex-col items-center justify-center px-5 py-8', className)}
     >
       <div className="w-full max-w-[420px]">

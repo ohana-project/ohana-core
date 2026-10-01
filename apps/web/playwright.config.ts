@@ -7,6 +7,9 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
+  // The shell specs (*.pwa.spec.ts) run against a production build through
+  // playwright.pwa.config.ts, not against this dev server.
+  testIgnore: '**/*.pwa.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

@@ -1,24 +1,21 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
-import { CodeEntryForm } from '@/features/signin/code-entry-form.tsx'
-import { AuthLayout } from '@/ui/auth-layout.tsx'
+import { SignInScreen } from '@/features/signin/signin-screen.tsx'
 
 /*
- * The member sign-in screen (docs/design/screens/code-entry.html): the
- * access code is the only credential. The screen stays reachable for a
- * member who is already signed in — a device keeps several independent
- * sign-ins, and entering another code adds one more (ADR-0005).
+ * The member sign-in route (docs/design/screens/code-entry.html and
+ * install.html): the access code is the only credential, and on iOS and
+ * iPadOS Safari the install-first screen comes before it (ADR-0005). The
+ * screen stays reachable for a member who is already signed in — a device
+ * keeps several independent sign-ins, and entering another code adds one
+ * more (issue #9).
  */
 function SignInPage() {
-  const { t } = useTranslation()
   const navigate = useNavigate()
 
   return (
-    <AuthLayout footer={t('signin.footer')}>
-      <CodeEntryForm
-        onSignedIn={(result) => void navigate({ to: result.needsOnboarding ? '/onboarding' : '/' })}
-      />
-    </AuthLayout>
+    <SignInScreen
+      onSignedIn={(result) => void navigate({ to: result.needsOnboarding ? '/onboarding' : '/' })}
+    />
   )
 }
 

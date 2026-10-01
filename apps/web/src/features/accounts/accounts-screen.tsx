@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AuthLayout } from '@/app/layouts/auth-layout.tsx'
 import { ApiError } from '@/data/api-error.ts'
 import { getActiveMemberId, listStoredSessions } from '@/data/session-registry.ts'
 import {
@@ -16,7 +17,6 @@ import {
   useSwitchMember,
 } from '@/features/member/use-member-session.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
-import { AuthLayout } from '@/ui/auth-layout.tsx'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'

@@ -15,7 +15,7 @@ import { toast } from '@/ui/toast.tsx'
  * button. A wrong code marks the field invalid and shakes.
  */
 
-type RedeemResult = {
+export type RedeemResult = {
   member: { id: string; name: string; displayName?: string; role: 'owner' | 'regular' }
   space: { id: string; name: string }
   needsOnboarding: boolean
