@@ -3,14 +3,18 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/data/api-error.ts'
-import { getActiveMemberId, listStoredSessions, removeSession } from '@/data/session-registry.ts'
+import { getActiveMemberId, listStoredSessions } from '@/data/session-registry.ts'
 import {
   type MemberSessionRow,
   memberSessionsQueryKey,
   useMemberSessions,
   useRevokeMemberSession,
 } from '@/features/accounts/use-member-sessions.ts'
-import { useMemberSignOut, useSwitchMember } from '@/features/member/use-member-session.ts'
+import {
+  forgetMember,
+  useMemberSignOut,
+  useSwitchMember,
+} from '@/features/member/use-member-session.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { AuthLayout } from '@/ui/auth-layout.tsx'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -69,7 +73,9 @@ export function AccountsScreen() {
   const retained = listStoredSessions()
   const active = retained.find((entry) => entry.memberId === activeId)
 
-  const sessions = useMemberSessions()
+  // The review and the way out are pinned to this screen's active member,
+  // not to whichever member is active in the registry by request time.
+  const sessions = useMemberSessions(activeId)
   const revoke = useRevokeMemberSession()
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [revoking, setRevoking] = useState<MemberSessionRow | undefined>(undefined)
@@ -110,12 +116,8 @@ export function AccountsScreen() {
           if (wasCurrent) {
             // Ending the session that this device is using is also a
             // sign-out: the member's local data goes with it, exactly like
-            // signing out. The departed member's queries are dropped, not
-            // reset — their headers are pinned, so a refetch under that
-            // name could only be refused.
-            removeSession(activeId)
-            queryClient.removeQueries({ queryKey: ['member', activeId] })
-            void queryClient.resetQueries()
+            // signing out.
+            forgetMember(queryClient, activeId)
             void navigate({ to: '/' })
           } else {
             // Another device lost access; only this list changes.
@@ -286,7 +288,7 @@ export function AccountsScreen() {
                 variant="destructive"
                 disabled={signOut.isPending}
                 onClick={() =>
-                  signOut.mutate(undefined, {
+                  signOut.mutate(active.memberId, {
                     onSuccess: () => {
                       setSignOutOpen(false)
                       // The registry falls back to another retained

@@ -1,7 +1,7 @@
 import type { paths } from '@ohana/api-client'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { ApiError, assertOk } from '@/data/api-error.ts'
+import { assertOk } from '@/data/api-error.ts'
 import {
   getActiveMemberId,
   removeSession,
@@ -104,37 +104,40 @@ export function useSwitchMember() {
 }
 
 /**
- * Forgets the active sign-in after the API deletes its session. Only the
- * signed-out member's local data goes: the registry entry of that member
- * and the cached server data it produced. Another retained sign-in (with
- * its cookie still in the browser) becomes active; with none left the
- * member gate sends the visitor to the code screen.
+ * Forgets a member on this device: the registry entry goes, and the
+ * remaining queries reset — except the departing member's own, which are
+ * left unreachable instead of reset. Their headers are pinned to the
+ * member, so a refetch under that name could only be refused; the stale
+ * answers sit under member-scoped keys no other member can match until
+ * the device unmounts them and the cache collects them. The registry
+ * changes before the reset, so the next render can only rebuild queries
+ * for whoever is active now. Called after the API has ended the member's
+ * session (sign-out, or revoking the session this device is using).
+ */
+export function forgetMember(queryClient: QueryClient, memberId: string): void {
+  removeSession(memberId)
+  void queryClient.resetQueries({
+    predicate: (query) => query.queryKey[1] !== memberId,
+  })
+}
+
+/**
+ * Signs the given member out after the API deletes their session. The
+ * member travels with the mutation, so the request and the cleanup always
+ * concern the member the dialog named — never whoever is active by the
+ * time the request goes out. A failed request keeps the entry so the
+ * member can retry.
  */
 export function useMemberSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
-      const memberId = getActiveMemberId()
-      if (memberId === undefined) throw new ApiError('unexpected')
-      // The member is named explicitly: signing out acts on exactly the
-      // member whose entry the success handler will drop.
+    mutationFn: async (memberId: string): Promise<string> => {
       const response = await api.DELETE('/api/v1/me/session', {
         params: { header: { 'x-ohana-member': memberId } },
       })
       await assertOk(response)
       return memberId
     },
-    // Only success forgets the sign-in, and it forgets the member the
-    // request was sent for, not whichever one is active by the time it
-    // settles. A failed request keeps the entry so the member can retry.
-    onSuccess: (memberId) => {
-      removeSession(memberId)
-      // The departing member's queries are dropped, not reset: their
-      // headers are pinned, so a refetch under that name could only be
-      // refused. The reset refreshes the rest — another retained member's
-      // screens, or the probe that now answers signed out.
-      queryClient.removeQueries({ queryKey: ['member', memberId] })
-      void queryClient.resetQueries()
-    },
+    onSuccess: (memberId) => forgetMember(queryClient, memberId),
   })
 }

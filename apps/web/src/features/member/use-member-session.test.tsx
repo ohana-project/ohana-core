@@ -17,7 +17,6 @@ import { memberSessionQueryKey, useRedeemedSignIn } from './use-member-session.t
 const SPACE = { id: 's-1', name: 'Наша семья' }
 const PROFILES_KEY = ['member', 'm-1', 'profiles'] as const
 const PROFILES = [{ id: 'm-1', name: 'Аня' }]
-const PROBE_KEY = memberSessionQueryKey
 
 let probeClient: ReturnType<typeof useQueryClient> | undefined
 
@@ -61,10 +60,12 @@ describe('useRedeemedSignIn cache boundaries', () => {
     renderWithProviders(<SignInProbe member={{ id: 'm-1', name: 'Аня' }} />)
 
     client().setQueryData(PROFILES_KEY, PROFILES)
-    client().setQueryData(PROBE_KEY, { status: 'signed-in' })
+    client().setQueryData(memberSessionQueryKey, { status: 'signed-in' })
     await user.click(screen.getByRole('button', { name: 'sign-in' }))
 
-    await vi.waitFor(() => expect(client().getQueryState(PROBE_KEY)?.isInvalidated).toBe(true))
+    await vi.waitFor(() =>
+      expect(client().getQueryState(memberSessionQueryKey)?.isInvalidated).toBe(true),
+    )
     expect(client().getQueryData(PROFILES_KEY)).toEqual(PROFILES)
   })
 })

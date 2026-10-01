@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
 import { renameSession } from '@/data/session-registry.ts'
-import type { MemberMe } from '@/features/member/use-member-session.ts'
+import { type MemberMe, memberSessionQueryKey } from '@/features/member/use-member-session.ts'
 import { storeLocale } from '@/lib/locale-storage.ts'
 import { Button } from '@/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
@@ -57,7 +57,7 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
       renameSession(me.member.id, displayName.trim() || undefined)
       // The session probe carries the member's profile; the next screen
       // must greet the member by their new name, not the pre-onboarding one.
-      await queryClient.invalidateQueries({ queryKey: ['member', 'session'] })
+      await queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
       onCompleted()
     },
     onError: (error) => setErrorText(onboardingErrorMessage(error, t)),

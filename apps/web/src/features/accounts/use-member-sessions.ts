@@ -2,14 +2,15 @@ import type { paths } from '@ohana/api-client'
 import { skipToken, useMutation, useQuery } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { assertOk } from '@/data/api-error.ts'
-import { getActiveMemberId } from '@/data/session-registry.ts'
 
 /*
- * The device review (issue #10, ADR-0005): the active member's server-side
+ * The device review (issue #10, ADR-0005): a member's server-side
  * sessions. Like the profile listing, this is online-only data — ordinary
- * queries, not the synchronised store. Without an active member the query
- * is disabled outright (skipToken): /accounts deliberately renders without
- * a gate, and a request that names no member could only be refused.
+ * queries, not the synchronised store. Without a member the query is
+ * disabled outright (skipToken): /accounts deliberately renders without a
+ * gate, and a request that names no member could only be refused. The
+ * member arrives from the caller, so one source of truth answers for both
+ * the screen and the requests.
  */
 
 /** One row of GET /me/sessions, taken from the generated contract. */
@@ -21,8 +22,7 @@ export function memberSessionsQueryKey(memberId: string | undefined) {
   return ['member', memberId, 'sessions'] as const
 }
 
-export function useMemberSessions() {
-  const memberId = getActiveMemberId()
+export function useMemberSessions(memberId: string | undefined) {
   return useQuery({
     queryKey: memberSessionsQueryKey(memberId),
     // The header is pinned to this key's member, not re-read at request

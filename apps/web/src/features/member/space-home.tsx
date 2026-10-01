@@ -78,7 +78,7 @@ export function SpaceHomeScreen() {
       icon: 'log-out',
       danger: true,
       onSelect: () =>
-        signOut.mutate(undefined, {
+        signOut.mutate(me.member.id, {
           // A failed sign-out keeps the member signed in; it must not look
           // like the menu did nothing.
           onError: () => toast(t('member.home.signOutFailed'), 'danger'),

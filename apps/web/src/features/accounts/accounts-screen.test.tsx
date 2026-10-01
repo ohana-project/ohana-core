@@ -251,6 +251,7 @@ describe('AccountsScreen', () => {
     renderWithProviders(<AccountsScreen />)
 
     await screen.findByText('Chrome на Windows')
+    apiGet.mockClear()
     await user.click(screen.getByRole('button', { name: 'Выйти из «Наша семья»' }))
     await user.click(await screen.findByRole('button', { name: /Выйти$/ }))
 
@@ -265,6 +266,11 @@ describe('AccountsScreen', () => {
         DACHA_ANYA,
       ])
       expect(window.localStorage.getItem('ohana.activeMember')).toBe(DACHA_ANYA.memberId)
+    })
+    // The departed member's list is dropped, not refetched: its header is
+    // pinned and the session is gone, so the request could only be refused.
+    expect(apiGet).not.toHaveBeenCalledWith('/api/v1/me/sessions', {
+      params: { header: { 'x-ohana-member': FAMILY_ANYA.memberId } },
     })
   })
 
