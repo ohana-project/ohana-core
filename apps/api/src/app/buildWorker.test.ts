@@ -56,10 +56,12 @@ describe('buildWorker', () => {
       // Its clock stands past the retention, so the purge is due whenever
       // the handler runs: the job is claimable the moment the trash
       // commits, and the test must not race the worker's first poll for a
-      // clock advance.
+      // clock advance. The service below keeps the harness's clock — the
+      // two clocks in one test are deliberate.
+      const workerClock = fixedClock(new Date(harness.clock.now().getTime() + 31 * DAY_MS))
       const worker = buildWorker({
         db: harness.db,
-        clock: fixedClock(new Date(harness.clock.now().getTime() + 31 * DAY_MS)),
+        clock: workerClock,
         logger: createSilentLogger(),
         boss,
       })
@@ -79,9 +81,17 @@ describe('buildWorker', () => {
       // The start-after must sit in the database's real past for the job to
       // be runnable the moment the worker polls; the harness epoch plus the
       // default retention guarantees it.
-      expect(purgeAt.getTime(), 'harness epoch + retention must be in the real past').toBeLessThan(
-        Date.now(),
-      )
+      expect(
+        purgeAt.getTime(),
+        'purgeAt is in the real future: pg-boss will not release the job before the wait times out',
+      ).toBeLessThan(Date.now())
+      // And the worker's clock must already have the entry due: a default
+      // retention that grew past the offset above would otherwise surface
+      // only as that same timeout.
+      expect(
+        purgeAt.getTime(),
+        'the worker clock stands before the deletion date: the handler answers not-due and the wait times out',
+      ).toBeLessThanOrEqual(workerClock.now().getTime())
 
       // The wait is bounded, and the queue's own rows tell the story when
       // it times out.
