@@ -617,9 +617,9 @@ describe('the section gate (a stand-in journal route until the section modules a
 
       // A hide that has locked the space row but not committed yet. The
       // gate reads the last committed state and passes; the write's
-      // in-transaction check then blocks on the space row lock — which a
-      // plain read would not do — and sees the hidden row once the hide
-      // commits.
+      // in-transaction check blocks on the space row lock and decides only
+      // after the hide commits — a plain read would decide from the
+      // pre-hide snapshot, queue later at the revision bump, and write.
       let commitHide!: () => void
       const hideCommitted = new Promise<void>((resolve) => {
         commitHide = resolve
@@ -636,30 +636,44 @@ describe('the section gate (a stand-in journal route until the section modules a
         await hideCommitted
       })
 
+      let pendingWrite:
+        | Promise<{
+            statusCode: number
+            json: () => { error?: { code?: string } }
+          }>
+        | undefined
       try {
-        const pendingWrite = app.inject({
+        pendingWrite = app.inject({
           method: 'POST',
           url: '/api/v1/journal',
           headers: memberHeaders(session),
           payload: { body: 'ждёт блокировку' },
         })
-        // The write's lock request is queued behind the hide.
-        await vi.waitFor(async () => {
-          const result = await harness.db.execute(sql`
-            select 1 from pg_locks where not granted limit 1
-          `)
-          if (result.rows.length === 0) throw new Error('The write is not waiting yet')
-        })
+        // The write is queued on the hide's row lock: a row lock waiter
+        // shows as an ungranted transactionid lock, and the hide is the
+        // only other transaction in this test.
+        await vi.waitFor(
+          async () => {
+            const result = await harness.db.execute(sql`
+              select 1 from pg_locks
+              where locktype = 'transactionid' and not granted
+              limit 1
+            `)
+            if (result.rows.length === 0) throw new Error('The write is not waiting yet')
+          },
+          { timeout: 10_000, interval: 25 },
+        )
         commitHide()
         await hideTx
 
         const written = await pendingWrite
         expect(written.statusCode).toBe(404)
-        expect(written.json().error.code).toBe('section_hidden')
+        expect(written.json().error?.code).toBe('section_hidden')
         expect(await countScratchRows(space.id)).toBe(0)
       } finally {
         commitHide()
         await hideTx.catch(() => {})
+        await pendingWrite?.catch(() => {})
       }
     })
   })

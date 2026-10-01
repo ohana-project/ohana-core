@@ -122,7 +122,7 @@ The sync conventions below are established in the foundation and must not be byp
 - The `spaces` module contributes the space row (name, time zone, `sections`) as an upsert whenever `spaces.revision` is newer than the cursor, so section visibility reaches offline clients (ADR-0011, ADR-0014).
 - The sync module merges contributors and returns `{ revision, changes }`.
 
-**Visibility changes:** when something stops being visible to a member (an entry is trashed, a member is archived), the transaction writes tombstones for the affected audience. Hiding a section is the exception (ADR-0011, ADR-0014): the sections map travels on the space row inside the sync response, so a hide writes no per-row tombstones — the client drops a hidden section's rows when it applies the new map, and the client that sees a section go from hidden to visible discards its cursor and syncs from revision 0 once, because a delta cannot carry rows older than its cursor.
+**Visibility changes:** when something stops being visible to a member (an entry is trashed, a member is archived), the transaction writes tombstones for the affected audience. Hiding a section is the exception (ADR-0011, ADR-0014): the sections map travels on the space row inside the sync response, so a hide writes no per-row tombstones — the client drops a hidden section's rows when it applies the new map, and the client that sees a section go from hidden to visible discards its cursor and syncs from revision 0 once, because a delta cannot carry rows older than its cursor; the reset is stored in the same local-store transaction that applies the new map (the cursor is written as 0 instead of the response's revision), so an interrupted resync restarts from 0.
 
 ### Background jobs
 

@@ -166,8 +166,10 @@ export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): 
 }
 
 /**
- * Module-internal: only the section gate calls it, with the pool (deps.db).
- * Section modules get requireVisibleSectionInTx from index.ts.
+ * Throws 404 `section_hidden` unless the space shows the section; a
+ * lock-free read. Module-internal: only the section gate calls it, with
+ * the pool (deps.db). Section modules get requireVisibleSectionInTx from
+ * index.ts.
  */
 export async function requireVisibleSection(
   executor: Executor,
