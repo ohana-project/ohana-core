@@ -54,11 +54,13 @@ export interface MemberSnapshot {
   /**
    * The sections whose full data the device has promised to fetch again but
    * has not yet: a re-shown section or a store upgrade wrote the replay
-   * promise (cursor '0'), and the replay has not landed (ADR-0014). A
-   * screen whose section is here says "nothing downloaded" instead of
-   * showing the partial rows an interrupted replay left.
+   * promise (cursor '0'), and the replay has not landed (ADR-0014). List
+   * screens whose section is here say "nothing downloaded" instead of
+   * showing the partial rows an interrupted replay left; a screen showing
+   * one row may still show a row it holds — real, the server having
+   * filtered it — without claiming anything about the rest.
    */
-  pendingReplay: string[]
+  pendingReplay: Array<keyof StoredSpace['sections']>
 }
 
 const DB_PREFIX = 'ohana.sync.'
@@ -110,6 +112,8 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
           read.onsuccess = () => {
             if (read.result !== undefined) {
               meta.put({ key: 'cursor', revision: '0' })
+              // v1 to v2 adds the journal; a later upgrade that adds a
+              // store must merge with a promise this write may find open.
               meta.put({ key: 'pendingReplay', sections: ['journal'] })
             }
           }
@@ -170,7 +174,9 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
     const syncedAt = meta.find((row) => row.key === 'syncedAt')?.at as number | undefined
     const pendingReplay =
-      (meta.find((row) => row.key === 'pendingReplay')?.sections as string[] | undefined) ?? []
+      (meta.find((row) => row.key === 'pendingReplay')?.sections as
+        | Array<keyof StoredSpace['sections']>
+        | undefined) ?? []
     return {
       space: (spaces[0] as StoredSpace | undefined) ?? undefined,
       members: members as StoredMemberProfile[],
@@ -184,10 +190,12 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
   }
 }
 
+type SectionName = keyof StoredSpace['sections']
+
 type MetaRow =
   | { key: 'cursor'; revision: string }
   | { key: 'syncedAt'; at: number }
-  | { key: 'pendingReplay'; sections: string[] }
+  | { key: 'pendingReplay'; sections: SectionName[] }
 
 /**
  * Applies a sync response in one transaction: the tombstoned rows go, the
@@ -200,10 +208,24 @@ type MetaRow =
  * dropped in the same transaction (ADR-0011, ADR-0014): the map on the
  * space row is what the client's copy follows. When it shows a section
  * that was hidden before, the cursor is written as 0 instead of the
- * response's revision: a delta cannot carry rows older than the cursor,
- * so the next sync fetches the section's full data.
+ * response's revision, and the replay promise names the section: a delta
+ * cannot carry rows older than the cursor, so the next sync fetches the
+ * section's full data.
+ *
+ * The apply answers the request the engine sent at `since`: when the
+ * stored cursor has moved on (another tab's apply, a run that landed
+ * meanwhile), the response is stale — writing it would clobber a replay
+ * promise or resurrect dropped rows — and nothing is written; the engine
+ * reruns from the stored cursor. The replay promise clears only when the
+ * response answered a request from revision 0, which is the replay itself.
+ * The engine always names its `since`; without it (the tests' sequential
+ * applies) the staleness guard does not engage.
  */
-export async function applySyncResult(memberId: string, result: SyncResult): Promise<string> {
+export async function applySyncResult(
+  memberId: string,
+  result: SyncResult,
+  since?: string,
+): Promise<string> {
   const db = await openMemberDb(memberId)
   try {
     // The stored cursor is only resolved once the transaction has committed.
@@ -221,10 +243,15 @@ export async function applySyncResult(memberId: string, result: SyncResult): Pro
       // own once that request has succeeded.
       const metaRequest = metaStore.getAll()
       metaRequest.onsuccess = () => {
-        const previousPending =
-          (metaRequest.result.find((row) => row.key === 'pendingReplay')?.sections as
-            | string[]
-            | undefined) ?? []
+        const metaRows = metaRequest.result as MetaRow[]
+        const storedCursor = metaRows.find((row) => row.key === 'cursor')?.revision ?? '0'
+        if (since !== undefined && storedCursor !== since) {
+          // Stale: the store moved past the cursor this response answered.
+          // Nothing of it may land — write nothing, and hand the engine the
+          // stored cursor so its rerun asks for what the store now needs.
+          storedRevision = storedCursor
+          return
+        }
         const previousRequest = spaceStore.getAll()
         previousRequest.onsuccess = () => {
           const previous = previousRequest.result[0] as StoredSpace | undefined
@@ -251,20 +278,20 @@ export async function applySyncResult(memberId: string, result: SyncResult): Pro
           // A re-shown section writes the replay promise: the cursor goes
           // to 0 and the section's full data has to come again before the
           // screens may claim it (ADR-0014). The promise is per section, so
-          // another section's replay never questions this one's rows; a
-          // cursor other than '0' means a replay landed and clears them all.
-          const reshowed = (
-            Object.keys(previous?.sections ?? {}) as Array<keyof StoredSpace['sections']>
-          ).filter(
+          // another section's replay never questions this one's rows. The
+          // engine asks from the stored cursor, so a response that answered
+          // a request from revision 0 is the replay itself: whatever
+          // promises were open, this response carried the sections whole —
+          // and a re-show inside it would name only itself.
+          const reshowed = (Object.keys(previous?.sections ?? {}) as SectionName[]).filter(
             (section) =>
               previous !== undefined &&
               nextSpace !== undefined &&
               !previous.sections[section] &&
               nextSpace.space.sections[section],
           )
-          if (reshowed.length > 0) revision = '0'
-          const pendingReplay: string[] =
-            revision !== '0' ? [] : [...new Set([...previousPending, ...reshowed])]
+          if (reshowed.length > 0 && since !== '0') revision = '0'
+          const pendingReplay: SectionName[] = revision === '0' || since === '0' ? reshowed : []
           storedRevision = revision
           const cursor: MetaRow = { key: 'cursor', revision }
           const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }

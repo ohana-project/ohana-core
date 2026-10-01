@@ -36,26 +36,30 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
         <div className="grid place-items-center py-10">
           <Spinner className="size-6" />
         </div>
-      ) : !downloaded ? (
-        <Card className="mt-6">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="cloud-off" />
-            </EmptyMedia>
-            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-          </Empty>
-        </Card>
       ) : entry === undefined || author === undefined ? (
-        <Card className="mt-6">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="file-text" />
-            </EmptyMedia>
-            <EmptyTitle>{t('journal.entryMissingTitle')}</EmptyTitle>
-            <EmptyDescription>{t('journal.entryMissingText')}</EmptyDescription>
-          </Empty>
-        </Card>
+        // A missing entry waits for the replay while one is owed — "no such
+        // entry" would be a claim the device cannot make (ADR-0014).
+        !downloaded ? (
+          <Card className="mt-6">
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+            </Empty>
+          </Card>
+        ) : (
+          <Card className="mt-6">
+            <Empty>
+              <EmptyMedia>
+                <Icon name="file-text" />
+              </EmptyMedia>
+              <EmptyTitle>{t('journal.entryMissingTitle')}</EmptyTitle>
+              <EmptyDescription>{t('journal.entryMissingText')}</EmptyDescription>
+            </Empty>
+          </Card>
+        )
       ) : (
         <article className="flex flex-col gap-4 pt-6">
           <header className="flex flex-col gap-3">

@@ -9,11 +9,13 @@ import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-
  * The journal's server data (issue #15): reads come from the member's
  * synchronised partition — the same answer online and offline (ADR-0002) —
  * and the three mutations go to the API through the generated client. A
- * success triggers a sync; so does a refusal, as a deliberate superset of
- * the blueprint's rule: a journal refusal (author_required,
- * entry_not_found, section_hidden) can always come from a stale
- * synchronised row or map, and the sync is what clears it — no hook here
- * patches the cache by hand.
+ * success triggers a sync, and so does every refusal: the journal screens
+ * read the refused row or map from the local store, so the sync is what
+ * corrects it (architecture.md, web rules) — author_required and
+ * entry_not_found name a stale row, section_hidden a stale map,
+ * entry_already_published an entry published elsewhere. Validation
+ * failures and network errors ride along as an accepted extra round-trip;
+ * no hook here patches the cache by hand.
  */
 
 export type CreatedEntry =

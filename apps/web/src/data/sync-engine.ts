@@ -186,7 +186,7 @@ async function runSync(memberId: string): Promise<void> {
   try {
     // The answer of a departed member is never written back.
     if (forgotten()) return
-    const storedRevision = await applySyncResult(memberId, result)
+    const storedRevision = await applySyncResult(memberId, result, snapshot.revision ?? '0')
     if (forgotten()) return
     setStatus(memberId, { state: 'synced', syncedAt: Date.now() })
     for (const listener of appliedListeners) {

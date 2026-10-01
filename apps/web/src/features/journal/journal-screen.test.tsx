@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult } from '@/data/local-store.ts'
+import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalScreen } from './journal-screen.tsx'
 
@@ -133,34 +134,6 @@ function mockQuietSync() {
   })
 }
 
-/** Seeds a version 1 partition the way a device that synced before the journal existed holds it: space, profiles, a cursor — and no entries store. */
-async function seedVersionOnePartition(): Promise<void> {
-  const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(`ohana.sync.${ME}`, 1)
-    request.onupgradeneeded = () => {
-      const upgrading = request.result
-      upgrading.createObjectStore('space', { keyPath: 'id' })
-      upgrading.createObjectStore('members', { keyPath: 'id' })
-      upgrading.createObjectStore('meta', { keyPath: 'key' })
-    }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
-  })
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(['space', 'members', 'meta'], 'readwrite')
-    tx.objectStore('space').put({
-      id: SPACE_ID,
-      name: 'Наша семья',
-      timezone: 'Europe/Moscow',
-      sections: { journal: true, calendar: true, wishlist: true },
-    })
-    tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error ?? new Error('Seeding version 1 failed'))
-  })
-  db.close()
-}
-
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory()
   window.localStorage.clear()
@@ -269,7 +242,7 @@ describe('JournalScreen (the shared feed)', () => {
     // The device upgraded from a version 1 partition: the upgrade wrote
     // the replay promise (cursor '0', the journal named), and the read
     // answers it honestly (ADR-0014).
-    await seedVersionOnePartition()
+    await seedVersionOnePartition(ME, { id: SPACE_ID, name: 'Наша семья' })
     mockQuietSync()
     renderWithProviders(<JournalScreen />)
 

@@ -298,12 +298,43 @@ describe('the per-member local store', () => {
     expect(replayed.entries).toHaveLength(1)
   })
 
-  test("another section's replay never questions the journal's rows", async () => {
+  test('the same re-show response applied twice writes the promise once', async () => {
     const row = entry()
-    await applySyncResult(ANYA, syncResult(undefined, [{ entity: 'journal_entry', entry: row }]))
+    const spaceAt = (journal: boolean): SyncResult['changes'] => [
+      {
+        entity: 'space',
+        space: {
+          id: SPACE_ID,
+          name: 'Наша семья',
+          timezone: 'Europe/Moscow',
+          sections: { journal, calendar: true, wishlist: true },
+        },
+      },
+    ]
 
-    // The calendar is hidden and re-shown: the promise names the calendar,
-    // and the journal's stored rows stay readable.
+    // The journal hides at revision 7; both tabs then ask from that cursor
+    // and get the same re-show response. The first apply writes the
+    // re-show; the second is stale and must not clobber the promise.
+    await applySyncResult(ANYA, { revision: '7', changes: spaceAt(false), tombstones: [] })
+    const reshow: SyncResult = {
+      revision: '9',
+      changes: [...spaceAt(true), { entity: 'journal_entry', entry: row }],
+      tombstones: [],
+    }
+    const first = await applySyncResult(ANYA, reshow, '7')
+    const second = await applySyncResult(ANYA, reshow, '7')
+
+    expect(first).toBe('0')
+    expect(second).toBe('0')
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.revision).toBe('0')
+    expect(snapshot.pendingReplay).toEqual(['journal'])
+  })
+
+  test('a re-show writes its own promise, and the replay answers for the space whole', async () => {
+    // The journal hides and re-shows while the engine asks from the stored
+    // cursor: the re-show apply writes the journal's promise.
+    await applySyncResult(ANYA, syncResult())
     await applySyncResult(ANYA, {
       revision: '8',
       changes: [
@@ -313,32 +344,58 @@ describe('the per-member local store', () => {
             id: SPACE_ID,
             name: 'Наша семья',
             timezone: 'Europe/Moscow',
-            sections: { journal: true, calendar: false, wishlist: true },
+            sections: { journal: false, calendar: true, wishlist: true },
           },
         },
       ],
       tombstones: [],
     })
-    await applySyncResult(ANYA, {
-      revision: '9',
-      changes: [
-        {
-          entity: 'space',
-          space: {
-            id: SPACE_ID,
-            name: 'Наша семья',
-            timezone: 'Europe/Moscow',
-            sections: { journal: true, calendar: true, wishlist: true },
+    const reshow = await applySyncResult(
+      ANYA,
+      {
+        revision: '9',
+        changes: [
+          {
+            entity: 'space',
+            space: {
+              id: SPACE_ID,
+              name: 'Наша семья',
+              timezone: 'Europe/Moscow',
+              sections: { journal: true, calendar: true, wishlist: true },
+            },
           },
-        },
-      ],
-      tombstones: [],
-    })
+        ],
+        tombstones: [],
+      },
+      '8',
+    )
+    expect(reshow).toBe('0')
+    expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual(['journal'])
 
-    const snapshot = await readMemberSnapshot(ANYA)
-    expect(snapshot.revision).toBe('0')
-    expect(snapshot.pendingReplay).toEqual(['calendar'])
-    expect(snapshot.entries).toHaveLength(1)
+    // The replay answers a request from revision 0 and carries every
+    // section whole: whatever it holds lands, and no promise stays open —
+    // a re-show inside it would name only itself.
+    const replay = await applySyncResult(
+      ANYA,
+      {
+        revision: '10',
+        changes: [
+          {
+            entity: 'space',
+            space: {
+              id: SPACE_ID,
+              name: 'Наша семья',
+              timezone: 'Europe/Moscow',
+              sections: { journal: true, calendar: false, wishlist: true },
+            },
+          },
+        ],
+        tombstones: [],
+      },
+      '0',
+    )
+    expect(replay).toBe('10')
+    expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual([])
   })
 
   test('a version 1 partition upgrades in place: data reads, the cursor resets for the journal', async () => {

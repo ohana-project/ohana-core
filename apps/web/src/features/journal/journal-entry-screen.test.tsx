@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult } from '@/data/local-store.ts'
+import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalEntryScreen } from './journal-entry-screen.tsx'
 
@@ -108,34 +109,6 @@ function mockQuietSync() {
   })
 }
 
-/** Seeds a version 1 partition the way a device that synced before the journal existed holds it: space, profiles, a cursor — and no entries store. */
-async function seedVersionOnePartition(): Promise<void> {
-  const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(`ohana.sync.${ME}`, 1)
-    request.onupgradeneeded = () => {
-      const upgrading = request.result
-      upgrading.createObjectStore('space', { keyPath: 'id' })
-      upgrading.createObjectStore('members', { keyPath: 'id' })
-      upgrading.createObjectStore('meta', { keyPath: 'key' })
-    }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
-  })
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(['space', 'members', 'meta'], 'readwrite')
-    tx.objectStore('space').put({
-      id: SPACE_ID,
-      name: 'Наша семья',
-      timezone: 'Europe/Moscow',
-      sections: { journal: true, calendar: true, wishlist: true },
-    })
-    tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
-    tx.oncomplete = () => resolve()
-    tx.onerror = () => reject(tx.error ?? new Error('Seeding version 1 failed'))
-  })
-  db.close()
-}
-
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory()
   window.localStorage.clear()
@@ -182,12 +155,63 @@ describe('JournalEntryScreen', () => {
     // The device upgraded from a version 1 partition: the upgrade wrote
     // the replay promise (cursor '0', the journal named), and the read
     // answers it honestly (ADR-0014).
-    await seedVersionOnePartition()
+    await seedVersionOnePartition(ME, { id: SPACE_ID, name: 'Наша семья' })
     mockQuietSync()
     renderWithProviders(<JournalEntryScreen entryId={entry().id} />)
 
     expect(await screen.findByText('Пока нечего читать без сети')).toBeInTheDocument()
     expect(screen.queryByText('Записи нет')).not.toBeInTheDocument()
+  })
+
+  it('shows the entry it holds even while the journal replay is owed', async () => {
+    seedRegistry()
+    const row = entry()
+    await applySyncResult(ME, syncResult([row]))
+    // The journal hides (the rows go), re-shows, and the re-show's delta
+    // carries an entry published meanwhile — the replay itself has not
+    // landed. A held row is real; the screen shows it.
+    await applySyncResult(ME, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    await applySyncResult(
+      ME,
+      {
+        revision: '9',
+        changes: [
+          {
+            entity: 'space',
+            space: {
+              id: SPACE_ID,
+              name: 'Наша семья',
+              timezone: 'Europe/Moscow',
+              sections: { journal: true, calendar: true, wishlist: true },
+            },
+          },
+          { entity: 'journal_entry', entry: row },
+        ],
+        tombstones: [],
+      },
+      '8',
+    )
+    mockQuietSync()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Поход к Чёртову креслу' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Пока нечего читать без сети')).not.toBeInTheDocument()
   })
 
   it('reads the stored entry while another section replays', async () => {

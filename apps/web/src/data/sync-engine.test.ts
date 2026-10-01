@@ -315,11 +315,25 @@ describe('the sync engine', () => {
 
   test('an interrupted resync restarts from revision 0 on the next run', async () => {
     const memberId = makeMember()
-    // The store sits on a cursor of 0: the section came back and the
-    // resync is still owed.
+    // The journal is hidden and re-shown: the re-show apply sits on a
+    // cursor of 0 with the replay promise open (ADR-0014).
     await applySyncResult(memberId, {
       ...ANYA_SYNC,
-      revision: '0',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+    })
+    await applySyncResult(memberId, {
+      ...ANYA_SYNC,
+      revision: '8',
       changes: ANYA_SYNC.changes.filter((change) => change.entity === 'space'),
     })
 
@@ -327,8 +341,10 @@ describe('the sync engine', () => {
     await triggerSync(memberId)
     expect(getSyncStatus(memberId)?.state).toBe('unreachable')
     expect((await readMemberSnapshot(memberId)).revision).toBe('0')
+    expect((await readMemberSnapshot(memberId)).pendingReplay).toEqual(['journal'])
 
-    // The next run asks from the beginning again, and the full data lands.
+    // The next run asks from the beginning again, and the full data lands:
+    // the replay promise clears with the new cursor.
     apiGet.mockResolvedValue({
       data: ANYA_SYNC,
       error: undefined,
@@ -339,6 +355,7 @@ describe('the sync engine', () => {
       params: { query: { since: '0' }, header: { 'x-ohana-member': memberId } },
     })
     expect((await readMemberSnapshot(memberId)).revision).toBe('7')
+    expect((await readMemberSnapshot(memberId)).pendingReplay).toEqual([])
   })
 
   test('a failing applied listener does not skip the resync', async () => {
@@ -410,6 +427,7 @@ describe('the sync engine', () => {
     expect(calls).toEqual(['7', '0'])
     const snapshot = await readMemberSnapshot(memberId)
     expect(snapshot.revision).toBe('7')
+    expect(snapshot.pendingReplay).toEqual([])
     expect(snapshot.space?.sections.journal).toBe(true)
   })
 
