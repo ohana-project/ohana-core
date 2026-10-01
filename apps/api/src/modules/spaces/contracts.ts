@@ -60,11 +60,36 @@ export const SpaceMemberHeadersSchema = Type.Object({
   'x-ohana-member': Type.Optional(Type.String({ format: 'uuid' })),
 })
 
+/*
+ * Section visibility (issue #13, ADR-0011): every member reads the map to
+ * build their navigation; an owner changes it through the member patch.
+ */
+export const SpaceSectionsDtoSchema = Type.Object(
+  {
+    journal: Type.Boolean(),
+    calendar: Type.Boolean(),
+    wishlist: Type.Boolean(),
+  },
+  { additionalProperties: false },
+)
+
+export type SpaceSectionsDto = Static<typeof SpaceSectionsDtoSchema>
+
+export const UpdateSpaceSectionsDtoSchema = Type.Object(
+  {
+    journal: Type.Optional(Type.Boolean()),
+    calendar: Type.Optional(Type.Boolean()),
+    wishlist: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false, minProperties: 1 },
+)
+
 export const MemberSpaceDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
     name: Type.String(),
     timezone: Type.String({ minLength: 1, maxLength: 64 }),
+    sections: SpaceSectionsDtoSchema,
   },
   { additionalProperties: false },
 )
@@ -73,7 +98,8 @@ export type MemberSpaceDto = Static<typeof MemberSpaceDtoSchema>
 
 export const UpdateMemberSpaceBodySchema = Type.Object(
   {
-    timezone: Type.String({ minLength: 1, maxLength: 64 }),
+    timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    sections: Type.Optional(UpdateSpaceSectionsDtoSchema),
   },
-  { additionalProperties: false },
+  { additionalProperties: false, minProperties: 1 },
 )

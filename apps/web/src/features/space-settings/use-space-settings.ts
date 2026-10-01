@@ -57,6 +57,18 @@ export function useMemberSpace() {
   })
 }
 
+const ALL_SECTIONS_VISIBLE = { journal: true, calendar: true, wishlist: true } as const
+
+/**
+ * The space's section visibility (issue #13, ADR-0011), read from the same
+ * query as the space itself. Unknown counts as visible — while the space
+ * settings are loading or unreachable, every section shows.
+ */
+export function useSectionVisibility() {
+  const space = useMemberSpace()
+  return space.data?.sections ?? ALL_SECTIONS_VISIBLE
+}
+
 function useInvalidateMemberArea() {
   const queryClient = useQueryClient()
   const memberId = getActiveMemberId()
@@ -71,6 +83,26 @@ export function useUpdateTimezone() {
     mutationFn: async (input: { timezone: string }) => {
       const response = await api.PATCH('/api/v1/space', {
         body: { timezone: input.timezone },
+      })
+      await assertOk(response)
+    },
+    onSettled: invalidate,
+  })
+}
+
+/**
+ * PATCH /api/v1/space with a section visibility change (issue #13). The
+ * body names only the toggled section, mirroring the API's partial change
+ * set; the server answers with the space's full sections map.
+ */
+export function useUpdateSections() {
+  const invalidate = useInvalidateMemberArea()
+  return useMutation({
+    mutationFn: async (input: {
+      sections: { journal?: boolean; calendar?: boolean; wishlist?: boolean }
+    }) => {
+      const response = await api.PATCH('/api/v1/space', {
+        body: { sections: input.sections },
       })
       await assertOk(response)
     },

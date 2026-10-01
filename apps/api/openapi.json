@@ -490,7 +490,8 @@
                   "required": [
                     "id",
                     "name",
-                    "timezone"
+                    "timezone",
+                    "sections"
                   ],
                   "properties": {
                     "id": {
@@ -504,6 +505,26 @@
                       "minLength": 1,
                       "maxLength": 64,
                       "type": "string"
+                    },
+                    "sections": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "journal",
+                        "calendar",
+                        "wishlist"
+                      ],
+                      "properties": {
+                        "journal": {
+                          "type": "boolean"
+                        },
+                        "calendar": {
+                          "type": "boolean"
+                        },
+                        "wishlist": {
+                          "type": "boolean"
+                        }
+                      }
                     }
                   }
                 }
@@ -519,15 +540,29 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
+                "minProperties": 1,
                 "type": "object",
-                "required": [
-                  "timezone"
-                ],
                 "properties": {
                   "timezone": {
                     "minLength": 1,
                     "maxLength": 64,
                     "type": "string"
+                  },
+                  "sections": {
+                    "additionalProperties": false,
+                    "minProperties": 1,
+                    "type": "object",
+                    "properties": {
+                      "journal": {
+                        "type": "boolean"
+                      },
+                      "calendar": {
+                        "type": "boolean"
+                      },
+                      "wishlist": {
+                        "type": "boolean"
+                      }
+                    }
                   }
                 }
               }
@@ -556,7 +591,8 @@
                   "required": [
                     "id",
                     "name",
-                    "timezone"
+                    "timezone",
+                    "sections"
                   ],
                   "properties": {
                     "id": {
@@ -570,6 +606,26 @@
                       "minLength": 1,
                       "maxLength": 64,
                       "type": "string"
+                    },
+                    "sections": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "journal",
+                        "calendar",
+                        "wishlist"
+                      ],
+                      "properties": {
+                        "journal": {
+                          "type": "boolean"
+                        },
+                        "calendar": {
+                          "type": "boolean"
+                        },
+                        "wishlist": {
+                          "type": "boolean"
+                        }
+                      }
                     }
                   }
                 }

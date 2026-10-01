@@ -93,6 +93,14 @@ function json(status: number, body: unknown) {
 async function mockOwnerApi(page: Page) {
   const signedIn = new Set<string>([OWNER_ID])
   const issuedCode = 'SASF-KQLV'
+  // The space answers from this object, so a PATCH in one screen is the
+  // GET everywhere else — the way the real space row behaves.
+  const space = {
+    id: SPACE_ID,
+    name: 'Наша семья',
+    timezone: 'Europe/Moscow',
+    sections: { journal: true, calendar: true, wishlist: true },
+  }
 
   await page.route(REDEEM, (route) => {
     const { code } = route.request().postDataJSON() as { code: string }
@@ -155,10 +163,15 @@ async function mockOwnerApi(page: Page) {
     const memberId = route.request().headers()['x-ohana-member']
     if (memberId === undefined || !signedIn.has(memberId)) return route.fulfill(json(401, {}))
     if (route.request().method() === 'PATCH') {
-      const body = route.request().postDataJSON() as { timezone: string }
-      return route.fulfill(json(200, { id: SPACE_ID, name: 'Наша семья', timezone: body.timezone }))
+      const body = route.request().postDataJSON() as {
+        timezone?: string
+        sections?: Partial<typeof space.sections>
+      }
+      if (body.timezone !== undefined) space.timezone = body.timezone
+      if (body.sections !== undefined) Object.assign(space.sections, body.sections)
+      return route.fulfill(json(200, space))
     }
-    return route.fulfill(json(200, { id: SPACE_ID, name: 'Наша семья', timezone: 'Europe/Moscow' }))
+    return route.fulfill(json(200, space))
   })
 }
 
@@ -241,5 +254,39 @@ test.describe('owner management of members and codes', () => {
     // The settings screen itself turns a regular member away.
     await page.goto('/settings')
     await expect(page).toHaveURL(/\/$/)
+  })
+
+  test('an owner hides a section and it leaves the navigation', async ({ page }) => {
+    await mockOwnerApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(OWNER_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    // The journal is in the navigation before the hiding.
+    await expect(page.getByRole('button', { name: 'Дневник' }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Настройки пространства' }).click()
+    await expect(page).toHaveURL(/\/settings$/)
+
+    const patchPromise = page.waitForRequest(
+      (request) => request.url().endsWith('/api/v1/space') && request.method() === 'PATCH',
+    )
+    await page.getByRole('switch', { name: 'Показывать Дневник' }).click()
+    expect((await patchPromise).postDataJSON()).toEqual({ sections: { journal: false } })
+    // The hiding keeps the data and says so, twice: under the switch and
+    // in the toast.
+    await expect(page.getByText('скрыт для всех — данные сохранены').first()).toBeVisible()
+    await expect(page.getByText('Раздел скрыт — ничего не удалено')).toBeVisible()
+
+    // Back on the home the section is gone — navigation and column — and
+    // the visible calendar stays.
+    await page.getByRole('button', { name: 'Главная' }).first().click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('button', { name: 'Дневник' })).toHaveCount(0)
+    await expect(page.getByText('Свежее в дневнике')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Календарь' }).first()).toBeVisible()
+    await expect(page.getByText('Ближайшие события')).toBeVisible()
   })
 })

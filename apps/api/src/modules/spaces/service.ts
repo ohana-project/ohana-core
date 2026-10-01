@@ -2,12 +2,19 @@ import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import {
+  assertSectionVisible,
+  SECTION_IDS,
+  type SectionId,
+  type SpaceSections,
+  sectionVisibility,
+} from './policy.ts'
+import {
   getSpaceById,
   getSpaceForUpdate,
   incrementSpaceRevision,
   insertSpace,
   listSpaces as listSpaceRows,
-  type SpaceChanges,
+  type SpaceChanges as SpaceRowChanges,
   updateSpace as updateSpaceRow,
 } from './repository.ts'
 import type { Space } from './tables.ts'
@@ -105,12 +112,38 @@ async function getSpaceForUpdateOrThrow(tx: Tx, spaceId: string): Promise<Space>
   return space
 }
 
+/** What a caller may change about the space, in domain terms. */
+export interface SpaceChanges {
+  name?: string
+  timezone?: string
+  /** Only the sections named here are touched (ADR-0011). */
+  sections?: Partial<SpaceSections>
+}
+
+/** Translates the domain change set onto the space row's columns; unchanged values are dropped. */
+function toRowChanges(changes: SpaceChanges, current: Space): SpaceRowChanges {
+  const row: SpaceRowChanges = {}
+  if (changes.name !== undefined && changes.name !== current.name) row.name = changes.name
+  if (changes.timezone !== undefined && changes.timezone !== current.timezone) {
+    row.timezone = changes.timezone
+  }
+  const visibility = sectionVisibility(current)
+  for (const section of SECTION_IDS) {
+    const next = changes.sections?.[section]
+    if (next !== undefined && next !== visibility[section]) {
+      row[`${section}Visible` as `${SectionId}Visible`] = next
+    }
+  }
+  return row
+}
+
 /**
- * Renames the space or changes its time zone; the revision advances with
- * the change in one statement. A patch that changes nothing is answered
- * from the stored row so it does not spend a revision and force a resync.
- * The read and the write share one transaction under the space row lock,
- * so the no-op decision can never be made from a half-done state.
+ * Renames the space, changes its time zone, or toggles section visibility;
+ * the revision advances with the changes in one statement. A patch that
+ * changes nothing is answered from the stored row so it does not spend a
+ * revision and force a resync. The read and the write share one transaction
+ * under the space row lock, so the no-op decision can never be made from a
+ * half-done state.
  */
 export async function updateSpace(
   deps: SpacesDeps,
@@ -121,14 +154,45 @@ export async function updateSpace(
   const name = changes.name?.trim()
   return deps.db.transaction(async (tx) => {
     const current = await getSpaceForUpdateOrThrow(tx, spaceId)
-    const effective: SpaceChanges = {}
-    if (name !== undefined && name !== current.name) effective.name = name
-    if (timezone !== undefined && timezone !== current.timezone) effective.timezone = timezone
-    if (Object.keys(effective).length === 0) return current
+    const candidate: SpaceChanges = { name, timezone, sections: changes.sections }
+    const effective = toRowChanges(candidate, current)
+    if (Object.values(effective).every((value) => value === undefined)) return current
     return updateSpaceRow(tx, spaceId, effective, deps.clock.now())
   })
 }
 
 export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): Promise<bigint> {
   return incrementSpaceRevision(tx, spaceId, now)
+}
+
+/**
+ * Throws 404 `section_hidden` unless the space shows the section; a
+ * lock-free read. Module-internal: only the section gate calls it, with
+ * the pool (deps.db). Section modules get requireVisibleSectionInTx from
+ * index.ts.
+ */
+export async function requireVisibleSection(
+  executor: Executor,
+  spaceId: string,
+  section: SectionId,
+): Promise<Space> {
+  const space = await getSpaceOrThrow(executor, spaceId)
+  assertSectionVisible(space, section)
+  return space
+}
+
+/**
+ * The same check for a section module's write use case: it takes the space
+ * row lock and only then decides, so a hide that commits alongside the
+ * write is still honoured. Call it first inside the use case's
+ * transaction, before any write (architecture.md, "Revision bookkeeping").
+ */
+export async function requireVisibleSectionInTx(
+  tx: Tx,
+  spaceId: string,
+  section: SectionId,
+): Promise<Space> {
+  const space = await getSpaceForUpdateOrThrow(tx, spaceId)
+  assertSectionVisible(space, section)
+  return space
 }

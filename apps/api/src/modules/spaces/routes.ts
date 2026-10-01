@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { DomainError } from '../../platform/errors.ts'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
   CreateSpaceBodySchema,
@@ -15,16 +16,35 @@ import {
   UpdateMemberSpaceBodySchema,
   UpdateSpaceBodySchema,
 } from './contracts.ts'
+import { type SectionId, sectionVisibility } from './policy.ts'
 import {
   createSpace,
   getSpace,
   listSpaces,
+  requireVisibleSection,
   type SpaceMemberCounter,
   type SpacesDeps,
   type SpaceWithMemberCount,
   updateSpace,
 } from './service.ts'
 import type { Space } from './tables.ts'
+
+/**
+ * The one gate every section route mounts for its reads and writes
+ * (ADR-0011): after the member session guard has attached the actor, the
+ * gate asks the spaces service whether the actor's space shows the
+ * section. The journal, calendar, and wishlist modules mount it; a
+ * section route never rolls its own check.
+ */
+export function sectionGate(deps: Pick<SpacesDeps, 'db'>, section: SectionId) {
+  return async (request: FastifyRequest): Promise<void> => {
+    const actor = request.actor
+    if (actor === undefined || actor.kind !== 'member') {
+      throw new DomainError('unauthorized', 'A member session is required', 401)
+    }
+    await requireVisibleSection(deps.db, actor.spaceId, section)
+  }
+}
 
 function toSpaceDto(space: Space): SpaceDto {
   return {
@@ -38,7 +58,12 @@ function toSpaceDto(space: Space): SpaceDto {
 }
 
 function toMemberSpaceDto(space: Space): MemberSpaceDto {
-  return { id: space.id, name: space.name, timezone: space.timezone }
+  return {
+    id: space.id,
+    name: space.name,
+    timezone: space.timezone,
+    sections: sectionVisibility(space),
+  }
 }
 
 function toSpaceWithMemberCountDto(space: SpaceWithMemberCount): SpaceWithMemberCountDto {
@@ -135,9 +160,9 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
     )
   })
 
-  // The member-facing space settings (issue #12): the actor's own space,
-  // its default time zone changeable by an owner. Section visibility
-  // arrives with its own ticket.
+  // The member-facing space settings (issues #12 and #13): the actor's own
+  // space, its default time zone and section visibility changeable by an
+  // owner. Renaming stays with the instance administrator.
   await app.register((memberArea: FastifyInstance) => {
     const scoped = memberArea.withTypeProvider<TypeBoxTypeProvider>()
     scoped.addHook('onRequest', opts.memberArea.guard)
@@ -169,6 +194,7 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
         const actor = opts.memberArea.requireOwner(request)
         const space = await updateSpace(opts.deps, actor.spaceId, {
           timezone: request.body.timezone,
+          sections: request.body.sections,
         })
         return toMemberSpaceDto(space)
       },

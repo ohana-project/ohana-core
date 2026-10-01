@@ -49,12 +49,15 @@ export async function listSpaces(executor: Executor): Promise<Space[]> {
 export interface SpaceChanges {
   name?: string
   timezone?: string
+  journalVisible?: boolean
+  calendarVisible?: boolean
+  wishlistVisible?: boolean
 }
 
 /**
- * Renames the space or changes its time zone and advances the revision in
- * the same statement, so observers never see the new values on the old
- * revision.
+ * Applies the space row's changes — name, time zone, section visibility —
+ * and advances the revision in the same statement, so observers never see
+ * the new values on the old revision.
  */
 export async function updateSpace(
   tx: Tx,

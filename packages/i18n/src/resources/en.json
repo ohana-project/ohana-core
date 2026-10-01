@@ -370,7 +370,16 @@
       "timezoneHint": "New events will offer this zone — every member sees the time in their own",
       "save": "Save",
       "savedToast": "Space settings saved",
-      "syncNote": "Members see the change after a sync"
+      "syncNote": "Members see the change after a sync",
+      "sectionsSection": "Sections",
+      "sectionJournalOn": "the family's entries and photos",
+      "sectionCalendarOn": "events and reminders",
+      "sectionWishlistOn": "wishes, reservations, and favorites",
+      "sectionHiddenSub": "hidden from everyone — the data is kept",
+      "sectionShowSwitch": "Show {section}",
+      "sectionHiddenToast": "Section hidden — nothing was deleted",
+      "sectionShownToast": "The section will return for the members",
+      "sectionsHint": "Hiding deletes nothing: entries, events, and wishes stay on the server and come back with the section."
     },
     "errors": {
       "owner_required": "Only an owner of the space can do that",
