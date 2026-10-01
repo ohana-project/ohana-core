@@ -264,6 +264,7 @@ describe('MemberCardScreen', () => {
     renderWithProviders(<MemberCardScreen memberId={OWNER_ID} />)
 
     await screen.findByText('Код входа')
+    const getsBeforeDisconnect = apiGet.mock.calls.length
     await user.click(screen.getByRole('button', { name: 'Отключить всё' }))
     await user.click(await screen.findByRole('button', { name: 'Отключить' }))
 
@@ -272,6 +273,115 @@ describe('MemberCardScreen', () => {
     await vi.waitFor(() => {
       const retained = JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')
       expect(retained).toHaveLength(0)
+    })
+    // And nothing refetches as the forgotten member: the dead guard would
+    // send the subtree's queries out under their pinned header.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(apiGet.mock.calls.length).toBe(getsBeforeDisconnect)
+  })
+
+  it('promotes the other retained sign-in and never refetches as the forgotten one', async () => {
+    const user = userEvent.setup()
+    const OTHER_ID = '01900000-0000-7000-8000-000000000006'
+    const OTHER_ME = {
+      member: {
+        id: OTHER_ID,
+        name: 'Паша',
+        role: 'regular' as const,
+        createdAt: '2026-08-15T10:00:00.000Z',
+      },
+      space: OWNER_ME.space,
+      needsOnboarding: false,
+    }
+    window.localStorage.setItem(
+      'ohana.sessions',
+      JSON.stringify([
+        {
+          memberId: OWNER_ID,
+          spaceId: OWNER_ME.space.id,
+          spaceName: OWNER_ME.space.name,
+          name: 'Аня',
+          displayName: 'Аня Смирнова',
+        },
+        {
+          memberId: OTHER_ID,
+          spaceId: OWNER_ME.space.id,
+          spaceName: OWNER_ME.space.name,
+          name: 'Паша',
+        },
+      ]),
+    )
+    window.localStorage.setItem('ohana.activeMember', OWNER_ID)
+    let dead = false
+    // The member-scoped requests name their member in the pinned header, so
+    // a fetch for the forgotten one is recognisable even as the promoted
+    // member's own requests keep flowing.
+    const deadHeaderFetches: string[] = []
+    const signedOut = {
+      data: undefined,
+      error: { error: { code: 'unauthorized', message: 'gone' } },
+      response: new Response(null, { status: 401 }),
+    }
+    apiDelete.mockImplementation(async () => {
+      dead = true
+      return { data: null, error: undefined, response: new Response(null, { status: 204 }) }
+    })
+    apiGet.mockImplementation(
+      async (path: never, options?: { params?: { header?: { 'x-ohana-member'?: string } } }) => {
+        if (dead && options?.params?.header?.['x-ohana-member'] === OWNER_ID) {
+          deadHeaderFetches.push(path)
+          return signedOut
+        }
+        if (path === '/api/v1/me') return okBody(dead ? OTHER_ME : OWNER_ME)
+        if (path === '/api/v1/members') return okBody(PROFILES)
+        if (path === '/api/v1/members/{memberId}/access-code') return okBody(CODE)
+        if (path === '/api/v1/members/{memberId}/sessions') return okBody(DEVICES)
+        throw new Error(`Unexpected GET ${String(path)}`)
+      },
+    )
+    renderWithProviders(<MemberCardScreen memberId={OWNER_ID} />)
+
+    await screen.findByText('Код входа')
+    await user.click(screen.getByRole('button', { name: 'Отключить всё' }))
+    await user.click(await screen.findByRole('button', { name: 'Отключить' }))
+
+    // Аня's sign-in goes, Паша's stays and becomes the active one.
+    await vi.waitFor(() => {
+      const retained = JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')
+      expect(retained.map((session: { memberId: string }) => session.memberId)).toEqual([OTHER_ID])
+    })
+    expect(window.localStorage.getItem('ohana.activeMember')).toBe(OTHER_ID)
+    // The subtree of the forgotten member is never refetched under their
+    // pinned header.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(deadHeaderFetches).toEqual([])
+  })
+
+  it('closes the revoke dialog on a refusal and keeps it on a lost network', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    await screen.findByText('Код входа')
+    await user.click(screen.getByRole('button', { name: 'Отозвать' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Отозвать этот код?' })
+
+    // A lost network is not a spent action: the dialog stays for the retry.
+    apiDelete.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    await user.click(within(dialog).getByRole('button', { name: 'Отозвать' }))
+    await vi.waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('dialog', { name: 'Отозвать этот код?' })).toBeInTheDocument()
+
+    // A refusal — the code was redeemed meanwhile — is spent: the dialog
+    // steps aside for the refreshed row.
+    apiDelete.mockResolvedValueOnce({
+      data: undefined,
+      error: { error: { code: 'access_code_not_found', message: 'no live code' } },
+      response: new Response(null, { status: 404 }),
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Отозвать' }))
+    await vi.waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Отозвать этот код?' })).not.toBeInTheDocument()
     })
   })
 

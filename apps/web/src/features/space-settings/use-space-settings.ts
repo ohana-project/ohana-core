@@ -217,19 +217,22 @@ export function useRevokeMemberDevices() {
       })
       await assertOk(response)
     },
+    // Whether the owner is disconnecting their own devices is decided in
+    // onMutate: by onSuccess the registry has already forgotten the member,
+    // so getActiveMemberId() there could no longer recognise them.
+    onMutate: (variables) => ({ self: variables.memberId === getActiveMemberId() }),
     // Disconnecting the acting member's own devices ends the session this
     // device is using: the member's local sign-in and data go, exactly like
     // a sign-out. The cleanup runs at the hook level, before any refetch
     // could answer 401 for the dead member and unmount the screen under a
     // per-call callback.
-    onSuccess: (_data, variables) => {
-      const activeId = getActiveMemberId()
-      if (variables.memberId === activeId) forgetMember(queryClient, activeId)
+    onSuccess: (_data, variables, context) => {
+      if (context.self) forgetMember(queryClient, variables.memberId)
     },
-    onSettled: (_data, error, variables) => {
+    onSettled: (_data, error, _variables, context) => {
       // A self-disconnect must not refetch as the dead member — the cleanup
       // above already reset what it kept.
-      if (error === null && variables.memberId === getActiveMemberId()) return
+      if (error === null && context?.self) return
       invalidate()
     },
   })

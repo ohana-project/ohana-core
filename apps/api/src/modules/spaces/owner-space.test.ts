@@ -113,7 +113,9 @@ describe('GET /api/v1/space (the member reads their space)', () => {
 
   test('the space always comes from the actor, never from another space', async () => {
     const family = await harness.createSpace({ name: 'Наша семья', timezone: 'Europe/Moscow' })
-    const other = await harness.createSpace({ name: 'Аня и родители', timezone: 'UTC' })
+    // A second space exists in the installation; the answer must still be
+    // the actor's own, zones and all.
+    await harness.createSpace({ name: 'Аня и родители', timezone: 'UTC' })
     const member = await harness.createMember(family.id, { name: 'Аня', role: 'owner' })
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
@@ -135,7 +137,6 @@ describe('GET /api/v1/space (the member reads their space)', () => {
         name: 'Наша семья',
         timezone: 'Europe/Moscow',
       })
-      expect(response.json().id).not.toBe(other.id)
     })
   })
 })

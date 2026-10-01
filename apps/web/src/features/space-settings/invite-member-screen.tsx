@@ -78,7 +78,12 @@ export function InviteMemberScreen() {
           setRerollOpen(false)
           toast(t('space.invite.issuedToast', { code: result.code }))
         },
-        onError: (error) => setFormError(spaceSettingsErrorMessage(error, t)),
+        onError: (error) => {
+          // A failed reroll joins the code on the page: the dialog must not
+          // sit over its own error.
+          setRerollOpen(false)
+          setFormError(spaceSettingsErrorMessage(error, t))
+        },
       },
     )
   }

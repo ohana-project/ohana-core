@@ -158,6 +158,57 @@ describe('InviteMemberScreen', () => {
     expect(apiPost).toHaveBeenCalledTimes(3)
   })
 
+  it('answers a failed reroll on the page, not inside the dialog', async () => {
+    const user = userEvent.setup()
+    let issueCount = 0
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/members') return okBody(NEW_MEMBER, 201)
+      if (path === '/api/v1/members/{memberId}/access-code') {
+        issueCount += 1
+        if (issueCount === 1) {
+          return okBody(
+            {
+              id: '01900000-0000-7000-8000-000000000003',
+              memberId: NEW_MEMBER.id,
+              code: 'SASF-KQLV',
+              status: 'issued',
+              createdAt: '2026-09-29T10:00:00.000Z',
+              expiresAt: '2026-09-30T10:00:00.000Z',
+              statusChangedAt: '2026-09-29T10:00:00.000Z',
+            },
+            201,
+          )
+        }
+        return {
+          data: undefined,
+          error: { error: { code: 'unexpected', message: 'boom' } },
+          response: new Response(null, { status: 500 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    renderWithProviders(<InviteMemberScreen />)
+
+    await screen.findByRole('heading', { name: 'Пригласить участника' })
+    await user.type(screen.getByLabelText('Имя'), 'Дима')
+    await user.click(screen.getByRole('button', { name: 'Пригласить и выпустить код' }))
+    expect(await screen.findByText('SASF-KQLV')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Перевыпустить' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Перевыпустить код?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Перевыпустить' }))
+
+    // The failure steps out of the dialog's way: the dialog is gone, and the
+    // message shows on the page next to the code it failed to replace.
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Перевыпустить код?' })).not.toBeInTheDocument()
+    })
+    expect(
+      screen.getByText('Не получилось — проверьте сеть и попробуйте ещё раз.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('SASF-KQLV')).toBeInTheDocument()
+  })
+
   it('offers a retry when issuing the code fails after the member exists', async () => {
     const user = userEvent.setup()
     let attempts = 0

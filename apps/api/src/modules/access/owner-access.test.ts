@@ -337,7 +337,7 @@ describe('GET /api/v1/members/:memberId/access-code (owner reads the code status
           issuerMemberId: regular.id,
           codeHash: 'hash-replaced',
           status: 'replaced',
-          createdAt: now,
+          createdAt: new Date(now.getTime() + 1000),
           expiresAt: new Date(now.getTime() + ACCESS_CODE_TTL_MS),
           statusChangedAt: now,
         })
@@ -354,6 +354,9 @@ describe('GET /api/v1/members/:memberId/access-code (owner reads the code status
       expect(read.json().id).toBe(live.id)
       expect(read.json().status).toBe('issued')
 
+      // The revocation is the newest status change: it stamps the live row
+      // later than the replaced row's issuance-time stamp.
+      harness.clock.advance(2000)
       const revoked = await app.inject({
         method: 'DELETE',
         url: `/api/v1/members/${regular.id}/access-code`,
@@ -361,6 +364,18 @@ describe('GET /api/v1/members/:memberId/access-code (owner reads the code status
       })
       expect(revoked.statusCode).toBe(200)
       expect(revoked.json().id).toBe(live.id)
+
+      // With no live code left, the fallback read answers with the row whose
+      // status changed last — the revocation, not the newer-created replaced
+      // row. Creation order would answer with the wrong invitation.
+      const fallback = await app.inject({
+        method: 'GET',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(fallback.statusCode).toBe(200)
+      expect(fallback.json().id).toBe(live.id)
+      expect(fallback.json().status).toBe('revoked')
 
       const rows = await harness.db
         .select()

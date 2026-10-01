@@ -171,7 +171,8 @@ export async function listAccessCodesInSpace(
  * live code exists, so the owner's member card can still show what became
  * of the last invitation. The status change — not creation — is what makes
  * a row the current answer, and creation order is unreliable under
- * concurrent issuance.
+ * concurrent issuance; the id breaks the ties left by rows whose status
+ * changed in the same instant.
  */
 export async function getLatestAccessCodeForMember(
   executor: Executor,

@@ -353,7 +353,7 @@
       "devicesEmpty": "No sessions — the member has not signed in, or the devices are disconnected",
       "devicesHint": "A disconnected device loses access — signing in again takes the member's access code.",
       "disconnectTitle": "Disconnect every device?",
-      "disconnectText": "{count, plural, =1 {One session of the member ends} =2 {Both sessions of the member end} other {All # sessions of the member end}}. A disconnected device loses access — signing in again takes the member's access code.",
+      "disconnectText": "{count, plural, =1 {One session of the member ends} =2 {Both sessions of the member end} other {All # sessions of the member end}}. Signing in again needs a new access code.",
       "disconnectConfirm": "Disconnect",
       "disconnectedToast": "All devices disconnected",
       "revokeCode": "Revoke",
