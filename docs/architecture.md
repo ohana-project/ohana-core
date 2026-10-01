@@ -119,8 +119,9 @@ The sync conventions below are established in the foundation and must not be byp
 
 - Each module with synchronised data exports a sync contributor: `changesSince(tx, actor, revision) → { upserts, tombstones }`.
 - The contributor applies the module's `policy.ts`. Ordinary reads apply the same policy, so what a member may see is defined in exactly one place per module.
+- Tombstones live in the one shared table the sync module owns; a contributor reads the entries of its own entities through the sync module's `readTombstonesSince`, which applies the audience filter (everyone, or the one member something left) in exactly one place.
 - The `spaces` module contributes the space row (name, time zone, `sections`) as an upsert whenever `spaces.revision` is newer than the cursor, so section visibility reaches offline clients (ADR-0011, ADR-0014).
-- The sync module merges contributors and returns `{ revision, changes }`.
+- The sync module merges contributors and returns `{ revision, changes, tombstones }`; `GET /api/v1/sync?since=<revision>` answers it to the requesting member, the space always the actor's own.
 
 **Visibility changes:** when something stops being visible to a member (an entry is trashed, a member is archived), the transaction writes tombstones for the affected audience. Hiding a section is the exception (ADR-0011, ADR-0014): the sections map travels on the space row inside the sync response, so a hide writes no per-row tombstones — the client drops a hidden section's rows when it applies the new map, and the client that sees a section go from hidden to visible discards its cursor and syncs from revision 0 once, because a delta cannot carry rows older than its cursor; the reset is stored in the same local-store transaction that applies the new map (the cursor is written as 0 instead of the response's revision), so an interrupted resync restarts from 0.
 
@@ -177,7 +178,7 @@ e2e/            Playwright specs: the interface flows run against the dev server
 ### Rules
 
 - Components never call `fetch`. Server data comes through the generated API client (`packages/api-client`), wrapped in TanStack Query hooks inside `features/<feature>` or `data/`.
-- Synchronised data is read from the local store. The sync engine calls the sync endpoint and applies the changes to IndexedDB in partitions keyed by member ID. Screens read those partitions reactively, so the same code works online and offline. Online-only data (the administrative area, session lists) uses ordinary queries.
+- Synchronised data is read from the local store. The sync engine calls the sync endpoint and applies the changes to IndexedDB in partitions keyed by member ID — one database per member, deleted whole when that member signs out. Screens read those partitions reactively, so the same code works online and offline; a device with nothing downloaded says so instead of showing empty sections. When the API is unreachable, a retained sign-in keeps working: the session probe assembles the member's identity from the session registry and the local store instead of declaring them signed out. The engine applies a re-shown section's map with the cursor written as 0 and runs the resync at once (ADR-0014). Online-only data (the administrative area, session lists) uses ordinary queries.
 - Mutations go to the API. On success they trigger a sync; they do not patch the cache by hand.
 - The session registry stores which members are signed in on this device (member ID, space name, display name), and never tokens. The active member is the default on every request as `X-Ohana-Member`; a request tied to one member — such as a query keyed by member — names that member explicitly, and the middleware never overrides it.
 - Every user-visible string comes from `packages/i18n`. The one exception is the web app manifest, a single static document read before any code, written in the default language (Russian). API error codes map to translated messages.
