@@ -62,12 +62,12 @@ describe('SPA static files', () => {
   test('serves the PWA artefacts the browser needs to install the app', async () => {
     const app = await buildAppWithWebDist()
     try {
-      // The service worker must always revalidate, never come from a cache,
-      // or a deployed update would stay undetected.
+      // The service worker script must revalidate on every update check,
+      // or a deployed update stays undetected for the cache's lifetime.
       const worker = await app.inject({ method: 'GET', url: '/sw.js' })
       expect(worker.statusCode).toBe(200)
       expect(worker.headers['content-type']).toContain('javascript')
-      expect(worker.headers['cache-control']).not.toContain('immutable')
+      expect(worker.headers['cache-control']).toBe('no-cache')
 
       const manifest = await app.inject({ method: 'GET', url: '/manifest.webmanifest' })
       expect(manifest.statusCode).toBe(200)

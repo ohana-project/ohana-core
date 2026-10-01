@@ -69,9 +69,17 @@ export function watchForAppUpdates(
         if (applying) return
         applying = true
         const worker = waiting
-        if (worker === null || worker.state === 'activated' || worker.state === 'redundant') {
+        if (
+          worker === null ||
+          worker.state === 'activated' ||
+          worker.state === 'redundant' ||
+          container.controller === worker
+        ) {
           // The waiting worker already took over — another tab applied it,
-          // or it activated on its own. The next load is the new version.
+          // or it moved on while waiting (the handover can complete while
+          // the worker is still 'activating', which only its identity as
+          // the page's controller reveals). The next load brings the page
+          // to whatever is current now.
           reload()
           return
         }

@@ -81,37 +81,44 @@ test('offers a reload when a new version waits and reloads on demand', async ({ 
     .toBe(true)
 
   // A new deployment: the worker script changes, so the registration
-  // refresh on the next load installs it as a waiting worker.
+  // refresh on the next load installs it as a waiting worker. The artefact
+  // is restored afterwards — this checkout's dist must stay shippable.
   const deployed = await readFile(swUrl, 'utf8')
-  await writeFile(swUrl, `${deployed}\n// shell.pwa.spec.ts: a new version\n`)
+  try {
+    await writeFile(swUrl, `${deployed}\n// shell.pwa.spec.ts: a new version\n`)
 
-  await page.reload()
-  const banner = page.getByRole('status')
-  await expect(banner).toContainText('Вышла новая версия Ohana', { timeout: 20_000 })
+    await page.reload()
+    const banner = page.getByRole('status')
+    await expect(banner).toContainText('Вышла новая версия Ohana', { timeout: 20_000 })
 
-  // The reload is the member's choice: the current version keeps running
-  // until the button, and the reload itself wipes the page state.
-  interface ReloadMarker {
-    __ohanaBeforeReload?: boolean
+    // The reload is the member's choice: the current version keeps running
+    // until the button, and the reload itself wipes the page state.
+    interface ReloadMarker {
+      __ohanaBeforeReload?: boolean
+    }
+    await page.evaluate(() => {
+      ;(window as ReloadMarker).__ohanaBeforeReload = true
+    })
+    await page.getByRole('button', { name: 'Обновить' }).click()
+
+    // Both polls ride out the reload's navigation: an evaluate that lands in
+    // the destroyed context mid-reload is retried with a safe placeholder.
+    await expect
+      .poll(() =>
+        page
+          .evaluate(() => (window as ReloadMarker).__ohanaBeforeReload ?? false)
+          .catch(() => true),
+      )
+      .toBe(false)
+    await expect(banner).not.toBeVisible()
+    await expect
+      .poll(() =>
+        page
+          .evaluate(() => navigator.serviceWorker.controller?.state ?? '')
+          .catch(() => 'navigating'),
+      )
+      .toBe('activated')
+  } finally {
+    await writeFile(swUrl, deployed)
   }
-  await page.evaluate(() => {
-    ;(window as ReloadMarker).__ohanaBeforeReload = true
-  })
-  await page.getByRole('button', { name: 'Обновить' }).click()
-
-  // Both polls ride out the reload's navigation: an evaluate that lands in
-  // the destroyed context mid-reload is retried with a safe placeholder.
-  await expect
-    .poll(() =>
-      page.evaluate(() => (window as ReloadMarker).__ohanaBeforeReload ?? false).catch(() => true),
-    )
-    .toBe(false)
-  await expect(banner).not.toBeVisible()
-  await expect
-    .poll(() =>
-      page
-        .evaluate(() => navigator.serviceWorker.controller?.state ?? '')
-        .catch(() => 'navigating'),
-    )
-    .toBe('activated')
 })

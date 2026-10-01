@@ -29,7 +29,6 @@ export default defineConfig({
     VitePWA({
       strategies: 'generateSW',
       registerType: 'prompt',
-      // The favicon and icons are already covered by the precache glob.
       injectRegister: null,
       /*
        * The manifest carries user-visible Russian strings outside
@@ -59,6 +58,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // The favicon and the icons are precached through this glob; there
+        // is no separate includeAssets list to keep in step with it.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],

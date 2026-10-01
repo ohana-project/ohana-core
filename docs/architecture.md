@@ -164,7 +164,7 @@ src/
     styles/     design tokens and glass materials, exposed to Tailwind through @theme
   lib/          small framework-independent helpers
   testing/      test setup and shared test helpers
-  scripts/      one-off generators (the PWA icons, from the favicon)
+scripts/        one-off generators (the PWA icons, from the favicon)
 e2e/            Playwright specs: the interface flows run against the dev server
                 (test:e2e), the shell specs (*.pwa.spec.ts — manifest, service
                 worker, offline routes, update offer) run against a production
@@ -177,7 +177,7 @@ e2e/            Playwright specs: the interface flows run against the dev server
 - Synchronised data is read from the local store. The sync engine calls the sync endpoint and applies the changes to IndexedDB in partitions keyed by member ID. Screens read those partitions reactively, so the same code works online and offline. Online-only data (the administrative area, session lists) uses ordinary queries.
 - Mutations go to the API. On success they trigger a sync; they do not patch the cache by hand.
 - The session registry stores which members are signed in on this device (member ID, space name, display name), and never tokens. The active member is the default on every request as `X-Ohana-Member`; a request tied to one member — such as a query keyed by member — names that member explicitly, and the middleware never overrides it.
-- Every user-visible string comes from `packages/i18n`. API error codes map to translated messages.
+- Every user-visible string comes from `packages/i18n`. The one exception is the web app manifest, a single static document read before any code, written in the default language (Russian). API error codes map to translated messages.
 - `ui/` holds only design-system components, and screens are composed from them. Feature code never overrides design tokens with one-off colours or sizes.
 - The visual language is defined in `docs/design/README.md`. Each screen is built against its reference prototype in `docs/design/screens/`, which that document maps to tickets. The web client never imports from `docs/design/`.
 - The service worker precaches the shell and caches image derivatives as they are viewed. It never caches API responses; data offline comes only from the local store. `features/update` registers the worker and offers the reload when a new version waits; the web app manifest and the icons come from the build (`vite.config.ts`, `scripts/generate-icons.mjs`).

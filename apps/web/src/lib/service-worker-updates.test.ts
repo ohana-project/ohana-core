@@ -136,6 +136,30 @@ describe('watchForAppUpdates', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
+  it('reloads directly when the worker is mid-activation with the controller handed over', async () => {
+    const container = new FakeContainer()
+    container.controller = new FakeWorker()
+    const waiting = new FakeWorker()
+    container.registration.waiting = waiting
+    const reload = vi.fn()
+    const onReady = vi.fn()
+
+    watchForAppUpdates(container, '/sw.js', onReady, reload)
+    await vi.waitFor(() => expect(onReady).toHaveBeenCalledTimes(1))
+
+    // The handover happens while the worker is still activating: the
+    // controllerchange this page could have listened for has fired, and
+    // only the worker's identity says the takeover is done.
+    waiting.setState('activating')
+    container.controller = waiting
+    container.dispatchEvent(new Event('controllerchange'))
+
+    offeredUpdate(onReady).apply()
+
+    expect(waiting.postMessage).not.toHaveBeenCalled()
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
   it('offers an update when a worker found later finishes installing', async () => {
     const container = new FakeContainer()
     container.controller = new FakeWorker()

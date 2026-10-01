@@ -18,6 +18,10 @@ export async function registerStaticFiles(
     setHeaders: (reply, filePath) => {
       if (filePath.includes(`${sep}assets${sep}`)) {
         reply.header('cache-control', 'public, max-age=31536000, immutable')
+      } else if (filePath.endsWith('sw.js')) {
+        // The service worker script must revalidate on every update check,
+        // or a deployed update stays undetected for the cache's lifetime.
+        reply.header('cache-control', 'no-cache')
       }
     },
   })
