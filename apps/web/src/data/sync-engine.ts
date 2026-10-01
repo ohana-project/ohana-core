@@ -53,10 +53,10 @@ export function onSyncApplied(listener: AppliedListener): () => void {
 }
 
 /**
- * Notified when the API refused the member's session (401). The data-side
- * cleanup happens here in the engine; the screens' caches and the session
- * probe are reset by the member layer that subscribes to this — one
- * cleanup path for every way a member leaves the device.
+ * Notified when the API refused the member's session (401). The engine
+ * only forgets the run; the one subscriber at the root
+ * (app/providers.tsx) runs forgetMember, which owns the registry, the
+ * synchronised partition, and the screens' cached answers.
  */
 export function onMemberRefused(listener: RefusedListener): () => void {
   refusedListeners.add(listener)
@@ -140,20 +140,32 @@ async function runSync(memberId: string): Promise<void> {
       },
     })
     if (error !== undefined || data === undefined) {
-      // The server answered and refused. A 401 ends the member's presence
-      // on the device; a 5xx behind a restarting proxy is the server being
-      // unavailable, not an error of this device (ADR-0002); anything else
-      // is an error. The stored data stays as it is either way.
+      // The server answered. A run that was already forgotten — the member
+      // signed out while the request hung, and the server answered the
+      // sign-out first — stays forgotten: its 401 must not clean the
+      // member up a second time, and not at the cost of a session that is
+      // already valid again.
+      if (forgotten()) return
+      // A 401 ends the member's presence on the device; a 5xx behind a
+      // restarting proxy is the server being unavailable, not an error of
+      // this device (ADR-0002); anything else is an error. The stored data
+      // stays as it is either way.
       const status = responseStatus(response)
       if (status === 401) {
-        // The session is gone — revoked or expired. The run is forgotten so
-        // nothing of it lands afterwards, and the root listener performs
-        // the one sign-out cleanup: registry, partition, screens (ADR-0005).
+        // The run is forgotten so nothing of it lands afterwards, and the
+        // root listener performs the one sign-out cleanup: registry,
+        // partition, screens (ADR-0005). The cleanup path calls forgetSync
+        // again; the bump here is what matters if none is mounted.
         forgetSync(memberId)
-        for (const listener of refusedListeners) listener(memberId)
+        for (const listener of refusedListeners) {
+          try {
+            listener(memberId)
+          } catch {
+            // One failing listener must not skip the rest of the cleanup.
+          }
+        }
         return
       }
-      if (forgotten()) return
       setStatus(memberId, {
         state: status >= 500 ? 'unreachable' : 'error',
         syncedAt: snapshot.syncedAt,

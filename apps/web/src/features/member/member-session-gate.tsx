@@ -26,7 +26,10 @@ export function MemberSessionGate({
 }) {
   const session = useMemberSessionStatus()
   const probe = useMemberSession()
-  useSyncLifecycle(require === 'signed-in' && probe.data?.status === 'signed-in')
+  // A probe that settles in error keeps its previous signed-in answer; the
+  // redirect below takes the screen away, and the sync must not keep
+  // running under it until then.
+  useSyncLifecycle(require === 'signed-in' && probe.data?.status === 'signed-in' && !probe.isError)
   if (session.status === 'pending') {
     return (
       <div className="grid min-h-dvh place-items-center">

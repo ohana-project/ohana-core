@@ -5,10 +5,12 @@ import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
+import { triggerSync } from '@/data/sync-engine.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import {
   forgetMember,
   memberSessionQueryKey,
+  useMemberSession,
   useMemberSessionStatus,
   useRedeemedSignIn,
 } from './use-member-session.ts'
@@ -154,8 +156,10 @@ describe('the member session probe', () => {
     const session = useMemberSessionStatus()
     probeClient = useQueryClient()
     // The gate carries the sync lifecycle beside the probe in the real
-    // route; the tests exercise them together.
-    useSyncLifecycle(session.status === 'signed-in')
+    // route, keyed on the probe's settled data — the tests exercise them
+    // together, keyed the same way so the two cannot drift.
+    const probe = useMemberSession()
+    useSyncLifecycle(probe.data?.status === 'signed-in' && !probe.isError)
     return <span data-testid="session">{JSON.stringify(session)}</span>
   }
 
@@ -286,6 +290,37 @@ describe('the member session probe', () => {
     const snapshot = await readMemberSnapshot(MEMBER)
     expect(snapshot.revision).toBeUndefined()
     expect(snapshot.members).toEqual([])
+  })
+
+  it('the root listener cleans up a refusal with no session hook mounted', async () => {
+    seedRegistry()
+    await applySyncResult(MEMBER, STORED)
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/sync') {
+        return {
+          data: undefined,
+          error: { error: { code: 'unauthorized', message: 'A member session is required' } },
+          response: new Response(null, { status: 401 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    // No probe, no gate — only the providers with their root listener and
+    // a screen that holds the query client (issue #14: the cleanup runs no
+    // matter which screen is open).
+    function ClientOnly() {
+      probeClient = useQueryClient()
+      return null
+    }
+    renderWithProviders(<ClientOnly />)
+    client().setQueryData(['member', MEMBER, 'profiles'], [{ id: MEMBER }])
+
+    await triggerSync(MEMBER)
+
+    await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
+    expect(client().getQueryData(['member', MEMBER, 'profiles'])).toBeUndefined()
+    const snapshot = await readMemberSnapshot(MEMBER)
+    expect(snapshot.revision).toBeUndefined()
   })
 
   it('the engine refusing the sync (401) forgets the member through the root listener', async () => {

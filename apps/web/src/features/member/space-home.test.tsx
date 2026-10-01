@@ -1,3 +1,4 @@
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
@@ -7,6 +8,7 @@ import { applySyncResult, readMemberSnapshot, type SyncResult } from '@/data/loc
 import { renderWithProviders } from '@/testing/render.tsx'
 import { MemberSessionGate } from './member-session-gate.tsx'
 import { SpaceHomeScreen } from './space-home.tsx'
+import { memberSessionQueryKey } from './use-member-session.ts'
 
 /*
  * The home reads the member's local store (issue #14): the greeting, the
@@ -39,7 +41,10 @@ const apiDelete = vi.mocked(api.DELETE)
  * because the gate carries the member area's one sync lifecycle (issue
  * #14) — a bare screen would never sync.
  */
+let homeClient: QueryClient | undefined
+
 function HomeRoute() {
+  homeClient = useQueryClient()
   return (
     <MemberSessionGate require="signed-in" redirectTo="/signin">
       <SpaceHomeScreen />
@@ -134,8 +139,6 @@ function seedRegistry(world: World) {
 }
 
 function mockResponses(world: World, sync: SyncResult | (() => Promise<SyncResult> | SyncResult)) {
-  console.log('mockResponses installed for', world.memberId)
-  // eslint-disable-next-line
   apiGet.mockImplementation(async (path: never) => {
     if (path === '/api/v1/me') {
       return { data: world.me, error: undefined, response: new Response(null, { status: 200 }) }
@@ -160,6 +163,7 @@ function chipState(container: HTMLElement): string | undefined {
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory()
   window.localStorage.clear()
+  homeClient = undefined
   vi.clearAllMocks()
 })
 
@@ -197,6 +201,13 @@ describe('SpaceHomeScreen', () => {
     })
     // The home mounts the snapshot query twice — its own, and the
     // navigation's — but the gate's single lifecycle runs the engine once.
+    expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
+
+    // A probe refetch (stale-time expiry, invalidation) reports pending
+    // while in flight; the lifecycle is keyed on the probe's settled data,
+    // so the refetch must not tear the sync down and start it again.
+    await homeClient?.invalidateQueries({ queryKey: memberSessionQueryKey })
+    await vi.waitFor(() => expect(screen.getAllByText(/Актуально/).length).toBeGreaterThan(0))
     expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
   })
 

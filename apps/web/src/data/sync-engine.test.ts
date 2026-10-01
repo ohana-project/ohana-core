@@ -2,6 +2,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
+import { listStoredSessions } from '@/data/session-registry.ts'
 import {
   forgetSync,
   getSyncStatus,
@@ -204,21 +205,55 @@ describe('the sync engine', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    const realDatabases = indexedDB.databases?.bind(indexedDB)
     vi.stubGlobal('indexedDB', {
-      databases: () => gate.then(() => realDatabases?.() ?? []),
+      databases: () =>
+        gate.then(() => {
+          throw new Error('storage refused')
+        }),
     })
 
     const running = triggerSync(memberId)
     // The member signs out while the run is still waiting on storage, and
-    // the storage then fails outright.
+    // the storage then fails outright: the engine's unexpected-failure
+    // guard must not invent a status for the forgotten member.
     forgetSync(memberId)
     release?.()
     await running
 
-    // Neither the unexpected failure nor the forget invents a status.
     expect(getSyncStatus(memberId)).toBeUndefined()
     expect(apiGet).not.toHaveBeenCalled()
+  })
+
+  test('a forgotten run does not clean the member up on its stale 401', async () => {
+    const memberId = makeMember()
+    seedRegistry(memberId)
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    apiGet.mockImplementationOnce(async () => {
+      await gate
+      return {
+        data: undefined,
+        error: { error: { code: 'unauthorized', message: 'A member session is required' } },
+        response: new Response(null, { status: 401 }),
+      }
+    })
+    const refused: string[] = []
+    const stop = onMemberRefused((who) => refused.push(who))
+
+    const running = triggerSync(memberId)
+    // The sign-out lands first and the server answers the hung request
+    // with a 401 afterwards: the stale refusal must stay stale.
+    forgetSync(memberId)
+    release?.()
+    await running
+    stop()
+
+    expect(refused).toEqual([])
+    // The retained sign-in of the member who left — or of whoever signed
+    // in since — is not touched.
+    expect(listStoredSessions()).toEqual([expect.objectContaining({ memberId })])
   })
 
   test('a sync in flight during sign-out never applies its answer', async () => {
