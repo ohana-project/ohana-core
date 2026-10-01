@@ -1,12 +1,7 @@
 import { api } from '@/data/api.ts'
 import { responseStatus } from '@/data/api-error.ts'
-import {
-  applySyncResult,
-  deleteMemberData,
-  readMemberSnapshot,
-  type SyncResult,
-} from '@/data/local-store.ts'
-import { getActiveMemberId, removeSession } from '@/data/session-registry.ts'
+import { applySyncResult, readMemberSnapshot, type SyncResult } from '@/data/local-store.ts'
+import { getActiveMemberId } from '@/data/session-registry.ts'
 
 /*
  * The sync engine (issue #14, ADR-0014): for the active member it calls the
@@ -151,12 +146,10 @@ async function runSync(memberId: string): Promise<void> {
       // is an error. The stored data stays as it is either way.
       const status = responseStatus(response)
       if (status === 401) {
+        // The session is gone — revoked or expired. The run is forgotten so
+        // nothing of it lands afterwards, and the root listener performs
+        // the one sign-out cleanup: registry, partition, screens (ADR-0005).
         forgetSync(memberId)
-        // The session is gone — revoked or expired. The retained sign-in
-        // and the synchronised partition go with it, the way a sign-out
-        // would (ADR-0005); the member layer resets the screens' caches.
-        removeSession(memberId)
-        void deleteMemberData(memberId).catch(() => {})
         for (const listener of refusedListeners) listener(memberId)
         return
       }

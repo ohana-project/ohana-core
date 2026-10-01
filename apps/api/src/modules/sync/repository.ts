@@ -42,9 +42,10 @@ export async function writeTombstones(
 /**
  * The tombstones of the named entities that happened in the space after
  * `since` and concern the requesting member: audience `all` reaches
- * everyone, a member-scoped one only that member. Contributors call it for
- * their own entities (architecture.md, "Sync contributors") — the shared
- * table keeps one tombstone shape, the audience filter lives here once.
+ * everyone, a member-scoped one only that member. The sync service calls
+ * this once per request for the wired contributors' entities
+ * (architecture.md, "Sync contributors") — the shared table keeps one
+ * tombstone shape, the audience filter lives here once.
  */
 export async function readTombstonesSince(
   tx: Tx,

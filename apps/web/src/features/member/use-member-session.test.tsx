@@ -152,6 +152,7 @@ describe('the member session probe', () => {
 
   function SessionProbe() {
     const session = useMemberSessionStatus()
+    probeClient = useQueryClient()
     // The gate carries the sync lifecycle beside the probe in the real
     // route; the tests exercise them together.
     useSyncLifecycle(session.status === 'signed-in')
@@ -171,6 +172,7 @@ describe('the member session probe', () => {
   beforeEach(() => {
     globalThis.indexedDB = new IDBFactory()
     window.localStorage.clear()
+    probeClient = undefined
     vi.clearAllMocks()
   })
 
@@ -278,10 +280,52 @@ describe('the member session probe', () => {
     // The registry entry is gone at once; the probe, reset in place, waits
     // on the spinner path until it is observed again.
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
-    // The partition is deleted whole, and — with the sync still in the
-    // air — the released answer never resurrects it.
+    // Let the released request's microtasks play out: the answer of the
+    // departed member must never resurrect the deleted partition.
+    await new Promise((resolve) => setTimeout(resolve, 50))
     const snapshot = await readMemberSnapshot(MEMBER)
     expect(snapshot.revision).toBeUndefined()
     expect(snapshot.members).toEqual([])
+  })
+
+  it('the engine refusing the sync (401) forgets the member through the root listener', async () => {
+    seedRegistry()
+    await applySyncResult(MEMBER, STORED)
+    let releaseRequest: (() => void) | undefined
+    const request = new Promise<void>((resolve) => {
+      releaseRequest = resolve
+    })
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/sync') {
+        await request
+        return {
+          data: undefined,
+          error: { error: { code: 'unauthorized', message: 'A member session is required' } },
+          response: new Response(null, { status: 401 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+
+    renderWithProviders(<SessionProbe />)
+    await vi.waitFor(() =>
+      expect(apiGet).toHaveBeenCalledWith('/api/v1/sync', {
+        params: expect.objectContaining({ header: { 'x-ohana-member': MEMBER } }),
+      }),
+    )
+    // The sync is held in the air while a cached answer of the member is
+    // put in place, so the refusal is what must clear it.
+    client().setQueryData(['member', MEMBER, 'profiles'], [{ id: MEMBER }])
+    releaseRequest?.()
+
+    // The refusal travels to the root listener, which cleans the member up
+    // exactly like a sign-out: registry, partition, and cached answers.
+    await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
+    expect(client().getQueryData(['member', MEMBER, 'profiles'])).toBeUndefined()
+    const snapshot = await readMemberSnapshot(MEMBER)
+    expect(snapshot.revision).toBeUndefined()
   })
 })

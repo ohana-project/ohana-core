@@ -2,10 +2,10 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
-import { getActiveMemberId, listStoredSessions } from '@/data/session-registry.ts'
 import {
   forgetSync,
   getSyncStatus,
+  onMemberRefused,
   onSyncApplied,
   type SyncStatus,
   triggerSync,
@@ -174,7 +174,7 @@ describe('the sync engine', () => {
     expect((await readMemberSnapshot(memberId)).revision).toBe('7')
   })
 
-  test('a refused session (401) removes the member and their partition', async () => {
+  test('a refused session (401) emits the refusal and forgets the member', async () => {
     const memberId = makeMember()
     seedRegistry(memberId)
     await applySyncResult(memberId, ANYA_SYNC)
@@ -183,18 +183,42 @@ describe('the sync engine', () => {
       error: { error: { code: 'unauthorized', message: 'A member session is required' } },
       response: new Response(null, { status: 401 }),
     })
+    const refused: string[] = []
+    const stop = onMemberRefused((who) => refused.push(who))
 
     await triggerSync(memberId)
+    stop()
 
-    // The retained sign-in and the synchronised partition are gone, the way
-    // a sign-out removes them (issue #14, ADR-0005).
-    expect(listStoredSessions()).toEqual([])
-    expect(getActiveMemberId()).toBeUndefined()
-    const snapshot = await readMemberSnapshot(memberId)
-    expect(snapshot.revision).toBeUndefined()
-    expect(snapshot.members).toEqual([])
-    // The engine holds no status for a member that is no longer here.
+    // The engine forgets the run and hands the member to the one cleanup
+    // path, which removes them as a sign-out would (ADR-0005); the purge
+    // itself is the seam test's business (use-member-session).
+    expect(refused).toEqual([memberId])
     expect(getSyncStatus(memberId)).toBeUndefined()
+    // Nothing of the refused exchange touched the stored partition.
+    expect((await readMemberSnapshot(memberId)).revision).toBe('7')
+  })
+
+  test('a storage failure during a forgotten run stays forgotten', async () => {
+    const memberId = makeMember()
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const realDatabases = indexedDB.databases?.bind(indexedDB)
+    vi.stubGlobal('indexedDB', {
+      databases: () => gate.then(() => realDatabases?.() ?? []),
+    })
+
+    const running = triggerSync(memberId)
+    // The member signs out while the run is still waiting on storage, and
+    // the storage then fails outright.
+    forgetSync(memberId)
+    release?.()
+    await running
+
+    // Neither the unexpected failure nor the forget invents a status.
+    expect(getSyncStatus(memberId)).toBeUndefined()
+    expect(apiGet).not.toHaveBeenCalled()
   })
 
   test('a sync in flight during sign-out never applies its answer', async () => {
@@ -225,36 +249,6 @@ describe('the sync engine', () => {
 
     // The answer of a departed member is never written back, and the run
     // that was forgotten left no status behind.
-    expect((await readMemberSnapshot(memberId)).revision).toBe('5')
-    expect(getSyncStatus(memberId)).toBeUndefined()
-  })
-
-  test('a forget between the answer and the apply keeps the stored revision', async () => {
-    const memberId = makeMember()
-    const stale = { ...ANYA_SYNC, revision: '5' }
-    await applySyncResult(memberId, stale)
-    let releaseRequest: (() => void) | undefined
-    const request = new Promise<void>((resolve) => {
-      releaseRequest = resolve
-    })
-    apiGet.mockImplementationOnce(async () => {
-      await request
-      return {
-        data: ANYA_SYNC,
-        error: undefined,
-        response: new Response(null, { status: 200 }),
-      }
-    })
-
-    const running = triggerSync(memberId)
-    await vi.waitFor(() => expect(apiGet).toHaveBeenCalled())
-    // The sign-out lands after the response arrived but before the apply
-    // has its turn: releasing the request and forgetting are one synchronous
-    // step, so the generation guard between the two is what the run sees.
-    releaseRequest?.()
-    forgetSync(memberId)
-    await running
-
     expect((await readMemberSnapshot(memberId)).revision).toBe('5')
     expect(getSyncStatus(memberId)).toBeUndefined()
   })

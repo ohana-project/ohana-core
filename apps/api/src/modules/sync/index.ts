@@ -1,5 +1,4 @@
 export {
-  readTombstonesSince,
   type SyncTombstoneEntry,
   type TombstoneAudience,
   type TombstoneInput,

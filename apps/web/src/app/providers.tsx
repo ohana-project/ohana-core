@@ -1,10 +1,25 @@
 import { createI18n } from '@ohana/i18n'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useState } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { ThemeProvider } from '@/app/theme.tsx'
+import { onMemberRefused } from '@/data/sync-engine.ts'
+import { forgetMember } from '@/features/member/use-member-session.ts'
 import { loadLocale } from '@/lib/locale-storage.ts'
 import { Toaster } from '@/ui/toast.tsx'
+
+/**
+ * The one subscriber to the sync engine's refusals (issue #14): when the
+ * API refuses a member's session outright, the member leaves the device
+ * exactly as a sign-out removes them — registry, synchronised partition,
+ * and the screens' cached answers. Mounted once at the root, so the
+ * cleanup runs no matter which screen is open.
+ */
+function MemberRefusalListener() {
+  const queryClient = useQueryClient()
+  useEffect(() => onMemberRefused((memberId) => forgetMember(queryClient, memberId)), [queryClient])
+  return null
+}
 
 export function AppProviders({ children }: { children: ReactNode }) {
   // Failures surface in the UI instead of hiding behind query retries;
@@ -29,6 +44,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ThemeProvider>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
+          <MemberRefusalListener />
           {children}
           <Toaster />
         </QueryClientProvider>
