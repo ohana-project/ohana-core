@@ -1,7 +1,6 @@
 import { and, eq, or } from 'drizzle-orm'
 import { DomainError } from '../../platform/errors.ts'
-import type { JournalEntry } from './tables.ts'
-import { journalEntries } from './tables.ts'
+import { type JournalEntry, journalEntries } from './tables.ts'
 
 /*
  * The journal's visibility and permission rules: the one place both the

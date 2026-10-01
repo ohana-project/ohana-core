@@ -29,6 +29,14 @@ import type { JournalEntry } from './tables.ts'
 /** The queue name of the per-entry purge job the trash use case schedules. */
 export const JOURNAL_PURGE_JOB = 'journal-purge-entry'
 
+/**
+ * The queues this module's use cases send to — the list the api process
+ * ensures exist, so the first trash never meets a queue the worker has
+ * not created (architecture.md, "Background jobs"). The worker ensures
+ * its own full set, including the sweep's queue.
+ */
+export const JOURNAL_SENT_QUEUES = [JOURNAL_PURGE_JOB] as const
+
 /** The queue name of the recurring sweep. */
 export const JOURNAL_PURGE_SWEEP_JOB = 'journal-purge-sweep'
 

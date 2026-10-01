@@ -61,22 +61,26 @@ describe('buildWorker', () => {
       await worker.start()
 
       // The trash runs through the real sender, exactly as the api process
-      // would: the job lands in the queue with its 30-day delay, and only
-      // this sender's payload reaches the handler.
+      // would: the job lands in the queue scheduled for its deletion date,
+      // and only this sender's payload reaches the handler.
       const sender = createPgBossJobSender(boss)
       const deps: JournalDeps = { db: harness.db, clock: harness.clock, jobs: sender }
       const space = await harness.createSpace({ name: 'Очередь' })
       const author = await harness.createMember(space.id, { name: 'Аня' })
       const actor: JournalActor = { memberId: author.id, spaceId: space.id, role: 'regular' }
       const created = await createDraft(deps, actor, { text: 'ждёт своего часа' })
-      const { entry } = await trashEntry(deps, actor, created.id)
+      const { entry, purgeAt } = await trashEntry(deps, actor, created.id)
 
-      // The retention runs out; the handler re-checks due-ness on the
-      // controllable clock before acting.
+      // pg-boss compares a job's start-after with the database's own
+      // clock, not the harness's: the harness epoch is in the real past,
+      // so the job is runnable the moment the worker polls. The handler
+      // then re-checks due-ness on the controllable clock — which this
+      // test has to move for the purge to be due.
+      expect(purgeAt.getTime()).toBeLessThan(Date.now())
       harness.clock.advance(31 * DAY_MS)
 
-      // The wait is bounded: the job is runnable the moment the worker is
-      // up, and the queue's own rows tell the story when it times out.
+      // The wait is bounded, and the queue's own rows tell the story when
+      // it times out.
       const deadline = Date.now() + 30_000
       let gone = false
       let queueRows = ''
