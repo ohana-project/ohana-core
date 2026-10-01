@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { AuthLayout } from '@/app/layouts/auth-layout.tsx'
 import { AdminLoginForm } from '@/features/admin/admin-login-form.tsx'
 import { AdminSessionGate } from '@/features/admin/admin-session-gate.tsx'
-import { AuthLayout } from '@/ui/auth-layout.tsx'
 
 function AdminLoginPage() {
   const { t } = useTranslation()

@@ -1,9 +1,9 @@
 import { createFileRoute, Navigate, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { AuthLayout } from '@/app/layouts/auth-layout.tsx'
 import { MemberSessionGate } from '@/features/member/member-session-gate.tsx'
 import { type MemberMe, useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { OnboardingForm } from '@/features/onboarding/onboarding-form.tsx'
-import { AuthLayout } from '@/ui/auth-layout.tsx'
 
 /*
  * The onboarding screen (docs/design/screens/onboarding.html): step two of

@@ -23,8 +23,8 @@ export default defineConfig({
      * router opens it offline. API responses are never cached; offline
      * data comes only from the local store. The worker waits with the new
      * version until the app's update prompt forwards SKIP_WAITING
-     * (registerType 'prompt'), and registration itself lives in
-     * features/update/update-prompt.tsx.
+     * (registerType 'prompt'); registration itself lives in
+     * lib/app-update.ts and runs once per page from the app entry.
      */
     VitePWA({
       strategies: 'generateSW',

@@ -2,6 +2,7 @@ import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AdminLayout } from '@/app/layouts/admin-layout.tsx'
+import { AuthLayout } from '@/app/layouts/auth-layout.tsx'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { UpdatePrompt } from './update-prompt.tsx'
@@ -36,7 +37,7 @@ vi.mock('@/lib/app-update.ts', () => {
 })
 
 const setReady = (
-  await import('@/lib/app-update.ts') as unknown as {
+  (await import('@/lib/app-update.ts')) as unknown as {
     __setAppUpdateReady: (value: boolean) => void
   }
 ).__setAppUpdateReady
@@ -94,5 +95,20 @@ describe('UpdatePrompt', () => {
     const banner = screen.getByRole('status')
     expect(banner).toHaveTextContent('Вышла новая версия Ohana')
     expect(banner.closest('main')).not.toBeNull()
+  })
+
+  it('the auth shell places the offer in its page flow', () => {
+    renderWithProviders(
+      <AuthLayout footer="note">
+        <p>content</p>
+      </AuthLayout>,
+    )
+    act(() => setReady(true))
+
+    const banner = screen.getByRole('status')
+    expect(banner).toHaveTextContent('Вышла новая версия Ohana')
+    expect(banner.compareDocumentPosition(screen.getByText('content'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
   })
 })
