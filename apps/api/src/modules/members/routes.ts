@@ -4,8 +4,10 @@ import type { FastifyInstance } from 'fastify'
 import {
   type AccessDeps,
   MemberHeadersSchema,
+  MemberIdParamsSchema,
   memberSessionGuard,
   requireMemberActor,
+  requireOwnerActor,
 } from '../access/index.ts'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
@@ -181,6 +183,47 @@ export const membersRoutes: FastifyPluginAsyncTypebox<MembersRoutesOptions> = as
         const actor = requireMemberActor(request)
         const rows = await listMembers(opts.deps, actor.spaceId)
         return rows.map(toMemberProfileDto)
+      },
+    )
+
+    // The owner's space management (issue #12, ADR-0005): provisioning and
+    // role changes without the instance administrator. The target space is
+    // the actor's own — an owner's authority ends at their space.
+    scoped.post(
+      '/members',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          body: ProvisionMemberBodySchema,
+          response: { 201: MemberProfileDtoSchema },
+        },
+      },
+      async (request, reply) => {
+        const actor = requireOwnerActor(request)
+        const member = await provisionMember(opts.deps, actor.spaceId, request.body)
+        return reply.code(201).send(toMemberProfileDto(member))
+      },
+    )
+
+    scoped.patch(
+      '/members/:memberId',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          body: ChangeMemberRoleBodySchema,
+          response: { 200: MemberProfileDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor = requireOwnerActor(request)
+        const member = await changeMemberRole(
+          opts.deps,
+          actor.spaceId,
+          request.params.memberId,
+          request.body.role,
+        )
+        return toMemberProfileDto(member)
       },
     )
   })

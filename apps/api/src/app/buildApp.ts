@@ -2,7 +2,13 @@ import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import Fastify, { type FastifyBaseLogger } from 'fastify'
-import { type AccessDeps, accessRoutes } from '../modules/access/index.ts'
+import {
+  type AccessDeps,
+  accessRoutes,
+  memberSessionGuard,
+  requireMemberActor,
+  requireOwnerActor,
+} from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
 import { adminCountMembersBySpace, findMemberInSpace } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
@@ -56,11 +62,18 @@ export function buildApp(deps: AppDeps) {
   }
   // The spaces listing needs the members module's administrative count, and
   // the members module sits above spaces, so the counter is injected here
-  // instead of imported inside the spaces module.
+  // instead of imported inside the spaces module. The member-facing space
+  // routes mount the access module's guard the same way: access sits above
+  // spaces, so the guard and its narrowings arrive through this port.
   app.register(spacesRoutes, {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock },
     countMembers: (db) => adminCountMembersBySpace({ db, clock: deps.clock }),
+    memberArea: {
+      guard: memberSessionGuard(accessDeps),
+      requireMember: requireMemberActor,
+      requireOwner: requireOwnerActor,
+    },
   })
   app.register(accessRoutes, { prefix: '/api/v1', deps: accessDeps })
   app.register(membersRoutes, {

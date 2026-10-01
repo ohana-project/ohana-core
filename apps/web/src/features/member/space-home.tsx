@@ -67,6 +67,24 @@ export function SpaceHomeScreen() {
 
   const userMenuItems: ShellUserMenuItem[] = [
     {
+      id: 'members',
+      label: t('space.members.title'),
+      icon: 'users',
+      onSelect: () => void navigate({ to: '/members' }),
+    },
+    // The space settings are an owner instrument (issue #12); the menu
+    // shows the entry only where the API would accept it.
+    ...(me.member.role === 'owner'
+      ? [
+          {
+            id: 'space-settings',
+            label: t('space.settings.title'),
+            icon: 'settings' as const,
+            onSelect: () => void navigate({ to: '/settings' }),
+          },
+        ]
+      : []),
+    {
       id: 'accounts',
       label: t('member.home.accounts'),
       icon: 'users',

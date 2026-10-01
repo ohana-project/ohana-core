@@ -166,6 +166,82 @@ export async function listAccessCodesInSpace(
     .orderBy(desc(accessCodes.createdAt), desc(accessCodes.id))
 }
 
+/**
+ * The member's newest code, of any status. Used as the fallback when no
+ * live code exists, so the owner's member card can still show what became
+ * of the last invitation. The status change — not creation — is what makes
+ * a row the current answer, and creation order is unreliable under
+ * concurrent issuance; the id breaks the ties left by rows whose status
+ * changed in the same instant.
+ */
+export async function getLatestAccessCodeForMember(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<AccessCode | undefined> {
+  const rows = await executor
+    .select()
+    .from(accessCodes)
+    .where(and(eq(accessCodes.spaceId, spaceId), eq(accessCodes.memberId, memberId)))
+    .orderBy(desc(accessCodes.statusChangedAt), desc(accessCodes.id))
+    .limit(1)
+  return rows[0]
+}
+
+/**
+ * The member's live code: the one issued row the database's partial unique
+ * index (`access_codes_one_live_per_member_idx`) caps at one. Creation
+ * order says nothing about which row is live under concurrent issuance, so
+ * the status — not the timestamp — is what picks the row.
+ */
+export async function getLiveAccessCodeForMember(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<AccessCode | undefined> {
+  const rows = await executor
+    .select()
+    .from(accessCodes)
+    .where(
+      and(
+        eq(accessCodes.spaceId, spaceId),
+        eq(accessCodes.memberId, memberId),
+        eq(accessCodes.status, 'issued'),
+      ),
+    )
+    .limit(1)
+  return rows[0]
+}
+
+/**
+ * Revokes the member's live code in one member-scoped compare-and-set
+ * (issue #12). The partial unique index guarantees at most one issued row,
+ * so the single UPDATE either revokes it or finds nothing outstanding —
+ * no read-before-write, no space row lock (architecture.md, "Data
+ * access"). An issued-past-expiry code does not match and materialises its
+ * expiry in the caller's follow-up write.
+ */
+export async function revokeLiveAccessCodeForMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  now: Date,
+): Promise<AccessCode | undefined> {
+  const updated = await tx
+    .update(accessCodes)
+    .set({ status: 'revoked', statusChangedAt: now })
+    .where(
+      and(
+        eq(accessCodes.spaceId, spaceId),
+        eq(accessCodes.memberId, memberId),
+        eq(accessCodes.status, 'issued'),
+        gt(accessCodes.expiresAt, now),
+      ),
+    )
+    .returning()
+  return updated[0]
+}
+
 export interface NewMemberSession {
   spaceId: string
   memberId: string
@@ -280,4 +356,21 @@ export async function deleteExpiredMemberSessionsAcrossSpaces(
   now: Date,
 ): Promise<void> {
   await executor.delete(memberSessions).where(lt(memberSessions.expiresAt, now))
+}
+
+/**
+ * Disconnects every device of one member: all of the member's sessions in
+ * the space go, and no other member's. Sessions are not synchronised data,
+ * so the caller spends no revision (architecture.md, Data access).
+ */
+export async function deleteMemberSessionsForMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<number> {
+  const deleted = await tx
+    .delete(memberSessions)
+    .where(and(eq(memberSessions.spaceId, spaceId), eq(memberSessions.memberId, memberId)))
+    .returning({ id: memberSessions.id })
+  return deleted.length
 }

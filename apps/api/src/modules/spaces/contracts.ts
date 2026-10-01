@@ -46,3 +46,34 @@ export const UpdateSpaceBodySchema = Type.Object(
 export const SpaceIdParamsSchema = Type.Object({
   spaceId: Type.String({ format: 'uuid' }),
 })
+
+/*
+ * Member-facing contracts (issue #12): what a signed-in member sees of their
+ * space, and the one setting an owner changes from the member side. The
+ * space never comes from the URL — it is the authenticated actor's.
+ *
+ * The member header is declared structurally: access sits above spaces, so
+ * the schema cannot be imported from it (the request contract in
+ * architecture.md names the header).
+ */
+export const SpaceMemberHeadersSchema = Type.Object({
+  'x-ohana-member': Type.Optional(Type.String({ format: 'uuid' })),
+})
+
+export const MemberSpaceDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    name: Type.String(),
+    timezone: Type.String({ minLength: 1, maxLength: 64 }),
+  },
+  { additionalProperties: false },
+)
+
+export type MemberSpaceDto = Static<typeof MemberSpaceDtoSchema>
+
+export const UpdateMemberSpaceBodySchema = Type.Object(
+  {
+    timezone: Type.String({ minLength: 1, maxLength: 64 }),
+  },
+  { additionalProperties: false },
+)

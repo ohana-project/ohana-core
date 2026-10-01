@@ -2,6 +2,7 @@ export {
   type AccessCodeStatus,
   MEMBER_HEADER,
   MemberHeadersSchema,
+  MemberIdParamsSchema,
   type MemberSessionDto,
   MemberSessionDtoSchema,
 } from './contracts.ts'
@@ -12,6 +13,7 @@ export {
   memberSessionCookieName,
   memberSessionGuard,
   requireMemberActor,
+  requireOwnerActor,
 } from './routes.ts'
 export {
   ACCESS_CODE_ALPHABET,
@@ -24,6 +26,7 @@ export {
   describeDevice,
   formatAccessCode,
   generateAccessCode,
+  getMemberAccessCode,
   type IssuedAccessCode,
   issueAccessCode,
   listAccessCodes,
@@ -37,7 +40,9 @@ export {
   type RedeemResult,
   redeemAccessCode,
   revokeAccessCode,
+  revokeMemberAccessCode,
   revokeMemberSession,
+  revokeMemberSessions,
   signOutMember,
 } from './service.ts'
 export type { AccessCode } from './tables.ts'
