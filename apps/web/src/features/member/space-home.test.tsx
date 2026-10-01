@@ -205,9 +205,39 @@ describe('SpaceHomeScreen', () => {
 
     // A probe refetch (stale-time expiry, invalidation) reports pending
     // while in flight; the lifecycle is keyed on the probe's settled data,
-    // so the refetch must not tear the sync down and start it again.
-    await homeClient?.invalidateQueries({ queryKey: memberSessionQueryKey })
-    await vi.waitFor(() => expect(screen.getAllByText(/Актуально/).length).toBeGreaterThan(0))
+    // so the refetch must not tear the sync down and start it again. The
+    // second probe answer is held back, so the pending state is proven on
+    // screen instead of being raced past.
+    if (homeClient === undefined) throw new Error('The home client never mounted')
+    let releaseMe: (() => void) | undefined
+    const meGate = new Promise<void>((resolve) => {
+      releaseMe = resolve
+    })
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        await meGate
+        return { data: world.me, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/sync') {
+        return {
+          data: syncResultFor(world),
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    void homeClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+    // The gate renders its spinner while the probe is in flight — the
+    // pending state the old, render-status keying would have reacted to.
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('heading', { name: /Аня Смирнова/ })).toBeNull(),
+    )
+    releaseMe?.()
+    expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
+    // A macrotask drains every microtask first: a restarted lifecycle would
+    // have issued its second /sync by now.
+    await new Promise((resolve) => setTimeout(resolve, 0))
     expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
   })
 

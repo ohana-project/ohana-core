@@ -1,6 +1,9 @@
 import { Navigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { useMemberSession, useMemberSessionStatus } from '@/features/member/use-member-session.ts'
+import {
+  useMemberSessionStatus,
+  useMemberSyncActive,
+} from '@/features/member/use-member-session.ts'
 import { useSyncLifecycle } from '@/features/member/use-synced-space.ts'
 import { Spinner } from '@/ui/spinner.tsx'
 
@@ -25,11 +28,8 @@ export function MemberSessionGate({
   children: ReactNode
 }) {
   const session = useMemberSessionStatus()
-  const probe = useMemberSession()
-  // A probe that settles in error keeps its previous signed-in answer; the
-  // redirect below takes the screen away, and the sync must not keep
-  // running under it until then.
-  useSyncLifecycle(require === 'signed-in' && probe.data?.status === 'signed-in' && !probe.isError)
+  const syncActive = useMemberSyncActive()
+  useSyncLifecycle(require === 'signed-in' && syncActive)
   if (session.status === 'pending') {
     return (
       <div className="grid min-h-dvh place-items-center">

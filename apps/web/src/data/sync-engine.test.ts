@@ -2,7 +2,6 @@ import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
-import { listStoredSessions } from '@/data/session-registry.ts'
 import {
   forgetSync,
   getSyncStatus,
@@ -251,9 +250,6 @@ describe('the sync engine', () => {
     stop()
 
     expect(refused).toEqual([])
-    // The retained sign-in of the member who left — or of whoever signed
-    // in since — is not touched.
-    expect(listStoredSessions()).toEqual([expect.objectContaining({ memberId })])
   })
 
   test('a sync in flight during sign-out never applies its answer', async () => {

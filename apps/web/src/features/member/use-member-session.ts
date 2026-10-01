@@ -109,6 +109,17 @@ export function useMemberSession() {
   })
 }
 
+/**
+ * Whether the member area's sync lifecycle should be running (issue #14):
+ * the probe's settled answer is signed-in, and no error superseded it.
+ * The gate and the tests key on this one predicate, so the keying cannot
+ * drift between them.
+ */
+export function useMemberSyncActive(): boolean {
+  const probe = useMemberSession()
+  return probe.data?.status === 'signed-in' && !probe.isError
+}
+
 export function useMemberSessionStatus(): {
   status: MemberSessionStatus
   me?: MemberMe

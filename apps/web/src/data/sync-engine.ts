@@ -142,9 +142,8 @@ async function runSync(memberId: string): Promise<void> {
     if (error !== undefined || data === undefined) {
       // The server answered. A run that was already forgotten — the member
       // signed out while the request hung, and the server answered the
-      // sign-out first — stays forgotten: its 401 must not clean the
-      // member up a second time, and not at the cost of a session that is
-      // already valid again.
+      // sign-out first — stays forgotten: once a forgetSync ran in between,
+      // the stale 401 must not clean the member up a second time.
       if (forgotten()) return
       // A 401 ends the member's presence on the device; a 5xx behind a
       // restarting proxy is the server being unavailable, not an error of
@@ -190,7 +189,13 @@ async function runSync(memberId: string): Promise<void> {
     const storedRevision = await applySyncResult(memberId, result)
     if (forgotten()) return
     setStatus(memberId, { state: 'synced', syncedAt: Date.now() })
-    for (const listener of appliedListeners) listener(memberId)
+    for (const listener of appliedListeners) {
+      try {
+        listener(memberId)
+      } catch {
+        // One failing listener must not skip the resync below.
+      }
+    }
 
     // A re-shown section reset the cursor to 0 inside the apply (ADR-0014):
     // the next sync, run right away, carries the section's full data again.

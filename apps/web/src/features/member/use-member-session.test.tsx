@@ -5,13 +5,13 @@ import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
-import { triggerSync } from '@/data/sync-engine.ts'
+import { onMemberRefused, triggerSync } from '@/data/sync-engine.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import {
   forgetMember,
   memberSessionQueryKey,
-  useMemberSession,
   useMemberSessionStatus,
+  useMemberSyncActive,
   useRedeemedSignIn,
 } from './use-member-session.ts'
 import { useSyncLifecycle } from './use-synced-space.ts'
@@ -156,10 +156,8 @@ describe('the member session probe', () => {
     const session = useMemberSessionStatus()
     probeClient = useQueryClient()
     // The gate carries the sync lifecycle beside the probe in the real
-    // route, keyed on the probe's settled data — the tests exercise them
-    // together, keyed the same way so the two cannot drift.
-    const probe = useMemberSession()
-    useSyncLifecycle(probe.data?.status === 'signed-in' && !probe.isError)
+    // route; the tests exercise them together through the same predicate.
+    useSyncLifecycle(useMemberSyncActive())
     return <span data-testid="session">{JSON.stringify(session)}</span>
   }
 
@@ -284,9 +282,11 @@ describe('the member session probe', () => {
     // The registry entry is gone at once; the probe, reset in place, waits
     // on the spinner path until it is observed again.
     await vi.waitFor(() => expect(window.localStorage.getItem('ohana.activeMember')).toBeNull())
-    // Let the released request's microtasks play out: the answer of the
-    // departed member must never resurrect the deleted partition.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // Let the released request's microtasks play out: a macrotask runs
+    // only after every pending microtask, so the run's continuation has
+    // fully settled before the partition is read. The answer of the
+    // departed member must never resurrect the deleted one.
+    await new Promise((resolve) => setTimeout(resolve, 0))
     const snapshot = await readMemberSnapshot(MEMBER)
     expect(snapshot.revision).toBeUndefined()
     expect(snapshot.members).toEqual([])
@@ -362,5 +362,33 @@ describe('the member session probe', () => {
     expect(client().getQueryData(['member', MEMBER, 'profiles'])).toBeUndefined()
     const snapshot = await readMemberSnapshot(MEMBER)
     expect(snapshot.revision).toBeUndefined()
+  })
+
+  it('a failing refusal listener does not stop the others from cleaning up', async () => {
+    const received: string[] = []
+    const stopFirst = onMemberRefused(() => {
+      throw new Error('the first listener is broken')
+    })
+    const stopSecond = onMemberRefused((who) => received.push(who))
+
+    seedRegistry()
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/sync') {
+        return {
+          data: undefined,
+          error: { error: { code: 'unauthorized', message: 'A member session is required' } },
+          response: new Response(null, { status: 401 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<SessionProbe />)
+
+    await vi.waitFor(() => expect(received).toEqual([MEMBER]))
+    stopFirst()
+    stopSecond()
   })
 })
