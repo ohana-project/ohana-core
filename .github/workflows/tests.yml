@@ -65,3 +65,8 @@ jobs:
 
       - name: E2E tests
         run: pnpm --filter @ohana/web test:e2e
+
+      # The shell specs need the production build: the service worker and
+      # the manifest exist only there (issue #11).
+      - name: E2E shell (PWA) tests
+        run: pnpm --filter @ohana/web test:e2e:pwa

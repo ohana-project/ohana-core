@@ -227,6 +227,36 @@
     "submit": "Continue",
     "footer": "You are signing in to the “{space}” space"
   },
+  "pwa": {
+    "install": {
+      "title": "Install Ohana on your Home Screen",
+      "subtitle": "As an app it is faster, works offline, and sends reminders about the family's events.",
+      "platformLabel": "Platform",
+      "platformIos": "iPhone",
+      "platformAndroid": "Android",
+      "continue": "Continue in the browser",
+      "footer": "You can install at any time — the link stays in the settings.",
+      "steps": {
+        "ios1Title": "Open Ohana in Safari",
+        "ios1Sub": "and tap the Share button",
+        "ios2Title": "“Add to Home Screen”",
+        "ios2Sub": "the item in the Share menu",
+        "ios3Title": "Tap “Add”",
+        "ios3Sub": "the Ohana icon will appear next to your apps",
+        "android1Title": "Open Ohana in Chrome",
+        "android1Sub": "and open the menu",
+        "android2Title": "“Install app”",
+        "android2Sub": "Chrome offers the installation on its own",
+        "android3Title": "Confirm the installation",
+        "android3Sub": "the Ohana icon will appear in the app menu"
+      }
+    },
+    "installButton": "Install the app",
+    "update": {
+      "ready": "A new version of Ohana is out",
+      "action": "Reload"
+    }
+  },
   "member": {
     "errors": {
       "unauthorized": "Your session has ended — sign in again with a code.",

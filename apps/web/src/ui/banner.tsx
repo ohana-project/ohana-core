@@ -15,7 +15,7 @@ export function Banner({
   children,
   ...props
 }: React.ComponentProps<'div'> & {
-  icon?: 'wifi-off' | 'cloud-off' | 'alert' | 'info'
+  icon?: 'wifi-off' | 'cloud-off' | 'alert' | 'info' | 'sync'
   action?: React.ReactNode
 }) {
   return (
