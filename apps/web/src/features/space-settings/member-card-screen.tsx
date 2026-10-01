@@ -565,14 +565,14 @@ function OwnerSections({
                         toast(t('space.card.revokedToast'))
                       },
                       onError: (error) => {
-                        // A refusal — the code was redeemed, replaced, or
-                        // revoked meanwhile — is answered behind the
-                        // refreshed row, not inside a dialog offering a
-                        // spent action. Any other failure (a lost network,
-                        // say) keeps the dialog open for the retry.
-                        if (error instanceof ApiError && error.code.startsWith('access_code_')) {
-                          setConfirmRevoke(false)
-                        }
+                        // A refusal — the code was redeemed meanwhile, the
+                        // member is gone, the session died — is spent: it is
+                        // answered behind the refreshed row, not inside a
+                        // dialog offering a doomed action. A lost network or
+                        // a blind 500 keeps the dialog open for the retry.
+                        const retryable =
+                          !(error instanceof ApiError) || error.code === 'unexpected'
+                        if (!retryable) setConfirmRevoke(false)
                         toast(spaceSettingsErrorMessage(error, t), 'danger')
                       },
                     },

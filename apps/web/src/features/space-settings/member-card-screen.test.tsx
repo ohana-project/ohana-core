@@ -275,8 +275,14 @@ describe('MemberCardScreen', () => {
       expect(retained).toHaveLength(0)
     })
     // And nothing refetches as the forgotten member: the dead guard would
-    // send the subtree's queries out under their pinned header.
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    // send the subtree's queries out under their pinned header. The stale
+    // invalidation fires before the dialog's close renders, so a closed
+    // dialog means the mutation has fully settled.
+    await vi.waitFor(() => {
+      expect(
+        screen.queryByRole('dialog', { name: 'Отключить все устройства?' }),
+      ).not.toBeInTheDocument()
+    })
     expect(apiGet.mock.calls.length).toBe(getsBeforeDisconnect)
   })
 
@@ -351,9 +357,13 @@ describe('MemberCardScreen', () => {
       expect(retained.map((session: { memberId: string }) => session.memberId)).toEqual([OTHER_ID])
     })
     expect(window.localStorage.getItem('ohana.activeMember')).toBe(OTHER_ID)
+    // The promoted member's probe refetch is the cleanup's last word.
+    await vi.waitFor(() => {
+      const meCalls = apiGet.mock.calls.filter((call) => call[0] === '/api/v1/me').length
+      expect(meCalls).toBeGreaterThanOrEqual(2)
+    })
     // The subtree of the forgotten member is never refetched under their
     // pinned header.
-    await new Promise((resolve) => setTimeout(resolve, 20))
     expect(deadHeaderFetches).toEqual([])
   })
 
@@ -365,10 +375,13 @@ describe('MemberCardScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Отозвать' }))
     const dialog = await screen.findByRole('dialog', { name: 'Отозвать этот код?' })
 
-    // A lost network is not a spent action: the dialog stays for the retry.
+    // A lost network is not a spent action: the dialog stays for the retry,
+    // and the failure reaches the surface as a danger toast.
     apiDelete.mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await user.click(within(dialog).getByRole('button', { name: 'Отозвать' }))
-    await vi.waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(1))
+    expect(
+      await screen.findByText('Не получилось — проверьте сеть и попробуйте ещё раз.'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Отозвать этот код?' })).toBeInTheDocument()
 
     // A refusal — the code was redeemed meanwhile — is spent: the dialog
@@ -380,6 +393,21 @@ describe('MemberCardScreen', () => {
     })
     await user.click(within(dialog).getByRole('button', { name: 'Отозвать' }))
     await vi.waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Отозвать этот код?' })).not.toBeInTheDocument()
+    })
+
+    // Any other refusal — the member is gone from the space — is just as
+    // spent, though it names no access code.
+    await user.click(screen.getByRole('button', { name: 'Отозвать' }))
+    const reopened = await screen.findByRole('dialog', { name: 'Отозвать этот код?' })
+    apiDelete.mockResolvedValueOnce({
+      data: undefined,
+      error: { error: { code: 'member_not_found', message: 'gone' } },
+      response: new Response(null, { status: 404 }),
+    })
+    await user.click(within(reopened).getByRole('button', { name: 'Отозвать' }))
+    await vi.waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(3))
     await vi.waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Отозвать этот код?' })).not.toBeInTheDocument()
     })
