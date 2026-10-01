@@ -352,8 +352,9 @@ describe('the per-member local store', () => {
   })
 
   test('a re-show writes its own promise, and the replay answers for the space whole', async () => {
-    // The journal hides and re-shows while the engine asks from the stored
-    // cursor: the re-show apply writes the journal's promise.
+    // The journal and the calendar hide; the calendar then re-shows and
+    // leaves the store on a cursor of 0 with the journal still hidden and
+    // its replay owed.
     await applySyncResult(ANYA, syncResult())
     await applySyncResult(ANYA, {
       revision: '8',
@@ -370,10 +371,25 @@ describe('the per-member local store', () => {
       ],
       tombstones: [],
     })
-    const reshow = await applySyncResult(
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: false, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    const calendarReshow = await applySyncResult(
       ANYA,
       {
-        revision: '9',
+        revision: '10',
         changes: [
           {
             entity: 'space',
@@ -381,20 +397,22 @@ describe('the per-member local store', () => {
               id: SPACE_ID,
               name: 'Наша семья',
               timezone: 'Europe/Moscow',
-              sections: { journal: true, calendar: true, wishlist: true },
+              sections: { journal: false, calendar: true, wishlist: true },
             },
           },
         ],
         tombstones: [],
       },
-      '8',
+      '9',
     )
-    expect(reshow).toEqual({ cursor: '0', applied: true })
-    expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual(['journal'])
+    expect(calendarReshow).toEqual({ cursor: '0', applied: true })
+    expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual(['calendar'])
 
-    // The replay answers a request from revision 0 and carries every
-    // section whole: whatever it holds lands, and no promise stays open —
-    // a re-show inside it would name only itself.
+    // The replay answers a request from revision 0 — and re-shows the
+    // journal inside itself, carrying it whole: the cursor moves to the
+    // response's revision, no promise stays open, and the row it carried
+    // lands.
+    const row = entry()
     const replay = await applySyncResult(
       ANYA,
       {
@@ -406,16 +424,20 @@ describe('the per-member local store', () => {
               id: SPACE_ID,
               name: 'Наша семья',
               timezone: 'Europe/Moscow',
-              sections: { journal: true, calendar: false, wishlist: true },
+              sections: { journal: true, calendar: true, wishlist: true },
             },
           },
+          { entity: 'journal_entry', entry: row },
         ],
         tombstones: [],
       },
       '0',
     )
     expect(replay).toEqual({ cursor: '10', applied: true })
-    expect((await readMemberSnapshot(ANYA)).pendingReplay).toEqual([])
+    const replayed = await readMemberSnapshot(ANYA)
+    expect(replayed.pendingReplay).toEqual([])
+    expect(replayed.revision).toBe('10')
+    expect(replayed.entries.map((entry) => entry.id)).toEqual([row.id])
   })
 
   test('a version 1 partition upgrades in place: data reads, the cursor resets for the journal', async () => {

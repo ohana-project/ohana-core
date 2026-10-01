@@ -313,7 +313,7 @@ describe('the sync engine', () => {
     await vi.waitFor(() => expect(getSyncStatus(memberId)?.state).toBe('synced'))
   })
 
-  test('a second stale pass reports an error instead of looping', async () => {
+  test('repeated stale passes are retried, then answered with an error', async () => {
     const memberId = makeMember()
     // Every answer speaks for a cursor the store has already moved past:
     // the handler keeps advancing the store before responding.
@@ -347,9 +347,11 @@ describe('the sync engine', () => {
 
     await triggerSync(memberId)
 
-    // One rerun, then the honest error: two requests, no loop.
-    expect(apiGet).toHaveBeenCalledTimes(2)
+    // Two retries, then the honest error: three requests, no loop, and
+    // the stale answers wrote nothing.
+    expect(apiGet).toHaveBeenCalledTimes(3)
     expect(getSyncStatus(memberId)?.state).toBe('error')
+    expect((await readMemberSnapshot(memberId)).revision).toBe('3')
   })
 
   test('a response for a cursor the store moved past is dropped and rerun', async () => {

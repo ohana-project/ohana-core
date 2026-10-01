@@ -223,8 +223,10 @@ export interface AppliedSync {
  * promise or resurrect dropped rows — and nothing is written; the engine
  * reruns from the stored cursor. The replay promise clears when an apply
  * lands without a re-show, and the re-show's own apply writes the promise
- * with the cursor at 0. The engine always names its `since`; without it
- * (the tests' sequential applies) the staleness guard does not engage.
+ * with the cursor at 0 — except inside the replay itself, which already
+ * carries every section whole, so a re-show there only moves the cursor.
+ * The engine always names its `since`; without it (the tests' sequential
+ * applies) the staleness guard does not engage.
  */
 export async function applySyncResult(
   memberId: string,

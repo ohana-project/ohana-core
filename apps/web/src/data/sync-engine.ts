@@ -115,7 +115,12 @@ export async function triggerSync(memberId?: string): Promise<void> {
   }
 }
 
-async function runSync(memberId: string, rerun = false): Promise<void> {
+// A response that loses a race is retried from where the store is; more
+// than this many stale passes in one run means the two reads of the store
+// disagree, and the honest answer is the error state, not a request loop.
+const MAX_STALE_RETRIES = 2
+
+async function runSync(memberId: string, staleRetries = 0): Promise<void> {
   const generation = generations.get(memberId) ?? 0
   // A member forgotten mid-run (a sign-out, a refused session) leaves no
   // status behind and receives no writes.
@@ -192,14 +197,12 @@ async function runSync(memberId: string, rerun = false): Promise<void> {
       // The store moved past the cursor this response answered while it was
       // in flight (another tab's apply, a run that landed first): nothing
       // of it was written, so this run asks again from where the store is
-      // instead of reporting a freshness it does not have. One rerun — if
-      // even that is stale, the two reads of the store disagree, and the
-      // honest answer is the error state, not a request loop.
-      if (rerun) {
+      // instead of reporting a freshness it does not have.
+      if (staleRetries >= MAX_STALE_RETRIES) {
         setStatus(memberId, { state: 'error', syncedAt: snapshot.syncedAt })
         return
       }
-      await runSync(memberId, true)
+      await runSync(memberId, staleRetries + 1)
       return
     }
     setStatus(memberId, { state: 'synced', syncedAt: Date.now() })
@@ -213,7 +216,9 @@ async function runSync(memberId: string, rerun = false): Promise<void> {
 
     // A re-shown section reset the cursor to 0 inside the apply (ADR-0014):
     // the next sync, run right away, carries the section's full data again.
-    if (cursor === '0') await runSync(memberId, true)
+    // The replay is a fresh request, not a retry — an apply answering a
+    // request from revision 0 can no longer leave the cursor there.
+    if (cursor === '0') await runSync(memberId)
   } catch {
     // Applying failed locally — the response was fine, the store refused
     // it. The stored data is whatever the last successful apply left.
