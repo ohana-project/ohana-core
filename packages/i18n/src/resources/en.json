@@ -44,7 +44,9 @@
     "offline": "Offline — changes are saved on this device",
     "unreachable": "Server unreachable",
     "error": "Sync failed",
-    "retry": "Retry"
+    "retry": "Retry",
+    "nothingOffline": "Nothing to read offline yet",
+    "nothingOfflineHint": "Open Ohana while online and your space will be saved on this device."
   },
   "layout": {
     "space": "Space",

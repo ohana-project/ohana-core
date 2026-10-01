@@ -1,9 +1,11 @@
 import type { paths } from '@ohana/api-client'
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
-import { assertOk } from '@/data/api-error.ts'
+import { ApiError, assertOk } from '@/data/api-error.ts'
+import { deleteMemberData, readMemberSnapshot } from '@/data/local-store.ts'
 import {
   getActiveMemberId,
+  listStoredSessions,
   removeSession,
   type StoredMemberSession,
   saveSession,
@@ -12,9 +14,13 @@ import {
 
 /*
  * The member session probe mirrors the administrative one: 200 means the
- * active member's session cookie is valid, any rejection means signed out —
- * that is a state, not a failure. The registry provides the member named in
- * X-Ohana-Member; the API client injects it (data/api.ts).
+ * active member's session cookie is valid, any API rejection means signed
+ * out — that is a state, not a failure. A request that never reached the
+ * API (offline, server unreachable) is different: a retained sign-in keeps
+ * working from the local store (ADR-0002, issue #14), with the identity
+ * assembled from the registry and the member's synchronised partition.
+ * The registry provides the member named in X-Ohana-Member; the API client
+ * injects it (data/api.ts).
  */
 
 /** The active member's probe key; every member change resets it. */
@@ -27,6 +33,39 @@ export type MemberSessionStatus = 'pending' | 'signed-in' | 'signed-out'
 
 export type MemberSessionState = { status: 'signed-out' } | { status: 'signed-in'; me: MemberMe }
 
+/**
+ * The member's identity while the API is unreachable: the registry names
+ * the member and their space, the synchronised partition (when it exists)
+ * fills in the role and the profile. A partition that was never downloaded
+ * leaves the role unknown — the conservative `regular` — and a device that
+ * never downloaded anything says so on the home screen.
+ */
+async function offlineIdentity(memberId: string): Promise<MemberMe | undefined> {
+  const registry = listStoredSessions().find((session) => session.memberId === memberId)
+  if (registry === undefined) return undefined
+  const snapshot = await readMemberSnapshot(memberId)
+  const profile = snapshot.members.find((member) => member.id === memberId)
+  return {
+    member: {
+      id: memberId,
+      name: registry.name,
+      displayName: profile?.displayName ?? registry.displayName,
+      email: profile?.email,
+      phone: profile?.phone,
+      interfaceLanguage: profile?.interfaceLanguage,
+      role: profile?.role ?? 'regular',
+      createdAt: profile?.createdAt ?? new Date(0).toISOString(),
+    },
+    space: {
+      id: snapshot.space?.id ?? registry.spaceId,
+      name: snapshot.space?.name ?? registry.spaceName,
+    },
+    // Whether onboarding is still owed is only knowable online; the probe
+    // asks again when the connection returns.
+    needsOnboarding: false,
+  }
+}
+
 export function useMemberSession() {
   return useQuery({
     queryKey: memberSessionQueryKey,
@@ -36,11 +75,21 @@ export function useMemberSession() {
     staleTime: 30_000,
     queryFn: async (): Promise<MemberSessionState> => {
       // No retained sign-in on this device: signed out without a request.
-      if (getActiveMemberId() === undefined) return { status: 'signed-out' }
-      const { data, error } = await api.GET('/api/v1/me')
-      await assertOk({ error })
-      if (data === undefined) return { status: 'signed-out' }
-      return { status: 'signed-in', me: data }
+      const memberId = getActiveMemberId()
+      if (memberId === undefined) return { status: 'signed-out' }
+      try {
+        const { data, error } = await api.GET('/api/v1/me')
+        await assertOk({ error })
+        if (data === undefined) return { status: 'signed-out' }
+        return { status: 'signed-in', me: data }
+      } catch (error) {
+        // The API answered and refused: signed out. Anything else never
+        // reached it — read on, from the local store.
+        if (error instanceof ApiError) throw error
+        const identity = await offlineIdentity(memberId)
+        if (identity === undefined) throw error
+        return { status: 'signed-in', me: identity }
+      }
     },
   })
 }
@@ -117,6 +166,10 @@ export function useSwitchMember() {
  */
 export function forgetMember(queryClient: QueryClient, memberId: string): void {
   removeSession(memberId)
+  // The member's synchronised partition goes with the sign-out (issue #14):
+  // one database per member, deleted whole. A storage failure must not keep
+  // the session alive, so the deletion runs on its own.
+  void deleteMemberData(memberId).catch(() => {})
   for (const query of queryClient.getQueryCache().findAll({ queryKey: ['member', memberId] })) {
     query.reset()
   }

@@ -2,14 +2,14 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
-import { useNavSections } from '@/features/member/use-nav-sections.ts'
-import { useSpaceProfiles } from '@/features/member/use-space-profiles.ts'
-import { useSectionVisibility } from '@/features/space-settings/use-space-settings.ts'
+import { ALL_SECTIONS_VISIBLE, useNavSections } from '@/features/member/use-nav-sections.ts'
+import { useSyncStatus } from '@/features/member/use-sync-status.ts'
+import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Card } from '@/ui/card.tsx'
-import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { ErrorState } from '@/ui/error-state.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item.tsx'
@@ -21,9 +21,10 @@ import { toast } from '@/ui/toast.tsx'
 /*
  * The space home (docs/design/screens/home.html): the greeting with the
  * date meta under it, then the journal and events columns and the members
- * of the space. Journal and calendar data land with their own tickets, so
- * they show their empty states; the section navigation follows the space's
- * section visibility (issue #13) — a hidden section leaves no column here.
+ * of the space. Everything reads the member's local store (issue #14), so
+ * opening Ohana answers from local data — online and offline (ADR-0002).
+ * A device with nothing downloaded says so instead of showing empty
+ * sections, and the shell's indicator follows the sync engine's status.
  */
 
 const greetings = {
@@ -43,9 +44,9 @@ export function SpaceHomeScreen() {
   const navigate = useNavigate()
   const session = useMemberSessionStatus()
   const signOut = useMemberSignOut()
-  const profiles = useSpaceProfiles()
+  const snapshot = useSyncedSpace()
+  const sync = useSyncStatus()
   const sections = useNavSections()
-  const visibility = useSectionVisibility()
 
   if (session.me === undefined) return null
   const me = session.me
@@ -98,6 +99,11 @@ export function SpaceHomeScreen() {
     .format(new Date())
     .toLocaleUpperCase(i18n.language)
 
+  // A device with nothing downloaded does not pretend the space is empty:
+  // it says that nothing is available offline yet (ADR-0002).
+  const hasData = snapshot.data?.revision !== undefined
+  const visibility = snapshot.data?.space?.sections ?? ALL_SECTIONS_VISIBLE
+
   return (
     <MemberLayout
       space={{
@@ -106,6 +112,7 @@ export function SpaceHomeScreen() {
       }}
       sections={sections}
       activeId="home"
+      sync={sync}
       userMenuItems={userMenuItems}
       onSectionClick={(id) => {
         // Journal, calendar, and wishlist screens arrive with their own
@@ -123,69 +130,85 @@ export function SpaceHomeScreen() {
           </h1>
         </header>
 
-        {visibility.journal && (
-          <section>
-            <SectionHeader title={t('member.home.journalSection')} />
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="book" />
-                </EmptyMedia>
-                <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
-              </Empty>
-            </Card>
-          </section>
-        )}
+        {!hasData ? (
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+            </Empty>
+          </Card>
+        ) : (
+          <>
+            {visibility.journal && (
+              <section>
+                <SectionHeader title={t('member.home.journalSection')} />
+                <Card>
+                  <Empty>
+                    <EmptyMedia>
+                      <Icon name="book" />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
+                  </Empty>
+                </Card>
+              </section>
+            )}
 
-        {visibility.calendar && (
-          <section>
-            <SectionHeader title={t('member.home.eventsSection')} />
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="calendar" />
-                </EmptyMedia>
-                <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
-              </Empty>
-            </Card>
-          </section>
-        )}
+            {visibility.calendar && (
+              <section>
+                <SectionHeader title={t('member.home.eventsSection')} />
+                <Card>
+                  <Empty>
+                    <EmptyMedia>
+                      <Icon name="calendar" />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
+                  </Empty>
+                </Card>
+              </section>
+            )}
 
-        <section>
-          <SectionHeader title={t('member.home.membersSection')} />
-          {profiles.isPending ? (
-            <div className="grid place-items-center py-10">
-              <Spinner className="size-6" />
-            </div>
-          ) : profiles.isError ? (
-            <ErrorState onRetry={() => void profiles.refetch()} />
-          ) : (
-            <Card className="py-0">
-              <ItemGroup>
-                {profiles.data?.map((profile) => {
-                  const profileName = profile.displayName ?? profile.name
-                  const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
-                  return (
-                    <Item key={profile.id} size="lg">
-                      <Avatar size="sm" hue={hueFromId(profile.id)}>
-                        <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
-                      </Avatar>
-                      <ItemContent>
-                        <ItemTitle>{profileName}</ItemTitle>
-                        {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
-                      </ItemContent>
-                      <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
-                        {profile.role === 'owner'
-                          ? t('admin.space.ownerPill')
-                          : t('admin.space.regularPill')}
-                      </Badge>
-                    </Item>
-                  )
-                })}
-              </ItemGroup>
-            </Card>
-          )}
-        </section>
+            <section>
+              <SectionHeader title={t('member.home.membersSection')} />
+              {snapshot.isPending ? (
+                <div className="grid place-items-center py-10">
+                  <Spinner className="size-6" />
+                </div>
+              ) : snapshot.isError ? (
+                <ErrorState onRetry={() => void snapshot.refetch()} />
+              ) : (
+                <Card className="py-0">
+                  <ItemGroup>
+                    {snapshot.data?.members.map((profile) => {
+                      const profileName = profile.displayName ?? profile.name
+                      const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
+                      return (
+                        <Item key={profile.id} size="lg">
+                          <Avatar size="sm" hue={hueFromId(profile.id)}>
+                            <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
+                          </Avatar>
+                          <ItemContent>
+                            <ItemTitle>{profileName}</ItemTitle>
+                            {contacts.length > 0 ? (
+                              <ItemDescription>{contacts}</ItemDescription>
+                            ) : null}
+                          </ItemContent>
+                          <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
+                            {profile.role === 'owner'
+                              ? t('admin.space.ownerPill')
+                              : t('admin.space.regularPill')}
+                          </Badge>
+                        </Item>
+                      )
+                    })}
+                  </ItemGroup>
+                </Card>
+              )}
+            </section>
+          </>
+        )}
       </div>
     </MemberLayout>
   )

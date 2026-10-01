@@ -3,15 +3,18 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk, extractErrorCode } from '@/data/api-error.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
+import { triggerSync } from '@/data/sync-engine.ts'
 import { forgetMember, memberSessionQueryKey } from '@/features/member/use-member-session.ts'
+import { ALL_SECTIONS_VISIBLE } from '@/features/member/use-nav-sections.ts'
 
 /*
- * Owner space management (issue #12) is online-only data — no local store
- * yet; the sync engine arrives with its own ticket. Ordinary queries and
- * mutations over the generated client. The active member rides along as
- * X-Ohana-Member (data/api.ts); every key is member-scoped and the header
- * is pinned to that member, so a cached answer never surfaces for, or is
- * fetched under the name of, another member.
+ * Owner space management (issue #12): ordinary queries and mutations over
+ * the generated client. The active member rides along as X-Ohana-Member
+ * (data/api.ts); every key is member-scoped and the header is pinned to
+ * that member, so a cached answer never surfaces for, or is fetched under
+ * the name of, another member. A successful change also triggers a sync
+ * (issue #14), so the owner's own change lands in the local store the
+ * ordinary way instead of being patched in by hand.
  */
 
 /** GET /api/v1/space — the actor's own space with its default time zone. */
@@ -57,12 +60,11 @@ export function useMemberSpace() {
   })
 }
 
-const ALL_SECTIONS_VISIBLE = { journal: true, calendar: true, wishlist: true } as const
-
 /**
  * The space's section visibility (issue #13, ADR-0011), read from the same
  * query as the space itself. Unknown counts as visible — while the space
- * settings are loading or unreachable, every section shows.
+ * settings are loading or unreachable, every section shows. The shared
+ * default lives with the navigation (use-nav-sections.ts).
  */
 export function useSectionVisibility() {
   const space = useMemberSpace()
@@ -86,6 +88,7 @@ export function useUpdateTimezone() {
       })
       await assertOk(response)
     },
+    onSuccess: () => void triggerSync(),
     onSettled: invalidate,
   })
 }
@@ -106,6 +109,9 @@ export function useUpdateSections() {
       })
       await assertOk(response)
     },
+    // The store learns the new map through the sync, not by hand: the
+    // re-shown section's full resync starts from the same trigger.
+    onSuccess: () => void triggerSync(),
     onSettled: invalidate,
   })
 }
