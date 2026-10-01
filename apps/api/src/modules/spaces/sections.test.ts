@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
 import { eq, sql } from 'drizzle-orm'
-import { afterAll, describe, expect, test } from 'vitest'
+import { afterAll, describe, expect, test, vi } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { type AccessDeps, memberSessionGuard, requireMemberActor } from '../access/index.ts'
 import {
@@ -13,8 +13,7 @@ import {
 import { administrators, adminSessions } from '../admin/tables.ts'
 import { findMemberInSpace } from '../members/index.ts'
 import { recordChanges } from '../sync/index.ts'
-import { sectionGate } from './routes.ts'
-import { requireVisibleSectionInTx } from './service.ts'
+import { requireVisibleSectionInTx, sectionGate } from './index.ts'
 import { spaces } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -602,6 +601,65 @@ describe('the section gate (a stand-in journal route until the section modules a
       } finally {
         release()
         writeBarrier = undefined
+      }
+    })
+  })
+
+  test('the write waits for a hide that is still in flight and then refuses', async () => {
+    const space = await harness.createSpace({ name: 'Наша семья' })
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await withJournalApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const session = await signInMember(
+        app,
+        (await issueCode(app, adminCookie, space.id, owner.id)).code,
+      )
+
+      // A hide that has locked the space row but not committed yet. The
+      // gate reads the last committed state and passes; the write's
+      // in-transaction check then blocks on the space row lock — which a
+      // plain read would not do — and sees the hidden row once the hide
+      // commits.
+      let commitHide!: () => void
+      const hideCommitted = new Promise<void>((resolve) => {
+        commitHide = resolve
+      })
+      const hideTx = harness.db.transaction(async (tx) => {
+        await tx
+          .update(spaces)
+          .set({
+            journalVisible: false,
+            revision: sql`${spaces.revision} + 1`,
+            updatedAt: harness.clock.now(),
+          })
+          .where(eq(spaces.id, space.id))
+        await hideCommitted
+      })
+
+      try {
+        const pendingWrite = app.inject({
+          method: 'POST',
+          url: '/api/v1/journal',
+          headers: memberHeaders(session),
+          payload: { body: 'ждёт блокировку' },
+        })
+        // The write's lock request is queued behind the hide.
+        await vi.waitFor(async () => {
+          const result = await harness.db.execute(sql`
+            select 1 from pg_locks where not granted limit 1
+          `)
+          if (result.rows.length === 0) throw new Error('The write is not waiting yet')
+        })
+        commitHide()
+        await hideTx
+
+        const written = await pendingWrite
+        expect(written.statusCode).toBe(404)
+        expect(written.json().error.code).toBe('section_hidden')
+        expect(await countScratchRows(space.id)).toBe(0)
+      } finally {
+        commitHide()
+        await hideTx.catch(() => {})
       }
     })
   })

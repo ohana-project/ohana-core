@@ -235,6 +235,7 @@ describe('SpaceSettingsScreen', () => {
     // The attempt takes effect at once, before the mutation settles.
     expect(journalSwitch).not.toBeChecked()
 
+    await vi.waitFor(() => expect(apiPatch).toHaveBeenCalled())
     resolvePatch({ data: SPACE, error: undefined, response: new Response(null, { status: 200 }) })
     await vi.waitFor(() =>
       expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).toBeChecked(),

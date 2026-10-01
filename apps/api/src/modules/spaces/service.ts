@@ -166,9 +166,8 @@ export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): 
 }
 
 /**
- * The visibility check the section gate goes through: the space must show
- * the section. The gate passes the pool (deps.db). A section module's own
- * use case should prefer requireVisibleSectionInTx, which locks.
+ * Module-internal: only the section gate calls it, with the pool (deps.db).
+ * Section modules get requireVisibleSectionInTx from index.ts.
  */
 export async function requireVisibleSection(
   executor: Executor,

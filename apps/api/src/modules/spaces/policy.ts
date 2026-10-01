@@ -26,7 +26,7 @@ export function sectionVisibility(space: Space): SpaceSections {
  * The one rule every section read and write goes through. A hidden section
  * answers 404 by the convention for resources the actor cannot see
  * (architecture.md, "Errors"); the `section_hidden` code tells the client
- * why, so it can drop the section from its navigation.
+ * why.
  */
 export function assertSectionVisible(space: Space, section: SectionId): void {
   if (!sectionVisibility(space)[section]) {
