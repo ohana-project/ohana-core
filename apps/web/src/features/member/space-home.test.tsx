@@ -28,6 +28,13 @@ const ME = {
   needsOnboarding: false,
 }
 
+const SPACE = {
+  id: '01900000-0000-7000-8000-00000000000a',
+  name: 'Наша семья',
+  timezone: 'Europe/Moscow',
+  sections: { journal: true, calendar: true, wishlist: true },
+}
+
 function seedRegistry() {
   window.localStorage.setItem(
     'ohana.sessions',
@@ -55,6 +62,9 @@ describe('SpaceHomeScreen', () => {
       if (path === '/api/v1/members') {
         return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
       }
+      if (path === '/api/v1/space') {
+        return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+      }
       throw new Error(`Unexpected GET ${String(path)}`)
     })
   })
@@ -81,6 +91,39 @@ describe('SpaceHomeScreen', () => {
     )
   })
 
+  it('hides a hidden section from the navigation and the home columns', async () => {
+    seedRegistry()
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/members') {
+        return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/space') {
+        return {
+          data: {
+            ...SPACE,
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<SpaceHomeScreen />)
+
+    expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
+    // The hidden journal is nowhere — navigation and home column — while
+    // the visible calendar stays.
+    expect(screen.queryAllByRole('button', { name: 'Дневник' })).toHaveLength(0)
+    expect(screen.queryByText('Свежее в дневнике')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Календарь' }).length).toBeGreaterThan(0)
+    expect(screen.getByText('Ближайшие события')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Вишлисты' }).length).toBeGreaterThan(0)
+  })
+
   it('signs out through the user menu and forgets the registry entry', async () => {
     seedRegistry()
     apiDelete.mockResolvedValue({
@@ -92,9 +135,9 @@ describe('SpaceHomeScreen', () => {
     renderWithProviders(<SpaceHomeScreen />)
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
-    // Both probes settle before the menu opens, so no re-render replaces
-    // the trigger under the pointer mid-interaction.
-    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+    // All three probes settle before the menu opens, so no re-render
+    // replaces the trigger under the pointer mid-interaction.
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(3))
     apiGet.mockClear()
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     // The menu mounts into a portal; under jsdom it can land outside the
@@ -131,9 +174,9 @@ describe('SpaceHomeScreen', () => {
     renderWithProviders(<SpaceHomeScreen />)
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
-    // Both probes settle before the menu opens, so no re-render replaces
-    // the trigger under the pointer mid-interaction.
-    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+    // All three probes settle before the menu opens, so no re-render
+    // replaces the trigger under the pointer mid-interaction.
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledTimes(3))
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     await user.click(await screen.findByText('Выйти'))
 

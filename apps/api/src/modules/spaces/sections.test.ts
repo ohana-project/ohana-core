@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import { eq, sql } from 'drizzle-orm'
 import type { TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
+import { type AccessDeps, memberSessionGuard, requireMemberActor } from '../access/index.ts'
 import {
   ADMIN_MARKER_HEADER,
   ADMIN_SESSION_COOKIE,
   ensureInitialAdministrator,
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
-import { type AccessDeps, memberSessionGuard, requireMemberActor } from '../access/index.ts'
 import { findMemberInSpace } from '../members/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { sectionGate } from './policy.ts'

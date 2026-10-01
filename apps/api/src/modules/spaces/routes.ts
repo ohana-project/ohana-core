@@ -15,6 +15,7 @@ import {
   UpdateMemberSpaceBodySchema,
   UpdateSpaceBodySchema,
 } from './contracts.ts'
+import { sectionVisibility } from './policy.ts'
 import {
   createSpace,
   getSpace,
@@ -24,7 +25,6 @@ import {
   type SpaceWithMemberCount,
   updateSpace,
 } from './service.ts'
-import { sectionVisibility } from './policy.ts'
 import type { Space } from './tables.ts'
 
 function toSpaceDto(space: Space): SpaceDto {

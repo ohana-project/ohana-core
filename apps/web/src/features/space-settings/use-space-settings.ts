@@ -78,6 +78,26 @@ export function useUpdateTimezone() {
   })
 }
 
+/**
+ * PATCH /api/v1/space with a section visibility change (issue #13). The
+ * body names only the toggled section, mirroring the API's partial change
+ * set; the server answers with the space's full sections map.
+ */
+export function useUpdateSections() {
+  const invalidate = useInvalidateMemberArea()
+  return useMutation({
+    mutationFn: async (input: {
+      sections: { journal?: boolean; calendar?: boolean; wishlist?: boolean }
+    }) => {
+      const response = await api.PATCH('/api/v1/space', {
+        body: { sections: input.sections },
+      })
+      await assertOk(response)
+    },
+    onSettled: invalidate,
+  })
+}
+
 export function useProvisionSpaceMember() {
   const invalidate = useInvalidateMemberArea()
   return useMutation({

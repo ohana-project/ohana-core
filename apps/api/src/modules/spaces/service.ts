@@ -1,7 +1,7 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { type SectionId, SECTION_IDS, type SpaceSections, sectionVisibility } from './policy.ts'
+import { SECTION_IDS, type SectionId, type SpaceSections, sectionVisibility } from './policy.ts'
 import {
   getSpaceById,
   getSpaceForUpdate,

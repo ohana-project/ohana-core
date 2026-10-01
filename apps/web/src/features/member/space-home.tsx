@@ -2,7 +2,9 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
+import { useNavSections } from '@/features/member/use-nav-sections.ts'
 import { useSpaceProfiles } from '@/features/member/use-space-profiles.ts'
+import { useMemberSpace } from '@/features/space-settings/use-space-settings.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -12,7 +14,7 @@ import { ErrorState } from '@/ui/error-state.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
-import type { ShellSection, ShellUserMenuItem } from '@/ui/shell.ts'
+import type { ShellUserMenuItem } from '@/ui/shell.ts'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 
@@ -20,22 +22,9 @@ import { toast } from '@/ui/toast.tsx'
  * The space home (docs/design/screens/home.html): the greeting with the
  * date meta under it, then the journal and events columns and the members
  * of the space. Journal and calendar data land with their own tickets, so
- * they show their empty states; the section navigation already exists.
+ * they show their empty states; the section navigation follows the space's
+ * section visibility (issue #13) — a hidden section leaves no column here.
  */
-
-const sections: ShellSection[] = [
-  { id: 'home', label: '', icon: 'home' },
-  { id: 'journal', label: '', icon: 'book' },
-  { id: 'calendar', label: '', icon: 'calendar' },
-  { id: 'wishlist', label: '', icon: 'gift' },
-]
-
-const sectionLabels = {
-  home: 'nav.home',
-  journal: 'nav.journal',
-  calendar: 'nav.calendar',
-  wishlist: 'nav.wishlist',
-} as const
 
 const greetings = {
   morning: 'member.home.greetingMorning',
@@ -55,15 +44,15 @@ export function SpaceHomeScreen() {
   const session = useMemberSessionStatus()
   const signOut = useMemberSignOut()
   const profiles = useSpaceProfiles()
+  const sections = useNavSections()
+  const space = useMemberSpace()
+  // Undefined while the space settings load: show the columns, the same
+  // default the navigation uses.
+  const visible = space.data?.sections
 
   if (session.me === undefined) return null
   const me = session.me
   const displayName = me.member.displayName ?? me.member.name
-
-  const localisedSections = sections.map((section) => ({
-    ...section,
-    label: t(sectionLabels[section.id as keyof typeof sectionLabels]),
-  }))
 
   const userMenuItems: ShellUserMenuItem[] = [
     {
@@ -118,7 +107,7 @@ export function SpaceHomeScreen() {
         name: me.space.name,
         marks: [{ initials: monogramOf(displayName), hue: hueFromId(me.member.id) }],
       }}
-      sections={localisedSections}
+      sections={sections}
       activeId="home"
       userMenuItems={userMenuItems}
       onSectionClick={(id) => {
@@ -137,29 +126,33 @@ export function SpaceHomeScreen() {
           </h1>
         </header>
 
-        <section>
-          <SectionHeader title={t('member.home.journalSection')} />
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="book" />
-              </EmptyMedia>
-              <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
-            </Empty>
-          </Card>
-        </section>
+        {visible?.journal !== false && (
+          <section>
+            <SectionHeader title={t('member.home.journalSection')} />
+            <Card>
+              <Empty>
+                <EmptyMedia>
+                  <Icon name="book" />
+                </EmptyMedia>
+                <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
+              </Empty>
+            </Card>
+          </section>
+        )}
 
-        <section>
-          <SectionHeader title={t('member.home.eventsSection')} />
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="calendar" />
-              </EmptyMedia>
-              <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
-            </Empty>
-          </Card>
-        </section>
+        {visible?.calendar !== false && (
+          <section>
+            <SectionHeader title={t('member.home.eventsSection')} />
+            <Card>
+              <Empty>
+                <EmptyMedia>
+                  <Icon name="calendar" />
+                </EmptyMedia>
+                <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
+              </Empty>
+            </Card>
+          </section>
+        )}
 
         <section>
           <SectionHeader title={t('member.home.membersSection')} />

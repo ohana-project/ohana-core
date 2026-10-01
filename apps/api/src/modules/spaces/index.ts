@@ -1,4 +1,13 @@
 export {
+  assertSectionVisible,
+  SECTION_IDS,
+  type SectionGateDeps,
+  type SectionId,
+  type SpaceSections,
+  sectionGate,
+  sectionVisibility,
+} from './policy.ts'
+export {
   advanceSpaceRevision,
   createSpace,
   getSpace,
@@ -6,13 +15,4 @@ export {
   lockSpace,
   type SpacesDeps,
 } from './service.ts'
-export {
-  assertSectionVisible,
-  SECTION_IDS,
-  sectionGate,
-  type SectionGateDeps,
-  type SectionId,
-  sectionVisibility,
-  type SpaceSections,
-} from './policy.ts'
 export type { Space } from './tables.ts'

@@ -42,6 +42,7 @@ const SPACE = {
   id: '01900000-0000-7000-8000-00000000000a',
   name: 'Наша семья',
   timezone: 'Europe/Moscow',
+  sections: { journal: true, calendar: true, wishlist: true },
 }
 
 function seedRegistry() {
@@ -125,5 +126,69 @@ describe('SpaceSettingsScreen', () => {
 
     expect(await screen.findByText('redirected to /')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument()
+  })
+
+  it('shows the section switches with the visibility from the space', async () => {
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: OWNER_ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/space') {
+        return {
+          data: { ...SPACE, sections: { journal: false, calendar: true, wishlist: true } },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    expect(await screen.findByRole('switch', { name: 'Показывать Дневник' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Показывать Календарь' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Показывать Вишлисты' })).toBeChecked()
+    // The hidden section says so, and that its data is kept.
+    expect(screen.getByText('скрыт для всех — данные сохранены')).toBeInTheDocument()
+    expect(screen.getByText('события и напоминания')).toBeInTheDocument()
+  })
+
+  it('hides a section with its switch and confirms it', async () => {
+    const user = userEvent.setup()
+    apiPatch.mockResolvedValue({
+      data: { ...SPACE, sections: { journal: false, calendar: true, wishlist: true } },
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    const journalSwitch = await screen.findByRole('switch', { name: 'Показывать Дневник' })
+    await user.click(journalSwitch)
+
+    await vi.waitFor(() =>
+      expect(apiPatch).toHaveBeenCalledWith(
+        '/api/v1/space',
+        expect.objectContaining({ body: { sections: { journal: false } } }),
+      ),
+    )
+    expect(await screen.findByText('Раздел скрыт — ничего не удалено')).toBeInTheDocument()
+    // The switch keeps the attempted state while the change is in flight.
+    expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).not.toBeChecked()
+  })
+
+  it('reverts the switch and explains itself when hiding fails', async () => {
+    const user = userEvent.setup()
+    apiPatch.mockRejectedValue(new TypeError('Network unreachable'))
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    const journalSwitch = await screen.findByRole('switch', { name: 'Показывать Дневник' })
+    await user.click(journalSwitch)
+
+    expect(
+      await screen.findByText('Не получилось — проверьте сеть и попробуйте ещё раз.'),
+    ).toBeInTheDocument()
+    // The refused toggle returns to the server's state.
+    await vi.waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).toBeChecked(),
+    )
   })
 })

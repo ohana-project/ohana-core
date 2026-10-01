@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
+import { useNavSections } from '@/features/member/use-nav-sections.ts'
 import { Icon } from '@/ui/icon.tsx'
-import type { ShellSection, ShellUserMenuItem } from '@/ui/shell.ts'
+import type { ShellUserMenuItem } from '@/ui/shell.ts'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 
@@ -12,25 +13,12 @@ import { toast } from '@/ui/toast.tsx'
  * The space settings area (docs/design/screens/members.html,
  * member-card.html, invite.html, space-settings.html): the member shell
  * with the screen's title in the top bar and a back arrow — to the members
- * screen inside the area, to home at its edge. The section navigation stays
- * the space's own; only home is a real destination so far. The user menu
- * travels with the shell, so every screen of the area reaches the others
- * and the accounts screen the same way the home does.
+ * screen inside the area, to home at its edge. The section navigation is
+ * the space's own visible sections (issue #13); only home is a real
+ * destination so far. The user menu travels with the shell, so every
+ * screen of the area reaches the others and the accounts screen the same
+ * way the home does.
  */
-
-const sections: ShellSection[] = [
-  { id: 'home', label: '', icon: 'home' },
-  { id: 'journal', label: '', icon: 'book' },
-  { id: 'calendar', label: '', icon: 'calendar' },
-  { id: 'wishlist', label: '', icon: 'gift' },
-]
-
-const sectionLabels = {
-  home: 'nav.home',
-  journal: 'nav.journal',
-  calendar: 'nav.calendar',
-  wishlist: 'nav.wishlist',
-} as const
 
 export function SettingsShell({
   title,
@@ -47,11 +35,7 @@ export function SettingsShell({
   const navigate = useNavigate()
   const session = useMemberSessionStatus()
   const signOut = useMemberSignOut()
-
-  const localisedSections = sections.map((section) => ({
-    ...section,
-    label: t(sectionLabels[section.id as keyof typeof sectionLabels]),
-  }))
+  const sections = useNavSections()
 
   const me = session.me
   const userMenuItems: ShellUserMenuItem[] = me
@@ -106,7 +90,7 @@ export function SettingsShell({
   return (
     <MemberLayout
       space={{ name: me?.space.name ?? '', marks: [] }}
-      sections={localisedSections}
+      sections={sections}
       title={title}
       width={width}
       userMenuItems={userMenuItems}
