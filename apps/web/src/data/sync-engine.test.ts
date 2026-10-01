@@ -341,6 +341,41 @@ describe('the sync engine', () => {
     expect((await readMemberSnapshot(memberId)).revision).toBe('7')
   })
 
+  test('a failing applied listener does not skip the resync', async () => {
+    const memberId = makeMember()
+    await applySyncResult(memberId, {
+      ...ANYA_SYNC,
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+    })
+
+    const applied: string[] = []
+    const stopBroken = onSyncApplied(() => {
+      throw new Error('the first listener is broken')
+    })
+    const stopRecording = onSyncApplied((who) => applied.push(who))
+
+    await triggerSync(memberId)
+    stopBroken()
+    stopRecording()
+
+    // Both listeners were told about the first apply despite the throwing
+    // one, and the resync the apply asked for still ran to 'synced'.
+    expect(applied).toEqual([memberId, memberId])
+    expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(2)
+    expect(getSyncStatus(memberId)?.state).toBe('synced')
+    expect((await readMemberSnapshot(memberId)).revision).toBe('7')
+  })
+
   test('a re-shown section resyncs from revision 0 right away', async () => {
     const memberId = makeMember()
     await applySyncResult(memberId, {

@@ -235,9 +235,11 @@ describe('SpaceHomeScreen', () => {
     )
     releaseMe?.()
     expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
-    // A macrotask drains every microtask first: a restarted lifecycle would
-    // have issued its second /sync by now.
+    // A macrotask lets the effect commit, and a partition read issued after
+    // the engine's own resolves after it: a restarted lifecycle would have
+    // made its second /sync call by the time this returns.
     await new Promise((resolve) => setTimeout(resolve, 0))
+    await readMemberSnapshot(world.memberId)
     expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
   })
 
