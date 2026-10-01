@@ -75,7 +75,7 @@ export function MemberLayout({
             width === 'wide' && 'max-w-[var(--content-w-wide)]',
           )}
         >
-          <UpdatePrompt />
+          <UpdatePrompt className="pt-4" />
           {children}
         </main>
       </div>

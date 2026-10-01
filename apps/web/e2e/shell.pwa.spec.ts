@@ -101,8 +101,10 @@ test('offers a reload when a new version waits and reloads on demand', async ({ 
     await writeFile(SW_URL, `${deployed}\n// shell.pwa.spec.ts: a new version\n`)
 
     await page.reload()
-    const banner = page.getByRole('status')
-    await expect(banner).toContainText('Вышла новая версия Ohana', { timeout: 20_000 })
+    // Both role=status (sync chip, spinners) and this banner exist; name
+    // the banner by its text.
+    const banner = page.getByRole('status').filter({ hasText: 'Вышла новая версия Ohana' })
+    await expect(banner).toBeVisible({ timeout: 20_000 })
 
     // The reload is the member's choice: the current version keeps running
     // until the button, and the reload itself wipes the page state.

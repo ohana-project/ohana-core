@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
 import { AuthLayout } from '@/ui/auth-layout.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Icon } from '@/ui/icon.tsx'
@@ -26,6 +27,7 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (result: RedeemResult
   if (install.installFirst && !continueInBrowser) {
     return (
       <AuthLayout footer={t('pwa.install.footer')}>
+        <UpdatePrompt />
         <InstallFirst onContinue={() => setContinueInBrowser(true)} />
       </AuthLayout>
     )
@@ -34,6 +36,7 @@ export function SignInScreen({ onSignedIn }: { onSignedIn: (result: RedeemResult
   return (
     <AuthLayout footer={t('signin.footer')}>
       <div className="flex flex-col gap-4">
+        <UpdatePrompt />
         {canPromptInstall && (
           <Button variant="secondary" size="lg" onClick={promptInstall}>
             <Icon name="install" />

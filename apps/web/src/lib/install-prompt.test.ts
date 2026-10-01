@@ -31,6 +31,12 @@ describe('install prompt store', () => {
     expect(installPromptAvailable()).toBe(true)
   })
 
+  it('ignores an event without a prompt payload', () => {
+    fireBeforeInstallPrompt()
+
+    expect(installPromptAvailable()).toBe(false)
+  })
+
   it('notifies subscribers when the event arrives and is spent', () => {
     const seen: boolean[] = []
     const stop = subscribeToInstallPrompt(() => seen.push(installPromptAvailable()))

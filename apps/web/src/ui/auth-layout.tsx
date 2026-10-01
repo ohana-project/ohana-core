@@ -2,7 +2,6 @@ import { cn } from 'cn'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
 import { Logo } from '@/ui/logo.tsx'
 
 /*
@@ -27,7 +26,6 @@ export function AuthLayout({
     >
       <div className="w-full max-w-[420px]">
         <Logo className="mb-8 justify-center" />
-        <UpdatePrompt />
         {children}
       </div>
       <p className="mt-[22px] text-center text-sm text-muted-foreground">
