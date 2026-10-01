@@ -29,9 +29,15 @@ export default defineConfig({
     VitePWA({
       strategies: 'generateSW',
       registerType: 'prompt',
+      // The favicon and icons are already covered by the precache glob.
       injectRegister: null,
-      includeAssets: ['favicon.svg'],
+      /*
+       * The manifest carries user-visible Russian strings outside
+       * packages/i18n: it is one static document read before any code and
+       * the app's default language is Russian.
+       */
       manifest: {
+        id: '/',
         name: 'Ohana',
         short_name: 'Ohana',
         description: 'Семейный альбом, который всегда с вами',
@@ -40,7 +46,7 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         background_color: '#f6f1ee',
-        theme_color: '#752231',
+        theme_color: '#f6f1ee',
         icons: [
           { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png' },

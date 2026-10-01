@@ -61,10 +61,57 @@ test('the service worker takes control and every route opens offline', async ({
   // The worker never answers for the API: offline, the fetch simply fails
   // instead of returning anything cached.
   const apiFailedOffline = await page.evaluate(() =>
-    fetch('/api/v1/health').then(
+    fetch('/api/health').then(
       () => false,
       () => true,
     ),
   )
   expect(apiFailedOffline).toBe(true)
+})
+
+test('offers a reload when a new version waits and reloads on demand', async ({ page }) => {
+  const { readFile, writeFile } = await import('node:fs/promises')
+  const swUrl = new URL('../dist/sw.js', import.meta.url)
+
+  await page.goto('/')
+  await page.evaluate(() => navigator.serviceWorker.ready)
+  await page.reload()
+  await expect
+    .poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
+    .toBe(true)
+
+  // A new deployment: the worker script changes, so the registration
+  // refresh on the next load installs it as a waiting worker.
+  const deployed = await readFile(swUrl, 'utf8')
+  await writeFile(swUrl, `${deployed}\n// shell.pwa.spec.ts: a new version\n`)
+
+  await page.reload()
+  const banner = page.getByRole('status')
+  await expect(banner).toContainText('Вышла новая версия Ohana', { timeout: 20_000 })
+
+  // The reload is the member's choice: the current version keeps running
+  // until the button, and the reload itself wipes the page state.
+  interface ReloadMarker {
+    __ohanaBeforeReload?: boolean
+  }
+  await page.evaluate(() => {
+    ;(window as ReloadMarker).__ohanaBeforeReload = true
+  })
+  await page.getByRole('button', { name: 'Обновить' }).click()
+
+  // Both polls ride out the reload's navigation: an evaluate that lands in
+  // the destroyed context mid-reload is retried with a safe placeholder.
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as ReloadMarker).__ohanaBeforeReload ?? false).catch(() => true),
+    )
+    .toBe(false)
+  await expect(banner).not.toBeVisible()
+  await expect
+    .poll(() =>
+      page
+        .evaluate(() => navigator.serviceWorker.controller?.state ?? '')
+        .catch(() => 'navigating'),
+    )
+    .toBe('activated')
 })

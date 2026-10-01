@@ -28,7 +28,7 @@ function Steps({ platform }: { platform: 'ios' | 'android' }) {
           key={step.key}
           className="flex items-start gap-3 border-b border-border py-2.5 last:border-b-0"
         >
-          <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[13px] font-medium">
+          <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-sm font-medium">
             {index + 1}
           </span>
           <span className="flex min-w-0 flex-col gap-0.5 text-sm">
@@ -49,27 +49,21 @@ function Steps({ platform }: { platform: 'ios' | 'android' }) {
   )
 }
 
-export function InstallFirst({
-  onContinue,
-  initialPlatform = 'ios',
-}: {
-  onContinue: () => void
-  initialPlatform?: 'ios' | 'android'
-}) {
+export function InstallFirst({ onContinue }: { onContinue: () => void }) {
   const { t } = useTranslation()
 
   return (
     <div data-slot="install-first" className="flex flex-col gap-4">
       <div className="text-center">
         <h1 className="text-display-lg">{t('pwa.install.title')}</h1>
-        <p className="mx-auto mt-2 max-w-[34ch] text-body text-muted-foreground">
-          {t('pwa.install.subtitle')}
-        </p>
+        <p className="mt-2 text-body text-muted-foreground">{t('pwa.install.subtitle')}</p>
       </div>
 
       <Card>
         <CardContent>
-          <Tabs defaultValue={initialPlatform}>
+          {/* The screen only appears on Apple devices; the Android steps
+              stay reachable through the tab. */}
+          <Tabs defaultValue="ios">
             <TabsList aria-label={t('pwa.install.platformLabel')}>
               <TabsTrigger value="ios">{t('pwa.install.platformIos')}</TabsTrigger>
               <TabsTrigger value="android">{t('pwa.install.platformAndroid')}</TabsTrigger>

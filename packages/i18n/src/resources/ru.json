@@ -235,7 +235,7 @@
       "platformIos": "iPhone",
       "platformAndroid": "Android",
       "continue": "Продолжить в браузере",
-      "footer": "Установить можно в любой момент — ссылка останется в настройках.",
+      "footer": "Установить можно в любой момент.",
       "steps": {
         "ios1Title": "Откройте Ohana в Safari",
         "ios1Sub": "и нажмите «Поделиться»",

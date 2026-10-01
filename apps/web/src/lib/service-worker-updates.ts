@@ -16,6 +16,7 @@ export interface AppWorker {
 export interface AppRegistration {
   waiting: AppWorker | null
   installing: AppWorker | null
+  update(): Promise<unknown>
   addEventListener(type: 'updatefound', listener: () => void): void
   removeEventListener(type: 'updatefound', listener: () => void): void
 }
@@ -32,13 +33,16 @@ export interface AppUpdate {
   apply(): void
 }
 
+/** How often a becoming-visible page asks the server for a new worker. */
+const UPDATE_CHECK_THROTTLE_MS = 60 * 60 * 1000
+
 /**
  * Registers the service worker and reports when a new version is waiting
  * (issue #11): on load, when the page is controlled and a worker already
- * waits, and later, when a registered worker reaches installed. The first
- * install never counts as an update — nobody needs a reload offer for the
- * worker they are getting right now. Returns a stop function for effect
- * cleanup.
+ * waits; when a registered worker reaches installed; and when the page
+ * becomes visible and an update check finds one. The first install never
+ * counts as an update — nobody needs a reload offer for the worker they
+ * are getting right now. Returns a stop function for effect cleanup.
  */
 export function watchForAppUpdates(
   container: AppContainer,
@@ -51,6 +55,11 @@ export function watchForAppUpdates(
   let applying = false
   let waiting: AppWorker | null = null
   let detachControllerChange: (() => void) | null = null
+  const detachments: Array<() => void> = []
+  const detach = (detachThis: () => void) => {
+    if (stopped) detachThis()
+    else detachments.push(detachThis)
+  }
 
   const maybeReport = () => {
     if (stopped || reported || waiting === null || container.controller === null) return
@@ -60,7 +69,9 @@ export function watchForAppUpdates(
         if (applying) return
         applying = true
         const worker = waiting
-        if (worker === null) {
+        if (worker === null || worker.state === 'activated' || worker.state === 'redundant') {
+          // The waiting worker already took over — another tab applied it,
+          // or it activated on its own. The next load is the new version.
           reload()
           return
         }
@@ -78,24 +89,49 @@ export function watchForAppUpdates(
     })
   }
 
+  /** Offers the update when an installing worker reaches installed. */
+  const watchInstalling = (installing: AppWorker) => {
+    const onStateChange = () => {
+      if (installing.state !== 'installed') return
+      waiting = installing
+      maybeReport()
+    }
+    installing.addEventListener('statechange', onStateChange)
+    detach(() => installing.removeEventListener('statechange', onStateChange))
+  }
+
   const handleRegistration = (registration: AppRegistration) => {
     if (stopped) return
+
     if (registration.waiting !== null && container.controller !== null) {
       waiting = registration.waiting
       maybeReport()
     }
+    // The browser's own update check can fire updatefound before this
+    // listener exists, leaving an installing worker behind.
+    if (registration.installing !== null) watchInstalling(registration.installing)
     const onUpdateFound = () => {
-      const installing = registration.installing
-      if (installing === null) return
-      const onStateChange = () => {
-        if (installing.state !== 'installed') return
-        waiting = installing
-        maybeReport()
-      }
-      installing.addEventListener('statechange', onStateChange)
-      if (stopped) installing.removeEventListener('statechange', onStateChange)
+      if (registration.installing !== null) watchInstalling(registration.installing)
     }
     registration.addEventListener('updatefound', onUpdateFound)
+    detach(() => registration.removeEventListener('updatefound', onUpdateFound))
+
+    // An installed app resumed from the background never navigates, so
+    // navigation-triggered update checks never happen; becoming visible
+    // asks the server instead, at most once an hour.
+    let lastChecked = Date.now()
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastChecked < UPDATE_CHECK_THROTTLE_MS) return
+      lastChecked = now
+      registration.update().catch((reason: unknown) => {
+        // Without an update check the app still works with what it has.
+        reportError(reason)
+      })
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    detach(() => document.removeEventListener('visibilitychange', onVisibilityChange))
   }
 
   container.register(scriptUrl).then(handleRegistration, (reason: unknown) => {
@@ -106,5 +142,6 @@ export function watchForAppUpdates(
   return () => {
     stopped = true
     detachControllerChange?.()
+    for (const detachThis of detachments.splice(0)) detachThis()
   }
 }

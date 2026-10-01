@@ -25,6 +25,12 @@ function useContainer() {
   vi.stubGlobal('navigator', FAKE_CONTAINER)
 }
 
+// The prompt registers only in the built app; tests run in the vitest mode.
+const realMode = import.meta.env.MODE
+function useProduction() {
+  ;(import.meta.env as { MODE: string }).MODE = 'production'
+}
+
 function reportUpdateReady() {
   const call = watch.mock.calls[0]
   if (call === undefined) throw new Error('the prompt never started watching')
@@ -35,6 +41,7 @@ afterEach(() => {
   watch.mockClear()
   apply.mockClear()
   stop.mockClear()
+  ;(import.meta.env as { MODE: string }).MODE = realMode
   vi.unstubAllGlobals()
 })
 
@@ -45,6 +52,7 @@ describe('UpdatePrompt', () => {
 
   it('renders nothing while the current version is up to date', () => {
     useContainer()
+    useProduction()
     renderWithProviders(null)
 
     expect(watch).toHaveBeenCalledWith(FAKE_CONTAINER.serviceWorker, '/sw.js', expect.any(Function))
@@ -53,6 +61,7 @@ describe('UpdatePrompt', () => {
 
   it('offers a reload when a new version is waiting and applies it on demand', async () => {
     useContainer()
+    useProduction()
     const user = userEvent.setup()
     renderWithProviders(null)
 
@@ -65,6 +74,7 @@ describe('UpdatePrompt', () => {
 
   it('stops watching when it unmounts', () => {
     useContainer()
+    useProduction()
     const view = renderWithProviders(null)
 
     // Test cleanup below also unmounts; only this unmount is under test.
@@ -75,7 +85,17 @@ describe('UpdatePrompt', () => {
   })
 
   it('stays out of the way where service workers are unsupported', () => {
+    useProduction()
     vi.stubGlobal('navigator', {} as Navigator)
+    renderWithProviders(null)
+
+    expect(watch).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('does not watch in a development build, where no worker exists', () => {
+    useContainer()
+    ;(import.meta.env as { MODE: string }).MODE = 'development'
     renderWithProviders(null)
 
     expect(watch).not.toHaveBeenCalled()
