@@ -16,3 +16,13 @@ export {
 } from './jobs.ts'
 export { journalRoutes } from './routes.ts'
 export { journalSyncContributor } from './sync.ts'
+
+/**
+ * The queues this module's use cases send to — the list the api process
+ * ensures exist, so the first trash never meets a queue the worker has
+ * not created (architecture.md, "Background jobs"). The worker ensures
+ * its own full set, including the sweep's queue. The one name here is
+ * JOURNAL_PURGE_JOB's, written literally so the queue list travels with
+ * the comment that explains it.
+ */
+export const JOURNAL_SENT_QUEUES = ['journal-purge-entry'] as const

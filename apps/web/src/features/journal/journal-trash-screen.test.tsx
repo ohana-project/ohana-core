@@ -142,6 +142,11 @@ describe('JournalTrashScreen', () => {
     expect(await screen.findByText('Осенний пикник')).toBeInTheDocument()
     expect(screen.getByText(/удалено 12 сентября · исчезнет окончательно 12 октября/))
     expect(screen.getByRole('button', { name: 'Восстановить' })).toBeEnabled()
+    // The list carries trashed drafts only their author may see, so the
+    // request names its member explicitly (architecture.md, web rules).
+    expect(apiGet).toHaveBeenCalledWith('/api/v1/journal/trash', {
+      params: { header: { 'x-ohana-member': ME } },
+    })
   })
 
   it('restores through the API, refreshes the list, and triggers the sync', async () => {

@@ -6,7 +6,7 @@ import { readTrashRetentionDays } from '../admin/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import type { CreateEntryBody, FeedQuery } from './contracts.ts'
-import { DEFAULT_FEED_LIMIT, JOURNAL_ENTRY_SYNC_ENTITY, trashedAtOf } from './contracts.ts'
+import { DEFAULT_FEED_LIMIT, JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
 import { JOURNAL_PURGE_JOB, type JournalPurgeJobData } from './jobs.ts'
 import {
   assertEntryAuthoredBy,
@@ -14,6 +14,7 @@ import {
   assertTrashedEntryRestorableBy,
   entryVisibleTo,
   purgeAtFor,
+  trashedAtOf,
   trashedEntryVisibleTo,
 } from './policy.ts'
 import {
@@ -275,14 +276,22 @@ export async function listTrash(
   deps: JournalDeps,
   actor: JournalActor,
 ): Promise<Array<{ entry: JournalEntry; purgeAt: Date }>> {
+  const now = deps.clock.now()
   const [entries, retentionDays] = await Promise.all([
     listTrashedEntries(deps.db, actor.spaceId, actor.memberId),
     readTrashRetentionDays(deps.db),
   ])
-  return entries.map((entry) => ({
-    entry,
-    purgeAt: purgeAtFor(trashedAtOf(entry), retentionDays),
-  }))
+  return (
+    entries
+      .map((entry) => ({
+        entry,
+        purgeAt: purgeAtFor(trashedAtOf(entry), retentionDays),
+      }))
+      // The window restore honours is the window the view shows: an entry
+      // whose deletion date has passed leaves the list, the same rule the
+      // restore use case refuses by.
+      .filter((row) => row.purgeAt > now)
+  )
 }
 
 /**

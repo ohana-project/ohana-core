@@ -35,9 +35,11 @@ export function AdminTrashSettings() {
 
   // The prototype's choices drive the picker, but a value set outside it —
   // the contract accepts 1 to 365 — must still display as the saved one.
+  // The extra option follows the saved value, not the selection: picking a
+  // prototype choice must not erase the saved one before saving.
   const choices =
-    selectedDays !== undefined && !RETENTION_CHOICES.includes(selectedDays)
-      ? [...RETENTION_CHOICES, selectedDays].sort((a, b) => a - b)
+    settings.data !== undefined && !RETENTION_CHOICES.includes(settings.data.trashRetentionDays)
+      ? [...RETENTION_CHOICES, settings.data.trashRetentionDays].sort((a, b) => a - b)
       : RETENTION_CHOICES
 
   const save = () => {

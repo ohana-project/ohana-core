@@ -442,8 +442,14 @@ describe('POST /api/v1/journal/entries/:entryId/restore', () => {
       const published = await publishEntry(app, anna, draft.id)
       const entry = published.body as EntryDto
 
-      expect((await trashEntry(app, anna, entry.id)).status).toBe(200)
+      // The clock moves between the steps, so "the row is what it was"
+      // is a claim the assertions can actually fail.
+      harness.clock.advance(60_000)
+      const trashed = await trashEntry(app, anna, entry.id)
+      expect(trashed.status).toBe(200)
+      expect((trashed.body as TrashedEntryDto).updatedAt).toBe(entry.updatedAt)
 
+      harness.clock.advance(60_000)
       const restored = await restoreEntry(app, anna, entry.id)
       expect(restored.status).toBe(200)
       const back = restored.body as EntryDto
@@ -550,9 +556,11 @@ describe('POST /api/v1/journal/entries/:entryId/restore', () => {
       expect((await trashEntry(app, anna, entry.id)).status).toBe(200)
 
       // The deletion date passes before anyone restores: the sweep may not
-      // have run yet, but the window ADR-0007 grants is closed, and the
-      // answer says so instead of silently resurrecting the entry.
+      // have run yet, but the window ADR-0007 grants is closed — the view
+      // stops offering the entry, and the restore refuses with 409 instead
+      // of silently resurrecting it.
       harness.clock.advance(31 * 24 * 60 * 60 * 1000)
+      expect((await getTrash(app, anna)).body).toEqual({ entries: [] })
       const tooLate = await restoreEntry(app, anna, entry.id)
       expect(tooLate.status).toBe(409)
       expect((tooLate.body as { error: { code: string } }).error.code).toBe('entry_purge_due')

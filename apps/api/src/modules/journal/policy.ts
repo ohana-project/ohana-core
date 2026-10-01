@@ -1,5 +1,6 @@
 import { and, eq, or } from 'drizzle-orm'
 import { DomainError } from '../../platform/errors.ts'
+import type { JournalEntry } from './tables.ts'
 import { journalEntries } from './tables.ts'
 
 /*
@@ -75,6 +76,19 @@ export function trashedEntryVisibleToSql(memberId: string) {
  */
 export function purgeAtFor(trashedAt: Date, retentionDays: number): Date {
   return new Date(trashedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000)
+}
+
+/**
+ * The removal moment of a trashed row: the table's
+ * `journal_entries_trash_columns_match_state` check guarantees it, so a
+ * null here is a programming error and refuses loudly rather than silently
+ * naming a wrong deletion date.
+ */
+export function trashedAtOf(entry: JournalEntry): Date {
+  if (entry.trashedAt === null) {
+    throw new Error('Only a trashed row carries its removal moment')
+  }
+  return entry.trashedAt
 }
 
 /**

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { entryVisibleToSql, trashedEntryVisibleToSql } from './policy.ts'
 import { type JournalEntry, journalEntries, trashedFromStates } from './tables.ts'
@@ -288,7 +288,7 @@ export async function listSpacesWithPurgeableEntriesAcrossSpaces(
   const rows = await executor
     .selectDistinct({ spaceId: journalEntries.spaceId })
     .from(journalEntries)
-    .where(and(eq(journalEntries.state, 'trashed'), lt(journalEntries.trashedAt, purgedBefore)))
+    .where(and(eq(journalEntries.state, 'trashed'), lte(journalEntries.trashedAt, purgedBefore)))
   return rows.map((row) => row.spaceId)
 }
 
@@ -308,7 +308,7 @@ export async function listPurgeableEntriesInSpace(
       and(
         eq(journalEntries.spaceId, spaceId),
         eq(journalEntries.state, 'trashed'),
-        lt(journalEntries.trashedAt, purgedBefore),
+        lte(journalEntries.trashedAt, purgedBefore),
       ),
     )
 }

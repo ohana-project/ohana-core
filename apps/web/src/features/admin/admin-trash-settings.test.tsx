@@ -90,6 +90,30 @@ describe('AdminTrashSettings', () => {
     await waitFor(() => expect(select.value).toBe('7'))
   })
 
+  it('shows a saved value outside the prototype choices as the saved one', async () => {
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/admin/settings') {
+        return {
+          data: { trashRetentionDays: 45 },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<AdminTrashSettings />)
+
+    const select = (await screen.findByLabelText('Хранить удалённые записи')) as HTMLSelectElement
+    expect(select.value).toBe('45')
+    const options = [...select.options].map((option) => Number(option.value))
+    expect(options).toEqual([7, 14, 30, 45, 90])
+    // Picking a prototype choice must not erase the saved one from the
+    // list before the save lands.
+    const user = userEvent.setup()
+    await user.selectOptions(select, '14')
+    expect([...select.options].map((option) => Number(option.value))).toEqual([7, 14, 30, 45, 90])
+  })
+
   it('keeps the save dark while nothing changed', async () => {
     apiGet.mockImplementation(async (path: never) => {
       if (path === '/api/v1/admin/settings') {

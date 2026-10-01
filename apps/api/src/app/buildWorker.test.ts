@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { PgBoss } from 'pg-boss'
-import { describe, expect, test } from 'vitest'
-import { JOURNAL_PURGE_JOB, JOURNAL_PURGE_SWEEP_JOB } from '../modules/journal/index.ts'
+import { afterAll, describe, expect, test } from 'vitest'
+import { instanceSettings } from '../modules/admin/tables.ts'
+import { JOURNAL_PURGE_SWEEP_JOB } from '../modules/journal/index.ts'
 import {
   createDraft,
   type JournalActor,
@@ -14,11 +15,17 @@ import { createSilentLogger } from '../platform/logging.ts'
 import { createTestHarness } from '../testing/harness.ts'
 import { buildWorker } from './buildWorker.ts'
 
+const harness = await createTestHarness()
+
+// The retention is an installation-wide singleton other test files may
+// have changed (the files share one database); these tests assume the
+// 30-day default.
+await harness.db.delete(instanceSettings)
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 describe('buildWorker', () => {
   test('starts pg-boss against the test PostgreSQL, schedules the sweep, and stops cleanly', async () => {
-    const harness = await createTestHarness()
     const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
     try {
       const worker = buildWorker({
@@ -36,12 +43,10 @@ describe('buildWorker', () => {
       await worker.stop()
     } finally {
       await boss.stop()
-      await harness.close()
     }
   })
 
   test('a queued purge job reaches the journal handler and deletes the due entry', async () => {
-    const harness = await createTestHarness()
     const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
     try {
       // The worker starts first, as the deployment does: its start() is
@@ -56,7 +61,8 @@ describe('buildWorker', () => {
       await worker.start()
 
       // The trash runs through the real sender, exactly as the api process
-      // would: the job lands in the queue with its 30-day delay.
+      // would: the job lands in the queue with its 30-day delay, and only
+      // this sender's payload reaches the handler.
       const sender = createPgBossJobSender(boss)
       const deps: JournalDeps = { db: harness.db, clock: harness.clock, jobs: sender }
       const space = await harness.createSpace({ name: 'Очередь' })
@@ -65,18 +71,15 @@ describe('buildWorker', () => {
       const created = await createDraft(deps, actor, { text: 'ждёт своего часа' })
       const { entry } = await trashEntry(deps, actor, created.id)
 
-      // The retention runs out. The scheduled job itself waits for its
-      // start-after, so the test hands the worker a second, immediately
-      // runnable job for the same entry — the at-least-once shape the
-      // queue promises.
+      // The retention runs out; the handler re-checks due-ness on the
+      // controllable clock before acting.
       harness.clock.advance(31 * DAY_MS)
-      await boss.send(JOURNAL_PURGE_JOB, { spaceId: space.id, entryId: entry.id })
 
-      // The handler's own re-checks make the wait bounded: the entry is
-      // due the moment the worker is up. The queue's own row tells the
-      // story when the wait runs out.
+      // The wait is bounded: the job is runnable the moment the worker is
+      // up, and the queue's own rows tell the story when it times out.
       const deadline = Date.now() + 30_000
       let gone = false
+      let queueRows = ''
       while (Date.now() < deadline) {
         const rows = await harness.db.execute<{ state: string }>(
           sql`select state from journal_entries where id = ${entry.id}`,
@@ -88,17 +91,16 @@ describe('buildWorker', () => {
         await new Promise((resolve) => setTimeout(resolve, 250))
       }
       if (!gone) {
-        const jobs = await harness.db.execute<{ name: string; state: string; retrycount: number }>(
-          sql`select name, state::text as state, retry_count as retrycount from pgboss.job order by name`,
+        const jobs = await harness.db.execute<{ name: string; state: string }>(
+          sql`select name, state::text as state from pgboss.job order by name`,
         )
-        console.log('queue state at timeout', JSON.stringify(jobs.rows))
+        queueRows = JSON.stringify(jobs.rows)
       }
-      expect(gone).toBe(true)
+      expect(gone, `queue rows at timeout: ${queueRows}`).toBe(true)
 
       await worker.stop()
     } finally {
       await boss.stop()
-      await harness.close()
     }
   })
 
@@ -118,5 +120,9 @@ describe('buildWorker', () => {
     } finally {
       await unreachable.close()
     }
+  })
+
+  afterAll(async () => {
+    await harness.close()
   })
 })

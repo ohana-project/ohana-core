@@ -177,19 +177,6 @@ export function toTrashedEntryDto(entry: JournalEntry, purgeAt: Date): TrashedEn
   }
 }
 
-/**
- * The removal moment of a trashed row: the table's
- * `journal_entries_trash_columns_match_state` check guarantees it, so a
- * null here is a programming error and refuses loudly rather than silently
- * naming a wrong deletion date.
- */
-export function trashedAtOf(entry: JournalEntry): Date {
-  if (entry.trashedAt === null) {
-    throw new Error('Only a trashed row carries its removal moment')
-  }
-  return entry.trashedAt
-}
-
 export const TrashListDtoSchema = Type.Object(
   { entries: Type.Array(TrashedEntryDtoSchema) },
   { additionalProperties: false },

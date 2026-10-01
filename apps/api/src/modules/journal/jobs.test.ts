@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
 import {
   createTestHarness,
@@ -202,6 +202,65 @@ describe('purgeDueTrashedEntries (the recurring sweep)', () => {
     const tombstonesBefore = await harness.db.select().from(syncTombstones)
     await purgeDueTrashedEntries(jobDeps())
     expect(await harness.db.select().from(syncTombstones)).toEqual(tombstonesBefore)
+  })
+
+  test('a failing space does not stop the others; the sweep fails so the queue retries', async () => {
+    const healthy = await harness.createSpace({ name: 'Здоровое' })
+    const broken = await harness.createSpace({ name: 'Сломанное' })
+    const anyaHealthy = await harness.createMember(healthy.id, { name: 'Аня' })
+    const anyaBroken = await harness.createMember(broken.id, { name: 'Аня' })
+
+    const healthyEntry = await trashedDraft({
+      memberId: anyaHealthy.id,
+      spaceId: healthy.id,
+      role: 'regular',
+    })
+    const brokenEntry = await trashedDraft({
+      memberId: anyaBroken.id,
+      spaceId: broken.id,
+      role: 'regular',
+    })
+
+    // The database refuses one space's purges: the trigger raises on any
+    // delete of that space's rows.
+    // The id is the factory's own UUID; raw here because a plpgsql body
+    // is a string constant and cannot carry bind parameters.
+    await harness.db.execute(
+      sql.raw(`
+      create or replace function refuse_broken_space_purge() returns trigger as $$
+      begin
+        if old.space_id = '${broken.id}' then
+          raise exception 'the broken space refuses';
+        end if;
+        return old;
+      end;
+      $$ language plpgsql;
+    `),
+    )
+    await harness.db.execute(sql`
+      create trigger journal_purge_gate
+        before delete on journal_entries
+        for each row execute function refuse_broken_space_purge()
+    `)
+
+    harness.clock.advance(31 * DAY_MS)
+    const sweep = purgeDueTrashedEntries(jobDeps())
+    await expect(sweep).rejects.toThrow(AggregateError)
+    await expect(sweep.catch((error: unknown) => error)).resolves.toMatchObject({
+      message: expect.stringContaining(broken.id),
+    })
+
+    // The healthy space went through; the broken one is untouched — and a
+    // sweep that can run again purges it, the way the queue's retry does.
+    expect(await getEntryInSpace(harness.db, healthy.id, healthyEntry)).toBeUndefined()
+    expect(await tombstonesFor(healthy.id, healthyEntry)).toHaveLength(2)
+    expect((await getEntryInSpace(harness.db, broken.id, brokenEntry))?.state).toBe('trashed')
+
+    await harness.db.execute(sql`drop trigger journal_purge_gate on journal_entries`)
+    await harness.db.execute(sql`drop function refuse_broken_space_purge`)
+    await purgeDueTrashedEntries(jobDeps())
+    expect(await getEntryInSpace(harness.db, broken.id, brokenEntry)).toBeUndefined()
+    expect(await tombstonesFor(broken.id, brokenEntry)).toHaveLength(2)
   })
 
   test('an entry whose retention has not run out stays', async () => {

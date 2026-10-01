@@ -3,8 +3,8 @@ import type { Db } from '../../platform/db/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
-import { JOURNAL_ENTRY_SYNC_ENTITY, trashedAtOf } from './contracts.ts'
-import { purgeAtFor } from './policy.ts'
+import { JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
+import { purgeAtFor, trashedAtOf } from './policy.ts'
 import {
   deleteTrashedEntriesInSpace,
   getEntryInSpace,
@@ -146,9 +146,9 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
     }
   }
   if (failures.length > 0) {
-    throw new Error(
+    throw new AggregateError(
+      failures.map((failure) => failure.cause),
       `Purging ${failures.length} space(s) failed: ${failures.map((f) => f.spaceId).join(', ')}`,
-      { cause: failures[0]?.cause },
     )
   }
 }

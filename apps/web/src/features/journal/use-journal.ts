@@ -1,5 +1,5 @@
 import type { paths } from '@ohana/api-client'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
@@ -113,15 +113,17 @@ export function useTrash() {
   const memberId = getActiveMemberId()
   return useQuery({
     queryKey: ['member', memberId, 'journal', 'trash'],
-    queryFn: async (): Promise<{ entries: TrashedEntryDto[] }> => {
-      const response = await api.GET('/api/v1/journal/trash', {
-        headers: memberId === undefined ? undefined : { 'x-ohana-member': memberId },
-      })
-      await assertOk(response)
-      if (response.data === undefined) throw new ApiError('unexpected')
-      return response.data
-    },
-    enabled: memberId !== undefined,
+    queryFn:
+      memberId === undefined
+        ? skipToken
+        : async (): Promise<{ entries: TrashedEntryDto[] }> => {
+            const response = await api.GET('/api/v1/journal/trash', {
+              params: { header: { 'x-ohana-member': memberId } },
+            })
+            await assertOk(response)
+            if (response.data === undefined) throw new ApiError('unexpected')
+            return response.data
+          },
   })
 }
 
@@ -167,7 +169,15 @@ export function useRestoreEntry() {
         queryKey: ['member', getActiveMemberId(), 'journal', 'trash'],
       })
     },
-    onError: () => void triggerSync(),
+    // A refusal may be the answer about the row (entry_purge_due, a row
+    // the view should no longer offer): the trash list is online-only
+    // data, so the refusal re-probes it instead of patching it by hand.
+    onError: () => {
+      void triggerSync()
+      void queryClient.invalidateQueries({
+        queryKey: ['member', getActiveMemberId(), 'journal', 'trash'],
+      })
+    },
   })
 }
 
