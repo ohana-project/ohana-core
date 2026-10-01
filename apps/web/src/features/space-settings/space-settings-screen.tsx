@@ -2,6 +2,7 @@ import { Navigate } from '@tanstack/react-router'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
+import { useSectionVisibility } from '@/features/member/use-nav-sections.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -70,26 +71,24 @@ const SECTION_ROWS: readonly {
   },
 ]
 
-const ALL_SECTIONS_VISIBLE: SpaceSections = {
-  journal: true,
-  calendar: true,
-  wishlist: true,
-}
-
 export function SpaceSettingsScreen() {
   const { t, i18n } = useTranslation()
   const session = useMemberSessionStatus()
   const space = useMemberSpace()
   const updateTimezone = useUpdateTimezone()
   const updateSections = useUpdateSections()
+  // Unknown means visible: the one default comes from the shared hook, so
+  // the switches read the same truth the navigation does.
+  const serverVisibility = useSectionVisibility()
 
   const zones = useMemo(
     () => timezoneOptions(i18n.language as 'ru' | 'en', new Date()),
     [i18n.language],
   )
   const [timezone, setTimezone] = useState<string | undefined>(undefined)
-  // The switches hold the attempted state so they respond instantly; the
-  // server's answer (the query invalidation refetch) is the truth underneath.
+  // The switches hold the attempted state so they respond instantly; once a
+  // mutation settles it is dropped, and the server's answer (the query
+  // invalidation refetch) is the truth underneath.
   const [sections, setSections] = useState<SpaceSections | undefined>(undefined)
 
   if (session.me !== undefined && session.me.member.role !== 'owner') {
@@ -100,7 +99,7 @@ export function SpaceSettingsScreen() {
   const current = space.data
   const effectiveTimezone = timezone ?? current?.timezone ?? 'UTC'
   const dirty = current !== undefined && timezone !== undefined && timezone !== current.timezone
-  const visibility = sections ?? current?.sections ?? ALL_SECTIONS_VISIBLE
+  const visibility = sections ?? serverVisibility
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()

@@ -1,5 +1,4 @@
 export {
-  assertSectionVisible,
   SECTION_IDS,
   type SectionId,
   type SpaceSections,

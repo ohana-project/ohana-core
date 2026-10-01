@@ -156,6 +156,7 @@ describe('SpaceSettingsScreen', () => {
     const user = userEvent.setup()
     // The mock space answers from one object, so the PATCH the switch sends
     // is what the next GET returns — the way the real space row behaves.
+    // Every answer is a fresh copy, like a real JSON payload.
     const space = {
       ...SPACE,
       sections: { journal: true, calendar: true, wishlist: true },
@@ -165,7 +166,11 @@ describe('SpaceSettingsScreen', () => {
         return { data: OWNER_ME, error: undefined, response: new Response(null, { status: 200 }) }
       }
       if (path === '/api/v1/space') {
-        return { data: space, error: undefined, response: new Response(null, { status: 200 }) }
+        return {
+          data: structuredClone(space),
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
       }
       throw new Error(`Unexpected GET ${String(path)}`)
     })
@@ -174,7 +179,11 @@ describe('SpaceSettingsScreen', () => {
         const { sections } = (options as { body: { sections?: Partial<typeof space.sections> } })
           .body
         if (sections !== undefined) Object.assign(space.sections, sections)
-        return { data: space, error: undefined, response: new Response(null, { status: 200 }) }
+        return {
+          data: structuredClone(space),
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
       }
       throw new Error(`Unexpected PATCH ${String(path)}`)
     })
@@ -196,6 +205,36 @@ describe('SpaceSettingsScreen', () => {
       expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).not.toBeChecked(),
     )
     expect(screen.getByText('скрыт для всех — данные сохранены')).toBeInTheDocument()
+  })
+
+  it('shows the refetched space when it disagrees with the attempted switch', async () => {
+    const user = userEvent.setup()
+    // The PATCH succeeds, but another owner has shown the section again by
+    // the time the screen refetches: the server wins over the attempt.
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: OWNER_ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/space') {
+        return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    apiPatch.mockResolvedValue({
+      data: SPACE,
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    const journalSwitch = await screen.findByRole('switch', { name: 'Показывать Дневник' })
+    await user.click(journalSwitch)
+
+    await vi.waitFor(() => expect(apiPatch).toHaveBeenCalled())
+    await vi.waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).toBeChecked(),
+    )
+    expect(screen.getByText('записи и фото семьи')).toBeInTheDocument()
   })
 
   it('reverts the switch and explains itself when hiding fails', async () => {

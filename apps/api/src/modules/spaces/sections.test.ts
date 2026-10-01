@@ -143,7 +143,7 @@ function registerJournalStandIn(app: TestApp) {
     async (section) => {
       const scoped = section.withTypeProvider<TypeBoxTypeProvider>()
       scoped.addHook('onRequest', memberSessionGuard(accessDeps))
-      scoped.addHook('onRequest', sectionGate({ db: harness.db, clock: harness.clock }, 'journal'))
+      scoped.addHook('onRequest', sectionGate({ db: harness.db }, 'journal'))
 
       scoped.get('/journal', async (request) => {
         const actor = requireMemberActor(request)
@@ -417,7 +417,7 @@ describe('PATCH /api/v1/space (the owner toggles section visibility)', () => {
 })
 
 describe('the section gate (a stand-in journal route until the section modules arrive)', () => {
-  test('the route answers 401 before the gate without a member session', async () => {
+  test('a section route without a member session answers 401', async () => {
     await withJournalApp(async (app) => {
       const read = await app.inject({ method: 'GET', url: '/api/v1/journal' })
       expect(read.statusCode).toBe(401)

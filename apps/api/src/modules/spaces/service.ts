@@ -167,16 +167,19 @@ export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): 
 
 /**
  * The visibility check every section read and write goes through: the
- * actor's space must show the section. The section gate (routes.ts) calls
- * it for HTTP requests; the section modules' use cases and sync
- * contributors call it on the rows they are about to touch or return.
+ * space must show the section. The section gate (routes.ts) calls it with
+ * the request's executor; a section module's use case calls it inside its
+ * transaction, after lockSpace, so a hide that commits alongside the write
+ * is still honoured. Sync contributors do not call this — they filter with
+ * sectionVisibility(space), because one hidden row must not fail the whole
+ * delta with a 404.
  */
 export async function requireVisibleSection(
-  deps: SpacesDeps,
+  executor: Executor,
   spaceId: string,
   section: SectionId,
 ): Promise<Space> {
-  const space = await getSpaceOrThrow(deps.db, spaceId)
+  const space = await getSpaceOrThrow(executor, spaceId)
   assertSectionVisible(space, section)
   return space
 }
