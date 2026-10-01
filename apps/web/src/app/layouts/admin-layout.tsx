@@ -1,5 +1,6 @@
 import type * as React from 'react'
 
+import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
 import { AdminTopBar } from '@/ui/admin-top-bar.tsx'
 
 /*
@@ -16,7 +17,10 @@ export function AdminLayout({
   return (
     <div className="min-h-dvh">
       <AdminTopBar actions={actions} />
-      <main className="mx-auto max-w-[var(--admin-w)] px-(--pad) pt-7 pb-14">{children}</main>
+      <main className="mx-auto max-w-[var(--admin-w)] px-(--pad) pt-7 pb-14">
+        <UpdatePrompt />
+        {children}
+      </main>
     </div>
   )
 }

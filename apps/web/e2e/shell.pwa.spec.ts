@@ -8,6 +8,19 @@ import { expect, test } from '@playwright/test'
  * while API responses never come from the worker.
  */
 
+// The update spec simulates a deployment by rewriting the built worker; if
+// the test dies on a timeout, this restores the shippable artefact anyway.
+const SW_URL = new URL('../dist/sw.js', import.meta.url)
+let pendingRestore: string | null = null
+
+test.afterEach(async () => {
+  const { writeFile } = await import('node:fs/promises')
+  if (pendingRestore !== null) {
+    await writeFile(SW_URL, pendingRestore)
+    pendingRestore = null
+  }
+})
+
 test('the app is installable: a manifest whose icons exist', async ({ page, request }) => {
   await page.goto('/')
 
@@ -71,7 +84,6 @@ test('the service worker takes control and every route opens offline', async ({
 
 test('offers a reload when a new version waits and reloads on demand', async ({ page }) => {
   const { readFile, writeFile } = await import('node:fs/promises')
-  const swUrl = new URL('../dist/sw.js', import.meta.url)
 
   await page.goto('/')
   await page.evaluate(() => navigator.serviceWorker.ready)
@@ -81,11 +93,12 @@ test('offers a reload when a new version waits and reloads on demand', async ({ 
     .toBe(true)
 
   // A new deployment: the worker script changes, so the registration
-  // refresh on the next load installs it as a waiting worker. The artefact
-  // is restored afterwards — this checkout's dist must stay shippable.
-  const deployed = await readFile(swUrl, 'utf8')
+  // refresh on the next load installs it as a waiting worker. The
+  // afterEach hook restores the artefact even if this test times out.
+  const deployed = await readFile(SW_URL, 'utf8')
+  pendingRestore = deployed
   try {
-    await writeFile(swUrl, `${deployed}\n// shell.pwa.spec.ts: a new version\n`)
+    await writeFile(SW_URL, `${deployed}\n// shell.pwa.spec.ts: a new version\n`)
 
     await page.reload()
     const banner = page.getByRole('status')
@@ -119,6 +132,7 @@ test('offers a reload when a new version waits and reloads on demand', async ({ 
       )
       .toBe('activated')
   } finally {
-    await writeFile(swUrl, deployed)
+    await writeFile(SW_URL, deployed)
+    pendingRestore = null
   }
 })

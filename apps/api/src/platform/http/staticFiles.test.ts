@@ -62,8 +62,8 @@ describe('SPA static files', () => {
   test('serves the PWA artefacts the browser needs to install the app', async () => {
     const app = await buildAppWithWebDist()
     try {
-      // The service worker script must revalidate on every update check,
-      // or a deployed update stays undetected for the cache's lifetime.
+      // Explicit so no proxy or older browser ever serves a stale worker
+      // script; the browser revalidates it on every update check.
       const worker = await app.inject({ method: 'GET', url: '/sw.js' })
       expect(worker.statusCode).toBe(200)
       expect(worker.headers['content-type']).toContain('javascript')

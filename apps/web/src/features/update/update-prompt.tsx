@@ -7,9 +7,11 @@ import { Button } from '@/ui/button.tsx'
 /*
  * The new-version offer (issue #11): when the service worker has installed
  * the next version and waits, a quiet banner offers a reload. The reload is
- * the member's choice — the current version keeps running until then, so
- * the banner never blocks a control: it hangs below the top bar, clear of
- * the toast viewport at the bottom edge.
+ * the member's choice — the current version keeps running until then. The
+ * banner is part of the page flow at the top of each shell, so it pushes
+ * content down instead of covering anything and scrolls away like any
+ * other content. Each shell mounts it once; a route renders exactly one
+ * shell, so the worker is registered exactly once per page.
  */
 export function UpdatePrompt() {
   const { t } = useTranslation()
@@ -32,10 +34,7 @@ export function UpdatePrompt() {
   if (!updateReady) return null
 
   return (
-    // Hanging below the 56px top bar (min-h-14): the sticky bar keeps its
-    // controls reachable, the toasts keep the bottom edge, and the banner
-    // stays a quiet offer instead of a modal intrusion.
-    <div className="fixed inset-x-4 top-16 z-30 desktop:left-auto desktop:right-6 desktop:w-96">
+    <div className="mb-4">
       <Banner
         icon="sync"
         action={

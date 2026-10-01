@@ -2,12 +2,14 @@ import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/testing/render.tsx'
+import { UpdatePrompt } from './update-prompt.tsx'
 
 /*
  * A detected new application version is offered as a reload (issue #11):
  * the offer appears only when the watcher reports a waiting worker, the
  * reload activates it, and without service worker support the component
- * never reaches the watcher at all.
+ * never reaches the watcher at all. The shells mount the banner in the
+ * page flow; the tests render it directly.
  */
 
 const apply = vi.fn()
@@ -46,14 +48,10 @@ afterEach(() => {
 })
 
 describe('UpdatePrompt', () => {
-  // The prompt is mounted inside AppProviders itself (next to the toaster),
-  // so every test renders a neutral child — rendering the prompt again as
-  // children would mount it twice.
-
   it('renders nothing while the current version is up to date', () => {
     useContainer()
     useProduction()
-    renderWithProviders(null)
+    renderWithProviders(<UpdatePrompt />)
 
     expect(watch).toHaveBeenCalledWith(FAKE_CONTAINER.serviceWorker, '/sw.js', expect.any(Function))
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -63,7 +61,7 @@ describe('UpdatePrompt', () => {
     useContainer()
     useProduction()
     const user = userEvent.setup()
-    renderWithProviders(null)
+    renderWithProviders(<UpdatePrompt />)
 
     reportUpdateReady()
 
@@ -75,7 +73,7 @@ describe('UpdatePrompt', () => {
   it('stops watching when it unmounts', () => {
     useContainer()
     useProduction()
-    const view = renderWithProviders(null)
+    const view = renderWithProviders(<UpdatePrompt />)
 
     // Test cleanup below also unmounts; only this unmount is under test.
     stop.mockClear()
@@ -87,7 +85,7 @@ describe('UpdatePrompt', () => {
   it('stays out of the way where service workers are unsupported', () => {
     useProduction()
     vi.stubGlobal('navigator', {} as Navigator)
-    renderWithProviders(null)
+    renderWithProviders(<UpdatePrompt />)
 
     expect(watch).not.toHaveBeenCalled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -96,7 +94,7 @@ describe('UpdatePrompt', () => {
   it('does not watch in a development build, where no worker exists', () => {
     useContainer()
     ;(import.meta.env as { MODE: string }).MODE = 'development'
-    renderWithProviders(null)
+    renderWithProviders(<UpdatePrompt />)
 
     expect(watch).not.toHaveBeenCalled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
