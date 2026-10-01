@@ -2,6 +2,7 @@ import { buildWorker } from '../app/buildWorker.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
+import { startJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
 
 async function main(): Promise<void> {
@@ -10,7 +11,8 @@ async function main(): Promise<void> {
 
   const logger = createLogger(config)
   const { db, close } = createDb(config.databaseUrl)
-  const worker = buildWorker({ db, clock: systemClock, logger, databaseUrl: config.databaseUrl })
+  const boss = await startJobQueue(config.databaseUrl, logger)
+  const worker = buildWorker({ db, clock: systemClock, logger, boss })
   await worker.start()
 
   const shutdown = async (): Promise<void> => {

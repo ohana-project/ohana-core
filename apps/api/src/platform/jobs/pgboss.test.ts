@@ -1,7 +1,13 @@
 import { sql } from 'drizzle-orm'
 import { afterAll, expect, test } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
-import { createPgBossJobSender, ensureQueue, startJobQueue } from './pgboss.ts'
+import { createSilentLogger } from '../logging.ts'
+import {
+  createPgBossJobSender,
+  ensureQueues,
+  startJobQueue,
+  startSendingJobQueue,
+} from './pgboss.ts'
 
 /*
  * The queue's integration test (issue #16, ADR-0009): the pinned pg-boss
@@ -17,9 +23,9 @@ afterAll(async () => {
 })
 
 test('the pinned pg-boss starts against PostgreSQL 18', async () => {
-  const boss = await startJobQueue(harness.environment.databaseUrl)
+  const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueue(boss, 'jobs-integration-start')
+    await ensureQueues(boss, ['jobs-integration-start'])
   } finally {
     await boss.stop()
   }
@@ -27,9 +33,9 @@ test('the pinned pg-boss starts against PostgreSQL 18', async () => {
 
 test('a job sent inside a transaction commits with the domain change', async () => {
   const queue = 'jobs-integration-commit'
-  const boss = await startJobQueue(harness.environment.databaseUrl)
+  const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueue(boss, queue)
+    await ensureQueues(boss, [queue])
     const sender = createPgBossJobSender(boss)
     const received = new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('the job was never delivered')), 15_000)
@@ -51,9 +57,9 @@ test('a job sent inside a transaction commits with the domain change', async () 
 
 test('a rollback takes the job with the domain change', async () => {
   const queue = 'jobs-integration-rollback'
-  const boss = await startJobQueue(harness.environment.databaseUrl)
+  const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueue(boss, queue)
+    await ensureQueues(boss, [queue])
     const sender = createPgBossJobSender(boss)
 
     const rolledBack = harness.db.transaction(async (tx) => {
@@ -75,9 +81,9 @@ test('a rollback takes the job with the domain change', async () => {
 
 test('a scheduled submission carries its start-after moment', async () => {
   const queue = 'jobs-integration-schedule'
-  const boss = await startJobQueue(harness.environment.databaseUrl)
+  const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueue(boss, queue)
+    await ensureQueues(boss, [queue])
     const sender = createPgBossJobSender(boss)
     const startAfter = new Date(Date.now() + 60 * 60 * 1000)
     await harness.db.transaction(async (tx) => {
@@ -98,6 +104,34 @@ test('a scheduled submission carries its start-after moment', async () => {
     expect(
       immediate === undefined ? Infinity : new Date(immediate.startafter as string).getTime(),
     ).toBeLessThanOrEqual(Date.now())
+  } finally {
+    await boss.stop()
+  }
+})
+
+test('the sending instance ensures its queues, so the first send has somewhere to land', async () => {
+  const queue = 'jobs-integration-api-sender'
+  const { boss, sender } = await startSendingJobQueue(
+    harness.environment.databaseUrl,
+    createSilentLogger(),
+    [queue],
+  )
+  try {
+    // A send into a queue nobody created is refused outright — the shape
+    // of the bug this guard exists for.
+    const refused = harness.db.transaction(async (tx) => {
+      await sender.sendInTx(tx, { name: 'jobs-integration-never-created', data: {} })
+    })
+    await expect(refused).rejects.toThrow('does not exist')
+
+    // The queue the sender named exists, and the committed send is there.
+    await harness.db.transaction(async (tx) => {
+      await sender.sendInTx(tx, { name: queue, data: { sooner: true } })
+    })
+    const rows = await harness.db.execute<{ count: string }>(
+      sql`select count(*)::text as count from pgboss.job where name = ${queue}`,
+    )
+    expect(rows.rows.map((row) => row.count)).toEqual(['1'])
   } finally {
     await boss.stop()
   }

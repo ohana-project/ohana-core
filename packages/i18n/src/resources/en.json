@@ -258,7 +258,8 @@
       "unexpected": "Something went wrong. Try again.",
       "trash_forbidden": "Only the author can trash an entry — or, for a published one, the space's owner.",
       "restore_forbidden": "Only the author can restore an entry — or, for one trashed from published, the space's owner.",
-      "entry_not_trashed": "This entry is no longer in the trash."
+      "entry_not_trashed": "This entry is no longer in the trash.",
+      "entry_purge_due": "Its time has run out — the entry is being deleted for good."
     },
     "trashTitle": "Trash",
     "trashSubtitle": "Deleted entries wait here until they are gone for good.",
@@ -275,9 +276,7 @@
     "trashConfirmTitle": "Delete this entry?",
     "trashConfirmText": "“{name}” moves to the trash. Until the permanent-deletion date it comes back with one tap.",
     "trashConfirmLabel": "Delete",
-    "trashedToast": "In the trash · gone for good {date}",
-    "previousDraft": "draft",
-    "previousPublished": "published"
+    "trashedToast": "In the trash · gone for good {date}"
   },
   "signin": {
     "title": "Access code",

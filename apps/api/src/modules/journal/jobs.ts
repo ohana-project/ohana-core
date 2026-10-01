@@ -3,12 +3,13 @@ import type { Db } from '../../platform/db/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
-import { JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
+import { JOURNAL_ENTRY_SYNC_ENTITY, trashedAtOf } from './contracts.ts'
+import { purgeAtFor } from './policy.ts'
 import {
   deleteTrashedEntriesInSpace,
   getEntryInSpace,
-  listPurgeableEntriesAcrossSpaces,
   listPurgeableEntriesInSpace,
+  listSpacesWithPurgeableEntriesAcrossSpaces,
 } from './repository.ts'
 import type { JournalEntry } from './tables.ts'
 
@@ -46,11 +47,6 @@ export interface JournalJobsDeps {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** The permanent-deletion moment of an entry trashed at `trashedAt`. */
-export function purgeAtFor(trashedAt: Date, retentionDays: number): Date {
-  return new Date(trashedAt.getTime() + retentionDays * DAY_MS)
-}
-
 /**
  * The tombstone a purge delivers, to the same audience the trash did: the
  * entry left every view already; this tells the devices it is gone for
@@ -84,7 +80,7 @@ export async function purgeTrashedEntry(
     const entry = await getEntryInSpace(tx, data.spaceId, data.entryId)
     if (entry === undefined || entry.state !== 'trashed') return
     const retentionDays = await readTrashRetentionDays(tx)
-    if (purgeAtFor(entry.trashedAt ?? entry.updatedAt, retentionDays) > now) return
+    if (purgeAtFor(trashedAtOf(entry), retentionDays) > now) return
     await recordChanges(
       tx,
       data.spaceId,
@@ -108,36 +104,52 @@ export async function purgeTrashedEntry(
 export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<void> {
   const now = deps.clock.now()
   const retentionDays = await readTrashRetentionDays(deps.db)
-  const due = await listPurgeableEntriesAcrossSpaces(deps.db, purgeCutoff(now, retentionDays))
-  const spaceIds = [...new Set(due.map((entry) => entry.spaceId))]
+  const spaceIds = await listSpacesWithPurgeableEntriesAcrossSpaces(
+    deps.db,
+    purgeCutoff(now, retentionDays),
+  )
+  // One space's failure must not stop the others: each purge is its own
+  // transaction, and the sweep still fails at the end, so the queue
+  // retries it and the healthy spaces are not purged twice.
+  const failures: Array<{ spaceId: string; cause: unknown }> = []
   for (const spaceId of spaceIds) {
-    await deps.db.transaction(async (tx) => {
-      await lockSpace(tx, spaceId)
-      // The retention is read again under the lock, so a change that
-      // committed since the sweep began is honoured per space.
-      const currentRetentionDays = await readTrashRetentionDays(tx)
-      const entries = await listPurgeableEntriesInSpace(
-        tx,
-        spaceId,
-        purgeCutoff(now, currentRetentionDays),
-      )
-      if (entries.length === 0) return
-      await recordChanges(
-        tx,
-        spaceId,
-        {
-          writes: async (writeTx) => {
-            await deleteTrashedEntriesInSpace(
-              writeTx,
-              spaceId,
-              entries.map((entry) => entry.id),
-            )
+    try {
+      await deps.db.transaction(async (tx) => {
+        await lockSpace(tx, spaceId)
+        // The retention is read again under the lock, so a change that
+        // committed since the sweep began is honoured per space.
+        const currentRetentionDays = await readTrashRetentionDays(tx)
+        const entries = await listPurgeableEntriesInSpace(
+          tx,
+          spaceId,
+          purgeCutoff(now, currentRetentionDays),
+        )
+        if (entries.length === 0) return
+        await recordChanges(
+          tx,
+          spaceId,
+          {
+            writes: async (writeTx) => {
+              await deleteTrashedEntriesInSpace(
+                writeTx,
+                spaceId,
+                entries.map((entry) => entry.id),
+              )
+            },
+            tombstones: entries.map(purgeTombstone),
           },
-          tombstones: entries.map(purgeTombstone),
-        },
-        now,
-      )
-    })
+          now,
+        )
+      })
+    } catch (cause) {
+      failures.push({ spaceId, cause })
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `Purging ${failures.length} space(s) failed: ${failures.map((f) => f.spaceId).join(', ')}`,
+      { cause: failures[0]?.cause },
+    )
   }
 }
 

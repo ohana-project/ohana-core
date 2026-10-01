@@ -157,11 +157,9 @@ export const TrashedEntryDtoSchema = Type.Object(
 
 export type TrashedEntryDto = Static<typeof TrashedEntryDtoSchema>
 
-/**
- * Projects a trashed row onto the trash view's wire shape. The trash reads
- * deliver trashed rows only (policy.ts); anything else arriving here is a
- * programming error, and refusing loudly keeps the wire contract honest.
- */
+/** Projects a trashed row onto the trash view's wire shape. The trash reads
+ *  deliver trashed rows only (policy.ts); anything else arriving here is a
+ *  programming error, and refusing loudly keeps the wire contract honest. */
 export function toTrashedEntryDto(entry: JournalEntry, purgeAt: Date): TrashedEntryDto {
   if (entry.state !== 'trashed' || entry.trashedFromState === null || entry.trashedAt === null) {
     throw new Error('The trash view carries trashed rows only')
@@ -177,6 +175,19 @@ export function toTrashedEntryDto(entry: JournalEntry, purgeAt: Date): TrashedEn
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
   }
+}
+
+/**
+ * The removal moment of a trashed row: the table's
+ * `journal_entries_trash_columns_match_state` check guarantees it, so a
+ * null here is a programming error and refuses loudly rather than silently
+ * naming a wrong deletion date.
+ */
+export function trashedAtOf(entry: JournalEntry): Date {
+  if (entry.trashedAt === null) {
+    throw new Error('Only a trashed row carries its removal moment')
+  }
+  return entry.trashedAt
 }
 
 export const TrashListDtoSchema = Type.Object(

@@ -448,8 +448,11 @@ describe('POST /api/v1/journal/entries/:entryId/restore', () => {
       expect(restored.status).toBe(200)
       const back = restored.body as EntryDto
       expect(back).toMatchObject({ id: entry.id, state: 'published' })
-      // The published moment survived the round trip: the entry is what it was.
+      // The published moment and the last-edit time survived the round
+      // trip: the entry is what it was — the revision alone carries the
+      // change to sync.
       expect(back.publishedAt).toBe(entry.publishedAt)
+      expect(back.updatedAt).toBe(entry.updatedAt)
 
       // The feed carries it again, the trash view is empty, and the sync's
       // upsert outranks the trash tombstone of the same row.
@@ -535,6 +538,26 @@ describe('POST /api/v1/journal/entries/:entryId/restore', () => {
       expect((notTrashed.body as { error: { code: string } }).error.code).toBe('entry_not_found')
     })
   })
+
+  test('the restore window closes at the permanent-deletion date', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace({ name: 'Последний день' })
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const created = await createEntry(app, anna, { text: 'Успеть бы' })
+      const entry = created.body as EntryDto
+      expect((await trashEntry(app, anna, entry.id)).status).toBe(200)
+
+      // The deletion date passes before anyone restores: the sweep may not
+      // have run yet, but the window ADR-0007 grants is closed, and the
+      // answer says so instead of silently resurrecting the entry.
+      harness.clock.advance(31 * 24 * 60 * 60 * 1000)
+      const tooLate = await restoreEntry(app, anna, entry.id)
+      expect(tooLate.status).toBe(409)
+      expect((tooLate.body as { error: { code: string } }).error.code).toBe('entry_purge_due')
+    })
+  })
 })
 
 describe('the trash retention (GET /api/v1/admin/settings, PUT …)', () => {
@@ -604,10 +627,23 @@ describe('the trash retention (GET /api/v1/admin/settings, PUT …)', () => {
       const space = await harness.createSpace({ name: 'Пересмотр сроков' })
       const anna = await memberSession(app, adminCookie, space.id, 'Аня')
 
+      // The earlier test in this describe left 7 days; this test trashes
+      // under 30 on purpose, so the save says so first.
+      const reset = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/admin/settings',
+        payload: { trashRetentionDays: 30 },
+        headers: { cookie: adminCookie, ...MARKER },
+      })
+      expect(reset.statusCode).toBe(200)
+
       const created = await createEntry(app, anna, { text: 'Сначала на тридцать' })
       const entry = created.body as EntryDto
-      expect((await trashEntry(app, anna, entry.id)).status).toBe(200)
-      const scheduledAt = harness.jobs.submissions[0]?.startAfter
+      const trashed = await trashEntry(app, anna, entry.id)
+      expect(trashed.status).toBe(200)
+      const trashedRow = trashed.body as TrashedEntryDto
+      // This test's own submission is the last one recorded.
+      const scheduledAt = harness.jobs.submissions.at(-1)?.startAfter
 
       // The retention grows: the worker's handlers re-read it before
       // acting, so the early job finds the entry not yet due (the jobs'
@@ -626,8 +662,11 @@ describe('the trash retention (GET /api/v1/admin/settings, PUT …)', () => {
       expect(new Date(row.purgeAt).getTime()).toBe(
         new Date(row.trashedAt).getTime() + 90 * 24 * 60 * 60 * 1000,
       )
-      // The scheduled job keeps the moment it was given.
-      expect(scheduledAt).not.toBeUndefined()
+      // The scheduled job keeps the moment it was given — the default 30
+      // days this test trashed under.
+      expect(scheduledAt?.getTime()).toBe(
+        new Date(trashedRow.trashedAt).getTime() + 30 * 24 * 60 * 60 * 1000,
+      )
     })
   })
 })

@@ -10,15 +10,19 @@ import {
   purgeTrashedEntry,
 } from '../modules/journal/index.ts'
 import type { Db } from '../platform/db/index.ts'
-import { ensureQueue, startJobQueue } from '../platform/jobs/pgboss.ts'
+import { ensureQueues } from '../platform/jobs/pgboss.ts'
 import type { Logger } from '../platform/logging.ts'
 
 export interface WorkerDeps {
   db: Db
   clock: JournalJobsDeps['clock']
   logger: Logger
-  /** The same PostgreSQL the jobs live in (ADR-0009). */
-  databaseUrl: string
+  /**
+   * The pg-boss instance the worker claims jobs through — started by the
+   * entrypoint from configuration, handed in explicitly like every other
+   * dependency (architecture.md, "Composition").
+   */
+  boss: PgBoss
 }
 
 export interface Worker {
@@ -30,28 +34,27 @@ export interface Worker {
  * The worker composition root (architecture.md, "Background jobs"): the
  * pg-boss handlers register here as modules add them. Handlers are the
  * modules' own functions, tested directly against a controllable clock;
- * start() only wires them to the queue.
+ * start() only wires them to the queue — and makes sure the queues exist,
+ * because a job sent by the api into a queue nobody created would have had
+ * nowhere to land.
  */
 export function buildWorker(deps: WorkerDeps): Worker {
-  let boss: PgBoss | undefined
   const jobDeps: JournalJobsDeps = { db: deps.db, clock: deps.clock }
   return {
     async start() {
       await deps.db.execute(sql`select 1`)
-      boss = await startJobQueue(deps.databaseUrl)
-      await ensureQueue(boss, JOURNAL_PURGE_JOB)
-      await ensureQueue(boss, JOURNAL_PURGE_SWEEP_JOB)
-      await boss.work<JournalPurgeJobData>(JOURNAL_PURGE_JOB, async (jobs) => {
+      await ensureQueues(deps.boss, [JOURNAL_PURGE_JOB, JOURNAL_PURGE_SWEEP_JOB])
+      await deps.boss.work<JournalPurgeJobData>(JOURNAL_PURGE_JOB, async (jobs) => {
         for (const job of jobs) await purgeTrashedEntry(jobDeps, job.data)
       })
-      await boss.work(JOURNAL_PURGE_SWEEP_JOB, async () => {
+      await deps.boss.work(JOURNAL_PURGE_SWEEP_JOB, async () => {
         await purgeDueTrashedEntries(jobDeps)
       })
-      await boss.schedule(JOURNAL_PURGE_SWEEP_JOB, JOURNAL_PURGE_SWEEP_CRON)
+      await deps.boss.schedule(JOURNAL_PURGE_SWEEP_JOB, JOURNAL_PURGE_SWEEP_CRON)
       deps.logger.info('Worker started')
     },
     async stop() {
-      await boss?.stop()
+      await deps.boss.stop()
       deps.logger.info('Worker stopped')
     },
   }

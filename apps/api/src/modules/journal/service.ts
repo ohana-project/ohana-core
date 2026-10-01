@@ -6,13 +6,14 @@ import { readTrashRetentionDays } from '../admin/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import type { CreateEntryBody, FeedQuery } from './contracts.ts'
-import { DEFAULT_FEED_LIMIT, JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
-import { JOURNAL_PURGE_JOB, type JournalPurgeJobData, purgeAtFor } from './jobs.ts'
+import { DEFAULT_FEED_LIMIT, JOURNAL_ENTRY_SYNC_ENTITY, trashedAtOf } from './contracts.ts'
+import { JOURNAL_PURGE_JOB, type JournalPurgeJobData } from './jobs.ts'
 import {
   assertEntryAuthoredBy,
   assertEntryTrashableBy,
   assertTrashedEntryRestorableBy,
   entryVisibleTo,
+  purgeAtFor,
   trashedEntryVisibleTo,
 } from './policy.ts'
 import {
@@ -280,7 +281,7 @@ export async function listTrash(
   ])
   return entries.map((entry) => ({
     entry,
-    purgeAt: purgeAtFor(entry.trashedAt ?? entry.updatedAt, retentionDays),
+    purgeAt: purgeAtFor(trashedAtOf(entry), retentionDays),
   }))
 }
 
@@ -342,13 +343,17 @@ export async function trashEntry(
 }
 
 /**
- * The way back (issue #16): the entry returns to the state it was trashed
- * from, published moment included. The author restores their own entry, an
- * owner any entry trashed from published; a trashed draft is invisible to
- * everyone else, so a stranger's answer is 404. No tombstone is written —
- * the restored row carries a fresh revision, and the sync's rule that an
- * upsert outranks a tombstone of the same row delivers it back to the
- * devices it had reached before.
+ * The way back (issue #16, ADR-0007): the entry returns to the state it
+ * was trashed from, published moment and last-edit time included. The
+ * author restores their own entry, an owner any entry trashed from
+ * published; a trashed draft is invisible to everyone else, so a
+ * stranger's answer is 404. The window closes at the permanent-deletion
+ * date the trash view shows — past it the answer is 409 `entry_purge_due`:
+ * the retention of the moment decides, and the worker's sweep would have
+ * the row moments later anyway. No tombstone is written — the restored
+ * row carries a fresh revision, and the sync's rule that an upsert
+ * outranks a tombstone of the same row delivers it back to the devices it
+ * had reached before.
  */
 export async function restoreTrashedEntry(
   deps: JournalDeps,
@@ -368,12 +373,23 @@ export async function restoreTrashedEntry(
       throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
     }
     assertTrashedEntryRestorableBy(entry, actor)
+    // The window: ADR-0007 lets the entry be restored before its retention
+    // expires, and the date the trash view shows is trashedAt plus the
+    // retention read here, so the two can never disagree.
+    const retentionDays = await readTrashRetentionDays(tx)
+    if (purgeAtFor(trashedAtOf(entry), retentionDays) <= now) {
+      throw new DomainError(
+        'entry_purge_due',
+        `Journal entry ${entryId} is due to be permanently deleted`,
+        409,
+      )
+    }
     await recordChanges(
       tx,
       actor.spaceId,
       {
         writes: async (writeTx, revision) => {
-          const row = await markEntryRestored(writeTx, actor.spaceId, entryId, revision, now)
+          const row = await markEntryRestored(writeTx, actor.spaceId, entryId, revision)
           if (row === undefined) {
             // The defensive backstop, like publish's: unreachable under the
             // space row lock, and revision-free even then. The state can

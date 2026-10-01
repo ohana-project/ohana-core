@@ -2,6 +2,7 @@ import type { paths } from '@ohana/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
+import { getActiveMemberId } from '@/data/session-registry.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-space.ts'
 
@@ -103,17 +104,24 @@ export function usePublishEntry() {
 /**
  * GET /api/v1/journal/trash — the trashed entries this member may see, each
  * with its permanent-deletion date. Online-only: the trashed rows have left
- * every device's synchronised partition, so the view asks the server.
+ * every device's synchronised partition, so the view asks the server. The
+ * list holds trashed drafts only their author may see, so it is tied to one
+ * member: the query names that member and keys on them (architecture.md,
+ * web rules).
  */
 export function useTrash() {
+  const memberId = getActiveMemberId()
   return useQuery({
-    queryKey: ['journal', 'trash'],
+    queryKey: ['member', memberId, 'journal', 'trash'],
     queryFn: async (): Promise<{ entries: TrashedEntryDto[] }> => {
-      const response = await api.GET('/api/v1/journal/trash')
+      const response = await api.GET('/api/v1/journal/trash', {
+        headers: memberId === undefined ? undefined : { 'x-ohana-member': memberId },
+      })
       await assertOk(response)
       if (response.data === undefined) throw new ApiError('unexpected')
       return response.data
     },
+    enabled: memberId !== undefined,
   })
 }
 
@@ -133,7 +141,9 @@ export function useTrashEntry() {
     // mutation re-probes it (and the synchronised partition via the sync).
     onSuccess: () => {
       void triggerSync()
-      void queryClient.invalidateQueries({ queryKey: ['journal', 'trash'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['member', getActiveMemberId(), 'journal', 'trash'],
+      })
     },
     onError: () => void triggerSync(),
   })
@@ -153,7 +163,9 @@ export function useRestoreEntry() {
     },
     onSuccess: () => {
       void triggerSync()
-      void queryClient.invalidateQueries({ queryKey: ['journal', 'trash'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['member', getActiveMemberId(), 'journal', 'trash'],
+      })
     },
     onError: () => void triggerSync(),
   })
@@ -166,6 +178,7 @@ type JournalErrorKey =
   | 'journal.errors.trash_forbidden'
   | 'journal.errors.restore_forbidden'
   | 'journal.errors.entry_not_trashed'
+  | 'journal.errors.entry_purge_due'
   | 'journal.errors.section_hidden'
   | 'journal.errors.validation_failed'
   | 'journal.errors.unexpected'
@@ -177,6 +190,7 @@ const journalErrorKeys: Partial<Record<string, JournalErrorKey>> = {
   trash_forbidden: 'journal.errors.trash_forbidden',
   restore_forbidden: 'journal.errors.restore_forbidden',
   entry_not_trashed: 'journal.errors.entry_not_trashed',
+  entry_purge_due: 'journal.errors.entry_purge_due',
   section_hidden: 'journal.errors.section_hidden',
   validation_failed: 'journal.errors.validation_failed',
 }

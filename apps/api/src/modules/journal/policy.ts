@@ -51,13 +51,30 @@ export function entryVisibleToSql(memberId: string) {
  * Who the trash view shows a trashed entry to: the author, whatever state
  * it was trashed from (a trashed draft stays visible only to its author —
  * CONTEXT.md, trashed entry), and every member when it was trashed from
- * published, the audience it already had.
+ * published, the audience it already had. The SQL filter beside it serves
+ * the trash listing, so this rule also lives in exactly one place.
  */
 export function trashedEntryVisibleTo(
   entry: { authorMemberId: string; trashedFromState: string | null },
   memberId: string,
 ): boolean {
   return entry.trashedFromState === 'published' || entry.authorMemberId === memberId
+}
+
+export function trashedEntryVisibleToSql(memberId: string) {
+  return or(
+    eq(journalEntries.trashedFromState, 'published'),
+    eq(journalEntries.authorMemberId, memberId),
+  )
+}
+
+/**
+ * The permanent-deletion moment of an entry trashed at `trashedAt`: the
+ * removal plus the retention. The retention is read at use time, so a
+ * changed setting applies to entries already in trash (ADR-0007).
+ */
+export function purgeAtFor(trashedAt: Date, retentionDays: number): Date {
+  return new Date(trashedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000)
 }
 
 /**

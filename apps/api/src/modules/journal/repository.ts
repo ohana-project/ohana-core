@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, inArray, lt, or, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { entryVisibleToSql } from './policy.ts'
+import { entryVisibleToSql, trashedEntryVisibleToSql } from './policy.ts'
 import { type JournalEntry, journalEntries, trashedFromStates } from './tables.ts'
 
 export interface NewJournalEntry {
@@ -187,9 +187,10 @@ export async function listChangedEntriesVisibleTo(
 
 /**
  * The one-way removal into trash (ADR-0007): the row keeps its text, its
- * published moment, and the state it came from, so restore can put it back
- * exactly as it was. The condition in the UPDATE is the state guard — an
- * entry already trashed returns no row and the use case refuses.
+ * published moment, its last-edit time, and the state it came from, so
+ * restore can put it back exactly as it was. The condition in the UPDATE
+ * is the state guard — an entry already trashed returns no row and the
+ * use case refuses.
  */
 export async function markEntryTrashed(
   tx: Tx,
@@ -207,7 +208,6 @@ export async function markEntryTrashed(
       trashedFromState: sql`${journalEntries.state}`,
       trashedAt,
       revision,
-      updatedAt: trashedAt,
     })
     .where(
       and(
@@ -222,15 +222,15 @@ export async function markEntryTrashed(
 
 /**
  * The way back out of trash: the entry returns to the state it was trashed
- * from, published moment included. The condition is the state guard — a
- * row that is not trashed returns none and the use case refuses.
+ * from, published moment and last-edit time included — the revision alone
+ * carries the change to sync. The condition is the state guard — a row
+ * that is not trashed returns none and the use case refuses.
  */
 export async function markEntryRestored(
   tx: Tx,
   spaceId: string,
   entryId: string,
   revision: bigint,
-  now: Date,
 ): Promise<JournalEntry | undefined> {
   const updated = await tx
     .update(journalEntries)
@@ -239,7 +239,6 @@ export async function markEntryRestored(
       trashedFromState: null,
       trashedAt: null,
       revision,
-      updatedAt: now,
     })
     .where(
       and(
@@ -254,10 +253,8 @@ export async function markEntryRestored(
 
 /**
  * The trash view's rows (issue #16): the space's trashed entries the
- * requesting member may see — their own, whatever state each was trashed
- * from, plus everything trashed from published (the audience it already
- * had; a trashed draft stays visible only to its author). Newest removal
- * first.
+ * requesting member may see — the trash view's own rule (policy.ts, in
+ * its SQL dialect here). Newest removal first.
  */
 export async function listTrashedEntries(
   executor: Executor,
@@ -271,30 +268,28 @@ export async function listTrashedEntries(
       and(
         eq(journalEntries.spaceId, spaceId),
         eq(journalEntries.state, 'trashed'),
-        or(
-          eq(journalEntries.authorMemberId, memberId),
-          eq(journalEntries.trashedFromState, 'published'),
-        ),
+        trashedEntryVisibleToSql(memberId),
       ),
     )
     .orderBy(desc(journalEntries.trashedAt), desc(journalEntries.id))
 }
 
 /**
- * The purge sweep's candidates across every space: trashed rows whose
- * retention has run out. Cross-space by design and named for it, like the
- * access module's session sweep — the worker's maintenance query
+ * The purge sweep's discovery read across every space: the spaces holding
+ * trashed rows whose retention has run out. Only the space ids come back —
+ * each purge re-reads its rows under the space row lock. Cross-space by
+ * design and named for it, like the access module's session sweep
  * (architecture.md, "Space scoping").
  */
-export async function listPurgeableEntriesAcrossSpaces(
+export async function listSpacesWithPurgeableEntriesAcrossSpaces(
   executor: Executor,
   purgedBefore: Date,
-): Promise<JournalEntry[]> {
-  return executor
-    .select()
+): Promise<string[]> {
+  const rows = await executor
+    .selectDistinct({ spaceId: journalEntries.spaceId })
     .from(journalEntries)
     .where(and(eq(journalEntries.state, 'trashed'), lt(journalEntries.trashedAt, purgedBefore)))
-    .orderBy(desc(journalEntries.trashedAt), desc(journalEntries.id))
+  return rows.map((row) => row.spaceId)
 }
 
 /**

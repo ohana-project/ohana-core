@@ -1,9 +1,10 @@
 import { buildApp } from '../app/buildApp.ts'
 import { ensureInitialAdministrator } from '../modules/admin/index.ts'
+import { JOURNAL_PURGE_JOB, JOURNAL_PURGE_SWEEP_JOB } from '../modules/journal/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
-import { createPgBossJobSender, startJobQueue } from '../platform/jobs/pgboss.ts'
+import { startSendingJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
 
@@ -17,9 +18,13 @@ async function main(): Promise<void> {
   await storage.ensureBucket()
 
   // The API's own pg-boss instance (ADR-0009): the domain transactions send
-  // their jobs through it; the worker process claims and runs them.
-  const boss = await startJobQueue(config.databaseUrl)
-  const jobs = createPgBossJobSender(boss)
+  // their jobs through it; the worker process claims and runs them. The
+  // queues are ensured here too — a fresh installation must not depend on
+  // the worker having started before the api's first trash.
+  const { boss, sender: jobs } = await startSendingJobQueue(config.databaseUrl, logger, [
+    JOURNAL_PURGE_JOB,
+    JOURNAL_PURGE_SWEEP_JOB,
+  ])
 
   // The first instance administrator is provisioned from deployment
   // configuration on first start (ADR-0005); an existing administrator is

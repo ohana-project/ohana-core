@@ -33,6 +33,13 @@ export function AdminTrashSettings() {
     }
   }, [settings.data, selectedDays])
 
+  // The prototype's choices drive the picker, but a value set outside it —
+  // the contract accepts 1 to 365 — must still display as the saved one.
+  const choices =
+    selectedDays !== undefined && !RETENTION_CHOICES.includes(selectedDays)
+      ? [...RETENTION_CHOICES, selectedDays].sort((a, b) => a - b)
+      : RETENTION_CHOICES
+
   const save = () => {
     if (selectedDays === undefined) return
     update.mutate(
@@ -67,7 +74,7 @@ export function AdminTrashSettings() {
             value={selectedDays === undefined ? undefined : String(selectedDays)}
             onChange={(event) => setSelectedDays(Number(event.target.value))}
           >
-            {RETENTION_CHOICES.map((days) => (
+            {choices.map((days) => (
               <option key={days} value={days}>
                 {t('admin.settings.trashRetentionOption', { days })}
               </option>
