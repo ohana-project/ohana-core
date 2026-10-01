@@ -1,14 +1,17 @@
 import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
+  type MemberSpaceDto,
+  MemberSpaceDtoSchema,
   CreateSpaceBodySchema,
   type SpaceDto,
   SpaceDtoSchema,
   SpaceIdParamsSchema,
   type SpaceWithMemberCountDto,
   SpaceWithMemberCountDtoSchema,
+  UpdateMemberSpaceBodySchema,
   UpdateSpaceBodySchema,
 } from './contracts.ts'
 import {
@@ -33,18 +36,51 @@ function toSpaceDto(space: Space): SpaceDto {
   }
 }
 
+function toMemberSpaceDto(space: Space): MemberSpaceDto {
+  return { id: space.id, name: space.name, timezone: space.timezone }
+}
+
 function toSpaceWithMemberCountDto(space: SpaceWithMemberCount): SpaceWithMemberCountDto {
   return { ...toSpaceDto(space), memberCount: space.memberCount }
 }
 
+/*
+ * The member actor the space routes read off the request, structural like
+ * the request contract (architecture.md, request lifecycle). The access
+ * module's guard produces it; spaces cannot import that module, because
+ * access sits above spaces — so the shape is declared here and the guard
+ * and narrowings are wired by the composition root, the way the member
+ * counter is (architecture.md, "Composition").
+ */
+export interface SpaceMemberActor {
+  kind: 'member'
+  memberId: string
+  spaceId: string
+  role: 'owner' | 'regular'
+  sessionId: string
+}
+
+/** The access module's memberSessionGuard, wired by the composition root. */
+export type MemberSessionGuard = (request: FastifyRequest) => Promise<void>
+
+export type MemberActorNarrowing = (request: FastifyRequest) => SpaceMemberActor
+
+/** The guards and narrowings the member-facing space routes mount. */
+export interface MemberAreaGuards {
+  guard: MemberSessionGuard
+  requireMember: MemberActorNarrowing
+  requireOwner: MemberActorNarrowing
+}
+
 /**
- * The spaces module never imports the members module (it sits below it in
- * the dependency order); the composition root injects the member counter
- * when assembling the app.
+ * The spaces module never imports the members or access modules (they sit
+ * above it in the dependency order); the composition root injects the
+ * member counter and the member-area guards when assembling the app.
  */
 export interface SpacesRoutesOptions {
   deps: SpacesDeps
   countMembers: SpaceMemberCounter
+  memberArea: MemberAreaGuards
 }
 
 export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = async (app, opts) => {
@@ -95,6 +131,44 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
       },
       async (request) =>
         toSpaceDto(await updateSpace(opts.deps, request.params.spaceId, request.body)),
+    )
+  })
+
+  // The member-facing space settings (issue #12): the actor's own space,
+  // its default time zone changeable by an owner. Section visibility
+  // arrives with its own ticket.
+  await app.register((memberArea: FastifyInstance) => {
+    const scoped = memberArea.withTypeProvider<TypeBoxTypeProvider>()
+    scoped.addHook('onRequest', opts.memberArea.guard)
+
+    scoped.get(
+      '/space',
+      {
+        schema: {
+          response: { 200: MemberSpaceDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor = opts.memberArea.requireMember(request)
+        return toMemberSpaceDto(await getSpace(opts.deps, actor.spaceId))
+      },
+    )
+
+    scoped.patch(
+      '/space',
+      {
+        schema: {
+          body: UpdateMemberSpaceBodySchema,
+          response: { 200: MemberSpaceDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor = opts.memberArea.requireOwner(request)
+        const space = await updateSpace(opts.deps, actor.spaceId, {
+          timezone: request.body.timezone,
+        })
+        return toMemberSpaceDto(space)
+      },
     )
   })
 }

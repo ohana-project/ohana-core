@@ -10,10 +10,12 @@ import {
   IssuedAccessCodeDtoSchema,
   MEMBER_HEADER,
   MemberHeadersSchema,
+  MemberIdParamsSchema,
   MemberSessionDtoSchema,
   type MemberSessionHeaders,
   MemberSessionHeadersSchema,
   MemberSessionParamsSchema,
+  MemberSessionReviewDtoSchema,
   RedeemBodySchema,
   RedeemResponseSchema,
   SpaceIdParamsSchema,
@@ -22,13 +24,16 @@ import {
   type AccessCodeListItem,
   type AccessDeps,
   authenticateMember,
+  getMemberAccessCode,
   issueAccessCode,
   listAccessCodes,
   listMemberSessions,
   type MemberActor,
   redeemAccessCode,
   revokeAccessCode,
+  revokeMemberAccessCode,
   revokeMemberSession,
+  revokeMemberSessions,
   signOutMember,
 } from './service.ts'
 
@@ -73,6 +78,20 @@ export function requireMemberActor(request: FastifyRequest): MemberActor {
     throw new DomainError('unauthorized', 'A member session is required', 401)
   }
   return request.actor
+}
+
+/**
+ * Narrows the actor to an owner, for the space-management routes (issue #12,
+ * ADR-0005: an owner's authority ends at their own space — the space itself
+ * always comes from the actor). A regular member's own data stays reachable,
+ * so this is a 403 about the operation, not a 404 about visibility.
+ */
+export function requireOwnerActor(request: FastifyRequest): MemberActor {
+  const actor = requireMemberActor(request)
+  if (actor.role !== 'owner') {
+    throw new DomainError('owner_required', 'An owner role is required', 403)
+  }
+  return actor
 }
 
 function toAccessCodeDto(item: AccessCodeListItem) {
@@ -254,6 +273,114 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
         if (sessionId === actor.sessionId) {
           reply.clearCookie(memberSessionCookieName(actor.memberId), cookieOptions)
         }
+        return reply.code(204).send(null)
+      },
+    )
+
+    // The owner's member management (issue #12, ADR-0005): codes issued,
+    // replaced by reissuing, and revoked; devices reviewed and disconnected.
+    // The member named in the path is resolved inside the actor's own space,
+    // so an owner's authority ends at that space. The issuer of record is
+    // the acting owner.
+    scoped.post(
+      '/members/:memberId/access-code',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          response: { 201: IssuedAccessCodeDtoSchema },
+        },
+      },
+      async (request, reply) => {
+        const actor = requireOwnerActor(request)
+        const issued = await issueAccessCode(
+          opts.deps,
+          actor.spaceId,
+          request.params.memberId,
+          { kind: 'member', memberId: actor.memberId },
+        )
+        return reply.code(201).send({
+          id: issued.id,
+          memberId: issued.memberId,
+          code: issued.code,
+          status: issued.status,
+          createdAt: issued.createdAt.toISOString(),
+          expiresAt: issued.expiresAt.toISOString(),
+          statusChangedAt: issued.statusChangedAt.toISOString(),
+        })
+      },
+    )
+
+    scoped.get(
+      '/members/:memberId/access-code',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          response: { 200: AccessCodeDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor = requireOwnerActor(request)
+        const code = await getMemberAccessCode(opts.deps, actor.spaceId, request.params.memberId)
+        return toAccessCodeDto(code)
+      },
+    )
+
+    scoped.delete(
+      '/members/:memberId/access-code',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          response: { 200: AccessCodeDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor = requireOwnerActor(request)
+        const revoked = await revokeMemberAccessCode(
+          opts.deps,
+          actor.spaceId,
+          request.params.memberId,
+        )
+        return toAccessCodeDto(revoked)
+      },
+    )
+
+    scoped.get(
+      '/members/:memberId/sessions',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          response: { 200: Type.Array(MemberSessionReviewDtoSchema) },
+        },
+      },
+      async (request) => {
+        const actor = requireOwnerActor(request)
+        const rows = await listMemberSessions(opts.deps, actor.spaceId, request.params.memberId)
+        return rows.map((row) => ({
+          id: row.id,
+          browser: row.browser,
+          platform: row.platform,
+          createdAt: row.createdAt.toISOString(),
+          lastUsedAt: row.lastUsedAt.toISOString(),
+        }))
+      },
+    )
+
+    scoped.delete(
+      '/members/:memberId/sessions',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          response: { 204: Type.Null() },
+        },
+      },
+      async (request, reply) => {
+        const actor = requireOwnerActor(request)
+        await revokeMemberSessions(opts.deps, actor.spaceId, request.params.memberId)
         return reply.code(204).send(null)
       },
     )

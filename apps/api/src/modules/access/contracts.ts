@@ -136,3 +136,27 @@ export type MemberSessionDto = Static<typeof MemberSessionDtoSchema>
 export const MemberSessionParamsSchema = Type.Object({
   sessionId: Type.String({ format: 'uuid' }),
 })
+
+/**
+ * The member-facing owner routes never take a space from the URL — the
+ * space comes from the authenticated actor — so their params name only the
+ * member the operation targets.
+ */
+export const MemberIdParamsSchema = Type.Object({
+  memberId: Type.String({ format: 'uuid' }),
+})
+
+/**
+ * One row of the owner's device review of another member (issue #12): the
+ * captured browser and platform, shown as recorded. There is no `current`
+ * row here — the reviewing owner is not signed in as the reviewed member.
+ */
+export const MemberSessionReviewDtoSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  browser: Type.String(),
+  platform: Type.String(),
+  createdAt: Type.String({ format: 'date-time' }),
+  lastUsedAt: Type.String({ format: 'date-time' }),
+})
+
+export type MemberSessionReviewDto = Static<typeof MemberSessionReviewDtoSchema>

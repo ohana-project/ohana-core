@@ -8,10 +8,12 @@ import {
   deleteExpiredMemberSessionsAcrossSpaces,
   deleteMemberSessionById,
   deleteMemberSessionByTokenHashAcrossSpaces,
+  deleteMemberSessionsForMember,
   expireAccessCodeRow,
   findAccessCodeByHashAcrossSpaces,
   findMemberSessionByTokenHashAcrossSpaces,
   getAccessCodeRow,
+  getLatestAccessCodeForMember,
   insertAccessCode,
   insertMemberSession,
   listAccessCodesInSpace,
@@ -493,16 +495,17 @@ export interface MemberSessionListItem {
 }
 
 /**
- * Lists the member's own live sessions for the device review (ADR-0005's
- * minimal session controls): device description, created, last used. The
- * list is a read; expired sessions filter out at read time and materialise
- * nowhere — the next sign-in sweeps them.
+ * Lists the live sessions of a member of the space: the member's own device
+ * review (ADR-0005) and the owner's review of another member (issue #12).
+ * The list is a read; expired sessions filter out at read time and
+ * materialise nowhere — the next sign-in sweeps them.
  */
 export async function listMemberSessions(
   deps: AccessDeps,
   spaceId: string,
   memberId: string,
 ): Promise<MemberSessionListItem[]> {
+  await requireMemberInSpace(deps, spaceId, memberId)
   const rows = await listLiveMemberSessionsForMember(deps.db, spaceId, memberId, deps.clock.now())
   return rows.map((row: MemberSession) => ({
     id: row.id,
@@ -537,4 +540,113 @@ export async function revokeMemberSession(
       404,
     )
   }
+}
+
+/**
+ * Resolves the member an owner operation targets, inside the owner's own
+ * space (issue #12, ADR-0005: an owner's authority ends at their space). A
+ * member of another space is not visible to the operation — 404, like every
+ * resource the actor cannot reach.
+ */
+async function requireMemberInSpace(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+): Promise<MemberAccount> {
+  const member = await deps.findMemberInSpace(deps.db, spaceId, memberId)
+  if (member === undefined) {
+    throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
+  }
+  return member
+}
+
+/**
+ * The member's current code for the owner's member card (issue #12): its
+ * derived status and timestamps. Expiry is derived at read time — a GET
+ * never writes. A member without codes answers access_code_not_found.
+ */
+export async function getMemberAccessCode(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+): Promise<AccessCodeListItem> {
+  await requireMemberInSpace(deps, spaceId, memberId)
+  const row = await getLatestAccessCodeForMember(deps.db, spaceId, memberId)
+  if (row === undefined) {
+    throw new DomainError(
+      'access_code_not_found',
+      `Member ${memberId} has no access codes`,
+      404,
+    )
+  }
+  const now = deps.clock.now()
+  return {
+    id: row.id,
+    memberId: row.memberId,
+    status: derivedStatus(row, now),
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    statusChangedAt: row.statusChangedAt,
+  }
+}
+
+/**
+ * Revokes the member's outstanding invitation: their live code (issue #12).
+ * Issuing is replacing, so a live code is always the member's newest; a
+ * refusal of the compare-and-set therefore means the newest code is already
+ * spent and there is nothing outstanding — the same access_code_not_found
+ * as having no codes at all. An issued-past-expiry code materialises its
+ * status first, the way the administrative revocation does.
+ */
+export async function revokeMemberAccessCode(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+): Promise<AccessCodeListItem> {
+  await requireMemberInSpace(deps, spaceId, memberId)
+  const now = deps.clock.now()
+  const outcome = await deps.db.transaction(async (tx) => {
+    const latest = await getLatestAccessCodeForMember(tx, spaceId, memberId)
+    if (latest === undefined) return { kind: 'none' } as const
+    const row = await revokeAccessCodeRow(tx, spaceId, latest.id, now)
+    if (row !== undefined) return { kind: 'revoked', row } as const
+    const existing = await getAccessCodeRow(tx, spaceId, latest.id)
+    if (existing === undefined) return { kind: 'none' } as const
+    return { kind: 'refused', status: derivedStatus(existing, now), codeId: existing.id } as const
+  })
+
+  if (outcome.kind === 'refused' && outcome.status === 'expired') {
+    await deps.db.transaction((tx) => expireAccessCodeRow(tx, spaceId, outcome.codeId, now))
+  }
+  if (outcome.kind !== 'revoked') {
+    throw new DomainError(
+      'access_code_not_found',
+      `Member ${memberId} has no outstanding access code`,
+      404,
+    )
+  }
+
+  return {
+    id: outcome.row.id,
+    memberId: outcome.row.memberId,
+    status: 'revoked',
+    createdAt: outcome.row.createdAt,
+    expiresAt: outcome.row.expiresAt,
+    statusChangedAt: outcome.row.statusChangedAt,
+  }
+}
+
+/**
+ * Disconnects every device of the member (issue #12): all their sessions in
+ * the space are deleted, including — when an owner disconnects themselves —
+ * the session that made the request. Sessions are not synchronised data, so
+ * no revision is spent.
+ */
+export async function revokeMemberSessions(
+  deps: AccessDeps,
+  spaceId: string,
+  memberId: string,
+): Promise<number> {
+  await requireMemberInSpace(deps, spaceId, memberId)
+  return deps.db.transaction((tx) => deleteMemberSessionsForMember(tx, spaceId, memberId))
 }

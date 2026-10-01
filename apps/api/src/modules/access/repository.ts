@@ -166,6 +166,26 @@ export async function listAccessCodesInSpace(
     .orderBy(desc(accessCodes.createdAt), desc(accessCodes.id))
 }
 
+/**
+ * The member's newest code, of any status. Each issuance terminalises the
+ * member's older issued codes, so the live code — when one exists — is
+ * always the newest; the owner-facing status and revoke read it here and
+ * stay guarded by their own compare-and-sets.
+ */
+export async function getLatestAccessCodeForMember(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<AccessCode | undefined> {
+  const rows = await executor
+    .select()
+    .from(accessCodes)
+    .where(and(eq(accessCodes.spaceId, spaceId), eq(accessCodes.memberId, memberId)))
+    .orderBy(desc(accessCodes.createdAt), desc(accessCodes.id))
+    .limit(1)
+  return rows[0]
+}
+
 export interface NewMemberSession {
   spaceId: string
   memberId: string
@@ -280,4 +300,21 @@ export async function deleteExpiredMemberSessionsAcrossSpaces(
   now: Date,
 ): Promise<void> {
   await executor.delete(memberSessions).where(lt(memberSessions.expiresAt, now))
+}
+
+/**
+ * Disconnects every device of one member: all of the member's sessions in
+ * the space go, and no other member's. Sessions are not synchronised data,
+ * so the caller spends no revision (architecture.md, Data access).
+ */
+export async function deleteMemberSessionsForMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<number> {
+  const deleted = await tx
+    .delete(memberSessions)
+    .where(and(eq(memberSessions.spaceId, spaceId), eq(memberSessions.memberId, memberId)))
+    .returning({ id: memberSessions.id })
+  return deleted.length
 }
