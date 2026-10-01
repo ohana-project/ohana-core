@@ -365,14 +365,30 @@ describe('POST /api/v1/journal/entries (a new entry starts as a draft)', () => {
       expect((tooLongText.body as { error: { code: string } }).error.code).toBe('validation_failed')
 
       // The edit contract shares the create schema object, so the bounds
-      // ride along; one edit at the edge guards the alias being split.
+      // ride along; the edit answers at both edges, so the alias being
+      // split later cannot tighten a limit unnoticed.
       const created = longestTitle.body as EntryDto
+      const longestEdit = await editEntry(app, anna, created.id, {
+        title: 'З'.repeat(200),
+        text: 'Т'.repeat(20_000),
+      })
+      expect(longestEdit.status).toBe(200)
+
       const tooLongEdit = await editEntry(app, anna, created.id, {
         title: 'З'.repeat(201),
         text: 'Текст есть',
       })
       expect(tooLongEdit.status).toBe(400)
       expect((tooLongEdit.body as { error: { code: string } }).error.code).toBe('validation_failed')
+
+      const tooLongTextEdit = await editEntry(app, anna, created.id, {
+        title: 'Заголовок',
+        text: 'Т'.repeat(20_001),
+      })
+      expect(tooLongTextEdit.status).toBe(400)
+      expect((tooLongTextEdit.body as { error: { code: string } }).error.code).toBe(
+        'validation_failed',
+      )
     })
   })
 
@@ -586,8 +602,13 @@ describe('GET /api/v1/journal/feed (the paginated shared feed)', () => {
 
       // A moment the Date constructor cannot read (ajv's date-time admits
       // a leap second) is refused too, before it can poison the query —
-      // and so is a year the timestamp type does not round-trip.
-      for (const moment of ['2016-12-31T23:59:60Z', '0000-01-01T00:00:00Z']) {
+      // and so is a year outside the 0001–9999 span the driver's ISO
+      // string round-trips (an offset can push a 9999 name into 10000).
+      for (const moment of [
+        '2016-12-31T23:59:60Z',
+        '0000-01-01T00:00:00Z',
+        '9999-12-31T23:59:59-01:00',
+      ]) {
         const unreadable = await getFeed(app, dima, { before: moment, beforeId: last.id })
         expect(unreadable.status).toBe(400)
         expect((unreadable.body as { error: { code: string } }).error.code).toBe('invalid_cursor')

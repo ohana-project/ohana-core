@@ -30,9 +30,11 @@ import { journalErrorMessage, useJournalData, usePublishEntry } from './use-jour
  * only the author sees (issue #15). A draft continues in the editor, and
  * sharing goes through the row's overflow menu — publishing is one-way,
  * so it does not sit a stray tap away, as the prototype puts it. The
- * trash arrives with its own ticket (#16). The list reads the
- * synchronised partition, so it answers offline exactly as online
- * (ADR-0002).
+ * trigger keeps the design system's 44px icon button where the prototype
+ * draws a smaller one: docs/design/README.md sets 44px as the touch-target
+ * floor, and one row is not a reason to mint a smaller size. The trash
+ * arrives with its own ticket (#16). The list reads the synchronised
+ * partition, so it answers offline exactly as online (ADR-0002).
  */
 export function JournalDraftsScreen() {
   const { t, i18n } = useTranslation()

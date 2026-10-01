@@ -222,10 +222,12 @@ function readCursor(query: FeedQuery): { at: Date; id: string } | undefined {
   }
   // The date-time format is wide enough to admit moments the server cannot
   // faithfully name — a leap second the Date constructor cannot read, a
-  // year before the timestamp type's honest range — and a cursor that
-  // answers either would poison the query instead of naming its page.
+  // year outside 0001–9999, the only span the driver's ISO string
+  // round-trips through PostgreSQL — and a cursor that answers either
+  // would poison the query instead of naming its page.
   const at = new Date(before)
-  if (Number.isNaN(at.getTime()) || at.getUTCFullYear() < 1) {
+  const year = at.getUTCFullYear()
+  if (Number.isNaN(at.getTime()) || year < 1 || year > 9999) {
     throw new DomainError('invalid_cursor', 'A feed cursor names a real moment', 400)
   }
   return { at, id: beforeId }

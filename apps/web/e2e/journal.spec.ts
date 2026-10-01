@@ -184,14 +184,18 @@ async function mockJournalApi(page: Page) {
       )
     }
     const body = route.request().postDataJSON() as { title?: string; text: string }
-    entries.splice(entries.indexOf(entry), 1)
-    entries.push({
-      ...entry,
+    // A PUT replaces the whole pair: an absent title means the entry loses
+    // its title, never that the old one stays.
+    const { title: _replaced, ...kept } = entry
+    const replaced: typeof entry = {
+      ...kept,
       ...(body.title === undefined ? {} : { title: body.title }),
       text: body.text,
       updatedAt: '2026-10-01T10:00:00.000Z',
-    })
-    return route.fulfill(json(200, { ...entry, ...body }))
+    }
+    entries.splice(entries.indexOf(entry), 1)
+    entries.push(replaced)
+    return route.fulfill(json(200, replaced))
   })
 }
 
