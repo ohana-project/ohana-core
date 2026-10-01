@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next'
-import { useMemberSpace } from '@/features/space-settings/use-space-settings.ts'
+import { useSectionVisibility } from '@/features/space-settings/use-space-settings.ts'
 import type { ShellSection } from '@/ui/shell.ts'
 
 /*
  * The member section navigation (docs/design/screens/home.html): home plus
  * the space's visible sections. A section an owner has hidden (issue #13,
- * ADR-0011) disappears for every member. The space settings are online-only
- * data until the sync engine arrives (issue #14), so while they are loading
- * or unreachable every section counts as visible — one rule, resolved here.
+ * ADR-0011) disappears for every member. What "unknown" means — every
+ * section visible while the space settings load — is decided beside the
+ * query it comes from (use-space-settings.ts).
  */
 
 const NAV_SECTIONS = [
@@ -15,14 +15,6 @@ const NAV_SECTIONS = [
   { id: 'calendar', labelKey: 'nav.calendar', icon: 'calendar' },
   { id: 'wishlist', labelKey: 'nav.wishlist', icon: 'gift' },
 ] as const
-
-const ALL_SECTIONS_VISIBLE = { journal: true, calendar: true, wishlist: true } as const
-
-/** The space's section visibility, with unknown treated as visible. */
-export function useSectionVisibility() {
-  const space = useMemberSpace()
-  return space.data?.sections ?? ALL_SECTIONS_VISIBLE
-}
 
 export function useNavSections(): ShellSection[] {
   const { t } = useTranslation()

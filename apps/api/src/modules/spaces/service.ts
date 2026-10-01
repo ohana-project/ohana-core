@@ -166,13 +166,9 @@ export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): 
 }
 
 /**
- * The visibility check every section read and write goes through: the
- * space must show the section. The section gate (routes.ts) calls it with
- * the request's executor; a section module's use case calls it inside its
- * transaction, after lockSpace, so a hide that commits alongside the write
- * is still honoured. Sync contributors do not call this — they filter with
- * sectionVisibility(space), because one hidden row must not fail the whole
- * delta with a 404.
+ * The visibility check the section gate goes through: the space must show
+ * the section. The gate passes the pool (deps.db). A section module's own
+ * use case should prefer requireVisibleSectionInTx, which locks.
  */
 export async function requireVisibleSection(
   executor: Executor,
@@ -180,6 +176,22 @@ export async function requireVisibleSection(
   section: SectionId,
 ): Promise<Space> {
   const space = await getSpaceOrThrow(executor, spaceId)
+  assertSectionVisible(space, section)
+  return space
+}
+
+/**
+ * The same check for a section module's write use case: it takes the space
+ * row lock and only then decides, so a hide that commits alongside the
+ * write is still honoured. Call it first inside the use case's
+ * transaction, before any write (architecture.md, "Revision bookkeeping").
+ */
+export async function requireVisibleSectionInTx(
+  tx: Tx,
+  spaceId: string,
+  section: SectionId,
+): Promise<Space> {
+  const space = await getSpaceForUpdateOrThrow(tx, spaceId)
   assertSectionVisible(space, section)
   return space
 }

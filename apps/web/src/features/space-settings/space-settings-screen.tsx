@@ -2,7 +2,6 @@ import { Navigate } from '@tanstack/react-router'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
-import { useSectionVisibility } from '@/features/member/use-nav-sections.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -28,6 +27,7 @@ import {
   type MemberSpace,
   spaceSettingsErrorMessage,
   useMemberSpace,
+  useSectionVisibility,
   useUpdateSections,
   useUpdateTimezone,
 } from './use-space-settings.ts'

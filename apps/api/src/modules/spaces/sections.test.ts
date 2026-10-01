@@ -14,6 +14,7 @@ import { administrators, adminSessions } from '../admin/tables.ts'
 import { findMemberInSpace } from '../members/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { sectionGate } from './routes.ts'
+import { requireVisibleSectionInTx } from './service.ts'
 import { spaces } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -130,7 +131,8 @@ async function countScratchRows(spaceId: string): Promise<number> {
 /**
  * Mounts the stand-in journal route exactly the way a section module will:
  * the access module's member session guard, then the spaces module's one
- * section gate, then thin handlers over the module's storage.
+ * section gate, then thin handlers whose write rechecks visibility inside
+ * its transaction, after taking the space row lock.
  */
 function registerJournalStandIn(app: TestApp) {
   const accessDeps: AccessDeps = {
@@ -158,9 +160,15 @@ function registerJournalStandIn(app: TestApp) {
         { schema: { body: Type.Object({ body: Type.String() }) } },
         async (request, reply) => {
           const actor = requireMemberActor(request)
+          const barrier = writeBarrier
+          if (barrier !== undefined) {
+            barrier.park()
+            await barrier.held
+          }
           let rowId: string | undefined
-          await harness.db.transaction(async (tx) =>
-            recordChanges(
+          await harness.db.transaction(async (tx) => {
+            await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
+            await recordChanges(
               tx,
               actor.spaceId,
               {
@@ -173,8 +181,8 @@ function registerJournalStandIn(app: TestApp) {
                 },
               },
               harness.clock.now(),
-            ),
-          )
+            )
+          })
           if (rowId === undefined) throw new Error('The stand-in write produced no row id')
           return reply.code(201).send({ id: rowId })
         },
@@ -183,6 +191,21 @@ function registerJournalStandIn(app: TestApp) {
     { prefix: '/api/v1' },
   )
 }
+
+/*
+ * A test can park the stand-in's write after the gate has passed, arrange
+ * a concurrent change, and release it: the interleaving the
+ * in-transaction recheck exists for.
+ */
+interface WriteBarrier {
+  /** Resolves when the handler has passed the gate and is parked. */
+  park: () => void
+  /** The handler waits on this before starting its transaction. */
+  held: Promise<void>
+  release: () => void
+}
+
+let writeBarrier: WriteBarrier | undefined
 
 async function withJournalApp(body: (app: TestApp) => Promise<void>) {
   const app = harness.buildTestApp()
@@ -537,6 +560,49 @@ describe('the section gate (a stand-in journal route until the section modules a
       })
       expect(read.statusCode).toBe(200)
       expect(read.json()).toEqual([{ id: expect.any(String), body: 'береги запись' }])
+    })
+  })
+
+  test('a hide that commits after the gate still stops the write', async () => {
+    const space = await harness.createSpace({ name: 'Наша семья' })
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await withJournalApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const session = await signInMember(
+        app,
+        (await issueCode(app, adminCookie, space.id, owner.id)).code,
+      )
+
+      // The write passes the gate, then parks; the owner hides the journal
+      // in that window, and the write's in-transaction recheck sees it.
+      let park!: () => void
+      let release!: () => void
+      const parked = new Promise<void>((resolveParked) => {
+        park = resolveParked
+      })
+      const held = new Promise<void>((resolveRelease) => {
+        release = resolveRelease
+      })
+      writeBarrier = { park, held, release }
+      try {
+        const pendingWrite = app.inject({
+          method: 'POST',
+          url: '/api/v1/journal',
+          headers: memberHeaders(session),
+          payload: { body: 'опоздало' },
+        })
+        await parked
+        await setSectionVisible(app, session, 'journal', false)
+        release()
+
+        const written = await pendingWrite
+        expect(written.statusCode).toBe(404)
+        expect(written.json().error.code).toBe('section_hidden')
+        expect(await countScratchRows(space.id)).toBe(0)
+      } finally {
+        release()
+        writeBarrier = undefined
+      }
     })
   })
 

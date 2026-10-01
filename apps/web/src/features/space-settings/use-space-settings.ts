@@ -57,6 +57,18 @@ export function useMemberSpace() {
   })
 }
 
+const ALL_SECTIONS_VISIBLE = { journal: true, calendar: true, wishlist: true } as const
+
+/**
+ * The space's section visibility (issue #13, ADR-0011), read from the same
+ * query as the space itself. Unknown counts as visible — while the space
+ * settings are loading or unreachable, every section shows.
+ */
+export function useSectionVisibility() {
+  const space = useMemberSpace()
+  return space.data?.sections ?? ALL_SECTIONS_VISIBLE
+}
+
 function useInvalidateMemberArea() {
   const queryClient = useQueryClient()
   const memberId = getActiveMemberId()

@@ -210,7 +210,9 @@ describe('SpaceSettingsScreen', () => {
   it('shows the refetched space when it disagrees with the attempted switch', async () => {
     const user = userEvent.setup()
     // The PATCH succeeds, but another owner has shown the section again by
-    // the time the screen refetches: the server wins over the attempt.
+    // the time the screen refetches: the server wins over the attempt. The
+    // patch is held so the attempted state is observable before it settles.
+    let resolvePatch!: (value: { data: typeof SPACE; error: undefined; response: Response }) => void
     apiGet.mockImplementation(async (path: never) => {
       if (path === '/api/v1/me') {
         return { data: OWNER_ME, error: undefined, response: new Response(null, { status: 200 }) }
@@ -220,17 +222,20 @@ describe('SpaceSettingsScreen', () => {
       }
       throw new Error(`Unexpected GET ${String(path)}`)
     })
-    apiPatch.mockResolvedValue({
-      data: SPACE,
-      error: undefined,
-      response: new Response(null, { status: 200 }),
-    })
+    apiPatch.mockImplementation(
+      async () =>
+        new Promise((resolve) => {
+          resolvePatch = resolve
+        }),
+    )
     renderWithProviders(<SpaceSettingsScreen />)
 
     const journalSwitch = await screen.findByRole('switch', { name: 'Показывать Дневник' })
     await user.click(journalSwitch)
+    // The attempt takes effect at once, before the mutation settles.
+    expect(journalSwitch).not.toBeChecked()
 
-    await vi.waitFor(() => expect(apiPatch).toHaveBeenCalled())
+    resolvePatch({ data: SPACE, error: undefined, response: new Response(null, { status: 200 }) })
     await vi.waitFor(() =>
       expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).toBeChecked(),
     )

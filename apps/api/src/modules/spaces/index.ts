@@ -11,7 +11,7 @@ export {
   getSpace,
   getSpaceInTx,
   lockSpace,
-  requireVisibleSection,
+  requireVisibleSectionInTx,
   type SpacesDeps,
 } from './service.ts'
 export type { Space } from './tables.ts'
