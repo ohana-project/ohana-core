@@ -13,7 +13,7 @@ const adminSessionQueryKey = ['admin', 'session'] as const
 
 export type AdminSessionState = 'signed-in' | 'signed-out'
 
-const adminMarker = { 'x-ohana-admin': '1' }
+export const adminMarker = { 'x-ohana-admin': '1' }
 
 export function useAdminSession() {
   return useQuery({

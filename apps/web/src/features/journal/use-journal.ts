@@ -1,21 +1,23 @@
 import type { paths } from '@ohana/api-client'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-space.ts'
 
 /*
- * The journal's server data (issue #15): reads come from the member's
- * synchronised partition — the same answer online and offline (ADR-0002) —
- * and the three mutations go to the API through the generated client. A
- * success triggers a sync, and so does every refusal: the journal screens
- * read the refused row or map from the local store, so the sync is what
- * corrects it (architecture.md, web rules) — author_required and
- * entry_not_found name a stale row, section_hidden a stale map,
- * entry_already_published an entry published elsewhere. Validation
- * failures and network errors ride along as an accepted extra round-trip;
- * no hook here patches the cache by hand.
+ * The journal's server data (issues #15 and #16): reads of synchronised
+ * data come from the member's synchronised partition — the same answer
+ * online and offline (ADR-0002) — and the mutations go to the API through
+ * the generated client. A success triggers a sync, and so does every
+ * refusal: the journal screens read the refused row or map from the local
+ * store, so the sync is what corrects it (architecture.md, web rules) —
+ * author_required and entry_not_found name a stale row, section_hidden a
+ * stale map, entry_already_published an entry published elsewhere. The
+ * trash is the exception on the read side: a trashed entry has left every
+ * member's synchronised partition (its tombstones saw to that), so the
+ * trash view asks the server with an ordinary query — online-only data,
+ * like the administrative area and the session lists.
  */
 
 export type CreatedEntry =
@@ -23,6 +25,9 @@ export type CreatedEntry =
 
 export type EntryDto =
   paths['/api/v1/journal/entries/{entryId}']['get']['responses'][200]['content']['application/json']
+
+export type TrashedEntryDto =
+  paths['/api/v1/journal/entries/{entryId}/trash']['post']['responses'][200]['content']['application/json']
 
 export interface JournalInput {
   title?: string
@@ -95,10 +100,72 @@ export function usePublishEntry() {
   })
 }
 
+/**
+ * GET /api/v1/journal/trash — the trashed entries this member may see, each
+ * with its permanent-deletion date. Online-only: the trashed rows have left
+ * every device's synchronised partition, so the view asks the server.
+ */
+export function useTrash() {
+  return useQuery({
+    queryKey: ['journal', 'trash'],
+    queryFn: async (): Promise<{ entries: TrashedEntryDto[] }> => {
+      const response = await api.GET('/api/v1/journal/trash')
+      await assertOk(response)
+      if (response.data === undefined) throw new ApiError('unexpected')
+      return response.data
+    },
+  })
+}
+
+/** POST /api/v1/journal/entries/{entryId}/trash — the removal into trash. */
+export function useTrashEntry() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { entryId: string }): Promise<TrashedEntryDto> => {
+      const response = await api.POST('/api/v1/journal/entries/{entryId}/trash', {
+        params: { path: { entryId: input.entryId } },
+      })
+      await assertOk(response)
+      if (response.data === undefined) throw new ApiError('unexpected')
+      return response.data
+    },
+    // The trash list is online-only data: no sync carries it, so the
+    // mutation re-probes it (and the synchronised partition via the sync).
+    onSuccess: () => {
+      void triggerSync()
+      void queryClient.invalidateQueries({ queryKey: ['journal', 'trash'] })
+    },
+    onError: () => void triggerSync(),
+  })
+}
+
+/** POST /api/v1/journal/entries/{entryId}/restore — the way back out. */
+export function useRestoreEntry() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { entryId: string }): Promise<EntryDto> => {
+      const response = await api.POST('/api/v1/journal/entries/{entryId}/restore', {
+        params: { path: { entryId: input.entryId } },
+      })
+      await assertOk(response)
+      if (response.data === undefined) throw new ApiError('unexpected')
+      return response.data
+    },
+    onSuccess: () => {
+      void triggerSync()
+      void queryClient.invalidateQueries({ queryKey: ['journal', 'trash'] })
+    },
+    onError: () => void triggerSync(),
+  })
+}
+
 type JournalErrorKey =
   | 'journal.errors.entry_not_found'
   | 'journal.errors.author_required'
   | 'journal.errors.entry_already_published'
+  | 'journal.errors.trash_forbidden'
+  | 'journal.errors.restore_forbidden'
+  | 'journal.errors.entry_not_trashed'
   | 'journal.errors.section_hidden'
   | 'journal.errors.validation_failed'
   | 'journal.errors.unexpected'
@@ -107,6 +174,9 @@ const journalErrorKeys: Partial<Record<string, JournalErrorKey>> = {
   entry_not_found: 'journal.errors.entry_not_found',
   author_required: 'journal.errors.author_required',
   entry_already_published: 'journal.errors.entry_already_published',
+  trash_forbidden: 'journal.errors.trash_forbidden',
+  restore_forbidden: 'journal.errors.restore_forbidden',
+  entry_not_trashed: 'journal.errors.entry_not_trashed',
   section_hidden: 'journal.errors.section_hidden',
   validation_failed: 'journal.errors.validation_failed',
 }

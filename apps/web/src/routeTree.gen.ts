@@ -23,6 +23,7 @@ import { Route as JournalIndexRouteImport } from './routes/journal/index'
 import { Route as JournalEntryIdRouteImport } from './routes/journal/$entryId'
 import { Route as JournalDraftsRouteImport } from './routes/journal/drafts'
 import { Route as JournalNewRouteImport } from './routes/journal/new'
+import { Route as JournalTrashRouteImport } from './routes/journal/trash'
 import { Route as MembersIndexRouteImport } from './routes/members/index'
 import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
 import { Route as MembersInviteRouteImport } from './routes/members/invite'
@@ -99,6 +100,11 @@ const JournalNewRoute = JournalNewRouteImport.update({
   path: '/journal/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JournalTrashRoute = JournalTrashRouteImport.update({
+  id: '/journal/trash',
+  path: '/journal/trash',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MembersIndexRoute = MembersIndexRouteImport.update({
   id: '/members/',
   path: '/members/',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/journal/$entryId': typeof JournalEntryIdRoute
   '/journal/drafts': typeof JournalDraftsRoute
   '/journal/new': typeof JournalNewRoute
+  '/journal/trash': typeof JournalTrashRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/admin/': typeof AdminIndexRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/journal/$entryId': typeof JournalEntryIdRoute
   '/journal/drafts': typeof JournalDraftsRoute
   '/journal/new': typeof JournalNewRoute
+  '/journal/trash': typeof JournalTrashRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/admin': typeof AdminIndexRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/journal/$entryId': typeof JournalEntryIdRoute
   '/journal/drafts': typeof JournalDraftsRoute
   '/journal/new': typeof JournalNewRoute
+  '/journal/trash': typeof JournalTrashRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/admin/': typeof AdminIndexRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/journal/$entryId'
     | '/journal/drafts'
     | '/journal/new'
+    | '/journal/trash'
     | '/members/$memberId'
     | '/members/invite'
     | '/admin/'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/journal/$entryId'
     | '/journal/drafts'
     | '/journal/new'
+    | '/journal/trash'
     | '/members/$memberId'
     | '/members/invite'
     | '/admin'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/journal/$entryId'
     | '/journal/drafts'
     | '/journal/new'
+    | '/journal/trash'
     | '/members/$memberId'
     | '/members/invite'
     | '/admin/'
@@ -268,6 +280,7 @@ export interface RootRouteChildren {
   JournalEntryIdRoute: typeof JournalEntryIdRoute
   JournalDraftsRoute: typeof JournalDraftsRoute
   JournalNewRoute: typeof JournalNewRoute
+  JournalTrashRoute: typeof JournalTrashRoute
   MembersMemberIdRoute: typeof MembersMemberIdRoute
   MembersInviteRoute: typeof MembersInviteRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -377,6 +390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JournalNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/journal/trash': {
+      id: '/journal/trash'
+      path: '/journal/trash'
+      fullPath: '/journal/trash'
+      preLoaderRoute: typeof JournalTrashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/members/': {
       id: '/members/'
       path: '/members'
@@ -428,6 +448,7 @@ const rootRouteChildren: RootRouteChildren = {
   JournalEntryIdRoute: JournalEntryIdRoute,
   JournalDraftsRoute: JournalDraftsRoute,
   JournalNewRoute: JournalNewRoute,
+  JournalTrashRoute: JournalTrashRoute,
   MembersMemberIdRoute: MembersMemberIdRoute,
   MembersInviteRoute: MembersInviteRoute,
   AdminIndexRoute: AdminIndexRoute,

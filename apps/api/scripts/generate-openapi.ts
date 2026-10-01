@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { buildApp } from '../src/app/buildApp.ts'
 import { systemClock } from '../src/platform/clock.ts'
 import { createDb } from '../src/platform/db/index.ts'
+import type { JobSender } from '../src/platform/jobs/index.ts'
 import { createSilentLogger } from '../src/platform/logging.ts'
 import { createS3Storage } from '../src/platform/storage/s3.ts'
 
@@ -17,7 +18,11 @@ const storage = createS3Storage({
   bucket: 'unused',
 })
 
-const app = buildApp({ db, storage, clock: systemClock, logger: createSilentLogger() })
+// The document comes from the route schemas; no request runs, so no queue
+// is needed behind the jobs port.
+const jobs: JobSender = { sendInTx: async () => {} }
+
+const app = buildApp({ db, storage, clock: systemClock, logger: createSilentLogger(), jobs })
 await app.ready()
 const document = `${JSON.stringify(app.swagger(), null, 2)}\n`
 await close()

@@ -1,7 +1,7 @@
-import { and, desc, eq, gt, lt, or } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, lt, or, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { entryVisibleToSql } from './policy.ts'
-import { type JournalEntry, journalEntries } from './tables.ts'
+import { type JournalEntry, journalEntries, trashedFromStates } from './tables.ts'
 
 export interface NewJournalEntry {
   authorMemberId: string
@@ -162,7 +162,9 @@ export async function listDraftsOfAuthor(
  * The rows changed after `since` that the requesting member may see — the
  * sync contributor's delta (issue #14). The visibility filter is the
  * ordinary read's rule (policy.ts): published entries to everyone, drafts
- * to their author alone, so another member's draft never leaves the server.
+ * to their author alone, trashed rows to nobody — another member's draft
+ * never leaves the server, and a trashed row left the very views the trash
+ * transaction's tombstones name (issue #16).
  */
 export async function listChangedEntriesVisibleTo(
   tx: Tx,
@@ -181,4 +183,162 @@ export async function listChangedEntriesVisibleTo(
       ),
     )
     .orderBy(desc(journalEntries.revision), desc(journalEntries.id))
+}
+
+/**
+ * The one-way removal into trash (ADR-0007): the row keeps its text, its
+ * published moment, and the state it came from, so restore can put it back
+ * exactly as it was. The condition in the UPDATE is the state guard — an
+ * entry already trashed returns no row and the use case refuses.
+ */
+export async function markEntryTrashed(
+  tx: Tx,
+  spaceId: string,
+  entryId: string,
+  trashedAt: Date,
+  revision: bigint,
+): Promise<JournalEntry | undefined> {
+  const updated = await tx
+    .update(journalEntries)
+    .set({
+      state: 'trashed',
+      // The state guard above admits only draft and published, so the
+      // remembered state is the row's state as the UPDATE reads it.
+      trashedFromState: sql`${journalEntries.state}`,
+      trashedAt,
+      revision,
+      updatedAt: trashedAt,
+    })
+    .where(
+      and(
+        eq(journalEntries.spaceId, spaceId),
+        eq(journalEntries.id, entryId),
+        inArray(journalEntries.state, [...trashedFromStates]),
+      ),
+    )
+    .returning()
+  return updated[0]
+}
+
+/**
+ * The way back out of trash: the entry returns to the state it was trashed
+ * from, published moment included. The condition is the state guard — a
+ * row that is not trashed returns none and the use case refuses.
+ */
+export async function markEntryRestored(
+  tx: Tx,
+  spaceId: string,
+  entryId: string,
+  revision: bigint,
+  now: Date,
+): Promise<JournalEntry | undefined> {
+  const updated = await tx
+    .update(journalEntries)
+    .set({
+      state: sql`${journalEntries.trashedFromState}`,
+      trashedFromState: null,
+      trashedAt: null,
+      revision,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(journalEntries.spaceId, spaceId),
+        eq(journalEntries.id, entryId),
+        eq(journalEntries.state, 'trashed'),
+      ),
+    )
+    .returning()
+  return updated[0]
+}
+
+/**
+ * The trash view's rows (issue #16): the space's trashed entries the
+ * requesting member may see — their own, whatever state each was trashed
+ * from, plus everything trashed from published (the audience it already
+ * had; a trashed draft stays visible only to its author). Newest removal
+ * first.
+ */
+export async function listTrashedEntries(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<JournalEntry[]> {
+  return executor
+    .select()
+    .from(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.spaceId, spaceId),
+        eq(journalEntries.state, 'trashed'),
+        or(
+          eq(journalEntries.authorMemberId, memberId),
+          eq(journalEntries.trashedFromState, 'published'),
+        ),
+      ),
+    )
+    .orderBy(desc(journalEntries.trashedAt), desc(journalEntries.id))
+}
+
+/**
+ * The purge sweep's candidates across every space: trashed rows whose
+ * retention has run out. Cross-space by design and named for it, like the
+ * access module's session sweep — the worker's maintenance query
+ * (architecture.md, "Space scoping").
+ */
+export async function listPurgeableEntriesAcrossSpaces(
+  executor: Executor,
+  purgedBefore: Date,
+): Promise<JournalEntry[]> {
+  return executor
+    .select()
+    .from(journalEntries)
+    .where(and(eq(journalEntries.state, 'trashed'), lt(journalEntries.trashedAt, purgedBefore)))
+    .orderBy(desc(journalEntries.trashedAt), desc(journalEntries.id))
+}
+
+/**
+ * The same read scoped to one space, inside the purge transaction: the
+ * rows it re-checks under the space row lock are the rows it deletes.
+ */
+export async function listPurgeableEntriesInSpace(
+  tx: Tx,
+  spaceId: string,
+  purgedBefore: Date,
+): Promise<JournalEntry[]> {
+  return tx
+    .select()
+    .from(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.spaceId, spaceId),
+        eq(journalEntries.state, 'trashed'),
+        lt(journalEntries.trashedAt, purgedBefore),
+      ),
+    )
+}
+
+/**
+ * The purge's write: the rows go for good. The tombstones the caller
+ * writes beside it carry the revision, so the delete itself needs none.
+ * The state guard keeps a row that stopped being trashed (a restore that
+ * raced ahead) untouched — under the space row lock the caller holds, it
+ * cannot fire anyway.
+ */
+export async function deleteTrashedEntriesInSpace(
+  tx: Tx,
+  spaceId: string,
+  entryIds: readonly string[],
+): Promise<JournalEntry[]> {
+  if (entryIds.length === 0) return []
+  return tx
+    .delete(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.spaceId, spaceId),
+        inArray(journalEntries.id, [...entryIds]),
+        eq(journalEntries.state, 'trashed'),
+      ),
+    )
+    .returning()
 }

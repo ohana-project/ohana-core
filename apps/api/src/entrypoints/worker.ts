@@ -1,4 +1,5 @@
 import { buildWorker } from '../app/buildWorker.ts'
+import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
 import { createLogger } from '../platform/logging.ts'
@@ -9,7 +10,7 @@ async function main(): Promise<void> {
 
   const logger = createLogger(config)
   const { db, close } = createDb(config.databaseUrl)
-  const worker = buildWorker({ db, logger })
+  const worker = buildWorker({ db, clock: systemClock, logger, databaseUrl: config.databaseUrl })
   await worker.start()
 
   const shutdown = async (): Promise<void> => {

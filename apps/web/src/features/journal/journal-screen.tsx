@@ -44,11 +44,12 @@ export function JournalScreen() {
   const feed = journalFeed(entries)
   const drafts = journalDrafts(entries)
   const visible = feed.slice(0, visibleCount)
-  // The corner counts drafts only when the device may claim the section:
-  // while the journal's replay is owed, the rows an interrupted replay
-  // left are a fraction, and a partial count beside the offline message
-  // would contradict it.
-  const showDrafts = downloaded && drafts.length > 0
+  // The corner is there for every downloaded section: the drafts item
+  // counts the drafts only when there are any, and the trash item is the
+  // way back to whatever was removed (issue #16). While the journal's
+  // replay is owed, the rows an interrupted replay left are a fraction,
+  // and a partial count beside the offline message would contradict it.
+  const showAside = downloaded
 
   const newEntry = (
     <Button size="sm" onClick={() => void navigate({ to: '/journal/new' })}>
@@ -61,11 +62,11 @@ export function JournalScreen() {
     <JournalShell
       title={t('journal.title')}
       actions={newEntry}
-      width={showDrafts ? 'wide' : 'default'}
+      width={showAside ? 'wide' : 'default'}
     >
       <div
         className={
-          showDrafts ? 'grid gap-8 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:items-start' : 'pt-6'
+          showAside ? 'grid gap-8 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:items-start' : 'pt-6'
         }
       >
         <div className="flex min-w-0 flex-col gap-4">
@@ -121,24 +122,36 @@ export function JournalScreen() {
           )}
         </div>
 
-        {showDrafts && (
+        {showAside && (
           <aside className="flex flex-col gap-3 desktop:sticky desktop:top-20">
             <SectionHeader title={t('journal.onlyForYou')} />
             <Card className="py-0">
               <ItemGroup>
-                <Item size="lg" render={<Link to="/journal/drafts" />}>
+                {drafts.length > 0 && (
+                  <Item size="lg" render={<Link to="/journal/drafts" />}>
+                    <ItemMedia>
+                      <Icon name="file-text" />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>
+                        {t('journal.myDrafts')} <CountBadge>{drafts.length}</CountBadge>
+                      </ItemTitle>
+                      <ItemDescription>
+                        {t('journal.draftsLatest', {
+                          title: drafts[0]?.title ?? entryExcerpt(drafts[0]?.text ?? '', 40),
+                        })}
+                      </ItemDescription>
+                    </ItemContent>
+                    <Icon name="chevron-right" className="text-muted-foreground" />
+                  </Item>
+                )}
+                <Item size="lg" render={<Link to="/journal/trash" />}>
                   <ItemMedia>
-                    <Icon name="file-text" />
+                    <Icon name="trash" />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>
-                      {t('journal.myDrafts')} <CountBadge>{drafts.length}</CountBadge>
-                    </ItemTitle>
-                    <ItemDescription>
-                      {t('journal.draftsLatest', {
-                        title: drafts[0]?.title ?? entryExcerpt(drafts[0]?.text ?? '', 40),
-                      })}
-                    </ItemDescription>
+                    <ItemTitle>{t('journal.myTrash')}</ItemTitle>
+                    <ItemDescription>{t('journal.trashHint')}</ItemDescription>
                   </ItemContent>
                   <Icon name="chevron-right" className="text-muted-foreground" />
                 </Item>

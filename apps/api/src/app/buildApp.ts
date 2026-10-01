@@ -24,6 +24,7 @@ import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
 import { createSpaFallback, registerStaticFiles } from '../platform/http/staticFiles.ts'
+import type { JobSender } from '../platform/jobs/index.ts'
 import type { Logger } from '../platform/logging.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 import { registerErrorHandler } from './errorHandler.ts'
@@ -33,6 +34,8 @@ export interface AppDeps {
   storage: ObjectStorage
   clock: Clock
   logger: Logger
+  /** The jobs port: domain transactions schedule their follow-up work through it. */
+  jobs: JobSender
   webDist?: string
 }
 
@@ -85,10 +88,11 @@ export function buildApp(deps: AppDeps) {
   app.register(accessRoutes, { prefix: '/api/v1', deps: accessDeps })
   // The journal is a section module (ADR-0011): its routes mount the access
   // module's guard and the spaces module's section gate, and its writes
-  // recheck visibility inside their transactions.
+  // recheck visibility inside their transactions. Trashing schedules the
+  // entry's purge job through the jobs port, inside the same transaction.
   app.register(journalRoutes, {
     prefix: '/api/v1',
-    deps: { db: deps.db, clock: deps.clock },
+    deps: { db: deps.db, clock: deps.clock, jobs: deps.jobs },
     access: accessDeps,
   })
   app.register(membersRoutes, {

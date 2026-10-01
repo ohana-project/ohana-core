@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core'
 import { uuidv7 } from '../../platform/db/uuid.ts'
 
 /**
@@ -51,3 +61,34 @@ export const adminSessions = pgTable(
 
 export type Administrator = typeof administrators.$inferSelect
 export type AdminSession = typeof adminSessions.$inferSelect
+
+/**
+ * Installation-wide settings (ADR-0007): one row per installation, like the
+ * administrator. Not space-owned: no revision, no tombstones. Absent until
+ * the instance administrator changes something — reads answer the defaults
+ * while the row does not exist.
+ */
+export const instanceSettings = pgTable(
+  'instance_settings',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    singleton: boolean('singleton').notNull().default(true),
+    // How long a trashed journal entry is kept before the worker purges it
+    // (ADR-0007). The default is the one ADR-0007 names.
+    trashRetentionDays: integer('trash_retention_days').notNull().default(30),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique('instance_settings_singleton_key').on(table.singleton),
+    check('instance_settings_singleton_true', sql`${table.singleton}`),
+    check(
+      'instance_settings_trash_retention_days_allowed',
+      sql`${table.trashRetentionDays} between 1 and 365`,
+    ),
+  ],
+)
+
+export type InstanceSettings = typeof instanceSettings.$inferSelect

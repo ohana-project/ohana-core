@@ -3,6 +3,7 @@ import { ensureInitialAdministrator } from '../modules/admin/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
+import { createPgBossJobSender, startJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
 
@@ -14,6 +15,11 @@ async function main(): Promise<void> {
   const { db, close } = createDb(config.databaseUrl)
   const storage = storageFromConfig(config)
   await storage.ensureBucket()
+
+  // The API's own pg-boss instance (ADR-0009): the domain transactions send
+  // their jobs through it; the worker process claims and runs them.
+  const boss = await startJobQueue(config.databaseUrl)
+  const jobs = createPgBossJobSender(boss)
 
   // The first instance administrator is provisioned from deployment
   // configuration on first start (ADR-0005); an existing administrator is
@@ -38,12 +44,14 @@ async function main(): Promise<void> {
     storage,
     clock: systemClock,
     logger,
+    jobs,
     webDist: config.webDist,
   })
   await app.listen({ port: config.port, host: '0.0.0.0' })
 
   const shutdown = async (): Promise<void> => {
     await app.close()
+    await boss.stop()
     await close()
     process.exit(0)
   }

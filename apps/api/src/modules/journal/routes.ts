@@ -14,7 +14,10 @@ import {
   FeedQuerySchema,
   JournalEntryDtoSchema,
   JournalFeedDtoSchema,
+  TrashedEntryDtoSchema,
+  TrashListDtoSchema,
   toEntryDto,
+  toTrashedEntryDto,
   UpdateEntryBodySchema,
 } from './contracts.ts'
 import {
@@ -24,7 +27,10 @@ import {
   type JournalDeps,
   listDrafts,
   listFeed,
+  listTrash,
   publishDraft,
+  restoreTrashedEntry,
+  trashEntry,
   updateEntryText,
 } from './service.ts'
 
@@ -76,6 +82,25 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
       async (request) => {
         const actor: JournalActor = requireMemberActor(request)
         return (await listDrafts(opts.deps, actor)).map(toEntryDto)
+      },
+    )
+
+    // The trash view (issue #16): the trashed entries this member may see,
+    // each with its permanent-deletion date. Online-only — the entries have
+    // left every device's synchronised partition (their tombstones saw to
+    // that), so the view asks the server.
+    scoped.get(
+      '/journal/trash',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          response: { 200: TrashListDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: JournalActor = requireMemberActor(request)
+        const rows = await listTrash(opts.deps, actor)
+        return { entries: rows.map(({ entry, purgeAt }) => toTrashedEntryDto(entry, purgeAt)) }
       },
     )
 
@@ -144,6 +169,40 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
       async (request) => {
         const actor: JournalActor = requireMemberActor(request)
         return toEntryDto(await publishDraft(opts.deps, actor, request.params.entryId))
+      },
+    )
+
+    // The removal into trash (issue #16): recoverable until the deletion
+    // date the answer carries.
+    scoped.post(
+      '/journal/entries/:entryId/trash',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: EntryIdParamsSchema,
+          response: { 200: TrashedEntryDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: JournalActor = requireMemberActor(request)
+        const { entry, purgeAt } = await trashEntry(opts.deps, actor, request.params.entryId)
+        return toTrashedEntryDto(entry, purgeAt)
+      },
+    )
+
+    // The way back out: the entry returns to the state it was trashed from.
+    scoped.post(
+      '/journal/entries/:entryId/restore',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: EntryIdParamsSchema,
+          response: { 200: JournalEntryDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: JournalActor = requireMemberActor(request)
+        return toEntryDto(await restoreTrashedEntry(opts.deps, actor, request.params.entryId))
       },
     )
   })

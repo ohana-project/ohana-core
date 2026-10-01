@@ -1,6 +1,13 @@
 import { and, eq, gt, lt } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { type Administrator, type AdminSession, administrators, adminSessions } from './tables.ts'
+import {
+  type Administrator,
+  type AdminSession,
+  administrators,
+  adminSessions,
+  type InstanceSettings,
+  instanceSettings,
+} from './tables.ts'
 
 export interface NewAdministrator {
   passwordHash: string
@@ -105,4 +112,36 @@ export async function deleteAdminSessionsForAdministrator(
 
 export async function deleteExpiredAdminSessions(executor: Executor, now: Date): Promise<void> {
   await executor.delete(adminSessions).where(lt(adminSessions.expiresAt, now))
+}
+
+export async function getInstanceSettings(
+  executor: Executor,
+): Promise<InstanceSettings | undefined> {
+  const rows = await executor.select().from(instanceSettings).limit(1)
+  return rows[0]
+}
+
+/**
+ * Writes the one settings row, creating it on first change. The singleton
+ * conflict target makes concurrent saves converge on one row.
+ */
+export async function upsertInstanceSettings(
+  tx: Tx,
+  data: { trashRetentionDays: number; now: Date },
+): Promise<InstanceSettings> {
+  const inserted = await tx
+    .insert(instanceSettings)
+    .values({
+      trashRetentionDays: data.trashRetentionDays,
+      createdAt: data.now,
+      updatedAt: data.now,
+    })
+    .onConflictDoUpdate({
+      target: instanceSettings.singleton,
+      set: { trashRetentionDays: data.trashRetentionDays, updatedAt: data.now },
+    })
+    .returning()
+  const row = inserted[0]
+  if (!row) throw new Error('Saving the instance settings returned no row')
+  return row
 }

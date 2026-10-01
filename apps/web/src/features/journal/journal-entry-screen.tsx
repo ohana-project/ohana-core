@@ -1,34 +1,87 @@
 import { useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getActiveMemberId } from '@/data/session-registry.ts'
+import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog.tsx'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
-import { authorName, entryById, entryMoment, entryTimestamp } from './journal-entries.ts'
+import { toast } from '@/ui/toast.tsx'
+import {
+  authorName,
+  entryById,
+  entryDay,
+  entryExcerpt,
+  entryMoment,
+  entryTimestamp,
+} from './journal-entries.ts'
 import { JournalShell } from './journal-shell.tsx'
-import { useJournalData } from './use-journal.ts'
+import { journalErrorMessage, useJournalData, useTrashEntry } from './use-journal.ts'
 
 /*
  * One entry (docs/design/screens/diary-entry.html): the author's name and
  * the moment it was shared, the title, and the text. A draft carries its
  * badge and is opened by its author alone — the server never delivered it
- * to anyone else. Photos arrive with their own ticket (#17).
+ * to anyone else. Photos arrive with their own ticket (#17). The overflow
+ * menu carries the removal (issue #16): one tap must not trash a shared
+ * entry for good, so the dialog stands between, and the toast names the
+ * date the answer computed.
  */
 export function JournalEntryScreen({ entryId }: { entryId: string }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { snapshot, entries, profiles, downloaded } = useJournalData()
+  const session = useMemberSessionStatus()
+  const [confirmTrash, setConfirmTrash] = useState(false)
+  // The screen owns the mutation: the menu opens the dialog, the dialog's
+  // confirm sends it, and the toast names the deletion date the answer
+  // computed from the instance's retention.
+  const trash = useTrashEntry()
 
   const entry = entryById(entries, entryId)
   const author = entry
     ? authorName(entry.authorId, profiles, t('journal.authorUnknown'))
     : undefined
   const mine = entry !== undefined && entry.authorId === getActiveMemberId()
+  const canTrash =
+    entry !== undefined &&
+    (mine || (session.me?.member.role === 'owner' && entry.state === 'published'))
+
+  const removeEntry = () => {
+    trash.mutate(
+      { entryId },
+      {
+        onSuccess: (trashed) => {
+          setConfirmTrash(false)
+          toast(t('journal.trashedToast', { date: entryDay(trashed.purgeAt, i18n.language) }))
+          void navigate({ to: '/journal' })
+        },
+        onError: (error) => {
+          setConfirmTrash(false)
+          toast(journalErrorMessage(error, t), 'danger')
+        },
+      },
+    )
+  }
 
   return (
     <JournalShell title={t('journal.entryTitle')} backTo="/journal" width="narrow">
@@ -86,6 +139,23 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
                   {t('journal.edit')}
                 </Button>
               )}
+              {canTrash && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant="ghost" size="icon" aria-label={t('journal.deleteEntry')} />
+                    }
+                  >
+                    <Icon name="more-h" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem variant="destructive" onClick={() => setConfirmTrash(true)}>
+                      <Icon name="trash" />
+                      {t('journal.deleteEntry')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             {entry.title !== undefined && <h1 className="text-display-lg">{entry.title}</h1>}
           </header>
@@ -106,6 +176,38 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
           </div>
         </article>
       )}
+
+      {confirmTrash && entry !== undefined ? (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !trash.isPending) setConfirmTrash(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('journal.trashConfirmTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('journal.trashConfirmText', {
+                  name: entry.title ?? entryExcerpt(entry.text, 40),
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={trash.isPending}
+                onClick={() => setConfirmTrash(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button variant="destructive" disabled={trash.isPending} onClick={removeEntry}>
+                {t('journal.trashConfirmLabel')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </JournalShell>
   )
 }
