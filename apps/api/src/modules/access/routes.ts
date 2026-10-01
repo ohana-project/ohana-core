@@ -293,12 +293,10 @@ export const accessRoutes: FastifyPluginAsyncTypebox<AccessRoutesOptions> = asyn
       },
       async (request, reply) => {
         const actor = requireOwnerActor(request)
-        const issued = await issueAccessCode(
-          opts.deps,
-          actor.spaceId,
-          request.params.memberId,
-          { kind: 'member', memberId: actor.memberId },
-        )
+        const issued = await issueAccessCode(opts.deps, actor.spaceId, request.params.memberId, {
+          kind: 'member',
+          memberId: actor.memberId,
+        })
         return reply.code(201).send({
           id: issued.id,
           memberId: issued.memberId,

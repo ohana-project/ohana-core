@@ -50,12 +50,7 @@ async function signInAdmin(app: TestApp): Promise<string> {
   return `${ADMIN_SESSION_COOKIE}=${cookie.value}`
 }
 
-async function issueCodeAsAdmin(
-  app: TestApp,
-  cookie: string,
-  spaceId: string,
-  memberId: string,
-) {
+async function issueCodeAsAdmin(app: TestApp, cookie: string, spaceId: string, memberId: string) {
   const response = await app.inject({
     method: 'POST',
     url: `/api/v1/spaces/${spaceId}/members/${memberId}/access-codes`,
@@ -139,9 +134,7 @@ describe('POST /api/v1/members/:memberId/access-code (owner issues a code)', () 
       const rows = await harness.db
         .select()
         .from(accessCodes)
-        .where(
-          and(eq(accessCodes.memberId, regular.id), eq(accessCodes.status, 'issued')),
-        )
+        .where(and(eq(accessCodes.memberId, regular.id), eq(accessCodes.status, 'issued')))
       expect(rows).toHaveLength(1)
       const stored = rows[0]
       if (stored === undefined) throw new Error('The issued code row is missing')

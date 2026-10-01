@@ -265,10 +265,7 @@ describe('PATCH /api/v1/members/:memberId (owner changes a role)', () => {
       expect(response.statusCode).toBe(404)
       expect(response.json().error.code).toBe('member_not_found')
 
-      const rows = await harness.db
-        .select()
-        .from(memberRows)
-        .where(eq(memberRows.id, stranger.id))
+      const rows = await harness.db.select().from(memberRows).where(eq(memberRows.id, stranger.id))
       expect(rows[0]?.role).toBe('regular')
     })
   })

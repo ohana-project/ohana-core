@@ -3,12 +3,13 @@ import { Type } from '@sinclair/typebox'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
+  CreateSpaceBodySchema,
   type MemberSpaceDto,
   MemberSpaceDtoSchema,
-  CreateSpaceBodySchema,
   type SpaceDto,
   SpaceDtoSchema,
   SpaceIdParamsSchema,
+  SpaceMemberHeadersSchema,
   type SpaceWithMemberCountDto,
   SpaceWithMemberCountDtoSchema,
   UpdateMemberSpaceBodySchema,
@@ -145,6 +146,7 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
       '/space',
       {
         schema: {
+          headers: SpaceMemberHeadersSchema,
           response: { 200: MemberSpaceDtoSchema },
         },
       },
@@ -158,6 +160,7 @@ export const spacesRoutes: FastifyPluginAsyncTypebox<SpacesRoutesOptions> = asyn
       '/space',
       {
         schema: {
+          headers: SpaceMemberHeadersSchema,
           body: UpdateMemberSpaceBodySchema,
           response: { 200: MemberSpaceDtoSchema },
         },

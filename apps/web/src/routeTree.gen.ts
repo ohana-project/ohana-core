@@ -13,11 +13,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountsRouteImport } from './routes/accounts'
 import { Route as DesignRouteImport } from './routes/design'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminPasswordRouteImport } from './routes/admin/password'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as MembersIndexRouteImport } from './routes/members/index'
+import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
+import { Route as MembersInviteRouteImport } from './routes/members/invite'
 import { Route as AdminSpacesSpaceIdRouteImport } from './routes/admin/spaces/$spaceId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -38,6 +42,11 @@ const DesignRoute = DesignRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SigninRoute = SigninRouteImport.update({
@@ -65,6 +74,21 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MembersIndexRoute = MembersIndexRouteImport.update({
+  id: '/members/',
+  path: '/members/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembersMemberIdRoute = MembersMemberIdRouteImport.update({
+  id: '/members/$memberId',
+  path: '/members/$memberId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembersInviteRoute = MembersInviteRouteImport.update({
+  id: '/members/invite',
+  path: '/members/invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSpacesSpaceIdRoute = AdminSpacesSpaceIdRouteImport.update({
   id: '/admin/spaces/$spaceId',
   path: '/admin/spaces/$spaceId',
@@ -76,11 +100,15 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AccountsRoute
   '/design': typeof DesignRoute
   '/onboarding': typeof OnboardingRoute
+  '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/members/$memberId': typeof MembersMemberIdRoute
+  '/members/invite': typeof MembersInviteRoute
   '/admin/': typeof AdminIndexRoute
+  '/members/': typeof MembersIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
 }
 export interface FileRoutesByTo {
@@ -88,11 +116,15 @@ export interface FileRoutesByTo {
   '/accounts': typeof AccountsRoute
   '/design': typeof DesignRoute
   '/onboarding': typeof OnboardingRoute
+  '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/members/$memberId': typeof MembersMemberIdRoute
+  '/members/invite': typeof MembersInviteRoute
   '/admin': typeof AdminIndexRoute
+  '/members': typeof MembersIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
 }
 export interface FileRoutesById {
@@ -101,11 +133,15 @@ export interface FileRoutesById {
   '/accounts': typeof AccountsRoute
   '/design': typeof DesignRoute
   '/onboarding': typeof OnboardingRoute
+  '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/members/$memberId': typeof MembersMemberIdRoute
+  '/members/invite': typeof MembersInviteRoute
   '/admin/': typeof AdminIndexRoute
+  '/members/': typeof MembersIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
 }
 export interface FileRouteTypes {
@@ -115,11 +151,15 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/design'
     | '/onboarding'
+    | '/settings'
     | '/signin'
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/members/$memberId'
+    | '/members/invite'
     | '/admin/'
+    | '/members/'
     | '/admin/spaces/$spaceId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -127,11 +167,15 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/design'
     | '/onboarding'
+    | '/settings'
     | '/signin'
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/members/$memberId'
+    | '/members/invite'
     | '/admin'
+    | '/members'
     | '/admin/spaces/$spaceId'
   id:
     | '__root__'
@@ -139,11 +183,15 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/design'
     | '/onboarding'
+    | '/settings'
     | '/signin'
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/members/$memberId'
+    | '/members/invite'
     | '/admin/'
+    | '/members/'
     | '/admin/spaces/$spaceId'
   fileRoutesById: FileRoutesById
 }
@@ -152,11 +200,15 @@ export interface RootRouteChildren {
   AccountsRoute: typeof AccountsRoute
   DesignRoute: typeof DesignRoute
   OnboardingRoute: typeof OnboardingRoute
+  SettingsRoute: typeof SettingsRoute
   SigninRoute: typeof SigninRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminPasswordRoute: typeof AdminPasswordRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  MembersMemberIdRoute: typeof MembersMemberIdRoute
+  MembersInviteRoute: typeof MembersInviteRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  MembersIndexRoute: typeof MembersIndexRoute
   AdminSpacesSpaceIdRoute: typeof AdminSpacesSpaceIdRoute
 }
 
@@ -188,6 +240,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signin': {
@@ -225,6 +284,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/members/': {
+      id: '/members/'
+      path: '/members'
+      fullPath: '/members/'
+      preLoaderRoute: typeof MembersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/members/$memberId': {
+      id: '/members/$memberId'
+      path: '/members/$memberId'
+      fullPath: '/members/$memberId'
+      preLoaderRoute: typeof MembersMemberIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/members/invite': {
+      id: '/members/invite'
+      path: '/members/invite'
+      fullPath: '/members/invite'
+      preLoaderRoute: typeof MembersInviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/spaces/$spaceId': {
       id: '/admin/spaces/$spaceId'
       path: '/admin/spaces/$spaceId'
@@ -240,11 +320,15 @@ const rootRouteChildren: RootRouteChildren = {
   AccountsRoute: AccountsRoute,
   DesignRoute: DesignRoute,
   OnboardingRoute: OnboardingRoute,
+  SettingsRoute: SettingsRoute,
   SigninRoute: SigninRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminPasswordRoute: AdminPasswordRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  MembersMemberIdRoute: MembersMemberIdRoute,
+  MembersInviteRoute: MembersInviteRoute,
   AdminIndexRoute: AdminIndexRoute,
+  MembersIndexRoute: MembersIndexRoute,
   AdminSpacesSpaceIdRoute: AdminSpacesSpaceIdRoute,
 }
 export const routeTree = rootRouteImport

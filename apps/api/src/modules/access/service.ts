@@ -573,11 +573,7 @@ export async function getMemberAccessCode(
   await requireMemberInSpace(deps, spaceId, memberId)
   const row = await getLatestAccessCodeForMember(deps.db, spaceId, memberId)
   if (row === undefined) {
-    throw new DomainError(
-      'access_code_not_found',
-      `Member ${memberId} has no access codes`,
-      404,
-    )
+    throw new DomainError('access_code_not_found', `Member ${memberId} has no access codes`, 404)
   }
   const now = deps.clock.now()
   return {

@@ -158,10 +158,7 @@ describe('PATCH /api/v1/space (the owner sets the default time zone)', () => {
         timezone: 'Asia/Novosibirsk',
       })
 
-      const rows = await harness.db
-        .select()
-        .from(spaces)
-        .where(eq(spaces.id, space.id))
+      const rows = await harness.db.select().from(spaces).where(eq(spaces.id, space.id))
       expect(rows[0]?.timezone).toBe('Asia/Novosibirsk')
     })
   })
@@ -211,4 +208,3 @@ describe('PATCH /api/v1/space (the owner sets the default time zone)', () => {
     })
   })
 })
-

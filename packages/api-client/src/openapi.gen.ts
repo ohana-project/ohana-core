@@ -241,7 +241,9 @@ export interface paths {
         get: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -271,7 +273,9 @@ export interface paths {
         patch: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
                 path?: never;
                 cookie?: never;
             };
