@@ -51,6 +51,14 @@ export interface MemberSnapshot {
   revision: string | undefined
   /** When the last sync succeeded, in epoch milliseconds. */
   syncedAt: number | undefined
+  /**
+   * The sections whose full data the device has promised to fetch again but
+   * has not yet: a re-shown section or a store upgrade wrote the replay
+   * promise (cursor '0'), and the replay has not landed (ADR-0014). A
+   * screen whose section is here says "nothing downloaded" instead of
+   * showing the partial rows an interrupted replay left.
+   */
+  pendingReplay: string[]
 }
 
 const DB_PREFIX = 'ohana.sync.'
@@ -91,15 +99,18 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
         // A version 1 device advanced its cursor while ignoring
         // journal_entry changes, so a delta would never deliver the
         // entries past it. The reset makes the next sync replay from
-        // revision 0, the same move a re-shown section makes. A partition
-        // whose first apply never committed holds no cursor, and stays
-        // honestly empty: resetting it would claim data it does not hold.
+        // revision 0, the same move a re-shown section makes; the replay
+        // promise names the section, so the screens answer honestly until
+        // the replay lands. A partition whose first apply never committed
+        // holds no cursor, and stays honestly empty: resetting it would
+        // claim data it does not hold.
         const meta = request.transaction?.objectStore('meta')
         if (meta !== undefined) {
           const read = meta.get('cursor')
           read.onsuccess = () => {
             if (read.result !== undefined) {
               meta.put({ key: 'cursor', revision: '0' })
+              meta.put({ key: 'pendingReplay', sections: ['journal'] })
             }
           }
         }
@@ -125,6 +136,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     entries: [],
     revision: undefined,
     syncedAt: undefined,
+    pendingReplay: [],
   }
   if (typeof indexedDB === 'undefined' || !indexedDB.databases) {
     // Every browser this supports implements both; the guard keeps the
@@ -157,19 +169,25 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     ])
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
     const syncedAt = meta.find((row) => row.key === 'syncedAt')?.at as number | undefined
+    const pendingReplay =
+      (meta.find((row) => row.key === 'pendingReplay')?.sections as string[] | undefined) ?? []
     return {
       space: (spaces[0] as StoredSpace | undefined) ?? undefined,
       members: members as StoredMemberProfile[],
       entries: entries as StoredJournalEntry[],
       revision: cursor,
       syncedAt,
+      pendingReplay,
     }
   } finally {
     db.close()
   }
 }
 
-type MetaRow = { key: 'cursor'; revision: string } | { key: 'syncedAt'; at: number }
+type MetaRow =
+  | { key: 'cursor'; revision: string }
+  | { key: 'syncedAt'; at: number }
+  | { key: 'pendingReplay'; sections: string[] }
 
 /**
  * Applies a sync response in one transaction: the tombstoned rows go, the
@@ -197,44 +215,67 @@ export async function applySyncResult(memberId: string, result: SyncResult): Pro
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
 
-      // The previous map is read before anything is written, so the
-      // hidden-to-visible decision sees the state the device had.
-      const previousRequest = spaceStore.getAll()
-      previousRequest.onsuccess = () => {
-        const previous = previousRequest.result[0] as StoredSpace | undefined
+      // The previous map and replay promise are read before anything is
+      // written, so the hidden-to-visible decision sees the state the
+      // device had. The reads run in order: a request's result is only its
+      // own once that request has succeeded.
+      const metaRequest = metaStore.getAll()
+      metaRequest.onsuccess = () => {
+        const previousPending =
+          (metaRequest.result.find((row) => row.key === 'pendingReplay')?.sections as
+            | string[]
+            | undefined) ?? []
+        const previousRequest = spaceStore.getAll()
+        previousRequest.onsuccess = () => {
+          const previous = previousRequest.result[0] as StoredSpace | undefined
 
-        // Tombstones go first: within one response, an upsert of a row is
-        // the newer fact (the contributor's rows are what exists now), so
-        // it must outrank a tombstone of the same row — a resync from
-        // revision 0 replays the space's whole tombstone history.
-        for (const tombstone of result.tombstones) {
-          if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
-          if (tombstone.entity === 'journal_entry') entryStore.delete(tombstone.entityId)
-        }
-        for (const change of result.changes) {
-          if (change.entity === 'space') spaceStore.put(change.space)
-          if (change.entity === 'member') memberStore.put(change.member)
-          if (change.entity === 'journal_entry') entryStore.put(change.entry)
-        }
+          // Tombstones go first: within one response, an upsert of a row is
+          // the newer fact (the contributor's rows are what exists now), so
+          // it must outrank a tombstone of the same row — a resync from
+          // revision 0 replays the space's whole tombstone history.
+          for (const tombstone of result.tombstones) {
+            if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
+            if (tombstone.entity === 'journal_entry') entryStore.delete(tombstone.entityId)
+          }
+          for (const change of result.changes) {
+            if (change.entity === 'space') spaceStore.put(change.space)
+            if (change.entity === 'member') memberStore.put(change.member)
+            if (change.entity === 'journal_entry') entryStore.put(change.entry)
+          }
 
-        let revision = result.revision
-        const nextSpace = result.changes.find((change) => change.entity === 'space')
-        if (nextSpace !== undefined) {
-          if (!nextSpace.space.sections.journal) entryStore.clear()
+          let revision = result.revision
+          const nextSpace = result.changes.find((change) => change.entity === 'space')
+          if (nextSpace !== undefined) {
+            if (!nextSpace.space.sections.journal) entryStore.clear()
+          }
+          // A re-shown section writes the replay promise: the cursor goes
+          // to 0 and the section's full data has to come again before the
+          // screens may claim it (ADR-0014). The promise is per section, so
+          // another section's replay never questions this one's rows; a
+          // cursor other than '0' means a replay landed and clears them all.
+          const reshowed = (
+            Object.keys(previous?.sections ?? {}) as Array<keyof StoredSpace['sections']>
+          ).filter(
+            (section) =>
+              previous !== undefined &&
+              nextSpace !== undefined &&
+              !previous.sections[section] &&
+              nextSpace.space.sections[section],
+          )
+          if (reshowed.length > 0) revision = '0'
+          const pendingReplay: string[] =
+            revision !== '0' ? [] : [...new Set([...previousPending, ...reshowed])]
+          storedRevision = revision
+          const cursor: MetaRow = { key: 'cursor', revision }
+          const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }
+          metaStore.put(cursor)
+          metaStore.put(stamped)
+          metaStore.put({ key: 'pendingReplay', sections: pendingReplay })
         }
-        if (previous !== undefined && nextSpace !== undefined) {
-          const reshow = (
-            Object.keys(previous.sections) as Array<keyof StoredSpace['sections']>
-          ).some((section) => !previous.sections[section] && nextSpace.space.sections[section])
-          if (reshow) revision = '0'
-        }
-        storedRevision = revision
-        const cursor: MetaRow = { key: 'cursor', revision }
-        const stamped: MetaRow = { key: 'syncedAt', at: Date.now() }
-        metaStore.put(cursor)
-        metaStore.put(stamped)
+        previousRequest.onerror = () =>
+          reject(previousRequest.error ?? new Error('The read failed'))
       }
-      previousRequest.onerror = () => reject(previousRequest.error ?? new Error('The read failed'))
+      metaRequest.onerror = () => reject(metaRequest.error ?? new Error('The read failed'))
       tx.oncomplete = () => resolve(storedRevision)
       tx.onerror = () => reject(tx.error ?? new Error('Applying the sync result failed'))
       tx.onabort = () => reject(tx.error ?? new Error('Applying the sync result was aborted'))

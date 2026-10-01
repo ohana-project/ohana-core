@@ -3,18 +3,17 @@ import { useMutation } from '@tanstack/react-query'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
-import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
+import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-space.ts'
 
 /*
  * The journal's server data (issue #15): reads come from the member's
  * synchronised partition — the same answer online and offline (ADR-0002) —
  * and the three mutations go to the API through the generated client. A
- * mutation triggers a sync on success and on failure alike: the store then
- * learns the change the ordinary way, and a refusal from a stale row
- * (already published elsewhere, removed) clears itself instead of
- * lingering. The round-trip after a plain validation error is accepted as
- * the price of one rule for every settlement (architecture.md, web rules
- * — no hook here patches the cache by hand).
+ * success triggers a sync; so does a refusal, as a deliberate superset of
+ * the blueprint's rule: a journal refusal (author_required,
+ * entry_not_found, section_hidden) can always come from a stale
+ * synchronised row or map, and the sync is what clears it — no hook here
+ * patches the cache by hand.
  */
 
 export type CreatedEntry =
@@ -34,21 +33,16 @@ export const ENTRY_TEXT_MAX_LENGTH = 20_000
 
 /**
  * The synchronised entries and profiles the journal screens read, plus
- * whether the partition actually holds journal data. A cursor of '0' is
- * the replay promise an upgrade or a re-shown section wrote (ADR-0014):
- * until the replay lands the store may know nothing about the journal, and
- * "empty" would be a claim the device cannot make. Entries the store does
- * hold are real — the server filtered them — so they count as downloaded
- * even while the cursor still says '0'. (The server never answers revision
- * '0' to a signed-in member: provisioning a member already bumps the
- * space's counter.)
+ * whether the device may claim journal data at all: while the journal is
+ * the section a replay promise names (a re-show or the store upgrade,
+ * ADR-0014), the store may hold only a fraction of it, and "empty" — or a
+ * lone entry as the whole feed — would be a claim the device cannot make.
  */
 export function useJournalData() {
   const snapshot = useSyncedSpace()
   const entries = snapshot.data?.entries ?? []
   const profiles = snapshot.data?.members ?? []
-  const revision = snapshot.data?.revision
-  const downloaded = revision !== undefined && (revision !== '0' || entries.length > 0)
+  const downloaded = sectionDownloaded(snapshot.data, 'journal')
   return { snapshot, entries, profiles, downloaded }
 }
 

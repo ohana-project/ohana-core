@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { SyncResult } from './local-store.ts'
+import type { StoredJournalEntry, SyncResult } from './local-store.ts'
 import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-store.ts'
 
 /*
@@ -14,8 +14,25 @@ const DIMA = '01900000-0000-7000-8000-000000000002'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 const MISHA_ID = '01900000-0000-7000-8000-000000000003'
 
-function syncResult(overrides?: Partial<SyncResult>): SyncResult {
+function entry(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
   return {
+    id: '01900000-0000-7000-8000-000000000101',
+    authorId: ANYA,
+    title: 'Осенний пикник',
+    text: 'Собрались за час: бутерброды, термос, плед и Бублик.',
+    state: 'published',
+    publishedAt: '2026-09-21T14:00:00.000Z',
+    createdAt: '2026-09-21T12:00:00.000Z',
+    updatedAt: '2026-09-21T14:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function syncResult(
+  overrides?: Partial<SyncResult>,
+  extraChanges: SyncResult['changes'] = [],
+): SyncResult {
+  const base: SyncResult = {
     revision: '7',
     changes: [
       {
@@ -48,6 +65,10 @@ function syncResult(overrides?: Partial<SyncResult>): SyncResult {
       },
     ],
     tombstones: [],
+  }
+  return {
+    ...base,
+    changes: [...base.changes, ...extraChanges],
     ...overrides,
   }
 }
@@ -73,6 +94,7 @@ describe('the per-member local store', () => {
       entries: [],
       revision: undefined,
       syncedAt: undefined,
+      pendingReplay: [],
     })
   })
 
@@ -207,6 +229,118 @@ describe('the per-member local store', () => {
     expect(snapshot.space?.name).toBe('Наш уголок')
   })
 
+  test('a journal re-show writes the replay promise, and the replay clears it', async () => {
+    const row = entry()
+    await applySyncResult(ANYA, syncResult(undefined, [{ entity: 'journal_entry', entry: row }]))
+
+    // The owner hides the journal: the rows go, the cursor moves on.
+    await applySyncResult(ANYA, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: false, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    const hidden = await readMemberSnapshot(ANYA)
+    expect(hidden.entries).toEqual([])
+    expect(hidden.revision).toBe('8')
+    expect(hidden.pendingReplay).toEqual([])
+
+    // The re-show writes the promise: until the replay lands, the device
+    // may hold only a fraction of the journal, and the screens say so.
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    const promised = await readMemberSnapshot(ANYA)
+    expect(promised.revision).toBe('0')
+    expect(promised.pendingReplay).toEqual(['journal'])
+
+    // The replay lands whole: the promise is cleared with the new cursor.
+    await applySyncResult(ANYA, {
+      revision: '10',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+        { entity: 'journal_entry', entry: row },
+      ],
+      tombstones: [],
+    })
+    const replayed = await readMemberSnapshot(ANYA)
+    expect(replayed.revision).toBe('10')
+    expect(replayed.pendingReplay).toEqual([])
+    expect(replayed.entries).toHaveLength(1)
+  })
+
+  test("another section's replay never questions the journal's rows", async () => {
+    const row = entry()
+    await applySyncResult(ANYA, syncResult(undefined, [{ entity: 'journal_entry', entry: row }]))
+
+    // The calendar is hidden and re-shown: the promise names the calendar,
+    // and the journal's stored rows stay readable.
+    await applySyncResult(ANYA, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: false, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.revision).toBe('0')
+    expect(snapshot.pendingReplay).toEqual(['calendar'])
+    expect(snapshot.entries).toHaveLength(1)
+  })
+
   test('a version 1 partition upgrades in place: data reads, the cursor resets for the journal', async () => {
     // A device that synced before the journal existed holds a version 1
     // database: space, members, meta, no entries store — and a cursor that
@@ -251,6 +385,7 @@ describe('the per-member local store', () => {
     expect(snapshot.members.map((member) => member.name)).toEqual(['Миша'])
     expect(snapshot.entries).toEqual([])
     expect(snapshot.revision).toBe('0')
+    expect(snapshot.pendingReplay).toEqual(['journal'])
 
     // The replay lands the journal entries and moves the cursor forward.
     await applySyncResult(ANYA, {
@@ -299,6 +434,7 @@ describe('the per-member local store', () => {
     expect(snapshot.revision).toBeUndefined()
     expect(snapshot.entries).toEqual([])
     expect(snapshot.members).toEqual([])
+    expect(snapshot.pendingReplay).toEqual([])
   })
 
   test('each member reads only their own partition, and sign-out deletes it whole', async () => {
@@ -313,6 +449,7 @@ describe('the per-member local store', () => {
       entries: [],
       revision: undefined,
       syncedAt: undefined,
+      pendingReplay: [],
     })
     const dima = await readMemberSnapshot(DIMA)
     expect(dima.space?.id).toBe(SPACE_ID)

@@ -14,6 +14,22 @@ export function syncedSnapshotKey(memberId: string | undefined) {
   return ['member', memberId, 'synced'] as const
 }
 
+/**
+ * Whether the device may claim a section's data: a partition without a
+ * cursor has nothing at all, and a partition whose replay promise names
+ * the section (ADR-0014) — a re-show or a store upgrade wrote cursor '0'
+ * for it and the full data has not landed again — may hold only a fraction
+ * of it. Everything else the store holds is the section's whole visible
+ * data, the server having filtered it.
+ */
+export function sectionDownloaded(
+  snapshot: MemberSnapshot | undefined,
+  section: 'journal' | 'calendar' | 'wishlist',
+): boolean {
+  if (snapshot === undefined || snapshot.revision === undefined) return false
+  return !snapshot.pendingReplay.includes(section)
+}
+
 export function useSyncedSpace() {
   const memberId = getActiveMemberId()
   return useQuery({
