@@ -196,8 +196,15 @@ describe('InviteMemberScreen', () => {
     // The failure is a state with a way out, not an endless spinner: the
     // member already exists, so only the issuance retries.
     const retry = await screen.findByRole('button', { name: 'Выпустить код ещё раз' })
+    expect(
+      screen.getByText('Не получилось — проверьте сеть и попробуйте ещё раз.'),
+    ).toBeInTheDocument()
     await user.click(retry)
     expect(await screen.findByText('SASF-KQLV')).toBeInTheDocument()
+    // The stale failure never outlives the fresh code.
+    expect(
+      screen.queryByText('Не получилось — проверьте сеть и попробуйте ещё раз.'),
+    ).not.toBeInTheDocument()
     expect(apiPost).toHaveBeenCalledTimes(3)
   })
 

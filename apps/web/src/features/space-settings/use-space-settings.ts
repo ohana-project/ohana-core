@@ -3,7 +3,7 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk, extractErrorCode } from '@/data/api-error.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
-import { memberSessionQueryKey } from '@/features/member/use-member-session.ts'
+import { forgetMember, memberSessionQueryKey } from '@/features/member/use-member-session.ts'
 
 /*
  * Owner space management (issue #12) is online-only data — no local store
@@ -114,12 +114,16 @@ export function useChangeSpaceMemberRole() {
     // A refused change (last_owner) must still refresh, or the screen keeps
     // offering a change the server will refuse again.
     onSettled: (_data, _error, variables) => {
-      invalidate()
-      // A member whose own role just changed carries the new role in the
-      // session probe (/me): the owner instruments on screen must follow.
-      if (variables.memberId === getActiveMemberId()) {
-        void queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+      const activeId = getActiveMemberId()
+      if (variables.memberId !== activeId) {
+        invalidate()
+        return
       }
+      // A member whose own role just changed carries it in the session
+      // probe (/me). The owner-only queries of the subtree would only answer
+      // 403 for a demoted actor, so just the probe and the profiles list go.
+      void queryClient.invalidateQueries({ queryKey: memberSessionQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ['member', activeId, 'profiles'] })
     },
   })
 }
@@ -204,6 +208,7 @@ export function useMemberDevices(memberId: string) {
 }
 
 export function useRevokeMemberDevices() {
+  const queryClient = useQueryClient()
   const invalidate = useInvalidateMemberArea()
   return useMutation({
     mutationFn: async (input: { memberId: string }) => {
@@ -212,7 +217,21 @@ export function useRevokeMemberDevices() {
       })
       await assertOk(response)
     },
-    onSettled: invalidate,
+    // Disconnecting the acting member's own devices ends the session this
+    // device is using: the member's local sign-in and data go, exactly like
+    // a sign-out. The cleanup runs at the hook level, before any refetch
+    // could answer 401 for the dead member and unmount the screen under a
+    // per-call callback.
+    onSuccess: (_data, variables) => {
+      const activeId = getActiveMemberId()
+      if (variables.memberId === activeId) forgetMember(queryClient, activeId)
+    },
+    onSettled: (_data, error, variables) => {
+      // A self-disconnect must not refetch as the dead member — the cleanup
+      // above already reset what it kept.
+      if (error === null && variables.memberId === getActiveMemberId()) return
+      invalidate()
+    },
   })
 }
 

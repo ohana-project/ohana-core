@@ -169,9 +169,9 @@ export async function listAccessCodesInSpace(
 /**
  * The member's newest code, of any status. Used as the fallback when no
  * live code exists, so the owner's member card can still show what became
- * of the last invitation; the live code, when one exists, is read by
- * getLiveAccessCodeForMember, because under concurrent issuance the live
- * row is not always the newest.
+ * of the last invitation. The status change — not creation — is what makes
+ * a row the current answer, and creation order is unreliable under
+ * concurrent issuance.
  */
 export async function getLatestAccessCodeForMember(
   executor: Executor,
@@ -182,7 +182,7 @@ export async function getLatestAccessCodeForMember(
     .select()
     .from(accessCodes)
     .where(and(eq(accessCodes.spaceId, spaceId), eq(accessCodes.memberId, memberId)))
-    .orderBy(desc(accessCodes.createdAt), desc(accessCodes.id))
+    .orderBy(desc(accessCodes.statusChangedAt), desc(accessCodes.id))
     .limit(1)
   return rows[0]
 }

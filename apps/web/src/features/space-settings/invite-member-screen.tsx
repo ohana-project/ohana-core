@@ -67,11 +67,15 @@ export function InviteMemberScreen() {
   }
 
   const issue = (memberId: string) => {
+    setFormError(undefined)
     issueCode.mutate(
       { memberId },
       {
         onSuccess: (result) => {
           setIssued(result)
+          // A reroll's dialog has said its goodbyes: the fresh code shows
+          // right here.
+          setRerollOpen(false)
           toast(t('space.invite.issuedToast', { code: result.code }))
         },
         onError: (error) => setFormError(spaceSettingsErrorMessage(error, t)),

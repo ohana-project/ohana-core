@@ -1,8 +1,7 @@
-import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { forgetMember, useMemberSessionStatus } from '@/features/member/use-member-session.ts'
+import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { useSpaceProfiles } from '@/features/member/use-space-profiles.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -149,7 +148,6 @@ function OwnerSections({
 }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const session = useMemberSessionStatus()
   const profiles = useSpaceProfiles()
   const changeRole = useChangeSpaceMemberRole()
@@ -511,10 +509,9 @@ function OwnerSections({
                         setConfirmDisconnect(false)
                         toast(t('space.card.disconnectedToast'))
                         if (isSelf) {
-                          // The owner disconnected themselves: this device's
-                          // session just died, so the member's local data
-                          // goes with it, exactly like a sign-out.
-                          forgetMember(queryClient, memberId)
+                          // The owner disconnected themselves: the registry
+                          // cleanup already ran (the hook owns it), and this
+                          // device goes to the code screen.
                           void navigate({ to: '/' })
                         }
                       },
@@ -566,7 +563,13 @@ function OwnerSections({
                         setConfirmRevoke(false)
                         toast(t('space.card.revokedToast'))
                       },
-                      onError: (error) => toast(spaceSettingsErrorMessage(error, t), 'danger'),
+                      onError: (error) => {
+                        // A refusal (the code was redeemed meanwhile) is
+                        // answered behind the refreshed row, not inside a
+                        // dialog offering a spent action.
+                        setConfirmRevoke(false)
+                        toast(spaceSettingsErrorMessage(error, t), 'danger')
+                      },
                     },
                   )
                 }

@@ -240,10 +240,25 @@ describe('MemberCardScreen', () => {
 
   it('signs the device out when the owner disconnects their own devices', async () => {
     const user = userEvent.setup()
-    apiDelete.mockResolvedValue({
-      data: null,
-      error: undefined,
-      response: new Response(null, { status: 204 }),
+    // Every refetch after the disconnect answers 401 for the dead session;
+    // the cleanup must not depend on the screen staying mounted.
+    let dead = false
+    const gone = {
+      data: undefined,
+      error: { error: { code: 'unauthorized', message: 'gone' } },
+      response: new Response(null, { status: 401 }),
+    }
+    apiDelete.mockImplementation(async () => {
+      dead = true
+      return { data: null, error: undefined, response: new Response(null, { status: 204 }) }
+    })
+    apiGet.mockImplementation(async (path: never) => {
+      if (dead) return gone
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return okBody(PROFILES)
+      if (path === '/api/v1/members/{memberId}/access-code') return okBody(CODE)
+      if (path === '/api/v1/members/{memberId}/sessions') return okBody(DEVICES)
+      throw new Error(`Unexpected GET ${String(path)}`)
     })
     // The card under review is the acting owner's own.
     renderWithProviders(<MemberCardScreen memberId={OWNER_ID} />)
@@ -252,16 +267,18 @@ describe('MemberCardScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Отключить всё' }))
     await user.click(await screen.findByRole('button', { name: 'Отключить' }))
 
-    // The member's local sign-in is forgotten, like a sign-out.
+    // The member's local sign-in is forgotten, like a sign-out, even though
+    // every query the invalidation triggers now answers 401.
     await vi.waitFor(() => {
       const retained = JSON.parse(window.localStorage.getItem('ohana.sessions') ?? '[]')
       expect(retained).toHaveLength(0)
     })
   })
 
-  it('refreshes the session probe after the member changes their own role', async () => {
+  it('follows the member to the read-only view after they demote themselves', async () => {
     const user = userEvent.setup()
-    // Two owners, so the acting owner may demote themselves.
+    // Two owners, so the acting owner may demote themselves; after the
+    // change the server answers as the regular member they now are.
     const twoOwners = [
       ...PROFILES,
       {
@@ -271,14 +288,37 @@ describe('MemberCardScreen', () => {
         createdAt: '2026-08-14T10:00:00.000Z',
       },
     ]
+    let demoted = false
+    const regularMe = { ...OWNER_ME, member: { ...OWNER_ME.member, role: 'regular' as const } }
     apiGet.mockImplementation(async (path: never) => {
-      if (path === '/api/v1/me') return okBody(OWNER_ME)
-      if (path === '/api/v1/members') return okBody(twoOwners)
-      if (path === '/api/v1/members/{memberId}/access-code') return okBody(CODE)
-      if (path === '/api/v1/members/{memberId}/sessions') return okBody([])
+      if (path === '/api/v1/me') return okBody(demoted ? regularMe : OWNER_ME)
+      if (path === '/api/v1/members') {
+        return okBody(
+          demoted
+            ? twoOwners.map((member) =>
+                member.id === OWNER_ID ? { ...member, role: 'regular' as const } : member,
+              )
+            : twoOwners,
+        )
+      }
+      if (path === '/api/v1/members/{memberId}/access-code') {
+        if (demoted) return unauthorized()
+        return okBody(CODE)
+      }
+      if (path === '/api/v1/members/{memberId}/sessions') {
+        if (demoted) return unauthorized()
+        return okBody([])
+      }
       throw new Error(`Unexpected GET ${String(path)}`)
     })
-    apiPatchMock()
+    apiPatch.mockImplementation(async () => {
+      demoted = true
+      return {
+        data: { ...PROFILES[0], role: 'regular' },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
+    })
     renderWithProviders(<MemberCardScreen memberId={OWNER_ID} />)
 
     const roleSelect = await screen.findByRole('combobox', { name: 'Права в пространстве' })
@@ -288,12 +328,25 @@ describe('MemberCardScreen', () => {
     })
     await user.click(within(dialog).getByRole('button', { name: 'Сделать обычным' }))
 
-    // The probe (/me) is refetched, so the demoted owner's instruments on
-    // screen follow the new role.
-    const meCalls = () => apiGet.mock.calls.filter((call) => call[0] === '/api/v1/me').length
-    await vi.waitFor(() => expect(meCalls()).toBeGreaterThanOrEqual(2))
+    // The refreshed probe carries the regular role: the owner instruments
+    // leave the screen, and the read-only pill is all that remains.
+    await vi.waitFor(() => {
+      expect(
+        screen.queryByRole('combobox', { name: 'Права в пространстве' }),
+      ).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: 'Выпустить код' })).not.toBeInTheDocument()
+    expect(screen.getByText('Обычный участник')).toBeInTheDocument()
   })
 })
+
+function unauthorized() {
+  return {
+    data: undefined,
+    error: { error: { code: 'owner_required', message: 'owners only' } },
+    response: new Response(null, { status: 403 }),
+  }
+}
 
 const apiPatch = vi.mocked(api.PATCH)
 

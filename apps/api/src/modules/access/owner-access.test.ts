@@ -8,6 +8,7 @@ import {
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
 import { ACCESS_CODE_ALPHABET, ACCESS_CODE_TTL_MS } from './index.ts'
+import { insertAccessCode } from './repository.ts'
 import { accessCodes, memberSessions } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -304,6 +305,70 @@ describe('GET /api/v1/members/:memberId/access-code (owner reads the code status
       })
       expect(response.statusCode).toBe(404)
       expect(response.json().error.code).toBe('member_not_found')
+    })
+  })
+
+  test('the live code is picked by status, not recency', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const { regular, ownerSession } = await arrangeOwnerAndRegular(app, space.id, adminCookie)
+
+      // Concurrent issuance can commit a replaced code with a newer creation
+      // time than the live one; the status is what picks the row. The loser
+      // of the race commits as terminal — the one-live-per-member index never
+      // holds two issued rows.
+      const now = harness.clock.now()
+      const live = await harness.db.transaction((tx) =>
+        insertAccessCode(tx, {
+          spaceId: space.id,
+          memberId: regular.id,
+          issuerMemberId: regular.id,
+          codeHash: 'hash-live',
+          now,
+          expiresAt: new Date(now.getTime() + ACCESS_CODE_TTL_MS),
+        }),
+      )
+      const replacedRows = await harness.db
+        .insert(accessCodes)
+        .values({
+          spaceId: space.id,
+          memberId: regular.id,
+          issuerMemberId: regular.id,
+          codeHash: 'hash-replaced',
+          status: 'replaced',
+          createdAt: now,
+          expiresAt: new Date(now.getTime() + ACCESS_CODE_TTL_MS),
+          statusChangedAt: now,
+        })
+        .returning()
+      const replaced = replacedRows[0]
+      if (replaced === undefined) throw new Error('Inserting an access code returned no row')
+
+      const read = await app.inject({
+        method: 'GET',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(read.statusCode).toBe(200)
+      expect(read.json().id).toBe(live.id)
+      expect(read.json().status).toBe('issued')
+
+      const revoked = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/members/${regular.id}/access-code`,
+        headers: memberHeaders(ownerSession),
+      })
+      expect(revoked.statusCode).toBe(200)
+      expect(revoked.json().id).toBe(live.id)
+
+      const rows = await harness.db
+        .select()
+        .from(accessCodes)
+        .where(eq(accessCodes.memberId, regular.id))
+      const statuses = new Map(rows.map((row) => [row.id, row.status]))
+      expect(statuses.get(live.id)).toBe('revoked')
+      expect(statuses.get(replaced.id)).toBe('replaced')
     })
   })
 })
