@@ -1,4 +1,10 @@
-export { MemberProfileDtoSchema, MeSchema, OnboardingBodySchema } from './contracts.ts'
+export {
+  type MemberProfileDto,
+  MemberProfileDtoSchema,
+  MeSchema,
+  OnboardingBodySchema,
+  toMemberProfileDto,
+} from './contracts.ts'
 export {
   adminCountMembersBySpace,
   changeMemberRole,
@@ -11,4 +17,5 @@ export {
   type MembersDeps,
   provisionMember,
 } from './service.ts'
+export { MEMBER_SYNC_ENTITY, membersSyncContributor } from './sync.ts'
 export type { Member } from './tables.ts'

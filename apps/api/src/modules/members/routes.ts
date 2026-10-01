@@ -16,12 +16,12 @@ import {
   type MemberDto,
   MemberDtoSchema,
   MemberParamsSchema,
-  type MemberProfileDto,
   MemberProfileDtoSchema,
   MeSchema,
   OnboardingBodySchema,
   ProvisionMemberBodySchema,
   SpaceIdParamsSchema,
+  toMemberProfileDto,
 } from './contracts.ts'
 import {
   changeMemberRole,
@@ -46,19 +46,6 @@ function toMemberDto(member: Member): MemberDto {
     revision: member.revision.toString(),
     createdAt: member.createdAt.toISOString(),
     updatedAt: member.updatedAt.toISOString(),
-  }
-}
-
-function toMemberProfileDto(member: Member): MemberProfileDto {
-  return {
-    id: member.id,
-    name: member.name,
-    displayName: member.displayName ?? undefined,
-    email: member.email ?? undefined,
-    phone: member.phone ?? undefined,
-    interfaceLanguage: member.interfaceLanguage ?? undefined,
-    role: member.role,
-    createdAt: member.createdAt.toISOString(),
   }
 }
 

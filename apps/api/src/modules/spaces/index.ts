@@ -1,4 +1,9 @@
 export {
+  type MemberSpaceDto,
+  MemberSpaceDtoSchema,
+  toMemberSpaceDto,
+} from './contracts.ts'
+export {
   SECTION_IDS,
   type SectionId,
   type SpaceSections,
@@ -14,4 +19,5 @@ export {
   requireVisibleSectionInTx,
   type SpacesDeps,
 } from './service.ts'
+export { spacesSyncContributor } from './sync.ts'
 export type { Space } from './tables.ts'

@@ -10,9 +10,15 @@ import {
   requireOwnerActor,
 } from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
-import { adminCountMembersBySpace, findMemberInSpace } from '../modules/members/index.ts'
+import {
+  adminCountMembersBySpace,
+  findMemberInSpace,
+  membersSyncContributor,
+} from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
+import { spacesSyncContributor } from '../modules/spaces/index.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
+import { syncRoutes } from '../modules/sync/index.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
@@ -80,6 +86,15 @@ export function buildApp(deps: AppDeps) {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
+  })
+  // The sync module merges the contributors of every module with
+  // synchronised data; spaces and members contribute today, the section
+  // modules join when their data lands (architecture.md, "Sync
+  // contributors").
+  app.register(syncRoutes, {
+    prefix: '/api/v1',
+    deps: accessDeps,
+    contributors: [spacesSyncContributor, membersSyncContributor],
   })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
   if (deps.webDist !== undefined) {

@@ -1,4 +1,6 @@
 import { type Static, Type } from '@sinclair/typebox'
+import { sectionVisibility } from './policy.ts'
+import type { Space } from './tables.ts'
 
 /** Any non-whitespace character somewhere in the value; whitespace-only names fail. */
 const nameSchema = Type.String({ minLength: 1, maxLength: 200, pattern: '\\S' })
@@ -95,6 +97,16 @@ export const MemberSpaceDtoSchema = Type.Object(
 )
 
 export type MemberSpaceDto = Static<typeof MemberSpaceDtoSchema>
+
+/** Projects the space row onto the shape members see (GET /space, the sync response). */
+export function toMemberSpaceDto(space: Space): MemberSpaceDto {
+  return {
+    id: space.id,
+    name: space.name,
+    timezone: space.timezone,
+    sections: sectionVisibility(space),
+  }
+}
 
 export const UpdateMemberSpaceBodySchema = Type.Object(
   {
