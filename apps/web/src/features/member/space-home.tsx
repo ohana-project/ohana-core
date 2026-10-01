@@ -2,9 +2,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
-import { useNavSections } from '@/features/member/use-nav-sections.ts'
+import { useNavSections, useSectionVisibility } from '@/features/member/use-nav-sections.ts'
 import { useSpaceProfiles } from '@/features/member/use-space-profiles.ts'
-import { useMemberSpace } from '@/features/space-settings/use-space-settings.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -45,10 +44,7 @@ export function SpaceHomeScreen() {
   const signOut = useMemberSignOut()
   const profiles = useSpaceProfiles()
   const sections = useNavSections()
-  const space = useMemberSpace()
-  // Undefined while the space settings load: show the columns, the same
-  // default the navigation uses.
-  const visible = space.data?.sections
+  const visibility = useSectionVisibility()
 
   if (session.me === undefined) return null
   const me = session.me
@@ -126,7 +122,7 @@ export function SpaceHomeScreen() {
           </h1>
         </header>
 
-        {visible?.journal !== false && (
+        {visibility.journal && (
           <section>
             <SectionHeader title={t('member.home.journalSection')} />
             <Card>
@@ -140,7 +136,7 @@ export function SpaceHomeScreen() {
           </section>
         )}
 
-        {visible?.calendar !== false && (
+        {visibility.calendar && (
           <section>
             <SectionHeader title={t('member.home.eventsSection')} />
             <Card>

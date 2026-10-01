@@ -13,7 +13,7 @@ import {
 import { administrators, adminSessions } from '../admin/tables.ts'
 import { findMemberInSpace } from '../members/index.ts'
 import { recordChanges } from '../sync/index.ts'
-import { sectionGate } from './policy.ts'
+import { sectionGate } from './routes.ts'
 import { spaces } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -143,7 +143,7 @@ function registerJournalStandIn(app: TestApp) {
     async (section) => {
       const scoped = section.withTypeProvider<TypeBoxTypeProvider>()
       scoped.addHook('onRequest', memberSessionGuard(accessDeps))
-      scoped.addHook('onRequest', sectionGate({ db: harness.db }, 'journal'))
+      scoped.addHook('onRequest', sectionGate({ db: harness.db, clock: harness.clock }, 'journal'))
 
       scoped.get('/journal', async (request) => {
         const actor = requireMemberActor(request)
@@ -270,6 +270,7 @@ describe('PATCH /api/v1/space (the owner toggles section visibility)', () => {
   test('showing the section again restores it and advances the revision again', async () => {
     const space = await harness.createSpace({ name: 'Наша семья' })
     const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const before = await spaceRevision(space.id)
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
       const session = await signInMember(
@@ -300,11 +301,14 @@ describe('PATCH /api/v1/space (the owner toggles section visibility)', () => {
         sections: { journal: true, calendar: true, wishlist: true },
       })
     })
+    // Two real changes, two revisions.
+    expect(await spaceRevision(space.id)).toBe(before + 2n)
   })
 
   test('a patch that changes no visibility spends no revision', async () => {
     const space = await harness.createSpace({ name: 'Наша семья' })
     const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const before = await spaceRevision(space.id)
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
       const session = await signInMember(
@@ -327,6 +331,38 @@ describe('PATCH /api/v1/space (the owner toggles section visibility)', () => {
       })
     })
     // The no-op answered from the stored row, like the time-zone no-op.
+    expect(await spaceRevision(space.id)).toBe(before)
+  })
+
+  test('an empty patch and an empty sections change fail validation', async () => {
+    const space = await harness.createSpace({ name: 'Наша семья' })
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const session = await signInMember(
+        app,
+        (await issueCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const headers = memberHeaders(session)
+
+      const empty = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/space',
+        headers,
+        payload: {},
+      })
+      expect(empty.statusCode).toBe(400)
+      expect(empty.json().error.code).toBe('validation_failed')
+
+      const noSection = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/space',
+        headers,
+        payload: { sections: {} },
+      })
+      expect(noSection.statusCode).toBe(400)
+      expect(noSection.json().error.code).toBe('validation_failed')
+    })
   })
 
   test('a regular member cannot toggle visibility', async () => {
@@ -381,6 +417,14 @@ describe('PATCH /api/v1/space (the owner toggles section visibility)', () => {
 })
 
 describe('the section gate (a stand-in journal route until the section modules arrive)', () => {
+  test('the route answers 401 before the gate without a member session', async () => {
+    await withJournalApp(async (app) => {
+      const read = await app.inject({ method: 'GET', url: '/api/v1/journal' })
+      expect(read.statusCode).toBe(401)
+      expect(read.json().error.code).toBe('unauthorized')
+    })
+  })
+
   test('reads and writes pass while the section is visible', async () => {
     const space = await harness.createSpace({ name: 'Наша семья' })
     const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })

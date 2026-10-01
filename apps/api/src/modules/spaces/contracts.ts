@@ -81,7 +81,7 @@ export const UpdateSpaceSectionsDtoSchema = Type.Object(
     calendar: Type.Optional(Type.Boolean()),
     wishlist: Type.Optional(Type.Boolean()),
   },
-  { additionalProperties: false },
+  { additionalProperties: false, minProperties: 1 },
 )
 
 export const MemberSpaceDtoSchema = Type.Object(
@@ -101,5 +101,5 @@ export const UpdateMemberSpaceBodySchema = Type.Object(
     timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     sections: Type.Optional(UpdateSpaceSectionsDtoSchema),
   },
-  { additionalProperties: false },
+  { additionalProperties: false, minProperties: 1 },
 )

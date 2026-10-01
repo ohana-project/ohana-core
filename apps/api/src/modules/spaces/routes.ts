@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { DomainError } from '../../platform/errors.ts'
 import { AdminMarkerHeadersSchema, adminMarkerGuard, adminSessionGuard } from '../admin/index.ts'
 import {
   CreateSpaceBodySchema,
@@ -15,17 +16,35 @@ import {
   UpdateMemberSpaceBodySchema,
   UpdateSpaceBodySchema,
 } from './contracts.ts'
-import { sectionVisibility } from './policy.ts'
+import { type SectionId, sectionVisibility } from './policy.ts'
 import {
   createSpace,
   getSpace,
   listSpaces,
+  requireVisibleSection,
   type SpaceMemberCounter,
   type SpacesDeps,
   type SpaceWithMemberCount,
   updateSpace,
 } from './service.ts'
 import type { Space } from './tables.ts'
+
+/**
+ * The one gate every section route mounts for its reads and writes
+ * (ADR-0011): after the member session guard has attached the actor, the
+ * gate asks the spaces service whether the actor's space shows the
+ * section. The journal, calendar, and wishlist modules mount it; a
+ * section route never rolls its own check.
+ */
+export function sectionGate(deps: SpacesDeps, section: SectionId) {
+  return async (request: FastifyRequest): Promise<void> => {
+    const actor = request.actor
+    if (actor === undefined || actor.kind !== 'member') {
+      throw new DomainError('unauthorized', 'A member session is required', 401)
+    }
+    await requireVisibleSection(deps, actor.spaceId, section)
+  }
+}
 
 function toSpaceDto(space: Space): SpaceDto {
   return {

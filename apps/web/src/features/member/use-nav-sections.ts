@@ -7,7 +7,7 @@ import type { ShellSection } from '@/ui/shell.ts'
  * the space's visible sections. A section an owner has hidden (issue #13,
  * ADR-0011) disappears for every member. The space settings are online-only
  * data until the sync engine arrives (issue #14), so while they are loading
- * or unreachable the navigation shows every section rather than none.
+ * or unreachable every section counts as visible — one rule, resolved here.
  */
 
 const NAV_SECTIONS = [
@@ -16,14 +16,21 @@ const NAV_SECTIONS = [
   { id: 'wishlist', labelKey: 'nav.wishlist', icon: 'gift' },
 ] as const
 
+const ALL_SECTIONS_VISIBLE = { journal: true, calendar: true, wishlist: true } as const
+
+/** The space's section visibility, with unknown treated as visible. */
+export function useSectionVisibility() {
+  const space = useMemberSpace()
+  return space.data?.sections ?? ALL_SECTIONS_VISIBLE
+}
+
 export function useNavSections(): ShellSection[] {
   const { t } = useTranslation()
-  const space = useMemberSpace()
-  const visibility = space.data?.sections
+  const visibility = useSectionVisibility()
 
   const sections: ShellSection[] = [{ id: 'home', label: t('nav.home'), icon: 'home' }]
   for (const section of NAV_SECTIONS) {
-    if (visibility === undefined || visibility[section.id]) {
+    if (visibility[section.id]) {
       sections.push({ id: section.id, label: t(section.labelKey), icon: section.icon })
     }
   }

@@ -127,10 +127,11 @@ export function SpaceSettingsScreen() {
           toast(
             next ? t('space.settings.sectionShownToast') : t('space.settings.sectionHiddenToast'),
           ),
-        onError: (error) => {
-          setSections(undefined)
-          toast(spaceSettingsErrorMessage(error, t), 'danger')
-        },
+        onError: (error) => toast(spaceSettingsErrorMessage(error, t), 'danger'),
+        // The attempted state hands control back once the mutation has
+        // settled: the hook-level invalidation refetched first, so the
+        // server's answer is what the switches show either way.
+        onSettled: () => setSections(undefined),
       },
     )
   }

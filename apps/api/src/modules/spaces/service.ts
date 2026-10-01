@@ -1,7 +1,13 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import { SECTION_IDS, type SectionId, type SpaceSections, sectionVisibility } from './policy.ts'
+import {
+  assertSectionVisible,
+  SECTION_IDS,
+  type SectionId,
+  type SpaceSections,
+  sectionVisibility,
+} from './policy.ts'
 import {
   getSpaceById,
   getSpaceForUpdate,
@@ -157,4 +163,20 @@ export async function updateSpace(
 
 export async function advanceSpaceRevision(tx: Tx, spaceId: string, now: Date): Promise<bigint> {
   return incrementSpaceRevision(tx, spaceId, now)
+}
+
+/**
+ * The visibility check every section read and write goes through: the
+ * actor's space must show the section. The section gate (routes.ts) calls
+ * it for HTTP requests; the section modules' use cases and sync
+ * contributors call it on the rows they are about to touch or return.
+ */
+export async function requireVisibleSection(
+  deps: SpacesDeps,
+  spaceId: string,
+  section: SectionId,
+): Promise<Space> {
+  const space = await getSpaceOrThrow(deps.db, spaceId)
+  assertSectionVisible(space, section)
+  return space
 }

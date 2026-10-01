@@ -540,6 +540,7 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
+                "minProperties": 1,
                 "type": "object",
                 "properties": {
                   "timezone": {
@@ -549,6 +550,7 @@
                   },
                   "sections": {
                     "additionalProperties": false,
+                    "minProperties": 1,
                     "type": "object",
                     "properties": {
                       "journal": {

@@ -1,18 +1,18 @@
 export {
   assertSectionVisible,
   SECTION_IDS,
-  type SectionGateDeps,
   type SectionId,
   type SpaceSections,
-  sectionGate,
   sectionVisibility,
 } from './policy.ts'
+export { sectionGate } from './routes.ts'
 export {
   advanceSpaceRevision,
   createSpace,
   getSpace,
   getSpaceInTx,
   lockSpace,
+  requireVisibleSection,
   type SpacesDeps,
 } from './service.ts'
 export type { Space } from './tables.ts'
