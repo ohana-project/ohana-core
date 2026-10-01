@@ -63,6 +63,27 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        /*
+         * The photo derivatives are the one API response the worker caches
+         * (issue #17, ADR-0002): the feed and viewer images a member has
+         * seen are kept for offline reading, keyed by their immutable ids.
+         * The original is deliberately absent from the pattern — it is
+         * never cached and never fetched in bulk; the API responses proper
+         * stay out of the cache, offline data comes only from the local
+         * store.
+         */
+        runtimeCaching: [
+          {
+            urlPattern:
+              /\/api\/v1\/journal\/entries\/[0-9a-f-]+\/images\/[0-9a-f-]+\/variants\/(feed|full)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'journal-photos',
+              expiration: { maxEntries: 600, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
       // The worker exists only in real builds: development keeps HMR, and
       // the Playwright dev-server harness stays free of a caching

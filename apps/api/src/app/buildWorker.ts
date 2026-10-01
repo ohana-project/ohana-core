@@ -9,14 +9,23 @@ import {
   purgeDueTrashedEntries,
   purgeTrashedEntry,
 } from '../modules/journal/index.ts'
+import {
+  generateEntryImageDerivatives,
+  MEDIA_DERIVATIVES_JOB,
+  type MediaDerivativesJobData,
+  type MediaJobsDeps,
+} from '../modules/media/index.ts'
 import type { Db } from '../platform/db/index.ts'
 import { ensureQueues } from '../platform/jobs/pgboss.ts'
 import type { Logger } from '../platform/logging.ts'
+import type { ObjectStorage } from '../platform/storage/index.ts'
 
 export interface WorkerDeps {
   db: Db
   clock: JournalJobsDeps['clock']
   logger: Logger
+  /** The photos' storage: the derivatives land there, the purges clean up there. */
+  storage: ObjectStorage
   /**
    * The pg-boss instance the worker claims jobs through — started by the
    * entrypoint from configuration, handed in explicitly like every other
@@ -39,13 +48,21 @@ export interface Worker {
  * nowhere to land.
  */
 export function buildWorker(deps: WorkerDeps): Worker {
-  const jobDeps: JournalJobsDeps = { db: deps.db, clock: deps.clock }
+  const jobDeps: JournalJobsDeps = { db: deps.db, clock: deps.clock, storage: deps.storage }
+  const mediaJobDeps: MediaJobsDeps = { db: deps.db, clock: deps.clock, storage: deps.storage }
   return {
     async start() {
       await deps.db.execute(sql`select 1`)
-      await ensureQueues(deps.boss, [JOURNAL_PURGE_JOB, JOURNAL_PURGE_SWEEP_JOB])
+      await ensureQueues(deps.boss, [
+        JOURNAL_PURGE_JOB,
+        JOURNAL_PURGE_SWEEP_JOB,
+        MEDIA_DERIVATIVES_JOB,
+      ])
       await deps.boss.work<JournalPurgeJobData>(JOURNAL_PURGE_JOB, async (jobs) => {
         for (const job of jobs) await purgeTrashedEntry(jobDeps, job.data)
+      })
+      await deps.boss.work<MediaDerivativesJobData>(MEDIA_DERIVATIVES_JOB, async (jobs) => {
+        for (const job of jobs) await generateEntryImageDerivatives(mediaJobDeps, job.data)
       })
       await deps.boss.work(JOURNAL_PURGE_SWEEP_JOB, async () => {
         await purgeDueTrashedEntries(jobDeps)

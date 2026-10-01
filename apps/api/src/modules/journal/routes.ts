@@ -1,17 +1,31 @@
+import multipart from '@fastify/multipart'
 import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
+import { DomainError } from '../../platform/errors.ts'
 import {
   type AccessDeps,
   MemberHeadersSchema,
   memberSessionGuard,
   requireMemberActor,
 } from '../access/index.ts'
+import {
+  deleteEntryImage,
+  EntryImageDtoSchema,
+  type ImageAccessRule,
+  type ImageAccessTxRule,
+  type MediaDeps,
+  readEntryImage,
+  toImageDto,
+  uploadEntryImage,
+} from '../media/index.ts'
 import { sectionGate } from '../spaces/index.ts'
 import {
   CreateEntryBodySchema,
   EntryIdParamsSchema,
   FeedQuerySchema,
+  ImageIdParamsSchema,
+  ImageVariantParamsSchema,
   JournalEntryDtoSchema,
   JournalFeedDtoSchema,
   TrashedEntryDtoSchema,
@@ -38,6 +52,19 @@ export interface JournalRoutesOptions {
   deps: JournalDeps
   /** The access module's deps, for the member session guard it publishes. */
   access: AccessDeps
+  /**
+   * The media module's photo engine (issue #17) and the upload limit, plus
+   * the journal's own visibility rules wired in as the photo access checks:
+   * a photo's permissions are its entry's, and the media module never
+   * imports upward to learn them.
+   */
+  media: {
+    deps: MediaDeps
+    maxUploadBytes: number
+    imageViewable: ImageAccessRule
+    imageEditable: ImageAccessRule
+    imageEditableInTx: ImageAccessTxRule
+  }
 }
 
 /**
@@ -47,10 +74,18 @@ export interface JournalRoutesOptions {
  * use cases recheck visibility inside their transactions.
  */
 export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = async (app, opts) => {
-  await app.register((memberArea: FastifyInstance) => {
+  await app.register(async (memberArea: FastifyInstance) => {
     const scoped = memberArea.withTypeProvider<TypeBoxTypeProvider>()
     scoped.addHook('onRequest', memberSessionGuard(opts.access))
     scoped.addHook('onRequest', sectionGate({ db: opts.deps.db }, 'journal'))
+    // The photo uploads are the one multipart surface (issue #17); the
+    // parser is registered on this scope alone. The file size is left
+    // uncapped here on purpose: busboy's own cap would silently truncate a
+    // larger photo and store the crop — the configured limit is enforced
+    // once, in the service, where the stream is counted and refused whole.
+    await scoped.register(multipart, {
+      limits: { files: 1, fileSize: Number.POSITIVE_INFINITY },
+    })
 
     // The shared feed of published entries (issue #15): keyset-paginated,
     // newest first, with the author named on every row.
@@ -203,6 +238,97 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
       async (request) => {
         const actor: JournalActor = requireMemberActor(request)
         return toEntryDto(await restoreTrashedEntry(opts.deps, actor, request.params.entryId))
+      },
+    )
+
+    /*
+     * The photos (issue #17). The upload streams through the API into
+     * storage behind the authorship check; the original's bytes are served
+     * and kept exactly as they arrived (ADR-0008), and only the worker's
+     * derivatives — never the original — are meant for caches and feeds.
+     */
+    scoped.post(
+      '/journal/entries/:entryId/images',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: EntryIdParamsSchema,
+          response: { 201: EntryImageDtoSchema },
+        },
+      },
+      async (request, reply) => {
+        const actor: JournalActor = requireMemberActor(request)
+        const file = await request.file()
+        if (file === undefined) {
+          throw new DomainError(
+            'image_required',
+            'The upload must carry one photo in a "file" field',
+            400,
+          )
+        }
+        const image = await uploadEntryImage(
+          opts.media.deps,
+          actor,
+          request.params.entryId,
+          { stream: file.file, contentType: file.mimetype },
+          {
+            authorize: opts.media.imageEditable,
+            authorizeInTx: opts.media.imageEditableInTx,
+            maxBytes: opts.media.maxUploadBytes,
+          },
+        )
+        return reply.code(201).send(toImageDto(image))
+      },
+    )
+
+    scoped.get(
+      '/journal/entries/:entryId/images/:imageId/variants/:variant',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: ImageVariantParamsSchema,
+          // The answer is the photo's bytes, streamed from storage — no
+          // JSON schema stands between (binary responses are the one
+          // exception to the serialisation rule).
+        },
+      },
+      async (request, reply) => {
+        const actor: JournalActor = requireMemberActor(request)
+        const stored = await readEntryImage(
+          opts.media.deps,
+          actor,
+          request.params.entryId,
+          request.params.imageId,
+          request.params.variant,
+          { authorize: opts.media.imageViewable },
+        )
+        return reply
+          .header('content-type', stored.contentType)
+          .header('content-length', stored.size)
+          .send(stored.stream)
+      },
+    )
+
+    scoped.delete(
+      '/journal/entries/:entryId/images/:imageId',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: ImageIdParamsSchema,
+        },
+      },
+      async (request, reply) => {
+        const actor: JournalActor = requireMemberActor(request)
+        await deleteEntryImage(
+          opts.media.deps,
+          actor,
+          request.params.entryId,
+          request.params.imageId,
+          {
+            authorizeInTx: opts.media.imageEditableInTx,
+          },
+        )
+        return reply.code(204).send()
       },
     )
   })

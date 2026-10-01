@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { StoredJournalEntry, SyncResult } from './local-store.ts'
+import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from './local-store.ts'
 import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-store.ts'
 
 /*
@@ -14,7 +14,9 @@ import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-s
 const ANYA = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 
-function entry(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
+function entry(
+  overrides?: Partial<StoredJournalEntry>,
+): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ANYA,
@@ -22,6 +24,7 @@ function entry(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
     text: 'Собрались за час: бутерброды, термос, плед и Бублик.',
     state: 'published',
     publishedAt: '2026-09-21T14:00:00.000Z',
+    images: [],
     createdAt: '2026-09-21T12:00:00.000Z',
     updatedAt: '2026-09-21T14:00:00.000Z',
     ...overrides,

@@ -190,6 +190,11 @@ type JournalErrorKey =
   | 'journal.errors.entry_not_trashed'
   | 'journal.errors.entry_purge_due'
   | 'journal.errors.section_hidden'
+  | 'journal.errors.image_too_large'
+  | 'journal.errors.unsupported_image_type'
+  | 'journal.errors.image_limit_reached'
+  | 'journal.errors.image_not_found'
+  | 'journal.errors.image_not_ready'
   | 'journal.errors.validation_failed'
   | 'journal.errors.unexpected'
 
@@ -202,6 +207,11 @@ const journalErrorKeys: Partial<Record<string, JournalErrorKey>> = {
   entry_not_trashed: 'journal.errors.entry_not_trashed',
   entry_purge_due: 'journal.errors.entry_purge_due',
   section_hidden: 'journal.errors.section_hidden',
+  image_too_large: 'journal.errors.image_too_large',
+  unsupported_image_type: 'journal.errors.unsupported_image_type',
+  image_limit_reached: 'journal.errors.image_limit_reached',
+  image_not_found: 'journal.errors.image_not_found',
+  image_not_ready: 'journal.errors.image_not_ready',
   validation_failed: 'journal.errors.validation_failed',
 }
 

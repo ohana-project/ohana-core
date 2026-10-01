@@ -6,6 +6,10 @@ const frameworkErrorCodes: Record<string, string> = {
   FST_ERR_CTP_INVALID_JSON_BODY: 'invalid_json',
   FST_ERR_CTP_EMPTY_JSON_BODY: 'empty_body',
   FST_ERR_CTP_BODY_TOO_LARGE: 'payload_too_large',
+  // The multipart parser's own refusal when one file crosses the upload
+  // limit (issue #17) — the streaming counter's `image_too_large` names
+  // the same condition when it sees it first.
+  FST_PART_FILE_TOO_LARGE: 'payload_too_large',
   FST_ERR_CTP_INVALID_MEDIA_TYPE: 'unsupported_media_type',
 }
 

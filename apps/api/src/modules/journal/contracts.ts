@@ -1,15 +1,18 @@
 import { type Static, Type } from '@sinclair/typebox'
+import { type EntryImage, EntryImageDtoSchema, toImageDto } from '../media/index.ts'
 import type { JournalEntry } from './tables.ts'
 
 /*
- * The journal contracts (issues #15 and #16). An entry is a text record
- * with an optional title; photos arrive with their own ticket. The DTO
- * names the author by id only: the space's profiles travel on their own
- * sync entity, so the client attributes entries from the member store it
- * already holds and never keeps a stale name inside an entry. A trashed
- * entry travels on its own contract — the trash view's — because it has
- * left every ordinary view (policy.ts); the tombstones its removal wrote
- * carry it to the devices that saw it before.
+ * The journal contracts (issues #15, #16, and #17). The DTO names the
+ * author by id only: the space's profiles travel on their own sync entity,
+ * so the client attributes entries from the member store it already holds
+ * and never keeps a stale name inside an entry. A trashed entry travels on
+ * its own contract — the trash view's — because it has left every ordinary
+ * view (policy.ts); the tombstones its removal wrote carry it to the
+ * devices that saw it before. The photos ride inside the entry (issue #17):
+ * the entry's own visibility governs who sees them, so a photo needs no
+ * sync entity or tombstone of its own — when the entry changes, its whole
+ * self, photos included, is delivered again.
  */
 
 export const ENTRY_TITLE_MAX_LENGTH = 200
@@ -42,6 +45,23 @@ export const EntryIdParamsSchema = Type.Object({
   entryId: Type.String({ format: 'uuid' }),
 })
 
+/** One photo of one entry (issue #17). */
+export const ImageIdParamsSchema = Type.Object({
+  entryId: Type.String({ format: 'uuid' }),
+  imageId: Type.String({ format: 'uuid' }),
+})
+
+/**
+ * The variants a photo is served in: `feed` for the lists, `full` for the
+ * viewer — both worker-made, metadata-free WebP — and `original`, the
+ * uploaded bytes untouched (ADR-0008), served only on an explicit open.
+ */
+export const ImageVariantParamsSchema = Type.Object({
+  entryId: Type.String({ format: 'uuid' }),
+  imageId: Type.String({ format: 'uuid' }),
+  variant: Type.Union([Type.Literal('feed'), Type.Literal('full'), Type.Literal('original')]),
+})
+
 export const JournalEntryDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
@@ -50,6 +70,9 @@ export const JournalEntryDtoSchema = Type.Object(
     text: Type.String(),
     state: EntryStateSchema,
     publishedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    // The entry's photos (issue #17), oldest first. The bytes are never
+    // here — the client streams them through the journal's media routes.
+    images: Type.Array(EntryImageDtoSchema),
     createdAt: Type.String({ format: 'date-time' }),
     updatedAt: Type.String({ format: 'date-time' }),
   },
@@ -59,12 +82,18 @@ export const JournalEntryDtoSchema = Type.Object(
 export type JournalEntryDto = Static<typeof JournalEntryDtoSchema>
 
 /**
+ * An entry row with its photos attached — what every ordinary read
+ * delivers, so the wire contract never shows a half-listed entry.
+ */
+export type JournalEntryWithImages = JournalEntry & { images: EntryImage[] }
+
+/**
  * Projects the entry row onto the wire shape the reads and sync share.
  * The ordinary reads and sync never deliver a trashed row (policy.ts); a
  * trashed row arriving here is a programming error, and refusing loudly
  * keeps the wire contract honest.
  */
-export function toEntryDto(entry: JournalEntry): JournalEntryDto {
+export function toEntryDto(entry: JournalEntryWithImages): JournalEntryDto {
   if (entry.state === 'trashed') {
     throw new Error('A trashed entry has no ordinary entry DTO; it travels on the trash view')
   }
@@ -75,6 +104,7 @@ export function toEntryDto(entry: JournalEntry): JournalEntryDto {
     text: entry.text,
     state: entry.state,
     publishedAt: entry.publishedAt?.toISOString(),
+    images: entry.images.map(toImageDto),
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
   }

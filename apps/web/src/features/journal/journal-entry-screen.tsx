@@ -34,6 +34,7 @@ import {
   entryMoment,
   entryTimestamp,
 } from './journal-entries.ts'
+import { EntryPhotoGallery } from './journal-photos.tsx'
 import { JournalShell } from './journal-shell.tsx'
 import { journalErrorMessage, useJournalData, useTrashEntry } from './use-journal.ts'
 
@@ -127,6 +128,11 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
                 </span>
               </div>
               {entry.state === 'draft' && <Badge variant="warn">{t('journal.draftBadge')}</Badge>}
+              {(entry.images?.length ?? 0) > 0 && (
+                <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
+                  {t('journal.photosPill', { count: entry.images?.length ?? 0 })}
+                </span>
+              )}
               {mine && (
                 <Button
                   variant="secondary"
@@ -174,6 +180,11 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
               </p>
             ))}
           </div>
+
+          {/* The entry's gallery (docs/design/screens/diary-entry.html): the
+              worker's previews in the grid, the lightbox on the viewer
+              derivative that upgrades to the original (issue #17). */}
+          <EntryPhotoGallery entry={entry} />
         </article>
       )}
 

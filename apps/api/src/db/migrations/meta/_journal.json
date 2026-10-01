@@ -71,6 +71,13 @@
       "when": 1790883792711,
       "tag": "0009_misty_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790893009933,
+      "tag": "0010_slimy_blizzard",
+      "breakpoints": true
     }
   ]
 }

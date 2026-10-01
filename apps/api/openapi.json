@@ -1628,6 +1628,7 @@
                           "authorId",
                           "text",
                           "state",
+                          "images",
                           "createdAt",
                           "updatedAt"
                         ],
@@ -1665,6 +1666,53 @@
                           "publishedAt": {
                             "format": "date-time",
                             "type": "string"
+                          },
+                          "images": {
+                            "type": "array",
+                            "items": {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "state"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "processing"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "ready"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "failed"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "width": {
+                                  "minimum": 1,
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "minimum": 1,
+                                  "type": "integer"
+                                }
+                              }
+                            }
                           },
                           "createdAt": {
                             "format": "date-time",
@@ -1716,6 +1764,7 @@
                       "authorId",
                       "text",
                       "state",
+                      "images",
                       "createdAt",
                       "updatedAt"
                     ],
@@ -1753,6 +1802,53 @@
                       "publishedAt": {
                         "format": "date-time",
                         "type": "string"
+                      },
+                      "images": {
+                        "type": "array",
+                        "items": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "state"
+                          ],
+                          "properties": {
+                            "id": {
+                              "format": "uuid",
+                              "type": "string"
+                            },
+                            "state": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "processing"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ready"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "failed"
+                                  ]
+                                }
+                              ]
+                            },
+                            "width": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "height": {
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          }
+                        }
                       },
                       "createdAt": {
                         "format": "date-time",
@@ -1922,6 +2018,7 @@
                     "authorId",
                     "text",
                     "state",
+                    "images",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -1959,6 +2056,53 @@
                     "publishedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "state"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "processing"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ready"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "width": {
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "height": {
+                            "minimum": 1,
+                            "type": "integer"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -2011,6 +2155,7 @@
                     "authorId",
                     "text",
                     "state",
+                    "images",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -2048,6 +2193,53 @@
                     "publishedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "state"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "processing"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ready"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "width": {
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "height": {
+                            "minimum": 1,
+                            "type": "integer"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -2125,6 +2317,7 @@
                     "authorId",
                     "text",
                     "state",
+                    "images",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -2162,6 +2355,53 @@
                     "publishedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "state"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "processing"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ready"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "width": {
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "height": {
+                            "minimum": 1,
+                            "type": "integer"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -2214,6 +2454,7 @@
                     "authorId",
                     "text",
                     "state",
+                    "images",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -2251,6 +2492,53 @@
                     "publishedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "state"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "processing"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ready"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "width": {
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "height": {
+                            "minimum": 1,
+                            "type": "integer"
+                          }
+                        }
+                      }
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -2398,6 +2686,7 @@
                     "authorId",
                     "text",
                     "state",
+                    "images",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -2436,6 +2725,53 @@
                       "format": "date-time",
                       "type": "string"
                     },
+                    "images": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "state"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "processing"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ready"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "width": {
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "height": {
+                            "minimum": 1,
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string"
@@ -2448,6 +2784,186 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/journal/entries/{entryId}/images": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "entryId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "state"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "state": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "processing"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ready"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "failed"
+                          ]
+                        }
+                      ]
+                    },
+                    "width": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "height": {
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/journal/entries/{entryId}/images/{imageId}/variants/{variant}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "entryId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "imageId",
+            "required": true
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "feed"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "full"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "original"
+                  ]
+                }
+              ]
+            },
+            "in": "path",
+            "name": "variant",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/journal/entries/{entryId}/images/{imageId}": {
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "entryId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "imageId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
           }
         }
       }
@@ -3765,6 +4281,7 @@
                                   "authorId",
                                   "text",
                                   "state",
+                                  "images",
                                   "createdAt",
                                   "updatedAt"
                                 ],
@@ -3802,6 +4319,53 @@
                                   "publishedAt": {
                                     "format": "date-time",
                                     "type": "string"
+                                  },
+                                  "images": {
+                                    "type": "array",
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "state"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "format": "uuid",
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "processing"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "ready"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "failed"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "width": {
+                                          "minimum": 1,
+                                          "type": "integer"
+                                        },
+                                        "height": {
+                                          "minimum": 1,
+                                          "type": "integer"
+                                        }
+                                      }
+                                    }
                                   },
                                   "createdAt": {
                                     "format": "date-time",

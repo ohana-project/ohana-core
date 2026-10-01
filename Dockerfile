@@ -22,6 +22,11 @@ RUN pnpm --filter @ohana/api deploy --prod --legacy /app
 
 FROM node:24-alpine
 ENV NODE_ENV=production
+# The worker decodes HEIC photos (issue #17, ADR-0008): sharp's prebuilt
+# libvips carries no HEVC decoder, so the image provides libheif's
+# `heif-dec`. The release smoke verifies the decode on amd64 and arm64
+# before any image is published.
+RUN apk add --no-cache libheif-tools
 WORKDIR /app
 COPY --from=build --chown=node:node /app /app
 COPY --from=build --chown=node:node /repo/apps/web/dist /app/web

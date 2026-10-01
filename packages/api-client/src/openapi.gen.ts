@@ -878,6 +878,13 @@ export interface paths {
                                 state: "draft" | "published";
                                 /** Format: date-time */
                                 publishedAt?: string;
+                                images: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    state: "processing" | "ready" | "failed";
+                                    width?: number;
+                                    height?: number;
+                                }[];
                                 /** Format: date-time */
                                 createdAt: string;
                                 /** Format: date-time */
@@ -931,6 +938,13 @@ export interface paths {
                             state: "draft" | "published";
                             /** Format: date-time */
                             publishedAt?: string;
+                            images: {
+                                /** Format: uuid */
+                                id: string;
+                                state: "processing" | "ready" | "failed";
+                                width?: number;
+                                height?: number;
+                            }[];
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -1046,6 +1060,13 @@ export interface paths {
                             state: "draft" | "published";
                             /** Format: date-time */
                             publishedAt?: string;
+                            images: {
+                                /** Format: uuid */
+                                id: string;
+                                state: "processing" | "ready" | "failed";
+                                width?: number;
+                                height?: number;
+                            }[];
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -1097,6 +1118,13 @@ export interface paths {
                             state: "draft" | "published";
                             /** Format: date-time */
                             publishedAt?: string;
+                            images: {
+                                /** Format: uuid */
+                                id: string;
+                                state: "processing" | "ready" | "failed";
+                                width?: number;
+                                height?: number;
+                            }[];
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -1142,6 +1170,13 @@ export interface paths {
                             state: "draft" | "published";
                             /** Format: date-time */
                             publishedAt?: string;
+                            images: {
+                                /** Format: uuid */
+                                id: string;
+                                state: "processing" | "ready" | "failed";
+                                width?: number;
+                                height?: number;
+                            }[];
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -1196,6 +1231,13 @@ export interface paths {
                             state: "draft" | "published";
                             /** Format: date-time */
                             publishedAt?: string;
+                            images: {
+                                /** Format: uuid */
+                                id: string;
+                                state: "processing" | "ready" | "failed";
+                                width?: number;
+                                height?: number;
+                            }[];
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -1304,6 +1346,13 @@ export interface paths {
                             state: "draft" | "published";
                             /** Format: date-time */
                             publishedAt?: string;
+                            images: {
+                                /** Format: uuid */
+                                id: string;
+                                state: "processing" | "ready" | "failed";
+                                width?: number;
+                                height?: number;
+                            }[];
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -1314,6 +1363,128 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/journal/entries/{entryId}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    entryId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            state: "processing" | "ready" | "failed";
+                            width?: number;
+                            height?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/journal/entries/{entryId}/images/{imageId}/variants/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    entryId: string;
+                    imageId: string;
+                    variant: "feed" | "full" | "original";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/journal/entries/{entryId}/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    entryId: string;
+                    imageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -1822,6 +1993,13 @@ export interface paths {
                                     state: "draft" | "published";
                                     /** Format: date-time */
                                     publishedAt?: string;
+                                    images: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        state: "processing" | "ready" | "failed";
+                                        width?: number;
+                                        height?: number;
+                                    }[];
                                     /** Format: date-time */
                                     createdAt: string;
                                     /** Format: date-time */

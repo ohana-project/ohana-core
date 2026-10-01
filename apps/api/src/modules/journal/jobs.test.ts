@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
 import {
@@ -7,6 +8,8 @@ import {
 } from '../../testing/harness.ts'
 import { updateSettings } from '../admin/index.ts'
 import { instanceSettings } from '../admin/tables.ts'
+import { IMAGE_OBJECT_KIND, imageObjectKey } from '../media/keys.ts'
+import { uploadEntryImage } from '../media/service.ts'
 import { getSpace } from '../spaces/index.ts'
 import { syncTombstones } from '../sync/tables.ts'
 import { purgeDueTrashedEntries, purgeTrashedEntry } from './jobs.ts'
@@ -39,7 +42,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  */
 
 function jobDeps() {
-  return { db: harness.db, clock: harness.clock }
+  return { db: harness.db, clock: harness.clock, storage: harness.storage }
 }
 
 function serviceDeps(jobs: RecordingJobSender): JournalDeps {
@@ -158,6 +161,54 @@ describe('purgeTrashedEntry (the per-entry job)', () => {
     // The entry lives on as a draft; the only tombstone is the trash's.
     expect((await getEntryInSpace(harness.db, space.id, created.id))?.state).toBe('draft')
     expect(await tombstonesFor(space.id, created.id)).toHaveLength(1)
+  })
+
+  test('the purge removes the entry’s photos from storage (issue #17)', async () => {
+    const space = await harness.createSpace({ name: 'С фотографиями' })
+    const author = await harness.createMember(space.id, { name: 'Аня' })
+    const actor: JournalActor = { memberId: author.id, spaceId: space.id, role: 'regular' }
+    const draft = await createDraft(serviceDeps(harness.jobs), actor, { text: 'с кадрами' })
+
+    // Two photos through the media service, then their derivatives placed
+    // the way the worker leaves them — the purge must sweep all of it.
+    const allowAll = async () => {}
+    const first = await uploadEntryImage(
+      { db: harness.db, storage: harness.storage, clock: harness.clock, jobs: harness.jobs },
+      { memberId: author.id, spaceId: space.id, role: 'regular' },
+      draft.id,
+      { stream: Readable.from(Buffer.from('первый кадр')), contentType: 'image/jpeg' },
+      { authorize: allowAll, authorizeInTx: allowAll, maxBytes: 26_214_400 },
+    )
+    harness.clock.advance(10)
+    const second = await uploadEntryImage(
+      { db: harness.db, storage: harness.storage, clock: harness.clock, jobs: harness.jobs },
+      { memberId: author.id, spaceId: space.id, role: 'regular' },
+      draft.id,
+      { stream: Readable.from(Buffer.from('второй кадр')), contentType: 'image/jpeg' },
+      { authorize: allowAll, authorizeInTx: allowAll, maxBytes: 26_214_400 },
+    )
+    for (const image of [first, second]) {
+      for (const variant of ['feed', 'full'] as const) {
+        await harness.storage.put(
+          imageObjectKey(space.id, image.id, variant),
+          Readable.from(Buffer.from(variant)),
+        )
+      }
+    }
+    const prefix = `spaces/${space.id}/${IMAGE_OBJECT_KIND}/`
+    expect(await harness.storage.list(prefix)).toHaveLength(6)
+
+    await trashEntry(serviceDeps(harness.jobs), actor, draft.id)
+    harness.clock.advance(31 * DAY_MS)
+    await purgeTrashedEntry(jobDeps(), { spaceId: space.id, entryId: draft.id })
+
+    // The rows and every object went together.
+    expect(await getEntryInSpace(harness.db, space.id, draft.id)).toBeUndefined()
+    expect(await harness.storage.list(prefix)).toEqual([])
+
+    // The repeat finds neither rows nor objects — and writes nothing.
+    await purgeTrashedEntry(jobDeps(), { spaceId: space.id, entryId: draft.id })
+    expect(await harness.storage.list(prefix)).toEqual([])
   })
 })
 

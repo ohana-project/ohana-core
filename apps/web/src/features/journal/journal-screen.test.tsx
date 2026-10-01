@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
+import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult } from '@/data/local-store.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
@@ -41,7 +41,9 @@ function memberCounter(): () => string {
   return () => `01900000-0000-7000-8000-${String(++next).padStart(12, '0')}`
 }
 
-function entry(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
+function entry(
+  overrides?: Partial<StoredJournalEntry>,
+): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
   return {
     id: `01900000-0000-7000-8000-${Math.random().toString(16).slice(2, 14).padStart(12, '0')}`,
     authorId: ME,
@@ -49,13 +51,16 @@ function entry(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
     text: 'Текст записи',
     state: 'published',
     publishedAt: '2026-09-21T14:00:00.000Z',
+    images: [],
     createdAt: '2026-09-21T12:00:00.000Z',
     updatedAt: '2026-09-21T14:00:00.000Z',
     ...overrides,
   }
 }
 
-function syncResult(entries: StoredJournalEntry[]): SyncResult {
+function syncResult(
+  entries: Array<StoredJournalEntry & { images: StoredJournalEntryImage[] }>,
+): SyncResult {
   return {
     revision: '7',
     changes: [

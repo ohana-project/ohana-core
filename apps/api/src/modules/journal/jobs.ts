@@ -1,6 +1,8 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
+import type { ObjectStorage } from '../../platform/storage/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
+import { deleteImageObjects, imagesOfEntries } from '../media/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
@@ -23,7 +25,11 @@ import type { JournalEntry } from './tables.ts'
  * at-least-once, and both are safe to repeat: a second run finds the entry
  * already gone and answers without writing. The deletion, its tombstones,
  * and the space's revision bump share one transaction, exactly like a
- * write that arrives over HTTP.
+ * write that arrives over HTTP. The entry's photos (issue #17) are part of
+ * the purge: their rows cascade away with the entry's, and their storage
+ * objects are removed after the commit — a crash between the two leaves
+ * unreachable objects, never a broken photo, and no route reaches an
+ * object whose row is gone.
  */
 
 /** The queue name of the per-entry purge job the trash use case schedules. */
@@ -51,6 +57,8 @@ export interface JournalPurgeJobData {
 export interface JournalJobsDeps {
   db: Db
   clock: Clock
+  /** The photos' storage: the purge removes their objects after the commit (issue #17). */
+  storage: ObjectStorage
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -83,12 +91,17 @@ export async function purgeTrashedEntry(
   data: JournalPurgeJobData,
 ): Promise<void> {
   const now = deps.clock.now()
+  // The photo ids are read inside the transaction but cleaned up after it:
+  // the cascade removes the rows, the storage objects follow the commit.
+  let imageIds: string[] = []
   await deps.db.transaction(async (tx) => {
     await lockSpace(tx, data.spaceId)
     const entry = await getEntryInSpace(tx, data.spaceId, data.entryId)
     if (entry === undefined || entry.state !== 'trashed') return
     const retentionDays = await readTrashRetentionDays(tx)
     if (purgeAtFor(trashedAtOf(entry), retentionDays) > now) return
+    const grouped = await imagesOfEntries(tx, data.spaceId, [entry.id])
+    imageIds = (grouped.get(entry.id) ?? []).map((image) => image.id)
     await recordChanges(
       tx,
       data.spaceId,
@@ -101,6 +114,9 @@ export async function purgeTrashedEntry(
       now,
     )
   })
+  for (const imageId of imageIds) {
+    await deleteImageObjects(deps.storage, data.spaceId, imageId)
+  }
 }
 
 /**
@@ -122,6 +138,7 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
   const failures: Array<{ spaceId: string; cause: unknown }> = []
   for (const spaceId of spaceIds) {
     try {
+      let imageIds: string[] = []
       await deps.db.transaction(async (tx) => {
         await lockSpace(tx, spaceId)
         // The retention is read again under the lock, so a change that
@@ -133,6 +150,12 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
           purgeCutoff(now, currentRetentionDays),
         )
         if (entries.length === 0) return
+        const grouped = await imagesOfEntries(
+          tx,
+          spaceId,
+          entries.map((entry) => entry.id),
+        )
+        imageIds = [...grouped.values()].flat().map((image) => image.id)
         await recordChanges(
           tx,
           spaceId,
@@ -149,6 +172,9 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
           now,
         )
       })
+      for (const imageId of imageIds) {
+        await deleteImageObjects(deps.storage, spaceId, imageId)
+      }
     } catch (cause) {
       failures.push({ spaceId, cause })
     }

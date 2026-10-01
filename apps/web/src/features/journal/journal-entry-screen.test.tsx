@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
+import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
@@ -34,7 +34,7 @@ const ME = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 const MISSING = '01900000-0000-7000-8000-000000000fff'
 
-function entry(): StoredJournalEntry {
+function entry(): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ME,
@@ -42,6 +42,7 @@ function entry(): StoredJournalEntry {
     text: 'Вид стоит каждого шага.',
     state: 'published',
     publishedAt: '2026-09-21T14:00:00.000Z',
+    images: [],
     createdAt: '2026-09-21T12:00:00.000Z',
     updatedAt: '2026-09-21T14:00:00.000Z',
   }
@@ -59,7 +60,9 @@ function spaceChange(sections: { journal: boolean; calendar: boolean; wishlist: 
   }
 }
 
-function syncResult(entries: StoredJournalEntry[]): SyncResult {
+function syncResult(
+  entries: Array<StoredJournalEntry & { images: StoredJournalEntryImage[] }>,
+): SyncResult {
   return {
     revision: '7',
     changes: [
@@ -240,5 +243,76 @@ describe('JournalEntryScreen', () => {
       await screen.findByRole('heading', { name: 'Поход к Чёртову креслу' }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Пока нечего читать без сети')).not.toBeInTheDocument()
+  })
+
+  it('shows the photo gallery and opens the lightbox on a tap (issue #17)', async () => {
+    seedRegistry()
+    // jsdom has no blob store and no layout engine; the photo bytes are a
+    // blob the test hands out, the way the API would.
+    URL.createObjectURL = vi.fn(() => 'blob:photo-preview')
+    URL.revokeObjectURL = vi.fn()
+    // A fresh response per call: a Response's body can be read once.
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(new Response(new Blob(['bytes']), { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    const row = {
+      ...entry(),
+      images: [
+        {
+          id: '01900000-0000-7000-8000-000000000201',
+          state: 'ready' as const,
+          width: 800,
+          height: 600,
+        },
+      ],
+    }
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Поход к Чёртову креслу' }),
+    ).toBeInTheDocument()
+    // The pill counts the photos; the gallery asks for the feed preview.
+    expect(screen.getByText('Фото ×1')).toBeInTheDocument()
+    const photo = await screen.findByRole('button', {
+      name: 'Нажмите на фото, чтобы открыть в оригинальном качестве',
+    })
+    const feedUrl =
+      '/api/v1/journal/entries/' +
+      row.id +
+      '/images/01900000-0000-7000-8000-000000000201/variants/feed'
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => url === feedUrl)).toBe(true)
+    })
+
+    // The tap opens the lightbox on the viewer derivative, upgrading to
+    // the original.
+    await photo.click()
+    const fullUrl = feedUrl.replace('/feed', '/full')
+    const originalUrl = feedUrl.replace('/feed', '/original')
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => url === fullUrl)).toBe(true)
+      expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(true)
+    })
+    expect(await screen.findByText('Оригинал')).toBeInTheDocument()
+  })
+
+  it('shows the processing placeholder of a photo the worker has not finished', async () => {
+    seedRegistry()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const row = {
+      ...entry(),
+      images: [{ id: '01900000-0000-7000-8000-000000000202', state: 'processing' as const }],
+    }
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    expect(await screen.findByRole('status', { name: 'Фото обрабатывается' })).toBeInTheDocument()
+    // And no byte was asked for: there is no derivative yet.
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

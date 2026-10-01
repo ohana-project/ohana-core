@@ -256,6 +256,14 @@ jobs:
           base-url: ${{ matrix.caddy == true && 'https://localhost:8443' || 'http://localhost:3000' }}
           insecure: ${{ matrix.caddy == true }}
 
+      # The worker image must decode HEIC on both architectures before the
+      # image is published (issue #17, ADR-0008): the decode runs through
+      # the shipped `heif-dec` and the worker's own code path.
+      - name: Verify HEIC decoding in this image
+        working-directory: release
+        run: |
+          docker compose exec -T worker node scripts/verify-heic.ts
+
       - name: With Caddy enabled, the api stays behind it
         if: matrix.caddy == true
         working-directory: release

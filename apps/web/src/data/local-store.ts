@@ -33,7 +33,7 @@ export interface StoredMemberProfile {
   createdAt: string
 }
 
-/** A journal entry as the sync response carries it (issue #15). */
+/** A journal entry as the sync response carries it (issues #15 and #17). */
 export interface StoredJournalEntry {
   id: string
   authorId: string
@@ -41,8 +41,19 @@ export interface StoredJournalEntry {
   text: string
   state: 'draft' | 'published'
   publishedAt?: string
+  /** The entry's photos, oldest first; the bytes stream through the API. */
+  images?: StoredJournalEntryImage[]
   createdAt: string
   updatedAt: string
+}
+
+/** One photo of an entry: its id, the worker's progress, and the feed
+ *  derivative's pixel size for laying the strip out before bytes arrive. */
+export interface StoredJournalEntryImage {
+  id: string
+  state: 'processing' | 'ready' | 'failed'
+  width?: number
+  height?: number
 }
 
 export interface MemberSnapshot {

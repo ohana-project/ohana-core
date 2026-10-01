@@ -31,6 +31,11 @@ const ConfigSchema = Type.Object({
   storageAccessKey: Type.String({ minLength: 1 }),
   storageSecretKey: Type.String({ minLength: 1 }),
   storageBucket: Type.String({ minLength: 1 }),
+  // The upload size limit for journal entry photos (issue #17): an upload
+  // larger than this answers 413 before anything reaches storage. The
+  // original is kept byte-for-byte (ADR-0008), so the limit bounds what one
+  // phone photo costs in storage and memory.
+  mediaMaxUploadBytes: Type.Number({ default: 26_214_400, minimum: 1024, maximum: 262_144_000 }),
   webDist: Type.Optional(Type.String({ minLength: 1 })),
   // The initial instance-administrator password (ADR-0005): used once to
   // provision the first administrator on first start. An administrator that
@@ -63,6 +68,7 @@ const configEnvironmentNames: Readonly<Record<string, string>> = {
   storageAccessKey: 'STORAGE_ACCESS_KEY',
   storageSecretKey: 'STORAGE_SECRET_KEY',
   storageBucket: 'STORAGE_BUCKET',
+  mediaMaxUploadBytes: 'MEDIA_MAX_UPLOAD_BYTES',
   webDist: 'WEB_DIST',
   adminInitialPassword: 'ADMIN_INITIAL_PASSWORD',
 }

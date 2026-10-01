@@ -26,6 +26,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The media worker's HEIC test decodes through the system `heif-dec`,
+      # the same decoder the release image ships (issue #17, ADR-0008).
+      - name: Install HEIC decoder
+        run: sudo apt-get update && sudo apt-get install -y libheif-examples
+
       - name: Lint
         run: pnpm lint
 

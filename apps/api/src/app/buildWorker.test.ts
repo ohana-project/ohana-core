@@ -33,6 +33,7 @@ describe('buildWorker', () => {
         db: harness.db,
         clock: harness.clock,
         logger: createSilentLogger(),
+        storage: harness.storage,
         boss,
       })
       await worker.start()
@@ -63,6 +64,7 @@ describe('buildWorker', () => {
         db: harness.db,
         clock: workerClock,
         logger: createSilentLogger(),
+        storage: harness.storage,
         boss,
       })
       await worker.start()
@@ -130,6 +132,7 @@ describe('buildWorker', () => {
         db: unreachable.db,
         clock: { now: () => new Date() },
         logger: createSilentLogger(),
+        storage: harness.storage,
         // The boss is never started: the worker's first statement is what
         // the entrypoint sees fail.
         boss: new PgBoss({ connectionString: unreachableUrl }),
