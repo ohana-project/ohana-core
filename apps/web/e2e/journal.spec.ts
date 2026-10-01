@@ -171,10 +171,10 @@ async function mockJournalApi(page: Page) {
   })
 
   await page.route(ENTRY, (route) => {
-    if (route.request().method() !== 'PATCH') return route.fallback()
+    if (route.request().method() !== 'PUT') return route.fallback()
     const memberId = route.request().headers()['x-ohana-member']
     if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
-    // The PATCH URL ends with the entry id; publish carries it one segment
+    // The PUT URL ends with the entry id; publish carries it one segment
     // earlier, under /publish.
     const entryId = route.request().url().split('/').at(-1) as string
     const entry = entries.find((row) => row.id === entryId)
@@ -231,8 +231,11 @@ test.describe('the journal', () => {
     await page.getByText('Мои черновики').click()
     await expect(page).toHaveURL(/\/journal\/drafts$/)
     await expect(page.getByText('Про Бублика')).toBeVisible()
-    await page.getByRole('button', { name: 'Опубликовать' }).click()
-    await expect(page.getByText('Опубликовано в дневнике семьи')).toBeVisible()
+    // Publishing hides behind the row's overflow menu: one tap must not
+    // share a private draft for good (docs/design/screens/drafts.html).
+    await page.getByRole('button', { name: 'Действия с черновиком' }).click()
+    await page.getByRole('menuitem', { name: 'Опубликовать сейчас' }).click()
+    await expect(page.getByText('Опубликовано в дневнике пространства')).toBeVisible()
 
     // Back on the feed the entry is shared, with the author named.
     await page.getByRole('button', { name: 'Дневник' }).first().click()
@@ -258,7 +261,7 @@ test.describe('the journal', () => {
     await page.getByLabel('Заголовок').fill('Пикник')
     await page.getByLabel('Текст записи').fill('Собрались за час.')
     await page.getByRole('button', { name: 'Опубликовать' }).click()
-    await expect(page.getByText('Опубликовано в дневнике семьи')).toBeVisible()
+    await expect(page.getByText('Опубликовано в дневнике пространства')).toBeVisible()
     await expect(page).toHaveURL(/\/journal$/)
 
     // The author opens their published entry and edits it.

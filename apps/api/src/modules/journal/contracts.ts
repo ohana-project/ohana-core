@@ -77,9 +77,10 @@ export type CreateEntryBody = Static<typeof CreateEntryBodySchema>
 /**
  * Editing is a replace: the body carries the whole title-and-text pair, so
  * the route answers PUT and an absent title means "no title", never "keep
- * the old one" (a published contract only changes with a /api/v2 bump).
- * The state is not editable here — publishing is its own use case, and a
- * published entry never returns to draft.
+ * the old one" (the route ships with this module, so the verb is chosen
+ * before anything depends on it). The state is not editable here —
+ * publishing is its own use case, and a published entry never returns to
+ * draft.
  */
 export const UpdateEntryBodySchema = CreateEntryBodySchema
 

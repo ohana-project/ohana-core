@@ -220,11 +220,12 @@ function readCursor(query: FeedQuery): { at: Date; id: string } | undefined {
       400,
     )
   }
-  // The date-time format is wide enough to admit a leap second, which the
-  // Date constructor cannot read — and a cursor that answers Invalid Date
-  // would poison the query instead of naming its page.
+  // The date-time format is wide enough to admit moments the server cannot
+  // faithfully name — a leap second the Date constructor cannot read, a
+  // year before the timestamp type's honest range — and a cursor that
+  // answers either would poison the query instead of naming its page.
   const at = new Date(before)
-  if (Number.isNaN(at.getTime())) {
+  if (Number.isNaN(at.getTime()) || at.getUTCFullYear() < 1) {
     throw new DomainError('invalid_cursor', 'A feed cursor names a real moment', 400)
   }
   return { at, id: beforeId }

@@ -137,14 +137,7 @@ function DraftRow({
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label={t('journal.draftActions')}
-                aria-haspopup="menu"
-                className="grid size-9 shrink-0 place-items-center rounded-full transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
-              />
-            }
+            render={<Button variant="ghost" size="icon" aria-label={t('journal.draftActions')} />}
           >
             <Icon name="more-h" />
           </DropdownMenuTrigger>
