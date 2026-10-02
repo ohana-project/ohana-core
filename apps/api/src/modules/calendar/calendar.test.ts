@@ -106,6 +106,8 @@ interface EventDto {
   startsAt?: string
   endsAt?: string
   timezone?: string
+  recurrence?: { frequency: string; until?: string }
+  exceptions?: Array<Record<string, unknown>>
   createdAt: string
   updatedAt: string
 }
@@ -117,6 +119,7 @@ type EventBody = {
   startTime?: string
   endTime?: string
   timezone?: string
+  recurrence?: { frequency: string; until?: string }
 }
 
 async function createEvent(
@@ -181,6 +184,38 @@ async function deleteEvent(
   const response = await app.inject({
     method: 'DELETE',
     url: `/api/v1/calendar/events/${eventId}`,
+    headers: memberHeaders(session),
+  })
+  return { status: response.statusCode, body: response.statusCode === 204 ? null : response.json() }
+}
+
+/** PUT …/occurrences/{originalDate} — one occurrence's replacement. */
+async function editOccurrence(
+  app: TestApp,
+  session: MemberSession,
+  eventId: string,
+  originalDate: string,
+  body: EventBody,
+): Promise<{ status: number; body: EventDto | { error: { code: string } } }> {
+  const response = await app.inject({
+    method: 'PUT',
+    url: `/api/v1/calendar/events/${eventId}/occurrences/${originalDate}`,
+    headers: memberHeaders(session),
+    payload: body,
+  })
+  return { status: response.statusCode, body: response.json() }
+}
+
+/** DELETE …/occurrences/{originalDate} — one occurrence cancelled. */
+async function cancelOccurrence(
+  app: TestApp,
+  session: MemberSession,
+  eventId: string,
+  originalDate: string,
+): Promise<{ status: number; body: unknown }> {
+  const response = await app.inject({
+    method: 'DELETE',
+    url: `/api/v1/calendar/events/${eventId}/occurrences/${originalDate}`,
     headers: memberHeaders(session),
   })
   return { status: response.statusCode, body: response.statusCode === 204 ? null : response.json() }
@@ -591,6 +626,471 @@ describe('calendar events (issue #20)', () => {
         expect(status).toBe(404)
         expect(body).toMatchObject({ error: { code: 'section_hidden' } })
       }
+    })
+  })
+})
+
+describe('repeating events and occurrence exceptions (issue #21)', () => {
+  test('a repeating event stores its rule and answers the reads with it', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      // An all-day weekly series with an end date.
+      const birthday = await createEvent(app, anna, {
+        title: 'День рождения Люды',
+        allDay: true,
+        date: '2026-10-19',
+        recurrence: { frequency: 'yearly', until: '2036-10-19' },
+      })
+      expect(birthday.status).toBe(201)
+      expect((birthday.body as EventDto).recurrence).toEqual({
+        frequency: 'yearly',
+        until: '2036-10-19',
+      })
+      expect((birthday.body as EventDto).exceptions).toBeUndefined()
+
+      // A timed weekly series without an end.
+      const dinner = await createEvent(app, anna, {
+        title: 'Ужин у бабушки',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '18:00',
+        endTime: '21:00',
+        timezone: 'Europe/Moscow',
+        recurrence: { frequency: 'weekly' },
+      })
+      expect(dinner.status).toBe(201)
+      expect((dinner.body as EventDto).recurrence).toEqual({ frequency: 'weekly' })
+
+      // The reads answer the same: the wire carries the structured
+      // recurrence, never the stored RRULE text.
+      const read = await getEvent(app, anna, (dinner.body as EventDto).id)
+      expect(read.status).toBe(200)
+      expect((read.body as EventDto).recurrence).toEqual({ frequency: 'weekly' })
+      const listed = await listEvents(app, anna)
+      expect((listed.body as { events: EventDto[] }).events.map((event) => event.recurrence)).toEqual([
+        { frequency: 'yearly', until: '2036-10-19' },
+        { frequency: 'weekly' },
+      ])
+    })
+  })
+
+  test('a recurrence with any other RRULE feature is refused by the contract', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const refused: Array<Record<string, unknown>> = [
+        // A frequency the calendar does not keep.
+        { frequency: 'hourly' },
+        // An interval: only every-Nth-step rules are not accepted.
+        { frequency: 'daily', interval: 2 },
+        // A by-day: the weekday comes from the first occurrence.
+        { frequency: 'weekly', byWeekday: ['monday'] },
+        // A count: the series is bounded by until, never by a number.
+        { frequency: 'monthly', count: 5 },
+        // A raw rule text is not a shape the wire speaks.
+        { rrule: 'FREQ=WEEKLY;BYDAY=MO' },
+      ]
+      for (const recurrence of refused) {
+        const attempt = await createEvent(app, anna, {
+          title: 'Серия',
+          allDay: true,
+          date: '2026-10-19',
+          recurrence,
+        } as EventBody)
+        expect(attempt.status).toBe(400)
+        expect(attempt.body).toMatchObject({ error: { code: 'validation_failed' } })
+      }
+    })
+  })
+
+  test('an until date before the first occurrence is refused, on it is kept', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const before = await createEvent(app, anna, {
+        title: 'Серия',
+        allDay: true,
+        date: '2026-10-19',
+        recurrence: { frequency: 'monthly', until: '2026-10-18' },
+      })
+      expect(before.status).toBe(400)
+      expect(before.body).toMatchObject({ error: { code: 'invalid_recurrence_until' } })
+
+      // An impossible until date is the date rule's answer, not a 500.
+      const impossible = await createEvent(app, anna, {
+        title: 'Серия',
+        allDay: true,
+        date: '2026-10-19',
+        recurrence: { frequency: 'monthly', until: '2026-02-30' },
+      })
+      expect(impossible.status).toBe(400)
+      expect(impossible.body).toMatchObject({ error: { code: 'invalid_event_date' } })
+
+      // The until date itself is a day the series may occupy.
+      const onIt = await createEvent(app, anna, {
+        title: 'Серия',
+        allDay: true,
+        date: '2026-10-19',
+        recurrence: { frequency: 'monthly', until: '2026-10-19' },
+      })
+      expect(onIt.status).toBe(201)
+      expect((onIt.body as EventDto).recurrence).toEqual({ frequency: 'monthly', until: '2026-10-19' })
+    })
+  })
+
+  test('editing the series replaces the rule; dropping it makes the event one-time', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const created = await createEvent(app, anna, {
+        title: 'Утренняя зарядка',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '07:00',
+        endTime: '08:00',
+        recurrence: { frequency: 'daily' },
+      })
+      expect(created.status).toBe(201)
+      const series = (created.body as EventDto).id
+
+      // An exception exists first, so the edit's effect on it is visible.
+      const cancel = await cancelOccurrence(app, anna, series, '2026-10-07')
+      expect(cancel.status).toBe(204)
+
+      // The whole-series edit keeps the series a series: the rule is
+      // replaced, the exception survives — it is keyed by original date.
+      const replaced = await editEvent(app, anna, series, {
+        title: 'Утренняя зарядка',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '06:30',
+        endTime: '07:30',
+        recurrence: { frequency: 'weekly', until: '2027-10-05' },
+      })
+      expect(replaced.status).toBe(200)
+      expect((replaced.body as EventDto).recurrence).toEqual({
+        frequency: 'weekly',
+        until: '2027-10-05',
+      })
+      expect((replaced.body as EventDto).exceptions).toEqual([
+        { originalDate: '2026-10-07', kind: 'cancelled' },
+      ])
+
+      // The absent recurrence is a whole replace: the event becomes
+      // one-time, and its exceptions — cancellations of occurrences that
+      // no longer exist — go with the rule.
+      const oneTime = await editEvent(app, anna, series, {
+        title: 'Утренняя зарядка',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '06:30',
+        endTime: '07:30',
+      })
+      expect(oneTime.status).toBe(200)
+      expect((oneTime.body as EventDto).recurrence).toBeUndefined()
+      expect((oneTime.body as EventDto).exceptions).toBeUndefined()
+
+      const read = await getEvent(app, anna, series)
+      expect((read.body as EventDto).recurrence).toBeUndefined()
+      expect((read.body as EventDto).exceptions).toBeUndefined()
+    })
+  })
+
+  test('editing an occurrence stores an override keyed by the original date', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace({ timezone: 'Asia/Novosibirsk' })
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const created = await createEvent(app, anna, {
+        title: 'Ужин у бабушки',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '18:00',
+        endTime: '21:00',
+        timezone: 'Europe/Moscow',
+        recurrence: { frequency: 'weekly' },
+      })
+      expect(created.status).toBe(201)
+      const series = (created.body as EventDto).id
+
+      // 2026-10-12 is the next Monday: the override replaces it whole —
+      // a different title, an all-day date of its own. The zone left
+      // un named for a timed override is the space's, like any event's.
+      const override = await editOccurrence(app, anna, series, '2026-10-12', {
+        title: 'Поход в театр',
+        allDay: true,
+        date: '2026-10-13',
+      })
+      expect(override.status).toBe(200)
+      expect((override.body as EventDto).exceptions).toEqual([
+        { originalDate: '2026-10-12', kind: 'override', title: 'Поход в театр', allDay: true, date: '2026-10-13' },
+      ])
+      // The series itself is untouched: the override is keyed by the
+      // original date, the rule and first occurrence stand.
+      expect((override.body as EventDto).recurrence).toEqual({ frequency: 'weekly' })
+      expect((override.body as EventDto).startsAt).toBe('2026-10-05T15:00:00.000Z')
+
+      // A timed override composes against the space's zone when none is
+      // named, like a whole event's.
+      const timed = await createEvent(app, anna, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-10-06',
+        startTime: '09:00',
+        endTime: '10:00',
+        recurrence: { frequency: 'daily' },
+      })
+      expect(timed.status).toBe(201)
+      const timedId = (timed.body as EventDto).id
+      const timedOverride = await editOccurrence(app, anna, timedId, '2026-10-07', {
+        title: 'Созвон у Димы',
+        allDay: false,
+        date: '2026-10-07',
+        startTime: '11:00',
+        endTime: '12:00',
+      })
+      expect(timedOverride.status).toBe(200)
+      expect((timedOverride.body as EventDto).exceptions).toEqual([
+        expect.objectContaining({
+          originalDate: '2026-10-07',
+          kind: 'override',
+          allDay: false,
+          startsAt: '2026-10-07T04:00:00.000Z',
+          timezone: 'Asia/Novosibirsk',
+        }),
+      ])
+
+      // The reads answer the exceptions too.
+      const read = await getEvent(app, anna, series)
+      expect((read.body as EventDto).exceptions).toHaveLength(1)
+    })
+  })
+
+  test('cancelling an occurrence skips one date and flips an override', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const created = await createEvent(app, anna, {
+        title: 'Утренняя зарядка',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '07:00',
+        endTime: '08:00',
+        recurrence: { frequency: 'daily', until: '2026-10-11' },
+      })
+      expect(created.status).toBe(201)
+      const series = (created.body as EventDto).id
+
+      const cancel = await cancelOccurrence(app, anna, series, '2026-10-07')
+      expect(cancel.status).toBe(204)
+
+      const read = await getEvent(app, anna, series)
+      expect((read.body as EventDto).exceptions).toEqual([
+        { originalDate: '2026-10-07', kind: 'cancelled' },
+      ])
+
+      // Cancelling the same date again answers the same: the exception is
+      // an upsert, not a second row.
+      const again = await cancelOccurrence(app, anna, series, '2026-10-07')
+      expect(again.status).toBe(204)
+      const reread = await getEvent(app, anna, series)
+      expect((reread.body as EventDto).exceptions).toEqual([
+        { originalDate: '2026-10-07', kind: 'cancelled' },
+      ])
+
+      // An edit of the cancelled date revives the occurrence: the newest
+      // write wins, one exception per original date.
+      const revived = await editOccurrence(app, anna, series, '2026-10-07', {
+        title: 'Зарядка у Димы',
+        allDay: false,
+        date: '2026-10-07',
+        startTime: '08:00',
+        endTime: '09:00',
+      })
+      expect(revived.status).toBe(200)
+      expect((revived.body as EventDto).exceptions).toEqual([
+        expect.objectContaining({ originalDate: '2026-10-07', kind: 'override' }),
+      ])
+
+      // Cancelling the edited date cancels it: the override is replaced.
+      const cancelled = await cancelOccurrence(app, anna, series, '2026-10-07')
+      expect(cancelled.status).toBe(204)
+      const final = await getEvent(app, anna, series)
+      expect((final.body as EventDto).exceptions).toEqual([
+        { originalDate: '2026-10-07', kind: 'cancelled' },
+      ])
+    })
+  })
+
+  test('an occurrence the series does not have is refused', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const weekly = await createEvent(app, anna, {
+        title: 'Ужин у бабушки',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '18:00',
+        endTime: '21:00',
+        recurrence: { frequency: 'weekly' },
+      })
+      expect(weekly.status).toBe(201)
+      const series = (weekly.body as EventDto).id
+
+      // 2026-10-06 is a Tuesday: the series has no occurrence there.
+      const offPattern = await cancelOccurrence(app, anna, series, '2026-10-06')
+      expect(offPattern.status).toBe(404)
+      expect(offPattern.body).toMatchObject({ error: { code: 'occurrence_not_found' } })
+
+      // Before the series starts, and past its until.
+      const bounded = await createEvent(app, anna, {
+        title: 'Зарядка',
+        allDay: true,
+        date: '2026-10-05',
+        recurrence: { frequency: 'daily', until: '2026-10-11' },
+      })
+      expect(bounded.status).toBe(201)
+      const boundedId = (bounded.body as EventDto).id
+      const tooEarly = await cancelOccurrence(app, anna, boundedId, '2026-10-04')
+      expect(tooEarly.status).toBe(404)
+      expect(tooEarly.body).toMatchObject({ error: { code: 'occurrence_not_found' } })
+      const tooLate = await cancelOccurrence(app, anna, boundedId, '2026-10-12')
+      expect(tooLate.status).toBe(404)
+      expect(tooLate.body).toMatchObject({ error: { code: 'occurrence_not_found' } })
+
+      // A monthly series on the 31st has no occurrence in February: the
+      // skip is part of the pattern (the acceptance criteria).
+      const monthly = await createEvent(app, anna, {
+        title: 'Клуб тридцать первых',
+        allDay: true,
+        date: '2026-01-31',
+        recurrence: { frequency: 'monthly' },
+      })
+      expect(monthly.status).toBe(201)
+      const monthlyId = (monthly.body as EventDto).id
+      const february = await cancelOccurrence(app, anna, monthlyId, '2026-02-28')
+      expect(february.status).toBe(404)
+      expect(february.body).toMatchObject({ error: { code: 'occurrence_not_found' } })
+      const march = await cancelOccurrence(app, anna, monthlyId, '2026-03-31')
+      expect(march.status).toBe(204)
+
+      // A one-time event has no occurrences at all.
+      const single = await createEvent(app, anna, {
+        title: 'Разовое',
+        allDay: true,
+        date: '2026-10-05',
+      })
+      expect(single.status).toBe(201)
+      const singleId = (single.body as EventDto).id
+      const notRecurring = await cancelOccurrence(app, anna, singleId, '2026-10-05')
+      expect(notRecurring.status).toBe(400)
+      expect(notRecurring.body).toMatchObject({ error: { code: 'event_not_recurring' } })
+
+      // A date that is not a date is the contract's answer.
+      const malformed = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/calendar/events/${series}/occurrences/not-a-date`,
+        headers: memberHeaders(anna),
+      })
+      expect(malformed.statusCode).toBe(400)
+      expect(malformed.json()).toMatchObject({ error: { code: 'validation_failed' } })
+
+      // An event that is not here answers the ordinary 404.
+      const missing = await cancelOccurrence(app, anna, '01900000-0000-7000-8000-00000000c0de', '2026-10-05')
+      expect(missing.status).toBe(404)
+      expect(missing.body).toMatchObject({ error: { code: 'event_not_found' } })
+    })
+  })
+
+  test('occurrence changes follow the moderation model', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня', 'owner')
+      const dima = await memberSession(app, adminCookie, space.id, 'Дима')
+      const lyuda = await memberSession(app, adminCookie, space.id, 'Люда')
+
+      const created = await createEvent(app, dima, {
+        title: 'Ужин у бабушки',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '18:00',
+        endTime: '21:00',
+        recurrence: { frequency: 'weekly' },
+      })
+      expect(created.status).toBe(201)
+      const series = (created.body as EventDto).id
+
+      // A regular member who is not the creator is refused the occurrence
+      // change and the cancellation — the journal's moderation model.
+      const strangerEdit = await editOccurrence(app, lyuda, series, '2026-10-12', {
+        title: 'Вечеринка',
+        allDay: true,
+        date: '2026-10-12',
+      })
+      expect(strangerEdit.status).toBe(403)
+      expect(strangerEdit.body).toMatchObject({ error: { code: 'creator_required' } })
+      const strangerCancel = await cancelOccurrence(app, lyuda, series, '2026-10-12')
+      expect(strangerCancel.status).toBe(403)
+      expect(strangerCancel.body).toMatchObject({ error: { code: 'creator_required' } })
+
+      // The creator edits an occurrence; the owner moderates another's.
+      const own = await editOccurrence(app, dima, series, '2026-10-12', {
+        title: 'Ужин у бабушки — в кафе',
+        allDay: false,
+        date: '2026-10-12',
+        startTime: '19:00',
+        endTime: '22:00',
+      })
+      expect(own.status).toBe(200)
+      const moderated = await cancelOccurrence(app, anna, series, '2026-10-19')
+      expect(moderated.status).toBe(204)
+      const read = await getEvent(app, dima, series)
+      expect((read.body as EventDto).exceptions).toHaveLength(2)
+    })
+  })
+
+  test('removing the series takes its exceptions with it', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const created = await createEvent(app, anna, {
+        title: 'Утренняя зарядка',
+        allDay: true,
+        date: '2026-10-05',
+        recurrence: { frequency: 'daily' },
+      })
+      expect(created.status).toBe(201)
+      const series = (created.body as EventDto).id
+      expect((await cancelOccurrence(app, anna, series, '2026-10-07')).status).toBe(204)
+      expect((await deleteEvent(app, anna, series)).status).toBe(204)
+
+      // A fresh series with the same shape holds no exceptions of the
+      // removed one: the rows went with their event.
+      const recreated = await createEvent(app, anna, {
+        title: 'Утренняя зарядка',
+        allDay: true,
+        date: '2026-10-05',
+        recurrence: { frequency: 'daily' },
+      })
+      expect(recreated.status).toBe(201)
+      expect((recreated.body as EventDto).exceptions).toBeUndefined()
     })
   })
 })

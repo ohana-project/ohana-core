@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { authorName } from '@/features/wishlist/wishlist-entries.ts'
-import { formatDayFull, localDateKey, parseDateOnly } from '@/lib/calendar-dates.ts'
+import { formatDayFull, formatDayLong, localDateKey, parseDateOnly } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import {
@@ -22,35 +22,85 @@ import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
+import { isRecurring, occurrenceOf, type Recurrence } from './recurrence.ts'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
-import { calendarErrorMessage, useCalendarData, useDeleteEvent } from './use-calendar.ts'
+import {
+  calendarErrorMessage,
+  useCalendarData,
+  useCancelOccurrence,
+  useDeleteEvent,
+} from './use-calendar.ts'
 
 /*
- * The event screen (docs/design/screens/event.html): one event whole —
- * its device-local time with the zone the event keeps, its length, who
- * created it. The edit and the delete belong to the event's creator and
- * the owners (issue #20, the journal's moderation model); everyone else
- * reads. The rows come from the synchronised partition, so the screen
- * answers offline like the month (ADR-0002).
+ * The event screen (docs/design/screens/event.html): one event whole — its
+ * device-local time with the zone the event keeps, its length, who created
+ * it. For a repeating event (issue #21) the screen shows one occurrence at
+ * a time: the link the calendar's lists carry names its original date, and
+ * without one the series' first occurrence stands in. The edit and the
+ * delete belong to the event's creator and the owners (issue #20, the
+ * journal's moderation model); on a series they ask what to change — this
+ * occurrence, or the whole series ("this and following" is not offered, by
+ * the ticket's design). The rows come from the synchronised partition, so
+ * the screen answers offline like the month (ADR-0002).
  */
-export function EventScreen({ eventId }: { eventId: string }) {
+export function EventScreen({
+  eventId,
+  occurrenceDate,
+}: {
+  eventId: string
+  occurrenceDate?: string
+}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const navigate = useNavigate()
   const { snapshot, events, profiles, downloaded } = useCalendarData()
   const removeEvent = useDeleteEvent()
+  const cancelOccurrence = useCancelOccurrence()
   const [confirming, setConfirming] = useState(false)
+  const [choosingEdit, setChoosingEdit] = useState(false)
+  const [choosingDelete, setChoosingDelete] = useState(false)
 
   const event = snapshot.isPending ? undefined : eventOf(events, eventId)
   const editable = event !== undefined && canEditEvent(event, getActiveMemberId(), profiles)
+  const recurring = event !== undefined && isRecurring(event)
+  const occurrence =
+    event !== undefined && occurrenceDate !== undefined ? occurrenceOf(event, occurrenceDate) : undefined
+  // What the screen shows: the occurrence the link named — its effective
+  // fields, an override's included — or the series' own first occurrence.
+  const shown: StoredCalendarEvent | undefined =
+    occurrence?.event ?? (occurrenceDate === undefined ? event : undefined)
+  const cancelledHere =
+    event !== undefined &&
+    occurrenceDate !== undefined &&
+    occurrence === undefined &&
+    (event.exceptions?.some(
+      (candidate) => candidate.originalDate === occurrenceDate && candidate.kind === 'cancelled',
+    ) ??
+      false)
 
-  const onDelete = () => {
+  const backToCalendar = () => void navigate({ to: '/calendar' })
+
+  const onDeleteSeries = () => {
     removeEvent.mutate(
       { eventId },
       {
         onSuccess: () => {
           toast(t('calendar.deletedToast'))
-          void navigate({ to: '/calendar' })
+          backToCalendar()
+        },
+        onError: (error) => toast(calendarErrorMessage(error, t), 'danger'),
+      },
+    )
+  }
+
+  const onCancelOccurrence = () => {
+    if (occurrenceDate === undefined) return
+    cancelOccurrence.mutate(
+      { eventId, originalDate: occurrenceDate },
+      {
+        onSuccess: () => {
+          toast(t('calendar.occurrenceCancelledToast'))
+          backToCalendar()
         },
         onError: (error) => toast(calendarErrorMessage(error, t), 'danger'),
       },
@@ -85,13 +135,35 @@ export function EventScreen({ eventId }: { eventId: string }) {
               </Empty>
             </Card>
           )
+        ) : cancelledHere ? (
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="calendar" />
+              </EmptyMedia>
+              <EmptyTitle>{t('calendar.occurrenceCancelledTitle')}</EmptyTitle>
+              <EmptyDescription>{t('calendar.occurrenceCancelledText')}</EmptyDescription>
+            </Empty>
+          </Card>
+        ) : shown === undefined ? (
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="calendar" />
+              </EmptyMedia>
+              <EmptyTitle>{t('calendar.errors.occurrence_not_found')}</EmptyTitle>
+            </Empty>
+          </Card>
         ) : (
           <EventDetails
-            event={event}
+            event={shown}
+            recurrence={event.recurrence}
             profiles={profiles}
             editable={editable}
+            recurring={recurring}
             locale={locale}
-            onAskDelete={() => setConfirming(true)}
+            onAskEdit={() => setChoosingEdit(true)}
+            onAskDelete={() => (recurring ? setChoosingDelete(true) : setConfirming(true))}
           />
         )}
       </div>
@@ -108,14 +180,95 @@ export function EventScreen({ eventId }: { eventId: string }) {
             <Button variant="ghost" onClick={() => setConfirming(false)}>
               {t('calendar.cancel')}
             </Button>
-            <Button variant="destructive" disabled={removeEvent.isPending} onClick={onDelete}>
+            <Button variant="destructive" disabled={removeEvent.isPending} onClick={onDeleteSeries}>
               {removeEvent.isPending ? <Spinner className="size-4" /> : <Icon name="trash" />}
               {t('calendar.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* The scope choices (issue #21): change this occurrence or the whole
+          series — one dialog each for the edit and the delete. */}
+      <ScopeDialog
+        open={choosingEdit}
+        onClose={() => setChoosingEdit(false)}
+        title={t('calendar.editScopeTitle')}
+        occurrenceLabel={t('calendar.editScopeOccurrence')}
+        seriesLabel={t('calendar.editScopeSeries')}
+        onOccurrence={() => {
+          setChoosingEdit(false)
+          void navigate({
+            to: '/calendar/$eventId/edit',
+            params: { eventId },
+            search: occurrenceDate === undefined ? {} : { date: occurrenceDate },
+          })
+        }}
+        onSeries={() => {
+          setChoosingEdit(false)
+          void navigate({ to: '/calendar/$eventId/edit', params: { eventId } })
+        }}
+      />
+      <ScopeDialog
+        open={choosingDelete}
+        onClose={() => setChoosingDelete(false)}
+        title={t('calendar.deleteScopeTitle')}
+        occurrenceLabel={t('calendar.deleteScopeOccurrence')}
+        seriesLabel={t('calendar.deleteScopeSeries')}
+        onOccurrence={() => {
+          setChoosingDelete(false)
+          onCancelOccurrence()
+        }}
+        onSeries={() => {
+          setChoosingDelete(false)
+          onDeleteSeries()
+        }}
+      />
     </CalendarShell>
+  )
+}
+
+function ScopeDialog({
+  open,
+  onClose,
+  title,
+  occurrenceLabel,
+  seriesLabel,
+  onOccurrence,
+  onSeries,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  occurrenceLabel: string
+  seriesLabel: string
+  onOccurrence: () => void
+  onSeries: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" className="justify-start" onClick={onOccurrence}>
+            <Icon name="clock" />
+            {occurrenceLabel}
+          </Button>
+          <Button variant="secondary" className="justify-start" onClick={onSeries}>
+            <Icon name="repeat" />
+            {seriesLabel}
+          </Button>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {t('calendar.cancel')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -124,18 +277,25 @@ function eventOf(events: StoredCalendarEvent[], eventId: string): StoredCalendar
 }
 
 /** The event whole: the date line, the title, the time and zone, the
- *  length, the creator — and the edit and delete of its moderator set. */
+ *  length, the series it keeps, the creator — and the edit and delete of
+ *  its moderator set. */
 function EventDetails({
   event,
+  recurrence,
   profiles,
   editable,
+  recurring,
   locale,
+  onAskEdit,
   onAskDelete,
 }: {
   event: StoredCalendarEvent
+  recurrence: Recurrence | undefined
   profiles: StoredMemberProfile[]
   editable: boolean
+  recurring: boolean
   locale: Locale
+  onAskEdit: () => void
   onAskDelete: () => void
 }) {
   const { t } = useTranslation()
@@ -169,9 +329,27 @@ function EventDetails({
               <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
                 <Icon name="clock" className="size-5" />
               </span>
+              <span className="text-sm font-semibold">{duration}</span>
+              <span className="text-sm text-muted-foreground">{t('calendar.durationLabel')}</span>
+            </li>
+          )}
+          {recurring && recurrence !== undefined && (
+            <li className="flex min-h-16 items-center gap-3 px-5 py-3">
+              <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
+                <Icon name="repeat" className="size-5" />
+              </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="text-sm font-semibold">{duration}</span>
-                <span className="text-sm text-muted-foreground">{t('calendar.durationLabel')}</span>
+                <span className="text-sm font-semibold">{t(repeatLabelKey(recurrence.frequency))}</span>
+                {recurrence.until !== undefined && (
+                  <span className="text-sm text-muted-foreground">
+                    {t('calendar.repeatUntilLine', {
+                      date: formatDayLong(
+                        parseDateOnly(recurrence.until) ?? { year: 0, month: 1, day: 1 },
+                        locale,
+                      ),
+                    })}
+                  </span>
+                )}
               </span>
             </li>
           )}
@@ -197,13 +375,23 @@ function EventDetails({
 
       {editable && (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            variant="secondary"
-            render={<Link to="/calendar/$eventId/edit" params={{ eventId: event.id }} />}
-          >
-            <Icon name="edit" />
-            {t('calendar.edit')}
-          </Button>
+          {recurring ? (
+            // A series asks what the edit is for: this occurrence, or the
+            // whole series (issue #21). A one-time event goes straight to
+            // its editor.
+            <Button variant="secondary" onClick={onAskEdit}>
+              <Icon name="edit" />
+              {t('calendar.edit')}
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              render={<Link to="/calendar/$eventId/edit" params={{ eventId: event.id }} />}
+            >
+              <Icon name="edit" />
+              {t('calendar.edit')}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onAskDelete}>
             <Icon name="trash" />
             {t('calendar.delete')}
@@ -212,6 +400,20 @@ function EventDetails({
       )}
     </>
   )
+}
+
+/** «Каждый день» … — the label a series keeps on the screens. */
+export function repeatLabelKey(frequency: Recurrence['frequency']) {
+  switch (frequency) {
+    case 'daily':
+      return 'calendar.repeatDaily' as const
+    case 'weekly':
+      return 'calendar.repeatWeekly' as const
+    case 'monthly':
+      return 'calendar.repeatMonthly' as const
+    case 'yearly':
+      return 'calendar.repeatYearly' as const
+  }
 }
 
 function eventDateLine(event: StoredCalendarEvent, locale: Locale): string {

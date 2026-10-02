@@ -1,6 +1,11 @@
-import { and, asc, desc, eq, gt } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { type CalendarEvent, calendarEvents } from './tables.ts'
+import {
+  type CalendarEvent,
+  type CalendarEventException,
+  calendarEventExceptions,
+  calendarEvents,
+} from './tables.ts'
 
 /**
  * Every query on this space-owned table takes the space as its required
@@ -19,6 +24,8 @@ export interface NewCalendarEvent {
   endsAt: Date | null
   /** The timed kind's IANA zone; null for an all-day event. */
   timezone: string | null
+  /** The series' RFC 5545 RRULE; null for a one-time event (issue #21). */
+  rrule: string | null
   revision: bigint
   now: Date
 }
@@ -39,6 +46,7 @@ export async function insertEvent(
       startsAt: data.startsAt,
       endsAt: data.endsAt,
       timezone: data.timezone,
+      rrule: data.rrule,
       revision: data.revision,
       createdAt: data.now,
       updatedAt: data.now,
@@ -78,6 +86,7 @@ export async function updateEvent(
     startsAt: Date | null
     endsAt: Date | null
     timezone: string | null
+    rrule: string | null
   },
   revision: bigint,
   now: Date,
@@ -91,9 +100,31 @@ export async function updateEvent(
       startsAt: changes.startsAt,
       endsAt: changes.endsAt,
       timezone: changes.timezone,
+      rrule: changes.rrule,
       revision,
       updatedAt: now,
     })
+    .where(and(eq(calendarEvents.spaceId, spaceId), eq(calendarEvents.id, eventId)))
+    .returning()
+  return updated[0]
+}
+
+/**
+ * The revision stamp an exception's change leaves on the event row
+ * (issue #21): the event is what travels to the devices, exceptions
+ * inside its DTO, so the stamp — not the exception row's own bookkeeping —
+ * is the delivery.
+ */
+export async function touchEvent(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+  revision: bigint,
+  now: Date,
+): Promise<CalendarEvent | undefined> {
+  const updated = await tx
+    .update(calendarEvents)
+    .set({ revision, updatedAt: now })
     .where(and(eq(calendarEvents.spaceId, spaceId), eq(calendarEvents.id, eventId)))
     .returning()
   return updated[0]
@@ -148,4 +179,129 @@ export async function listChangedEvents(
     .from(calendarEvents)
     .where(and(eq(calendarEvents.spaceId, spaceId), gt(calendarEvents.revision, since)))
     .orderBy(desc(calendarEvents.revision), desc(calendarEvents.id))
+}
+
+/*
+ * The exceptions of a repeating event (issue #21). They travel inside
+ * their event's DTO, so the reads here are whole-list reads beside the
+ * event's own; there is no per-exception visibility to decide (policy.ts).
+ */
+
+export interface NewCalendarEventException {
+  originalDate: string
+  kind: 'cancelled' | 'override'
+  /** The override's replacement; null throughout for a cancellation. */
+  title: string | null
+  allDay: boolean | null
+  date: string | null
+  startsAt: Date | null
+  endsAt: Date | null
+  timezone: string | null
+  revision: bigint
+  now: Date
+}
+
+/**
+ * The upsert the occurrence use cases run: one exception per original
+ * date (the table's unique key), the newest write winning — an edit over
+ * a cancellation revives the occurrence as an override, a cancellation
+ * over an edit replaces it.
+ */
+export async function upsertEventException(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+  data: NewCalendarEventException,
+): Promise<CalendarEventException> {
+  const inserted = await tx
+    .insert(calendarEventExceptions)
+    .values({
+      spaceId,
+      eventId,
+      originalDate: data.originalDate,
+      kind: data.kind,
+      title: data.title,
+      allDay: data.allDay,
+      date: data.date,
+      startsAt: data.startsAt,
+      endsAt: data.endsAt,
+      timezone: data.timezone,
+      revision: data.revision,
+      createdAt: data.now,
+      updatedAt: data.now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        calendarEventExceptions.spaceId,
+        calendarEventExceptions.eventId,
+        calendarEventExceptions.originalDate,
+      ],
+      set: {
+        kind: data.kind,
+        title: data.title,
+        allDay: data.allDay,
+        date: data.date,
+        startsAt: data.startsAt,
+        endsAt: data.endsAt,
+        timezone: data.timezone,
+        revision: data.revision,
+        updatedAt: data.now,
+      },
+    })
+    .returning()
+  const row = inserted[0]
+  if (!row) throw new Error('Upserting a calendar event exception returned no row')
+  return row
+}
+
+export async function deleteEventExceptions(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+): Promise<void> {
+  await tx
+    .delete(calendarEventExceptions)
+    .where(
+      and(
+        eq(calendarEventExceptions.spaceId, spaceId),
+        eq(calendarEventExceptions.eventId, eventId),
+      ),
+    )
+}
+
+/** One event's exceptions, original-date order — the single read's embed. */
+export async function listExceptionsForEvent(
+  executor: Executor,
+  spaceId: string,
+  eventId: string,
+): Promise<CalendarEventException[]> {
+  return executor
+    .select()
+    .from(calendarEventExceptions)
+    .where(
+      and(
+        eq(calendarEventExceptions.spaceId, spaceId),
+        eq(calendarEventExceptions.eventId, eventId),
+      ),
+    )
+    .orderBy(asc(calendarEventExceptions.originalDate))
+}
+
+/** Many events' exceptions at once — the listing's and sync's embed. */
+export async function listExceptionsForEvents(
+  executor: Executor,
+  spaceId: string,
+  eventIds: readonly string[],
+): Promise<CalendarEventException[]> {
+  if (eventIds.length === 0) return []
+  return executor
+    .select()
+    .from(calendarEventExceptions)
+    .where(
+      and(
+        eq(calendarEventExceptions.spaceId, spaceId),
+        inArray(calendarEventExceptions.eventId, [...eventIds]),
+      ),
+    )
+    .orderBy(asc(calendarEventExceptions.eventId), asc(calendarEventExceptions.originalDate))
 }

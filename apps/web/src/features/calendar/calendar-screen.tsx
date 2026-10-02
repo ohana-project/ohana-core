@@ -2,12 +2,19 @@ import type { Locale } from '@ohana/i18n'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { StoredCalendarEvent } from '@/data/local-store.ts'
+import {
+  type CalendarOccurrence,
+  eventDateKey,
+  calendarOccurrences,
+  eventsByDate,
+  upcomingEvents,
+} from './calendar-entries.ts'
 import {
   type DateOnly,
   formatDateOnly,
   formatDayLong,
   formatMonthTitle,
+  type MonthDay,
   monthGrid,
   nextMonth,
   previousMonth,
@@ -22,7 +29,6 @@ import { Fab } from '@/ui/fab.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
-import { eventDateKey, eventsByDate, upcomingEvents } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { EventTimeLine } from './event-time.tsx'
 import { useCalendarData } from './use-calendar.ts'
@@ -31,8 +37,10 @@ import { useCalendarData } from './use-calendar.ts'
  * The calendar (docs/design/screens/calendar.html): the month grid with a
  * dot per busy day beside the agenda of what is coming. Both read the
  * member's synchronised partition (issue #20), so the screen answers the
- * same online and offline (ADR-0002). A tap on a day opens the sheet with
- * that day's events, the prototype's move.
+ * same online and offline (ADR-0002); a repeating event (issue #21) joins
+ * its occurrences for the window the screen draws, the expansion the
+ * device runs itself. A tap on a day opens the sheet with that day's
+ * events, the prototype's move.
  */
 export function CalendarScreen() {
   const { t, i18n } = useTranslation()
@@ -48,7 +56,13 @@ export function CalendarScreen() {
   const [openDay, setOpenDay] = useState<DateOnly | undefined>(undefined)
 
   const grid = monthGrid(view.year, view.month)
-  const byDate = useMemo(() => eventsByDate(events), [events])
+  // The grid's own window, the series' frame the expansion walks: every
+  // occurrence the drawn weeks hold, cancelled ones skipped (issue #21).
+  const { from: windowFrom, to: windowTo } = gridWindow(grid)
+  const byDate = useMemo(
+    () => eventsByDate(calendarOccurrences(events, windowFrom, windowTo)),
+    [events, windowFrom, windowTo],
+  )
   const upcoming = upcomingEvents(events, new Date())
 
   return (
@@ -187,7 +201,12 @@ export function CalendarScreen() {
                         <li key={event.id}>
                           <Link
                             to="/calendar/$eventId"
-                            params={{ eventId: event.id }}
+                            params={{ eventId: event.seriesId ?? event.id }}
+                            search={
+                              event.originalDate === undefined
+                                ? {}
+                                : { date: event.originalDate }
+                            }
                             className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
                           >
                             <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
@@ -232,8 +251,8 @@ export function CalendarScreen() {
 }
 
 /** The agenda's groups in order, keyed by the device-local day. */
-function agendaGroups(upcoming: StoredCalendarEvent[]): Array<[string, StoredCalendarEvent[]]> {
-  const groups = new Map<string, StoredCalendarEvent[]>()
+function agendaGroups(upcoming: CalendarOccurrence[]): Array<[string, CalendarOccurrence[]]> {
+  const groups = new Map<string, CalendarOccurrence[]>()
   for (const event of upcoming) {
     const key = eventDateKey(event)
     if (key === undefined) continue
@@ -261,6 +280,16 @@ function agendaLabelKey(
   return 'calendar.dayTitle'
 }
 
+/** The drawn weeks' bounds, the wall-date window the occurrences expand
+ *  over (issue #21). The grid always draws six weeks; an empty one —
+ *  nothing the renderer could draw anyway — answers an empty window. */
+function gridWindow(grid: MonthDay[]): { from: string; to: string } {
+  const first = grid.at(0)?.date
+  const last = grid.at(-1)?.date
+  if (first === undefined || last === undefined) return { from: '0000-01-01', to: '0000-01-01' }
+  return { from: formatDateOnly(first), to: formatDateOnly(last) }
+}
+
 function parseKey(key: string): DateOnly {
   return {
     year: Number(key.slice(0, 4)),
@@ -276,7 +305,7 @@ function DaySheet({
   onClose,
 }: {
   day: DateOnly
-  dayEvents: StoredCalendarEvent[]
+  dayEvents: CalendarOccurrence[]
   locale: Locale
   onClose: () => void
 }) {
@@ -296,7 +325,10 @@ function DaySheet({
               <Link
                 key={event.id}
                 to="/calendar/$eventId"
-                params={{ eventId: event.id }}
+                params={{ eventId: event.seriesId ?? event.id }}
+                search={
+                  event.originalDate === undefined ? {} : { date: event.originalDate }
+                }
                 className="flex min-h-16 items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
                 onClick={onClose}
               >

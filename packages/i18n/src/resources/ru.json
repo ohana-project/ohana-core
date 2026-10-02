@@ -857,7 +857,30 @@
       "invalid_timezone": "Неизвестный часовой пояс",
       "section_hidden": "Календарь скрыт",
       "validation_failed": "Проверьте заполнение полей",
-      "unexpected": "Что-то пошло не так. Попробуйте ещё раз"
-    }
+      "unexpected": "Что-то пошло не так. Попробуйте ещё раз",
+      "occurrence_not_found": "В серии нет события на эту дату",
+      "event_not_recurring": "Это событие не повторяется",
+      "invalid_recurrence_until": "Дата окончания не может быть раньше первого события"
+    },
+    "repeatLabel": "Повтор",
+    "repeatNone": "Не повторять",
+    "repeatDaily": "Каждый день",
+    "repeatWeekly": "Каждую неделю",
+    "repeatMonthly": "Каждый месяц",
+    "repeatYearly": "Каждый год",
+    "repeatUntil": "Дата окончания",
+    "repeatUntilHint": "Необязательно — серия закончится после этой даты",
+    "repeatUntilLine": "до {date}",
+    "editScopeTitle": "Что изменить?",
+    "editScopeOccurrence": "Только это событие",
+    "editScopeSeries": "Всю серию",
+    "deleteScopeTitle": "Отменить это событие или удалить всю серию?",
+    "deleteScopeOccurrence": "Отменить только это событие",
+    "deleteScopeSeries": "Удалить всю серию",
+    "editorOccurrenceTitle": "Изменение события",
+    "editingOccurrence": "Создал: {name} · только это событие",
+    "occurrenceCancelledToast": "Событие отменено",
+    "occurrenceCancelledTitle": "Это событие отменено",
+    "occurrenceCancelledText": "Серия продолжается без этой даты."
   }
 }

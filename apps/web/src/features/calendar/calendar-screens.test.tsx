@@ -543,3 +543,166 @@ describe('EventScreen (one event)', () => {
     expect(options.params.path.eventId).toBe(doctor.id)
   })
 })
+
+describe('EventEditorScreen (repeating, issue #21)', () => {
+  it('a new event carries the recurrence the form picked', async () => {
+    seedRegistry()
+    apiPost.mockResolvedValue({
+      data: timedEvent(),
+      error: undefined,
+      response: new Response(null, { status: 201 }),
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
+    await user.selectOptions(screen.getByLabelText('Повтор'), 'weekly')
+    await user.type(screen.getByLabelText('Дата окончания'), '2027-01-31')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalled())
+    const [, options] = apiPost.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({
+      recurrence: { frequency: 'weekly', until: '2027-01-31' },
+    })
+  })
+
+  it('an until date before the event’s own is refused in the form', async () => {
+    seedRegistry()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
+    await user.selectOptions(screen.getByLabelText('Повтор'), 'monthly')
+    await user.type(screen.getByLabelText('Дата окончания'), '2020-01-01')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(screen.getByText('Дата окончания не может быть раньше первого события')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('the series editor is seeded from the series’ own rule', async () => {
+    seedRegistry()
+    const series = timedEvent({ recurrence: { frequency: 'weekly', until: '2027-01-02' } })
+    await applySyncResult(ME, syncResult([series]))
+    renderWithProviders(<EventEditorScreen eventId={series.id} />)
+
+    expect(await screen.findByLabelText('Повтор')).toHaveValue('weekly')
+    expect(screen.getByLabelText('Дата окончания')).toHaveValue('2027-01-02')
+  })
+
+  it('an occurrence edit sends the original date and no rule of its own', async () => {
+    seedRegistry()
+    const series = timedEvent({ recurrence: { frequency: 'weekly' } })
+    await applySyncResult(ME, syncResult([series]))
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}/occurrences/{originalDate}') {
+        return { data: series, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    // 2026-10-09 is the next Friday after the series' first occurrence.
+    renderWithProviders(<EventEditorScreen eventId={series.id} occurrenceDate="2026-10-09" />)
+
+    await user.clear(await screen.findByLabelText('Название'))
+    await user.type(screen.getByLabelText('Название'), 'Ужин в кафе')
+    // A single occurrence has no rule of its own: the repeat fields are
+    // not here, the zone field still is.
+    expect(screen.queryByLabelText('Повтор')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Часовой пояс')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
+    const [path, options] = apiPut.mock.calls.at(-1) as unknown as [
+      string,
+      { params: { path: { eventId: string; originalDate: string } }; body: Record<string, unknown> },
+    ]
+    expect(path).toBe('/api/v1/calendar/events/{eventId}/occurrences/{originalDate}')
+    expect(options.params.path).toEqual({ eventId: series.id, originalDate: '2026-10-09' })
+    expect(options.body).not.toHaveProperty('recurrence')
+  })
+})
+
+describe('EventScreen (a series, issue #21)', () => {
+  const series = () =>
+    timedEvent({
+      recurrence: { frequency: 'weekly' },
+    })
+
+  it('shows the series line, and asks what the edit is for', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([series()]))
+    renderWithProviders(<EventScreen eventId={series().id} />)
+
+    expect(await screen.findByText('Каждую неделю')).toBeInTheDocument()
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
+      screen.getByRole('button', { name: /Изменить/ }),
+    )
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Что изменить?')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Только это событие' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Всю серию' })).toBeInTheDocument()
+  })
+
+  it('the delete asks what to cancel, and the occurrence’s cancel hits the occurrence route', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([series()]))
+    apiDelete.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}/occurrences/{originalDate}') {
+        return { data: undefined, error: undefined, response: new Response(null, { status: 204 }) }
+      }
+      throw new Error(`Unexpected DELETE ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventScreen eventId={series().id} occurrenceDate="2026-10-09" />)
+
+    await screen.findByText('Миша — зубной врач')
+    // The occurrence the link named: its own date line.
+    expect(screen.getByText('пятница, 9 октября 2026 г.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Удалить/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByText('Отменить это событие или удалить всю серию?'),
+    ).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Отменить только это событие' }))
+
+    await waitFor(() => expect(apiDelete).toHaveBeenCalled())
+    const [path, options] = apiDelete.mock.calls.at(-1) as unknown as [
+      string,
+      { params: { path: { eventId: string; originalDate: string } } },
+    ]
+    expect(path).toBe('/api/v1/calendar/events/{eventId}/occurrences/{originalDate}')
+    expect(options.params.path).toEqual({ eventId: series().id, originalDate: '2026-10-09' })
+  })
+
+  it('a cancelled occurrence says so instead of pretending the date exists', async () => {
+    seedRegistry()
+    const cancelled: StoredCalendarEvent = {
+      ...series(),
+      exceptions: [{ originalDate: '2026-10-09', kind: 'cancelled' }],
+    }
+    await applySyncResult(ME, syncResult([cancelled]))
+    renderWithProviders(<EventScreen eventId={cancelled.id} occurrenceDate="2026-10-09" />)
+
+    expect(await screen.findByText('Это событие отменено')).toBeInTheDocument()
+  })
+
+  it('an override stands in its own shoes on the occurrence the link named', async () => {
+    seedRegistry()
+    const overridden: StoredCalendarEvent = {
+      ...series(),
+      exceptions: [
+        { originalDate: '2026-10-09', kind: 'override', title: 'Ужин в кафе', allDay: true, date: '2026-10-10' },
+      ],
+    }
+    await applySyncResult(ME, syncResult([overridden]))
+    renderWithProviders(<EventScreen eventId={overridden.id} occurrenceDate="2026-10-09" />)
+
+    expect(await screen.findByText('Ужин в кафе')).toBeInTheDocument()
+    expect(screen.getByText('суббота, 10 октября 2026 г.')).toBeInTheDocument()
+  })
+})
