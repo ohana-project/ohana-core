@@ -341,18 +341,16 @@ function isCancelled(event: StoredCalendarEvent, originalDate: string): boolean 
 
 /**
  * The series' next live occurrence from `todayKey` — the event screen's
- * landing anchor. The search walks the pattern from the device's today
- * forward (for a timed event, pass the today the event's zone reads), so
- * a series that has run for years lands on its next date, not one from
- * the past; an occurrence moved in from outside counts, since the
- * membership test carries no window. Nothing live ahead — a series whose
- * until has passed — falls back to the first live one overall, then to
- * the row's own first date. The horizon runs from the search's own start
- * to the rule's until, capped by what the frequency can skip: a yearly
- * February 29 series may hold four years between neighbours, so the cap
- * reaches past one skipped cycle. The walk is over original dates: an
- * occurrence an override moved across today is still named by the date
- * the series gives it.
+ * landing anchor. The search walks the pattern from today forward, so a
+ * series that has run for years lands on its next date, not one from the
+ * past. Nothing live ahead — a series whose until has passed — falls
+ * back to the first live one overall, then to the row's own first date.
+ * The horizon runs from the search's own start to the rule's until,
+ * capped by what the frequency can skip: a yearly February 29 series may
+ * hold four years between neighbours, so the cap reaches past one
+ * skipped cycle. The walk is over original dates: an occurrence an
+ * override moved across today is still named by the date the series
+ * gives it.
  */
 export function nextLiveOccurrenceDate(
   event: StoredCalendarEvent,
@@ -386,6 +384,22 @@ function maxDateKey(a: string, b: string): string {
 
 function minDateKey(a: string, b: string): string {
   return a <= b ? a : b
+}
+
+/**
+ * The today the landing's search starts from: an all-day series lives on
+ * the zoneless calendar and a timed one in its own zone, so the day that
+ * matters is the one that frame reads at this moment — a Tokyo device at
+ * one in the morning is already on the 2nd there, and an occurrence the
+ * zone still holds ahead must not be jumped over.
+ */
+export function seriesTodayKey(event: StoredCalendarEvent, now: Date): string {
+  if (!event.allDay && event.timezone !== undefined) {
+    return zonedDateKey(now.toISOString(), event.timezone)
+  }
+  const at = new Date(now)
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
 }
 
 function buildOccurrence(event: StoredCalendarEvent, originalDate: string): EventOccurrence {

@@ -1,9 +1,5 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 
-// The home screen's answers are pinned to UTC, whatever zone the machine
-// that runs them sits in: the agenda's window runs from the device's day.
-process.env.TZ = 'UTC'
-
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
@@ -31,14 +27,18 @@ vi.mock('@/data/api.ts', () => ({
   api: { GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() },
 }))
 
+// The home screen's answers are pinned to UTC, whatever zone the machine
+// that runs them sits in: the agenda's window runs from the device's day.
+process.env.TZ = 'UTC'
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => async () => {},
   // The gate redirects through Navigate; the tests decide the session
   // state, so it never renders.
   Navigate: () => null,
-  // The home columns link into the calendar; the mock keeps the href the
-  // real Link builds from the params and the search, so the tests can
-  // assert where an occurrence leads (issue #21).
+  // The home columns link into the calendar; a stand-in href built from
+  // the params and the search, so the tests can assert where an
+  // occurrence leads (issue #21).
   Link: ({
     children,
     params,

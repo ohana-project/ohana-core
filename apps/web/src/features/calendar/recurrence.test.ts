@@ -9,6 +9,7 @@ import {
   type Recurrence,
   seriesStartDate,
   seriesTimedFrame,
+  seriesTodayKey,
   type TimedFrame,
 } from './recurrence.ts'
 
@@ -686,11 +687,14 @@ describe('the landing anchor (nextLiveOccurrenceDate, review round five)', () =>
 
   test('a yearly February 29 series reaches past one skipped cycle', () => {
     const leap = storedEvent({ allDay: true, date: '2024-02-29' }, { frequency: 'yearly' })
-    const withCancelledFirst: StoredCalendarEvent = {
-      ...leap,
-      exceptions: [{ originalDate: '2024-02-29', kind: 'cancelled' }],
-    }
-    expect(nextLiveOccurrenceDate(withCancelledFirst, today)).toBe('2028-02-29')
+    // Searching from just past the 2024 occurrence: a two-year cap would
+    // end before 2028 and fall back to the years-old first date; the
+    // yearly cap reaches it.
+    expect(nextLiveOccurrenceDate(leap, '2024-03-01')).toBe('2028-02-29')
+    // The century's own skip: 2100 is not a leap year, so the next one is
+    // eight years out — only the yearly cap spans it.
+    const far = storedEvent({ allDay: true, date: '2096-02-29' }, { frequency: 'yearly' })
+    expect(nextLiveOccurrenceDate(far, '2096-03-01')).toBe('2104-02-29')
   })
 
   test('a series whose until has passed falls back to its first live date', () => {
@@ -699,10 +703,51 @@ describe('the landing anchor (nextLiveOccurrenceDate, review round five)', () =>
       { frequency: 'daily', until: '2026-01-03' },
     )
     expect(nextLiveOccurrenceDate(past, today)).toBe('2026-01-01')
+    // The first live one overall, not merely the first date: the 1st is
+    // cancelled, the 2nd stands.
+    const cancelledFirst: StoredCalendarEvent = {
+      ...past,
+      exceptions: [{ originalDate: '2026-01-01', kind: 'cancelled' }],
+    }
+    expect(nextLiveOccurrenceDate(cancelledFirst, today)).toBe('2026-01-02')
+    // And when nothing is live at all, the row's own first date is the
+    // last answer (the screen shows it with series actions only).
+    const allGone: StoredCalendarEvent = {
+      ...past,
+      exceptions: [
+        { originalDate: '2026-01-01', kind: 'cancelled' },
+        { originalDate: '2026-01-02', kind: 'cancelled' },
+        { originalDate: '2026-01-03', kind: 'cancelled' },
+      ],
+    }
+    expect(nextLiveOccurrenceDate(allGone, today)).toBe('2026-01-01')
   })
 
   test('a one-time event anchors on its own date', () => {
     const oneTime = storedEvent({ allDay: true, date: '2026-01-01' }, undefined)
     expect(nextLiveOccurrenceDate(oneTime, today)).toBe('2026-01-01')
+  })
+})
+
+describe('seriesTodayKey (review round six)', () => {
+  test('a timed series reads today in its own zone', () => {
+    // Noon UTC on the 1st is already one in the morning of the 2nd in
+    // Auckland: the series' frame is a day ahead of the device's.
+    const auckland = storedEvent(
+      {
+        allDay: false,
+        date: '2026-10-02',
+        startTime: '09:00',
+        endTime: '10:00',
+        timezone: 'Pacific/Auckland',
+      },
+      { frequency: 'daily' },
+    )
+    expect(seriesTodayKey(auckland, new Date('2026-10-01T12:00:00.000Z'))).toBe('2026-10-02')
+  })
+
+  test('an all-day series reads the device day', () => {
+    const allDay = storedEvent({ allDay: true, date: '2026-10-02' }, { frequency: 'weekly' })
+    expect(seriesTodayKey(allDay, new Date('2026-10-01T12:00:00.000Z'))).toBe('2026-10-01')
   })
 })

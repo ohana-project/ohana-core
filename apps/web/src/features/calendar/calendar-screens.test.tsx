@@ -719,7 +719,7 @@ describe('EventScreen (a series, issue #21)', () => {
 })
 
 describe('EventScreen (a series opened without a date, issue #21)', () => {
-  it('the occurrence actions anchor on the series’ first date', async () => {
+  it('the occurrence actions anchor on the series’ next live occurrence', async () => {
     seedRegistry()
     // The series starts on the 2nd (a Friday); the screen is the default
     // landing after creation, no ?date= in the URL.

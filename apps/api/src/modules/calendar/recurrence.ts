@@ -288,17 +288,18 @@ export function parseRrule(
     if (kind.allDay) throw new Error(`“${rrule}” bounds an all-day series with a date-time UNTIL`)
     if (kind.timezone === undefined) throw new Error('A timed series parses UNTIL in its zone')
     // The runtime rolls an impossible day forward (2026-02-30 reads as
-    // 2 March), so the date part passes the calendar's own test before
-    // the instant is built.
-    if (
-      parseDateKey(
-        `${untilEncoded.slice(0, 4)}-${untilEncoded.slice(4, 6)}-${untilEncoded.slice(6, 8)}`,
-      ) === undefined
-    ) {
+    // 2 March) and reads a 24th hour as the next day's midnight, so the
+    // date part passes the calendar's own test and the hour its bound
+    // before the instant is built.
+    const datePart = `${untilEncoded.slice(0, 4)}-${untilEncoded.slice(4, 6)}-${untilEncoded.slice(6, 8)}`
+    if (parseDateKey(datePart) === undefined) {
       throw new Error(`“${rrule}” bounds a series with a date that does not exist`)
     }
+    if (Number(untilEncoded.slice(9, 11)) > 23) {
+      throw new Error(`“${rrule}” bounds a series with an hour that does not exist`)
+    }
     const instant = new Date(
-      `${untilEncoded.slice(0, 4)}-${untilEncoded.slice(4, 6)}-${untilEncoded.slice(6, 8)}T${untilEncoded.slice(9, 11)}:${untilEncoded.slice(11, 13)}:${untilEncoded.slice(13, 15)}Z`,
+      `${datePart}T${untilEncoded.slice(9, 11)}:${untilEncoded.slice(11, 13)}:${untilEncoded.slice(13, 15)}Z`,
     )
     if (Number.isNaN(instant.getTime())) throw new Error(`“${rrule}” carries an unreadable UNTIL`)
     until = zoneWallTime(instant, kind.timezone).date

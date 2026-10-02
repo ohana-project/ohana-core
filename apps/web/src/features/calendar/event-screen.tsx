@@ -12,7 +12,6 @@ import {
   localDateKey,
   parseDateOnly,
   todayDateOnly,
-  zonedDateKey,
 } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -31,7 +30,13 @@ import { toast } from '@/ui/toast.tsx'
 import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
-import { isRecurring, nextLiveOccurrenceDate, occurrenceOf, type Recurrence } from './recurrence.ts'
+import {
+  isRecurring,
+  nextLiveOccurrenceDate,
+  occurrenceOf,
+  type Recurrence,
+  seriesTodayKey,
+} from './recurrence.ts'
 import {
   calendarErrorMessage,
   useCalendarData,
@@ -71,14 +76,15 @@ export function EventScreen({
   const event = snapshot.isPending ? undefined : eventOf(events, eventId)
   const editable = event !== undefined && canEditEvent(event, getActiveMemberId(), profiles)
   const recurring = event !== undefined && isRecurring(event)
-  // The today the anchor's search starts from: the device's day — but a
-  // timed series lives in its own zone, and an occurrence still ahead
-  // there must not be jumped over because the device has rolled past it.
-  const todayKey = useMemo(() => {
-    const deviceKey = formatDateOnly(todayDateOnly())
-    if (event === undefined || event.allDay || event.timezone === undefined) return deviceKey
-    return zonedDateKey(new Date().toISOString(), event.timezone)
-  }, [event])
+  // The today the anchor's search starts from: the series' own frame —
+  // the zone a timed event keeps, the zoneless calendar for an all-day
+  // one — so an occurrence still ahead there is not jumped over because
+  // the device has rolled past it.
+  const todayKey = useMemo(
+    () =>
+      event === undefined ? formatDateOnly(todayDateOnly()) : seriesTodayKey(event, new Date()),
+    [event],
+  )
   // The date the occurrence actions act on: the one the link named, or —
   // a series opened without a date, as after its creation — the series'
   // next live occurrence, so a cancelled first date neither dead-ends the
@@ -97,9 +103,10 @@ export function EventScreen({
   const shown: StoredCalendarEvent | undefined =
     occurrence?.event ?? (occurrenceDate === undefined ? event : undefined)
   // "Cancelled" is the answer only to a link that named its date: on the
-  // default landing the anchor is a live occurrence by construction, so
-  // the series actions stay — a first occurrence's cancellation must not
-  // dead-end the screen the series edits return to (issue #21).
+  // default landing the anchor is a live occurrence when the series has
+  // one, and when it has none the series row stands in with series
+  // actions only — a first occurrence's cancellation must not dead-end
+  // the screen the series edits return to (issue #21).
   const cancelledHere =
     event !== undefined &&
     occurrenceDate !== undefined &&
