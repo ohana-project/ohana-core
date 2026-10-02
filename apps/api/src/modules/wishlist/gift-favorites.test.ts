@@ -151,7 +151,10 @@ async function unfavorite(
 async function listFavorites(
   app: TestApp,
   session: MemberSession,
-): Promise<{ status: number; body: { favorites: GiftFavoriteDto[] } | { error: { code: string } } }> {
+): Promise<{
+  status: number
+  body: { favorites: GiftFavoriteDto[] } | { error: { code: string } }
+}> {
   const response = await app.inject({
     method: 'GET',
     url: '/api/v1/wishlist/favorites',

@@ -255,3 +255,156 @@ describe('the wishes in the local store', () => {
     expect((await readMemberSnapshot(ANYA)).wishes).toEqual([])
   })
 })
+
+describe('the gift favorites and reservations in the local store (issue #19)', () => {
+  test('favorites and reservations from a sync response are stored and read back', async () => {
+    const bookmark = {
+      id: '01900000-0000-7000-8000-000000000401',
+      wishId: '01900000-0000-7000-8000-000000000301',
+      createdAt: '2026-09-26T12:00:00.000Z',
+      updatedAt: '2026-09-26T12:00:00.000Z',
+    }
+    const held = {
+      id: '01900000-0000-7000-8000-000000000501',
+      wishId: '01900000-0000-7000-8000-000000000302',
+      memberId: DIMA,
+      createdAt: '2026-09-27T12:00:00.000Z',
+      updatedAt: '2026-09-27T12:00:00.000Z',
+    }
+    await applySyncResult(
+      ANYA,
+      syncResult(
+        [
+          { entity: 'wishlist_gift_favorite', favorite: bookmark },
+          { entity: 'wishlist_gift_reservation', reservation: held },
+        ],
+        '8',
+      ),
+    )
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.favorites).toEqual([bookmark])
+    expect(snapshot.reservations).toEqual([held])
+    expect(snapshot.revision).toBe('8')
+  })
+
+  test('a delta applies the new favorite and a tombstone removes it', async () => {
+    const bookmark = {
+      id: '01900000-0000-7000-8000-000000000401',
+      wishId: '01900000-0000-7000-8000-000000000301',
+      createdAt: '2026-09-26T12:00:00.000Z',
+      updatedAt: '2026-09-26T12:00:00.000Z',
+    }
+    await applySyncResult(
+      ANYA,
+      syncResult([{ entity: 'wishlist_gift_favorite', favorite: bookmark }]),
+    )
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [],
+      tombstones: [
+        {
+          entity: 'wishlist_gift_favorite',
+          entityId: bookmark.id,
+          audience: 'member',
+          memberId: ANYA,
+        },
+      ],
+    })
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.favorites).toEqual([])
+    expect(snapshot.reservations).toEqual([])
+  })
+
+  test('a space change that hides the wishlist drops the favorites and the reservations too', async () => {
+    const bookmark = {
+      id: '01900000-0000-7000-8000-000000000401',
+      wishId: '01900000-0000-7000-8000-000000000301',
+      createdAt: '2026-09-26T12:00:00.000Z',
+      updatedAt: '2026-09-26T12:00:00.000Z',
+    }
+    const held = {
+      id: '01900000-0000-7000-8000-000000000501',
+      wishId: '01900000-0000-7000-8000-000000000302',
+      memberId: DIMA,
+      createdAt: '2026-09-27T12:00:00.000Z',
+      updatedAt: '2026-09-27T12:00:00.000Z',
+    }
+    await applySyncResult(
+      ANYA,
+      syncResult(
+        [
+          { entity: 'wishlist_gift_favorite', favorite: bookmark },
+          { entity: 'wishlist_gift_reservation', reservation: held },
+        ],
+        '8',
+      ),
+    )
+
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: false },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.favorites).toEqual([])
+    expect(snapshot.reservations).toEqual([])
+  })
+
+  test('a version 3 partition upgrades in place: the cursor resets for the gift rows', async () => {
+    // Seed a version 3 partition the way a device that synced before the
+    // gift stores existed holds one.
+    const openVersionThree = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${ANYA}`, 3)
+      request.onupgradeneeded = () => {
+        const upgrading = request.result
+        upgrading.createObjectStore('space', { keyPath: 'id' })
+        upgrading.createObjectStore('members', { keyPath: 'id' })
+        upgrading.createObjectStore('entries', { keyPath: 'id' })
+        upgrading.createObjectStore('wishes', { keyPath: 'id' })
+        upgrading.createObjectStore('meta', { keyPath: 'key' })
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Seeding version 3 failed'))
+    })
+    const seed = async (db: IDBDatabase): Promise<void> =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(['space', 'meta'], 'readwrite')
+        tx.objectStore('space').put({
+          id: SPACE_ID,
+          name: 'Наша семья',
+          timezone: 'Europe/Moscow',
+          sections: { journal: true, calendar: true, wishlist: true },
+        })
+        tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Seeding version 3 failed'))
+      })
+    const three = await openVersionThree
+    try {
+      await seed(three)
+    } finally {
+      three.close()
+    }
+
+    // The next read upgrades in place: the gift stores appear, the cursor
+    // resets to 0, and the replay promise names the wishlist (ADR-0014).
+    const upgraded = await readMemberSnapshot(ANYA)
+    expect(upgraded.revision).toBe('0')
+    expect(upgraded.pendingReplay).toEqual(['wishlist'])
+    expect(upgraded.favorites).toEqual([])
+    expect(upgraded.reservations).toEqual([])
+  })
+})

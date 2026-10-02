@@ -1,4 +1,9 @@
-import type { StoredMemberProfile, StoredWish } from '@/data/local-store.ts'
+import type {
+  StoredGiftFavorite,
+  StoredGiftReservation,
+  StoredMemberProfile,
+  StoredWish,
+} from '@/data/local-store.ts'
 
 /*
  * The wishlist's read-side derivation (issue #18): pure selection over the
@@ -72,4 +77,43 @@ export function chipDomain(link: string): string {
 export function wishlistUpdatedAt(wishes: StoredWish[]): string | undefined {
   if (wishes.length === 0) return undefined
   return wishes.reduce((latest, wish) => (wish.updatedAt > latest ? wish.updatedAt : latest), '')
+}
+
+/*
+ * The gift favorites and the gift reservations (issue #19): pure selection
+ * over the synchronised partition, like the wish rules above. The server
+ * has already scoped both — a favorite travels to its maker alone, a
+ * reservation to every member but the wish's author — so nothing here
+ * re-decides visibility; the joining is presentation.
+ */
+
+/** The favorites' order: creation order, the id breaking same-moment ties. */
+function byFavoriteCreation(a: StoredGiftFavorite, b: StoredGiftFavorite): number {
+  return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+}
+
+/**
+ * The member's favorites with the wishes they name, favorite creation
+ * order. A favorite whose wish is absent is skipped: after an applied sync
+ * the two live and die in one transaction, so the pair is only ever
+ * sighted mid-replay, and a bookmark without its wish has nothing to show.
+ */
+export function favoritesWithWishes(
+  favorites: StoredGiftFavorite[],
+  wishes: StoredWish[],
+): Array<{ favorite: StoredGiftFavorite; wish: StoredWish }> {
+  const joined: Array<{ favorite: StoredGiftFavorite; wish: StoredWish }> = []
+  for (const favorite of [...favorites].sort(byFavoriteCreation)) {
+    const wish = wishById(wishes, favorite.wishId)
+    if (wish !== undefined) joined.push({ favorite, wish })
+  }
+  return joined
+}
+
+/** The wish's active reservation, or undefined when the wish is free. */
+export function reservationFor(
+  reservations: StoredGiftReservation[],
+  wishId: string,
+): StoredGiftReservation | undefined {
+  return reservations.find((reservation) => reservation.wishId === wishId)
 }

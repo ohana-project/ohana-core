@@ -17,14 +17,13 @@ import { WishlistShell } from './wishlist-shell.tsx'
 /*
  * The wishlists overview (docs/design/screens/wishlists.html): the member's
  * own wishlist card beside the other members' lists with their open-wish
- * counts. Everything reads the member's synchronised partition (issue
+ * counts, and the favorites card leading to the member's private bookmarks
+ * (issue #19). Everything reads the member's synchronised partition (issue
  * #14), so the screen answers the same online and offline (ADR-0002).
- * Favorites and reservations join this screen with issue #19; the wish
- * rules themselves are #18's.
  */
 export function WishlistsScreen() {
   const { t } = useTranslation()
-  const { snapshot, wishes, profiles, downloaded } = useWishlistData()
+  const { snapshot, wishes, favorites, profiles, downloaded } = useWishlistData()
   const meId = getActiveMemberId()
 
   const mine = meId === undefined ? [] : wishesOf(wishes, meId)
@@ -82,6 +81,26 @@ export function WishlistsScreen() {
                         {mineReceived > 0 && (
                           <> · {t('wishlist.receivedCount', { count: mineReceived })}</>
                         )}
+                      </span>
+                    </div>
+                    <Icon name="chevron-right" className="text-muted-foreground" />
+                  </div>
+                </Card>
+              </Link>
+              {/* The member's private bookmarks (issue #19): the count is
+                  honest even at zero — a device may claim the number, this
+                  screen having downloaded its partition. */}
+              <Link to="/wishlist/favorites" className="block">
+                <Card hoverable>
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-[38px] shrink-0 place-items-center rounded-md bg-accent text-accent-foreground">
+                      <Icon name="heart" className="size-5" />
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-sm font-semibold">{t('wishlist.favoritesTitle')}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {t('wishlist.favoritesCount', { count: favorites.length })} ·{' '}
+                        {t('wishlist.favoritesPrivate')}
                       </span>
                     </div>
                     <Icon name="chevron-right" className="text-muted-foreground" />

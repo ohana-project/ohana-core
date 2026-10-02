@@ -262,9 +262,9 @@ describe('the gift reservations (issue #19)', () => {
         expect(read.body).toMatchObject({ wishId: lamp.id, memberId: anna.memberId })
 
         const listing = await listReservations(app, member)
-        expect(
-          (listing.body as { reservations: GiftReservationDto[] }).reservations,
-        ).toEqual([held])
+        expect((listing.body as { reservations: GiftReservationDto[] }).reservations).toEqual([
+          held,
+        ])
       }
 
       // The author of the wish learns nothing, in any shape (ADR-0001).

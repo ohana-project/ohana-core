@@ -73,11 +73,35 @@ export interface StoredWish {
   updatedAt: string
 }
 
+/** The member's private gift favorite (issue #19): a bookmark of someone
+ *  else's wish, delivered to this member alone. The wish itself travels on
+ *  its own entity, so the row is rendered joined with the wish it names. */
+export interface StoredGiftFavorite {
+  id: string
+  wishId: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** A gift reservation (issue #19): a wish's active claim, visible to every
+ *  member except the wish's author — the author's partition never holds
+ *  one, not even the tombstone of its ending. `memberId` is the reserving
+ *  member; the screens name them from the profiles the store holds. */
+export interface StoredGiftReservation {
+  id: string
+  wishId: string
+  memberId: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface MemberSnapshot {
   space: StoredSpace | undefined
   members: StoredMemberProfile[]
   entries: StoredJournalEntry[]
   wishes: StoredWish[]
+  favorites: StoredGiftFavorite[]
+  reservations: StoredGiftReservation[]
   /** The last revision the device has applied; undefined until the first sync lands. */
   revision: string | undefined
   /** When the last sync succeeded, in epoch milliseconds. */
@@ -104,10 +128,11 @@ function memberDbName(memberId: string): string {
 function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     // Version 2 added the journal entries store (issue #15); version 3 the
-    // wishlist's wishes (issue #18). The upgrade runs for fresh databases
-    // and for the partitions of members who synced before either existed,
+    // wishlist's wishes (issue #18); version 4 the gift favorites and the
+    // gift reservations (issue #19). The upgrade runs for fresh databases
+    // and for the partitions of members who synced before any existed,
     // so every store creation is guarded.
-    const request = indexedDB.open(memberDbName(memberId), 3)
+    const request = indexedDB.open(memberDbName(memberId), 4)
     request.onupgradeneeded = (event) => {
       // The versions travel on the version-change event, not the request.
       const oldVersion = event.oldVersion
@@ -131,13 +156,19 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('wishes')) {
         db.createObjectStore('wishes', { keyPath: 'id' })
       }
+      if (!db.objectStoreNames.contains('giftFavorites')) {
+        db.createObjectStore('giftFavorites', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('giftReservations')) {
+        db.createObjectStore('giftReservations', { keyPath: 'id' })
+      }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
       if (oldVersion >= 1 && oldVersion < 2) {
         // A version 1 device advanced its cursor while ignoring
         // journal_entry changes, so a delta would never deliver the
-        // entries past it — and one upgrading straight to version 3 was
+        // entries past it — and one upgrading straight to version 4 was
         // ignoring wishlist_wish changes too. One reset covers both
-        // sections the upgrade passes on its way to version 3: the cursor
+        // sections the upgrade passes on its way to version 4: the cursor
         // goes to 0 and the replay promise names them, the same move a
         // re-shown section makes (ADR-0014). A partition whose first apply
         // never committed holds no cursor, and stays honestly empty:
@@ -148,6 +179,12 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
         // The same move for the wishlist (issue #18): a version 2 device
         // advanced its cursor while ignoring wishlist_wish changes, so
         // only a replay from 0 can deliver the wishes it was never sent.
+        upgradeReplay(request, ['wishlist'])
+      }
+      if (oldVersion >= 3 && oldVersion < 4) {
+        // And for the gift favorites and reservations (issue #19): a
+        // version 3 device advanced its cursor while ignoring their
+        // changes, so only a replay from 0 can deliver them.
         upgradeReplay(request, ['wishlist'])
       }
     }
@@ -200,6 +237,8 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     members: [],
     entries: [],
     wishes: [],
+    favorites: [],
+    reservations: [],
     revision: undefined,
     syncedAt: undefined,
     pendingReplay: [],
@@ -226,12 +265,17 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     return empty
   }
   try {
-    const tx = db.transaction(['space', 'members', 'entries', 'wishes', 'meta'], 'readonly')
-    const [spaces, members, entries, wishes, meta] = await Promise.all([
+    const tx = db.transaction(
+      ['space', 'members', 'entries', 'wishes', 'giftFavorites', 'giftReservations', 'meta'],
+      'readonly',
+    )
+    const [spaces, members, entries, wishes, favorites, reservations, meta] = await Promise.all([
       requestAsPromise(tx.objectStore('space').getAll()),
       requestAsPromise(tx.objectStore('members').getAll()),
       requestAsPromise(tx.objectStore('entries').getAll()),
       requestAsPromise(tx.objectStore('wishes').getAll()),
+      requestAsPromise(tx.objectStore('giftFavorites').getAll()),
+      requestAsPromise(tx.objectStore('giftReservations').getAll()),
       requestAsPromise(tx.objectStore('meta').getAll()),
     ])
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
@@ -243,6 +287,8 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
       members: members as StoredMemberProfile[],
       entries: entries as StoredJournalEntry[],
       wishes: wishes as StoredWish[],
+      favorites: favorites as StoredGiftFavorite[],
+      reservations: reservations as StoredGiftReservation[],
       revision: cursor,
       syncedAt,
       pendingReplay,
@@ -299,11 +345,16 @@ export async function applySyncResult(
   try {
     // The stored cursor is only resolved once the transaction has committed.
     return await new Promise<AppliedSync>((resolve, reject) => {
-      const tx = db.transaction(['space', 'members', 'entries', 'wishes', 'meta'], 'readwrite')
+      const tx = db.transaction(
+        ['space', 'members', 'entries', 'wishes', 'giftFavorites', 'giftReservations', 'meta'],
+        'readwrite',
+      )
       const spaceStore = tx.objectStore('space')
       const memberStore = tx.objectStore('members')
       const entryStore = tx.objectStore('entries')
       const wishStore = tx.objectStore('wishes')
+      const favoriteStore = tx.objectStore('giftFavorites')
+      const reservationStore = tx.objectStore('giftReservations')
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
       let applied = true
@@ -337,19 +388,33 @@ export async function applySyncResult(
             if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
             if (tombstone.entity === 'journal_entry') entryStore.delete(tombstone.entityId)
             if (tombstone.entity === 'wishlist_wish') wishStore.delete(tombstone.entityId)
+            if (tombstone.entity === 'wishlist_gift_favorite') {
+              favoriteStore.delete(tombstone.entityId)
+            }
+            if (tombstone.entity === 'wishlist_gift_reservation') {
+              reservationStore.delete(tombstone.entityId)
+            }
           }
           for (const change of result.changes) {
             if (change.entity === 'space') spaceStore.put(change.space)
             if (change.entity === 'member') memberStore.put(change.member)
             if (change.entity === 'journal_entry') entryStore.put(change.entry)
             if (change.entity === 'wishlist_wish') wishStore.put(change.wish)
+            if (change.entity === 'wishlist_gift_favorite') favoriteStore.put(change.favorite)
+            if (change.entity === 'wishlist_gift_reservation') {
+              reservationStore.put(change.reservation)
+            }
           }
 
           let revision = result.revision
           const nextSpace = result.changes.find((change) => change.entity === 'space')
           if (nextSpace !== undefined) {
             if (!nextSpace.space.sections.journal) entryStore.clear()
-            if (!nextSpace.space.sections.wishlist) wishStore.clear()
+            if (!nextSpace.space.sections.wishlist) {
+              wishStore.clear()
+              favoriteStore.clear()
+              reservationStore.clear()
+            }
           }
           // A re-shown section writes the replay promise: the cursor goes
           // to 0 and the section's full data has to come again before the

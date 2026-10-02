@@ -129,23 +129,23 @@ async function sync(app: TestApp, session: MemberSession, since: string): Promis
 }
 
 function favoritesOf(result: SyncResponse): SyncFavoriteRow[] {
-  return result.changes.filter((change) => change.entity === 'wishlist_gift_favorite').map(
-    (change) => {
+  return result.changes
+    .filter((change) => change.entity === 'wishlist_gift_favorite')
+    .map((change) => {
       const row = change.favorite
       if (row === undefined) throw new Error('A favorite change carried no favorite')
       return row
-    },
-  )
+    })
 }
 
 function reservationsOf(result: SyncResponse): SyncReservationRow[] {
-  return result.changes.filter((change) => change.entity === 'wishlist_gift_reservation').map(
-    (change) => {
+  return result.changes
+    .filter((change) => change.entity === 'wishlist_gift_reservation')
+    .map((change) => {
       const row = change.reservation
       if (row === undefined) throw new Error('A reservation change carried no reservation')
       return row
-    },
-  )
+    })
 }
 
 async function createWish(
@@ -355,7 +355,9 @@ describe('the gift favorites and reservations in sync (issue #19)', () => {
       ])
       const dimaDelta = await sync(app, dima, dimaCursor)
       expect(reservationsOf(dimaDelta)).toEqual([])
-      expect(dimaDelta.tombstones.filter((row) => row.entity === 'wishlist_gift_reservation')).toEqual([])
+      expect(
+        dimaDelta.tombstones.filter((row) => row.entity === 'wishlist_gift_reservation'),
+      ).toEqual([])
 
       // The removal takes the wish's favorites with it, tombstoned to the
       // member who made each (issue #19).
@@ -406,17 +408,22 @@ describe('the gift favorites and reservations in sync (issue #19)', () => {
       // delivers him — the reservation on Люда's wish, never the one on his
       // own, and never Аня's favorite.
       const beforeOwner = await sync(app, owner, '0')
-      expect(beforeOwner.changes.filter((change) => change.entity === 'wishlist_wish'))
-        .toHaveLength(2)
-      expect(beforeOwner.changes.filter((change) => change.entity === 'wishlist_gift_favorite'))
-        .toHaveLength(1)
-      expect(beforeOwner.changes.filter((change) => change.entity === 'wishlist_gift_reservation'))
-        .toHaveLength(2)
+      expect(
+        beforeOwner.changes.filter((change) => change.entity === 'wishlist_wish'),
+      ).toHaveLength(2)
+      expect(
+        beforeOwner.changes.filter((change) => change.entity === 'wishlist_gift_favorite'),
+      ).toHaveLength(1)
+      expect(
+        beforeOwner.changes.filter((change) => change.entity === 'wishlist_gift_reservation'),
+      ).toHaveLength(2)
       const before = await sync(app, dima, '0')
-      expect(before.changes.filter((change) => change.entity === 'wishlist_gift_reservation'))
-        .toHaveLength(1)
-      expect(before.changes.filter((change) => change.entity === 'wishlist_gift_favorite'))
-        .toEqual([])
+      expect(
+        before.changes.filter((change) => change.entity === 'wishlist_gift_reservation'),
+      ).toHaveLength(1)
+      expect(before.changes.filter((change) => change.entity === 'wishlist_gift_favorite')).toEqual(
+        [],
+      )
 
       await hideWishlist(app, owner, false)
 
@@ -431,16 +438,20 @@ describe('the gift favorites and reservations in sync (issue #19)', () => {
       // revision 0 once: the section's full data comes back.
       const resync = await sync(app, dima, '0')
       expect(resync.changes.filter((change) => change.entity === 'wishlist_wish')).toHaveLength(2)
-      expect(resync.changes.filter((change) => change.entity === 'wishlist_gift_reservation'))
-        .toHaveLength(1)
+      expect(
+        resync.changes.filter((change) => change.entity === 'wishlist_gift_reservation'),
+      ).toHaveLength(1)
       // The favorite belongs to Аня, and this is Дима's delta.
-      expect(resync.changes.filter((change) => change.entity === 'wishlist_gift_favorite'))
-        .toEqual([])
+      expect(resync.changes.filter((change) => change.entity === 'wishlist_gift_favorite')).toEqual(
+        [],
+      )
       const resyncOwner = await sync(app, owner, '0')
-      expect(resyncOwner.changes.filter((change) => change.entity === 'wishlist_gift_favorite'))
-        .toHaveLength(1)
-      expect(resyncOwner.changes.filter((change) => change.entity === 'wishlist_gift_reservation'))
-        .toHaveLength(2)
+      expect(
+        resyncOwner.changes.filter((change) => change.entity === 'wishlist_gift_favorite'),
+      ).toHaveLength(1)
+      expect(
+        resyncOwner.changes.filter((change) => change.entity === 'wishlist_gift_reservation'),
+      ).toHaveLength(2)
     })
   })
 })

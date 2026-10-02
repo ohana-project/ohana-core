@@ -18,6 +18,12 @@ import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-
 export type WishDto =
   paths['/api/v1/wishlist/wishes']['post']['responses'][201]['content']['application/json']
 
+export type GiftFavoriteDto =
+  paths['/api/v1/wishlist/wishes/{wishId}/favorite']['post']['responses'][201]['content']['application/json']
+
+export type GiftReservationDto =
+  paths['/api/v1/wishlist/wishes/{wishId}/reservation']['post']['responses'][201]['content']['application/json']
+
 export interface WishInput {
   title: string
   details?: string
@@ -30,18 +36,20 @@ export const WISH_DETAILS_MAX_LENGTH = 2_000
 export const WISH_LINK_MAX_LENGTH = 2_048
 
 /**
- * The synchronised wishes and profiles the wishlist screens read, plus
- * whether the device may claim wishlist data at all: while the wishlist is
- * the section a replay promise names (a re-show or the store upgrade,
- * ADR-0014), the store may hold only a fraction of it, and "empty" would
- * be a claim the device cannot make.
+ * The synchronised wishes, gift favorites, gift reservations, and profiles
+ * the wishlist screens read, plus whether the device may claim wishlist
+ * data at all: while the wishlist is the section a replay promise names (a
+ * re-show or the store upgrade, ADR-0014), the store may hold only a
+ * fraction of it, and "empty" would be a claim the device cannot make.
  */
 export function useWishlistData() {
   const snapshot = useSyncedSpace()
   const wishes = snapshot.data?.wishes ?? []
+  const favorites = snapshot.data?.favorites ?? []
+  const reservations = snapshot.data?.reservations ?? []
   const profiles = snapshot.data?.members ?? []
   const downloaded = sectionDownloaded(snapshot.data, 'wishlist')
-  return { snapshot, wishes, profiles, downloaded }
+  return { snapshot, wishes, favorites, reservations, profiles, downloaded }
 }
 
 /** POST /api/v1/wishlist/wishes — a new wish on the member's own list. */
@@ -121,11 +129,86 @@ export function useClearWishReceived() {
   })
 }
 
+/*
+ * The gift favorite and the gift reservation (issue #19): the bookmark is
+ * the member's private toggle, the reservation is the public claim — both
+ * sync on success and on refusal, the screens reading the refused rows
+ * from the local store.
+ */
+
+/** POST /api/v1/wishlist/wishes/{wishId}/favorite — the private bookmark. */
+export function useFavoriteWish() {
+  return useMutation({
+    mutationFn: async (input: { wishId: string }): Promise<GiftFavoriteDto> => {
+      const response = await api.POST('/api/v1/wishlist/wishes/{wishId}/favorite', {
+        params: { path: { wishId: input.wishId } },
+      })
+      await assertOk(response)
+      if (response.data === undefined) throw new ApiError('unexpected')
+      return response.data
+    },
+    onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
+  })
+}
+
+/** DELETE /api/v1/wishlist/wishes/{wishId}/favorite — taking the bookmark back. */
+export function useUnfavoriteWish() {
+  return useMutation({
+    mutationFn: async (input: { wishId: string }): Promise<void> => {
+      const response = await api.DELETE('/api/v1/wishlist/wishes/{wishId}/favorite', {
+        params: { path: { wishId: input.wishId } },
+      })
+      await assertOk(response)
+    },
+    onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
+  })
+}
+
+/** POST /api/v1/wishlist/wishes/{wishId}/reservation — the claim to give. */
+export function useReserveWish() {
+  return useMutation({
+    mutationFn: async (input: { wishId: string }): Promise<GiftReservationDto> => {
+      const response = await api.POST('/api/v1/wishlist/wishes/{wishId}/reservation', {
+        params: { path: { wishId: input.wishId } },
+      })
+      await assertOk(response)
+      if (response.data === undefined) throw new ApiError('unexpected')
+      return response.data
+    },
+    onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
+  })
+}
+
+/** DELETE /api/v1/wishlist/wishes/{wishId}/reservation — only the holder's. */
+export function useCancelReservation() {
+  return useMutation({
+    mutationFn: async (input: { wishId: string }): Promise<void> => {
+      const response = await api.DELETE('/api/v1/wishlist/wishes/{wishId}/reservation', {
+        params: { path: { wishId: input.wishId } },
+      })
+      await assertOk(response)
+    },
+    onSuccess: () => void triggerSync(),
+    onError: () => void triggerSync(),
+  })
+}
+
 type WishlistErrorKey =
   | 'wishlist.errors.wish_not_found'
   | 'wishlist.errors.author_required'
   | 'wishlist.errors.wish_already_received'
   | 'wishlist.errors.wish_not_received'
+  | 'wishlist.errors.favorite_own_wish'
+  | 'wishlist.errors.wish_already_favorited'
+  | 'wishlist.errors.wish_not_favorited'
+  | 'wishlist.errors.reserve_own_wish'
+  | 'wishlist.errors.wish_already_reserved'
+  | 'wishlist.errors.wish_not_reserved'
+  | 'wishlist.errors.reservation_holder_required'
+  | 'wishlist.errors.reservation_not_found'
   | 'wishlist.errors.section_hidden'
   | 'wishlist.errors.validation_failed'
   | 'wishlist.errors.unexpected'
@@ -135,6 +218,14 @@ const wishlistErrorKeys: Partial<Record<string, WishlistErrorKey>> = {
   author_required: 'wishlist.errors.author_required',
   wish_already_received: 'wishlist.errors.wish_already_received',
   wish_not_received: 'wishlist.errors.wish_not_received',
+  favorite_own_wish: 'wishlist.errors.favorite_own_wish',
+  wish_already_favorited: 'wishlist.errors.wish_already_favorited',
+  wish_not_favorited: 'wishlist.errors.wish_not_favorited',
+  reserve_own_wish: 'wishlist.errors.reserve_own_wish',
+  wish_already_reserved: 'wishlist.errors.wish_already_reserved',
+  wish_not_reserved: 'wishlist.errors.wish_not_reserved',
+  reservation_holder_required: 'wishlist.errors.reservation_holder_required',
+  reservation_not_found: 'wishlist.errors.reservation_not_found',
   section_hidden: 'wishlist.errors.section_hidden',
   validation_failed: 'wishlist.errors.validation_failed',
 }

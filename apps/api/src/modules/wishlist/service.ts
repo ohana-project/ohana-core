@@ -4,17 +4,13 @@ import { DomainError, notFound } from '../../platform/errors.ts'
 import { listMembersInTx } from '../members/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
+import type { WriteWishBody } from './contracts.ts'
 import {
   WISHLIST_GIFT_FAVORITE_SYNC_ENTITY,
   WISHLIST_GIFT_RESERVATION_SYNC_ENTITY,
+  WISHLIST_WISH_SYNC_ENTITY,
 } from './contracts.ts'
-import type { WriteWishBody } from './contracts.ts'
-import { WISHLIST_WISH_SYNC_ENTITY } from './contracts.ts'
-import {
-  assertWishAuthoredBy,
-  assertWishNotAuthoredBy,
-  wishVisibleTo,
-} from './policy.ts'
+import { assertWishAuthoredBy, assertWishNotAuthoredBy, wishVisibleTo } from './policy.ts'
 import {
   clearWishReceived,
   deleteGiftFavorite,

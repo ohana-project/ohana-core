@@ -273,12 +273,7 @@ export async function listGiftFavoritesOfMember(
   return executor
     .select()
     .from(giftFavorites)
-    .where(
-      and(
-        eq(giftFavorites.spaceId, spaceId),
-        favoriteVisibleToSql(memberId),
-      ),
-    )
+    .where(and(eq(giftFavorites.spaceId, spaceId), favoriteVisibleToSql(memberId)))
     .orderBy(asc(giftFavorites.createdAt), asc(giftFavorites.id))
 }
 

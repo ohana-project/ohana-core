@@ -1,14 +1,17 @@
 import { expect, type Page, test } from '@playwright/test'
 
 /*
- * The wishlist's interface flows (issue #18): the section navigation leads
- * to the wishlists overview; a wish is added through the sheet, edited
- * with the received mark, and removed behind its confirm; a member's open
- * wishes are browsed, a received one gone from the list. The member
- * endpoints are intercepted at the network level over a small stateful
- * wishlist — the real HTTP rules for authorship and removals are covered
- * by the API's tests, while this spec pins the UI flow and its reads
- * through the synchronised partition.
+ * The wishlist's interface flows (issues #18 and #19): the section
+ * navigation leads to the wishlists overview; a wish is added through the
+ * sheet, edited with the received mark, and removed behind its confirm; a
+ * member's open wishes are browsed, a received one gone from the list. The
+ * gift flows (issue #19): another member's wish is favorited from the
+ * heart, listed on the favorites screen, and taken back; a wish is
+ * reserved behind its confirm, the claim cancelled from the same place.
+ * The member endpoints are intercepted at the network level over a small
+ * stateful wishlist — the real HTTP rules for authorship and removals are
+ * covered by the API's tests, while this spec pins the UI flow and its
+ * reads through the synchronised partition.
  */
 
 const ME = '**/api/v1/me'
@@ -16,6 +19,8 @@ const REDEEM = '**/api/v1/access-codes/redeem'
 const WISHES = '**/api/v1/wishlist/wishes'
 const WISH = '**/api/v1/wishlist/wishes/*'
 const RECEIVED = '**/api/v1/wishlist/wishes/*/received'
+const FAVORITE = '**/api/v1/wishlist/wishes/*/favorite'
+const RESERVATION = '**/api/v1/wishlist/wishes/*/reservation'
 // The sync request carries ?since=…, so the glob spans the query too.
 const SYNC = '**/api/v1/sync*'
 
@@ -105,6 +110,21 @@ async function mockWishlistApi(page: Page) {
   // The wishes removed along the way: a delta answers with their
   // tombstones, the way the server does (issue #18).
   const removed: string[] = []
+  // Аня's gift favorites and the active reservations (issue #19): the sync
+  // delivers her favorites to her alone, and the reservations to every
+  // member but the wish's author — the mock's only reader being Аня, who
+  // is never the author here.
+  interface GiftRow {
+    id: string
+    wishId: string
+    memberId?: string
+  }
+  const favorites: GiftRow[] = []
+  const reservations: GiftRow[] = []
+  // The gift rows taken back along the way: the delta answers with their
+  // tombstones, member-scoped the way the server writes them (issue #19).
+  const removedFavorites: string[] = []
+  const removedReservations: string[] = []
   let nextId = 0x400
   let revision = 7
 
@@ -137,14 +157,99 @@ async function mockWishlistApi(page: Page) {
           { entity: 'space', space: SPACE },
           ...PROFILES.map((profile) => ({ entity: 'member', member: profile })),
           ...wishes.map((wish) => ({ entity: 'wishlist_wish', wish })),
+          ...favorites.map((favorite) => ({
+            entity: 'wishlist_gift_favorite',
+            favorite,
+          })),
+          ...reservations.map((reservation) => ({
+            entity: 'wishlist_gift_reservation',
+            reservation,
+          })),
         ],
-        tombstones: removed.map((entityId) => ({
-          entity: 'wishlist_wish',
-          entityId,
-          audience: 'all',
-        })),
+        tombstones: [
+          ...removed.map((entityId) => ({
+            entity: 'wishlist_wish',
+            entityId,
+            audience: 'all',
+          })),
+          ...removedFavorites.map((entityId) => ({
+            entity: 'wishlist_gift_favorite',
+            entityId,
+            audience: 'member',
+            memberId: ANYA_ID,
+          })),
+          ...removedReservations.map((entityId) => ({
+            entity: 'wishlist_gift_reservation',
+            entityId,
+            audience: 'member',
+            memberId: ANYA_ID,
+          })),
+        ],
       }),
     )
+  })
+
+  await page.route(FAVORITE, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const wishId = route.request().url().split('/').at(-2) as string
+    if (route.request().method() === 'POST') {
+      const existing = favorites.find((row) => row.wishId === wishId)
+      if (existing !== undefined) {
+        return route.fulfill(
+          json(409, { error: { code: 'wish_already_favorited', message: 'Already favorited' } }),
+        )
+      }
+      const created: GiftRow = {
+        id: `01900000-0000-7000-8000-${String(nextId++).padStart(12, '0')}`,
+        wishId,
+      }
+      favorites.push(created)
+      revision += 1
+      return route.fulfill(json(201, { ...created, createdAt: '2026-10-01T09:00:00.000Z' }))
+    }
+    const favorite = favorites.find((row) => row.wishId === wishId)
+    if (favorite === undefined) {
+      return route.fulfill(
+        json(409, { error: { code: 'wish_not_favorited', message: 'Not favorited' } }),
+      )
+    }
+    favorites.splice(favorites.indexOf(favorite), 1)
+    removedFavorites.push(favorite.id)
+    revision += 1
+    return route.fulfill(json(204, undefined))
+  })
+
+  await page.route(RESERVATION, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const wishId = route.request().url().split('/').at(-2) as string
+    if (route.request().method() === 'POST') {
+      const existing = reservations.find((row) => row.wishId === wishId)
+      if (existing !== undefined) {
+        return route.fulfill(
+          json(409, { error: { code: 'wish_already_reserved', message: 'Already reserved' } }),
+        )
+      }
+      const created: GiftRow = {
+        id: `01900000-0000-7000-8000-${String(nextId++).padStart(12, '0')}`,
+        wishId,
+        memberId: ANYA_ID,
+      }
+      reservations.push(created)
+      revision += 1
+      return route.fulfill(json(201, { ...created, createdAt: '2026-10-01T09:00:00.000Z' }))
+    }
+    const reservation = reservations.find((row) => row.wishId === wishId)
+    if (reservation === undefined) {
+      return route.fulfill(
+        json(409, { error: { code: 'wish_not_reserved', message: 'Not reserved' } }),
+      )
+    }
+    reservations.splice(reservations.indexOf(reservation), 1)
+    removedReservations.push(reservation.id)
+    revision += 1
+    return route.fulfill(json(204, undefined))
   })
 
   await page.route(WISHES, (route) => {
@@ -331,5 +436,65 @@ test.describe('the wishlist', () => {
     await expect(page.getByText('Желание удалено')).toBeVisible()
     await expect(page.getByText('Билеты на стендап, 2 шт')).toHaveCount(0)
     await expect(page.getByText('Здесь пока ничего нет')).toBeVisible()
+  })
+})
+
+test.describe('the gift favorites and reservations (issue #19)', () => {
+  test('a wish is favorited from the heart, listed on the favorites screen, and taken back', async ({
+    page,
+  }) => {
+    await mockWishlistApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Вишлисты' }).first().click()
+
+    // Дима's wishlist: the heart marks the wish as the member's private
+    // favorite, visible only to them.
+    await page.getByText('Дима').click()
+    await page.getByRole('button', { name: 'В избранное' }).click()
+    await expect(page.getByText('В избранном — видно только вам')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Убрать из избранного' })).toBeVisible()
+
+    // The favorites screen lists the bookmark with the wishlist it came
+    // from, and the removal stands right beside it.
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await page.getByRole('link').filter({ hasText: 'Избранные идеи' }).click()
+    await expect(page).toHaveURL(/\/wishlist\/favorites$/)
+    await expect(page.getByText('Налобный фонарь Petzl Actik Core')).toBeVisible()
+    await expect(page.getByText('Из вишлиста: Дима')).toBeVisible()
+    await page.getByRole('button', { name: 'Убрать', exact: true }).click()
+    await expect(page.getByText('Убрано из избранного')).toBeVisible()
+    await expect(page.getByText('Пока ничего не отложено')).toBeVisible()
+  })
+
+  test('a wish is reserved behind its confirm, and the claim cancelled from the pill', async ({
+    page,
+  }) => {
+    await mockWishlistApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Вишлисты' }).first().click()
+    await page.getByText('Дима').click()
+
+    // The reserve button asks first: the author learns nothing of the claim.
+    await page.getByRole('button', { name: 'Забронировать' }).click()
+    await expect(page.getByText('Забронировать «Налобный фонарь Petzl Actik Core»?')).toBeVisible()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Забронировать', exact: true })
+      .click()
+    await expect(page.getByText('Забронировано. Дима не узнает')).toBeVisible()
+    await expect(page.getByText('вы')).toBeVisible()
+
+    // Taking the claim back asks too, and the wish is free again.
+    await page.getByRole('button', { name: 'Снять бронь' }).click()
+    await expect(page.getByText('Снять бронь?')).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Снять', exact: true }).click()
+    await expect(page.getByText('Бронь снята')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Забронировать' })).toBeVisible()
   })
 })

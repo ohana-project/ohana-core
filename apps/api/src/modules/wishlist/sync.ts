@@ -1,23 +1,30 @@
-import { type Static } from '@sinclair/typebox'
+import type { Static } from '@sinclair/typebox'
 import { getSpaceInTx, sectionVisibility } from '../spaces/index.ts'
 import type { SyncContributor } from '../sync/index.ts'
 import {
+  type GiftFavoriteSyncChangeSchema,
+  type GiftReservationSyncChangeSchema,
   toGiftFavoriteDto,
   toGiftReservationDto,
   toWishDto,
-  type GiftFavoriteSyncChangeSchema,
-  type GiftReservationSyncChangeSchema,
   WISHLIST_GIFT_FAVORITE_SYNC_ENTITY,
   WISHLIST_GIFT_RESERVATION_SYNC_ENTITY,
   WISHLIST_WISH_SYNC_ENTITY,
-  type WishSyncChangeSchema,
   WishlistSyncChangeSchema,
+  type WishSyncChangeSchema,
 } from './contracts.ts'
-import { listChangedGiftFavorites, listChangedGiftReservations, listChangedWishes } from './service.ts'
+import {
+  listChangedGiftFavorites,
+  listChangedGiftReservations,
+  listChangedWishes,
+} from './service.ts'
 
 /** The wishlist module's entity names in the tombstone table (contracts.ts owns them). */
-export { WISHLIST_GIFT_FAVORITE_SYNC_ENTITY, WISHLIST_GIFT_RESERVATION_SYNC_ENTITY }
-export { WISHLIST_WISH_SYNC_ENTITY }
+export {
+  WISHLIST_GIFT_FAVORITE_SYNC_ENTITY,
+  WISHLIST_GIFT_RESERVATION_SYNC_ENTITY,
+  WISHLIST_WISH_SYNC_ENTITY,
+}
 
 /*
  * The wishlist sync contributor (issues #14, #18, and #19): the wishes of
@@ -54,17 +61,19 @@ export const wishlistSyncContributor = {
     const reservations = await listChangedGiftReservations(tx, actor, since)
     // Typed against the change schemas, so a shape drifting from the wire
     // contract fails to compile here rather than at the response.
-    const upserts: Static<
-      typeof WishlistSyncChangeSchema
-    >[] = wishes.map((wish): Static<typeof WishSyncChangeSchema> => ({
-      entity: WISHLIST_WISH_SYNC_ENTITY,
-      wish: toWishDto(wish),
-    }))
+    const upserts: Static<typeof WishlistSyncChangeSchema>[] = wishes.map(
+      (wish): Static<typeof WishSyncChangeSchema> => ({
+        entity: WISHLIST_WISH_SYNC_ENTITY,
+        wish: toWishDto(wish),
+      }),
+    )
     upserts.push(
-      ...favorites.map((favorite): Static<typeof GiftFavoriteSyncChangeSchema> => ({
-        entity: WISHLIST_GIFT_FAVORITE_SYNC_ENTITY,
-        favorite: toGiftFavoriteDto(favorite),
-      })),
+      ...favorites.map(
+        (favorite): Static<typeof GiftFavoriteSyncChangeSchema> => ({
+          entity: WISHLIST_GIFT_FAVORITE_SYNC_ENTITY,
+          favorite: toGiftFavoriteDto(favorite),
+        }),
+      ),
       ...reservations.map(
         ({ reservation }): Static<typeof GiftReservationSyncChangeSchema> => ({
           entity: WISHLIST_GIFT_RESERVATION_SYNC_ENTITY,
