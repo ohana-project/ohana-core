@@ -299,57 +299,6 @@ describe('EventEditorScreen (a new event)', () => {
     })
   })
 
-  it('an edit keeps the event’s own zone even when the picker is untouched', async () => {
-    seedRegistry()
-    const doctor = timedEvent() // 18:00 wall in Europe/Moscow
-    await applySyncResult(ME, syncResult([doctor]))
-    apiPut.mockImplementation(async (path: never) => {
-      if (path === '/api/v1/calendar/events/{eventId}') {
-        return { data: doctor, error: undefined, response: new Response(null, { status: 200 }) }
-      }
-      throw new Error(`Unexpected PUT ${String(path)}`)
-    })
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
-
-    // A title-only edit: the wall times show in the event's own zone, and
-    // the PUT carries that zone — an untouched picker never re-zones the
-    // event into the space's.
-    await user.clear(await screen.findByLabelText('Название'))
-    await user.type(screen.getByLabelText('Название'), 'Миша — зубной врач, кабинет 4')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-
-    await waitFor(() => expect(apiPut).toHaveBeenCalled())
-    const [, options] = apiPut.mock.calls.at(-1) as unknown as [
-      string,
-      { body: Record<string, unknown> },
-    ]
-    expect(options.body).toMatchObject({
-      title: 'Миша — зубной врач, кабинет 4',
-      allDay: false,
-      startTime: '18:00',
-      endTime: '19:00',
-      timezone: 'Europe/Moscow',
-    })
-  })
-
-  it('timed → all-day → timed keeps the event’s own times', async () => {
-    seedRegistry()
-    const doctor = timedEvent()
-    await applySyncResult(ME, syncResult([doctor]))
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
-
-    const allDay = await screen.findByRole('switch', { name: 'Весь день' })
-    await screen.findByLabelText('Начало')
-    await user.click(allDay)
-    await user.click(allDay)
-
-    // The fields the member never touched come back as they were.
-    expect(screen.getByLabelText('Начало')).toHaveValue('18:00')
-    expect(screen.getByLabelText('Конец')).toHaveValue('19:00')
-  })
-
   it('blank times and a blank date are refused in the form, not by the server', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([]))
@@ -442,6 +391,87 @@ describe('EventEditorScreen (a new event)', () => {
 
     expect(screen.getByText('Конец должен быть позже начала')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
+  })
+})
+
+describe('EventEditorScreen (an edit)', () => {
+  it('an edit keeps the event’s own zone even when the picker is untouched', async () => {
+    seedRegistry()
+    const doctor = timedEvent() // 18:00 wall in Europe/Moscow
+    await applySyncResult(ME, syncResult([doctor]))
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}') {
+        return { data: doctor, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
+
+    // A title-only edit: the wall times show in the event's own zone, and
+    // the PUT carries that zone — an untouched picker never re-zones the
+    // event into the space's.
+    await user.clear(await screen.findByLabelText('Название'))
+    await user.type(screen.getByLabelText('Название'), 'Миша — зубной врач, кабинет 4')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
+    const [, options] = apiPut.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({
+      title: 'Миша — зубной врач, кабинет 4',
+      allDay: false,
+      startTime: '18:00',
+      endTime: '19:00',
+      timezone: 'Europe/Moscow',
+    })
+  })
+
+  it('an all-day event becoming timed leaves the zone to the API’s default', async () => {
+    seedRegistry()
+    const birthday = allDayEvent()
+    await applySyncResult(ME, syncResult([birthday]))
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}') {
+        return { data: birthday, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={birthday.id} />)
+
+    // The switch flips to timed; the picker shows the space's zone and is
+    // never touched. The event has no zone of its own, so the PUT sends
+    // none — the API composes against the space's zone as it stands.
+    await user.click(await screen.findByRole('switch', { name: 'Весь день' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
+    const [, options] = apiPut.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({ allDay: false, startTime: '18:00', endTime: '21:00' })
+    expect(options.body).not.toHaveProperty('timezone')
+  })
+
+  it('timed → all-day → timed keeps the event’s own times', async () => {
+    seedRegistry()
+    const doctor = timedEvent()
+    await applySyncResult(ME, syncResult([doctor]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
+
+    const allDay = await screen.findByRole('switch', { name: 'Весь день' })
+    await screen.findByLabelText('Начало')
+    await user.click(allDay)
+    await user.click(allDay)
+
+    // The fields the member never touched come back as they were.
+    expect(screen.getByLabelText('Начало')).toHaveValue('18:00')
+    expect(screen.getByLabelText('Конец')).toHaveValue('19:00')
   })
 })
 

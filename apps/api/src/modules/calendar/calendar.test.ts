@@ -433,7 +433,8 @@ describe('calendar events (issue #20)', () => {
       expect(impossibleDate.body).toMatchObject({ error: { code: 'invalid_event_date' } })
 
       // A half-typed year would compose through the runtime's two-digit
-      // readings into another millennium; the plan horizon refuses it.
+      // readings into another millennium; the plan horizon refuses it, and
+      // says which bound the date crossed.
       const strayYear = await createEvent(app, anna, {
         title: 'Чыше',
         allDay: true,
@@ -441,6 +442,9 @@ describe('calendar events (issue #20)', () => {
       })
       expect(strayYear.status).toBe(400)
       expect(strayYear.body).toMatchObject({ error: { code: 'invalid_event_date' } })
+      expect((strayYear.body as unknown as { error: { message: string } }).error.message).toContain(
+        'outside the supported range',
+      )
 
       // A timed event whose end does not follow its start.
       const backwards = await createEvent(app, anna, {
@@ -466,6 +470,55 @@ describe('calendar events (issue #20)', () => {
       })
       expect(gapped.status).toBe(400)
       expect(gapped.body).toMatchObject({ error: { code: 'event_start_in_gap' } })
+
+      // The gap swallowing the whole interval refuses the same way
+      // through the edit — and a longer event over the same nonexistent
+      // start is kept from the gap's far side.
+      const gappedEdit = await createEvent(app, anna, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-06-10',
+        startTime: '10:00',
+        endTime: '11:00',
+        timezone: 'America/New_York',
+      })
+      expect(gappedEdit.status).toBe(201)
+      const eventId = (gappedEdit.body as EventDto).id
+      const gapEdit = await editEvent(app, anna, eventId, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-03-08',
+        startTime: '02:30',
+        endTime: '03:15',
+        timezone: 'America/New_York',
+      })
+      expect(gapEdit.status).toBe(400)
+      expect(gapEdit.body).toMatchObject({ error: { code: 'event_start_in_gap' } })
+      const overTheGap = await editEvent(app, anna, eventId, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-03-08',
+        startTime: '02:30',
+        endTime: '04:00',
+        timezone: 'America/New_York',
+      })
+      expect(overTheGap.status).toBe(200)
+      expect(overTheGap.body).toMatchObject({
+        startsAt: '2026-03-08T07:30:00.000Z',
+        endsAt: '2026-03-08T08:00:00.000Z',
+      })
+
+      // A padded title is trimmed on the edit as on the create.
+      const padded = await editEvent(app, anna, eventId, {
+        title: '  Созвон  ',
+        allDay: false,
+        date: '2026-06-10',
+        startTime: '10:00',
+        endTime: '11:00',
+        timezone: 'America/New_York',
+      })
+      expect(padded.status).toBe(200)
+      expect(padded.body).toMatchObject({ title: 'Созвон' })
 
       // A zone the runtime does not know.
       const unknownZone = await createEvent(app, anna, {

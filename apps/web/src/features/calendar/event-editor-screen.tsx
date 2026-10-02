@@ -4,7 +4,12 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { authorName } from '@/features/wishlist/wishlist-entries.ts'
-import { formatZonedTime, todayDateOnly, zonedDateKey } from '@/lib/calendar-dates.ts'
+import {
+  formatDateOnly,
+  formatZonedTime,
+  todayDateOnly,
+  zonedDateKey,
+} from '@/lib/calendar-dates.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -29,7 +34,7 @@ import {
 /*
  * The event editor (docs/design/screens/event-editor.html): the title, the
  * all-day switch, the date, the start and end times, and the zone — whose
- * default is the space's (issue #64 of the spec). The repeating section of
+ * default is the space's (issue #1, story 64). The repeating section of
  * the prototype and the reminder's belong to later tickets (#21, #22) and
  * are not here yet. The API composes the wall time into instants; the
  * editor's own guards only mirror the contract's bounds.
@@ -74,10 +79,10 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
     spaceZone,
   )
 
-  const zoneChoicesMemo = useMemo(
-    () => zoneChoices(locale, effective.timezone),
-    [locale, effective.timezone],
-  )
+  // The zone list is the runtime's, stable per locale; the event's own
+  // spelling is prepended per render — the alias case is rare and cheap.
+  const zoneOptions = useMemo(() => timezoneOptions(locale, new Date()), [locale])
+  const zoneChoicesMemo = prependZone(zoneOptions, effective.timezone)
   const pending = createEvent.isPending || updateEvent.isPending
   const titleBlank = effective.title.trim().length === 0
   const dateBlank = effective.date.trim().length === 0
@@ -106,11 +111,13 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
         : {
             startTime: effective.startTime,
             endTime: effective.endTime,
-            // An edit keeps the event's own zone — the form shows its
-            // wall time there, and an untouched picker must not silently
-            // re-zone it into the space's. Only a brand-new event leaves
+            // An edit keeps the zone the event already has — the form
+            // shows its wall time there, and an untouched picker must not
+            // silently re-zone it into the space's. A new event, and an
+            // all-day one becoming timed (no zone of its own yet), leave
             // the zone to the API's default.
-            timezone: timezoneTouched || existing !== undefined ? effective.timezone : undefined,
+            timezone:
+              timezoneTouched || existing?.timezone !== undefined ? effective.timezone : undefined,
           }),
     }
     const onError = (error: unknown) => toast(calendarErrorMessage(error, t), 'danger')
@@ -327,8 +334,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
  * when the runtime does not list its spelling (a link alias an older
  * client stored) — a select whose value has no option shows the wrong one.
  */
-function zoneChoices(locale: Locale, current: string) {
-  const options = timezoneOptions(locale, new Date())
+function prependZone(options: ReturnType<typeof timezoneOptions>, current: string) {
   if (current !== '' && !options.some((option) => option.value === current)) {
     return [{ value: current, label: current }, ...options]
   }
@@ -367,9 +373,7 @@ function effectiveFields(
     return {
       title: edits.title ?? '',
       allDay: edits.allDay ?? false,
-      date:
-        edits.date ??
-        `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`,
+      date: edits.date ?? formatDateOnly(today),
       startTime: edits.startTime ?? '18:00',
       endTime: edits.endTime ?? '21:00',
       timezone: edits.timezone ?? spaceZone,

@@ -244,10 +244,12 @@ describe('SpaceHomeScreen', () => {
   })
 
   it('a calendar awaiting its replay says nothing is downloaded in the events column', async () => {
-    // A re-show or the store upgrade wrote the replay promise (cursor '0',
-    // ADR-0014): the rows the store holds are a fraction of the calendar,
-    // and the column says so rather than showing them (issue #20). The
-    // promise is written the way the store's own apply writes it.
+    // A re-show or the store upgrade wrote the replay promise paired with
+    // the cursor of 0 (ADR-0014): the rows the store holds are a fraction
+    // of the calendar, and the column says so rather than showing them
+    // (issue #20). The promise is written the way the store's own apply
+    // writes it, and the sync the gate would mount is held open, so the
+    // frame under test cannot resolve beneath the assertions.
     const world = makeWorld()
     seedRegistry(world)
     const withEvent = syncResultFor(world)
@@ -258,7 +260,7 @@ describe('SpaceHomeScreen', () => {
         creatorId: world.memberId,
         title: 'Ужин у бабушки',
         allDay: true,
-        date: '2026-10-19',
+        date: '2200-01-01',
         createdAt: '2026-10-01T09:00:00.000Z',
         updatedAt: '2026-10-01T09:00:00.000Z',
       },
@@ -272,13 +274,16 @@ describe('SpaceHomeScreen', () => {
     })
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(['meta'], 'readwrite')
+      tx.objectStore('meta').put({ key: 'cursor', revision: '0' })
       tx.objectStore('meta').put({ key: 'pendingReplay', sections: ['calendar'] })
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error ?? new Error('Writing the promise failed'))
     })
     db.close()
 
-    mockResponses(world, syncResultFor(world))
+    // The gate's on-mount sync never lands: a run that applied would clear
+    // the promise, and the column would honestly show the rows again.
+    mockResponses(world, () => new Promise<SyncResult>(() => {}))
     renderWithProviders(<HomeRoute />)
 
     await screen.findByText('Пока нечего читать без сети')

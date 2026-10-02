@@ -853,11 +853,11 @@
       "creator_required": "Only the event's creator — or an owner — can edit or delete it",
       "invalid_event_date": "That date does not exist",
       "event_end_before_start": "The end must be after the start",
+      "event_start_in_gap": "This time does not exist on that date — the clocks’ jump swallows the whole interval; pick another start",
       "invalid_timezone": "Unknown time zone",
       "section_hidden": "Calendar is hidden",
       "validation_failed": "Check the form fields",
-      "unexpected": "Something went wrong. Please try again",
-      "event_start_in_gap": "The clocks jump over this time — pick another start"
+      "unexpected": "Something went wrong. Please try again"
     }
   }
 }

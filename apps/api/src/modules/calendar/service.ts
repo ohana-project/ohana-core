@@ -260,11 +260,13 @@ function timedEventColumns(
   const endsAt = wallTimeToInstant(input.date, input.endTime, timezone)
   if (endsAt.getTime() <= startsAt.getTime()) {
     // The wall order held but the instants inverted: the spring-forward
-    // gap swallowed the interval. The start does not exist on this date,
-    // and composing it past its own end is a refusal, not an event.
+    // gap swallowed the whole interval. A longer event over the same
+    // nonexistent start is kept from the gap's far side — the shift the
+    // composition documents — but one that does not survive it would
+    // store less than the member asked for, and is refused instead.
     throw new DomainError(
       'event_start_in_gap',
-      `A timed event’s start does not exist on ${input.date} — the clocks jump over it`,
+      `A timed event's start does not exist on ${input.date} and the clocks' jump swallows the whole interval`,
       400,
     )
   }

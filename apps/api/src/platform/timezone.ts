@@ -22,11 +22,19 @@ const ZONE_PARTS_OPTIONS: Intl.DateTimeFormatOptions = {
  * zone shows at the instant, read back as if it were UTC, is the instant
  * shifted by exactly this offset.
  */
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function zoneFormatter(zone: string): Intl.DateTimeFormat {
+  let formatter = zoneFormatters.get(zone)
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat('en-US', { ...ZONE_PARTS_OPTIONS, timeZone: zone })
+    zoneFormatters.set(zone, formatter)
+  }
+  return formatter
+}
+
 export function zoneOffsetSeconds(zone: string, instant: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    ...ZONE_PARTS_OPTIONS,
-    timeZone: zone,
-  }).formatToParts(instant)
+  const parts = zoneFormatter(zone).formatToParts(instant)
   const value = (type: Intl.DateTimeFormatPartTypes): number => {
     const part = parts.find((candidate) => candidate.type === type)
     if (part === undefined) throw new Error(`The zone lookup produced no ${type}`)
