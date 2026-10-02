@@ -27,13 +27,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # The media worker's HEIC test decodes through the system libheif
-      # CLI, the same decoder the release image ships (issue #17,
-      # ADR-0008). The version check fails loudly if the package named no
-      # usable decoder instead of failing the tests cryptically later.
+      # CLI, the same decoder kind the release image ships (issue #17,
+      # ADR-0008). The runner's libheif loads HEVC as a plugin that apt
+      # only suggests, so the plugin is installed beside the CLI; the
+      # presence check fails loudly if no usable decoder landed.
       - name: Install HEIC decoder
         run: |
           sudo apt-get update
-          sudo apt-get install -y libheif-examples
+          sudo apt-get install -y libheif-examples libheif-plugin-libde265 || sudo apt-get install -y libheif-examples
           command -v heif-dec || command -v heif-convert
 
       - name: Lint
