@@ -391,8 +391,8 @@ describe('the wishlist wishes (issue #18)', () => {
       expect(errorCode(crossClear.body)).toBe('wish_not_found')
 
       // Nothing of the refused writes landed: the stranger still reads
-      // their whole DTO exactly as it was created, the received mark
-      // included.
+      // their whole DTO exactly as it was created — still open, the
+      // updated stamp unmoved.
       const unchanged = await getWish(app, stranger, foreignId)
       expect(unchanged.status).toBe(200)
       expect(unchanged.body).toEqual(foreign.body)

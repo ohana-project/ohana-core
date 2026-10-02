@@ -42,29 +42,34 @@ export function authorName(
   return profile?.displayName ?? profile?.name ?? fallback
 }
 
-/** The hostname of a wish's link for the row's domain chip; a malformed
- *  link (the API's contract already refuses most) shows as it is. */
-export function linkDomain(link: string): string {
+/**
+ * The hostname of a wish's link, or undefined when the browser cannot
+ * parse it (the API's contract already refuses most): such a link has no
+ * hostname, so the chip has no tail to protect.
+ */
+export function linkDomain(link: string): string | undefined {
   try {
     return new URL(link).hostname.replace(/^www\./, '')
   } catch {
-    return link
+    return undefined
   }
 }
 
 /**
- * The domain chip's text: a hostname has no space in it, so an overlong
- * one cannot wrap — it is elided at the head, where the characters say
- * the least. The tail is what identifies where the link resolves, so
- * `ozon.ru.account-check.example.net` keeps its `…example.net` end and
- * loses its left edge instead.
+ * The domain chip's two spans: the head yields under a narrow row, and
+ * the tail — the hostname's last two labels, what says where the link
+ * resolves — never does, so a lookalike host cannot hide its resolving
+ * end. A link without a parseable hostname has no identifying tail: the
+ * whole of it sits in the head, where the cut may land on either side —
+ * and CSS cuts no surrogate pair in half.
  */
-const CHIP_DOMAIN_MAX = 30
-
-export function chipDomain(link: string): string {
+export function chipDomainParts(link: string): { head: string; tail: string } {
   const domain = linkDomain(link)
-  if (domain.length <= CHIP_DOMAIN_MAX) return domain
-  return `…${domain.slice(-(CHIP_DOMAIN_MAX - 1))}`
+  if (domain === undefined) return { head: link, tail: '' }
+  const labels = domain.split('.')
+  if (labels.length < 3) return { head: '', tail: domain }
+  const tail = labels.slice(-2).join('.')
+  return { head: domain.slice(0, domain.length - tail.length), tail }
 }
 
 /** The wish list's meta line, for the person screen: "обновлено вчера в 21:04". */

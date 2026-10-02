@@ -199,7 +199,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(screen.getByText('wildberries.ru')).toBeInTheDocument()
   })
 
-  it('elides an overlong hostname at the head, keeping the identifying tail', async () => {
+  it('yields the domain chip at its head, keeping the resolving tail', async () => {
     const long = wish({
       id: '01900000-0000-7000-8000-000000000304',
       title: 'Сертификат',
@@ -212,11 +212,33 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     renderWithProviders(<WishlistMineScreen />)
 
     expect(await screen.findByText('Сертификат')).toBeInTheDocument()
-    // The 33-character hostname yields its head: the tail is what says
-    // where the link resolves.
-    const chip = screen.getByText('….ru.account-check.example.net')
-    // The full target stays reachable through the chip.
-    expect(chip.closest('a')).toHaveAttribute('href', long.link)
+    // The head span yields under a narrow row; the tail — the last two
+    // labels, what says where the link resolves — never does.
+    const tail = screen.getByText('example.net')
+    expect(screen.getByText('ozon.ru.account-check.')).toBeInTheDocument()
+    // The full target stays on the chip, tooltip and href alike.
+    const anchor = tail.closest('a')
+    expect(anchor).toHaveAttribute('href', long.link)
+    expect(anchor).toHaveAttribute('title', long.link)
+  })
+
+  it('shows a link without a parseable hostname as it is', async () => {
+    const link = 'https://exa%mple.com/a/b'
+    const odd = wish({
+      id: '01900000-0000-7000-8000-000000000305',
+      title: 'Открытка',
+      details: undefined,
+      link,
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([odd]))
+    mockQuietSync()
+    renderWithProviders(<WishlistMineScreen />)
+
+    expect(await screen.findByText('Открытка')).toBeInTheDocument()
+    // No hostname to protect: the raw link is the chip, cut where the
+    // row must cut it.
+    expect(screen.getByText(link)).toBeInTheDocument()
   })
 
   it('offers the first wish when the list is empty', async () => {
@@ -638,6 +660,8 @@ describe('WishlistMineScreen (the own wishlist)', () => {
       ],
       tombstones: [],
     })
+    // The row's pill proves the mid-edit sync reached the component.
+    expect(await screen.findByText('Получено')).toBeInTheDocument()
     await user.click(screen.getByRole('switch', { name: 'Уже получено' }))
 
     // The save sends the triple only: the mark already sits on the row the
