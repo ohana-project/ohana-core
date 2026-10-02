@@ -8,15 +8,19 @@ import {
   type JournalPurgeJobData,
   purgeDueTrashedEntries,
   purgeTrashedEntry,
+  touchEntryRevision,
 } from '../modules/journal/index.ts'
 import {
+  deleteEntryImageObjects,
   generateEntryImageDerivatives,
+  MEDIA_DELETE_JOB,
   MEDIA_DERIVATIVES_JOB,
+  type MediaDeleteJobData,
   type MediaDerivativesJobData,
   type MediaJobsDeps,
 } from '../modules/media/index.ts'
 import type { Db } from '../platform/db/index.ts'
-import { ensureQueues } from '../platform/jobs/pgboss.ts'
+import { createPgBossJobSender, ensureQueues } from '../platform/jobs/pgboss.ts'
 import type { Logger } from '../platform/logging.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 
@@ -48,8 +52,21 @@ export interface Worker {
  * nowhere to land.
  */
 export function buildWorker(deps: WorkerDeps): Worker {
-  const jobDeps: JournalJobsDeps = { db: deps.db, clock: deps.clock, storage: deps.storage }
-  const mediaJobDeps: MediaJobsDeps = { db: deps.db, clock: deps.clock, storage: deps.storage }
+  // The worker's own sender: the purge schedules the photos' cleanup inside
+  // its transactions, the way the api's use cases schedule theirs.
+  const jobs = createPgBossJobSender(deps.boss)
+  const jobDeps: JournalJobsDeps = {
+    db: deps.db,
+    clock: deps.clock,
+    storage: deps.storage,
+    jobs,
+  }
+  const mediaJobDeps: MediaJobsDeps = {
+    db: deps.db,
+    clock: deps.clock,
+    storage: deps.storage,
+    touchEntry: touchEntryRevision,
+  }
   return {
     async start() {
       await deps.db.execute(sql`select 1`)
@@ -57,12 +74,16 @@ export function buildWorker(deps: WorkerDeps): Worker {
         JOURNAL_PURGE_JOB,
         JOURNAL_PURGE_SWEEP_JOB,
         MEDIA_DERIVATIVES_JOB,
+        MEDIA_DELETE_JOB,
       ])
       await deps.boss.work<JournalPurgeJobData>(JOURNAL_PURGE_JOB, async (jobs) => {
         for (const job of jobs) await purgeTrashedEntry(jobDeps, job.data)
       })
       await deps.boss.work<MediaDerivativesJobData>(MEDIA_DERIVATIVES_JOB, async (jobs) => {
         for (const job of jobs) await generateEntryImageDerivatives(mediaJobDeps, job.data)
+      })
+      await deps.boss.work<MediaDeleteJobData>(MEDIA_DELETE_JOB, async (jobs) => {
+        for (const job of jobs) await deleteEntryImageObjects(deps, job.data)
       })
       await deps.boss.work(JOURNAL_PURGE_SWEEP_JOB, async () => {
         await purgeDueTrashedEntries(jobDeps)

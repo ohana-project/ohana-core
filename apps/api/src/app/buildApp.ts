@@ -16,6 +16,7 @@ import {
   assertEntryImageViewable,
   journalRoutes,
   journalSyncContributor,
+  touchEntryRevision,
 } from '../modules/journal/index.ts'
 import type { MediaDeps } from '../modules/media/index.ts'
 import {
@@ -110,6 +111,9 @@ export function buildApp(deps: AppDeps) {
     storage: deps.storage,
     clock: deps.clock,
     jobs: deps.jobs,
+    // The photos ride the entry's DTO: every photo change stamps the entry,
+    // and the journal owns that stamp.
+    touchEntry: touchEntryRevision,
   }
   app.register(journalRoutes, {
     prefix: '/api/v1',

@@ -292,7 +292,8 @@
     "photoFailed": "The photo could not be processed",
     "openOriginalHint": "Tap a photo to open it at its original quality",
     "viewerLoadingOriginal": "Loading the original…",
-    "viewerOriginalCaption": "Original"
+    "viewerOriginalCaption": "Original",
+    "downloadOriginal": "Download the original"
   },
   "signin": {
     "title": "Access code",

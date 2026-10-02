@@ -17,16 +17,19 @@ export {
   toImageDto,
 } from './contracts.ts'
 export {
+  deleteEntryImageObjects,
   generateEntryImageDerivatives,
+  MEDIA_DELETE_JOB,
   MEDIA_DERIVATIVES_JOB,
   MEDIA_SENT_QUEUES,
+  type MediaDeleteJobData,
   type MediaDerivativesJobData,
   type MediaJobsDeps,
 } from './jobs.ts'
-export { type ImageVariant, imageObjectKey } from './keys.ts'
+export { deleteImageObjects, type ImageVariant, imageObjectKey } from './keys.ts'
 export {
   deleteEntryImage,
-  deleteImageObjects,
+  type EntryTouch,
   type ImageAccessRule,
   type ImageAccessTxRule,
   type IncomingImage,

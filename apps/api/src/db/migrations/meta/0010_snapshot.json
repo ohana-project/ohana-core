@@ -1,5 +1,5 @@
 {
-  "id": "6268b12b-85bd-4019-b215-2ff94ebeb3dc",
+  "id": "aeacf57c-023e-4585-885c-078e11d10920",
   "prevId": "859d1cae-1c57-45ea-a6f2-6b10c4b30a00",
   "version": "7",
   "dialect": "postgresql",
@@ -908,27 +908,6 @@
             },
             {
               "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "entry_images_sync_idx": {
-          "name": "entry_images_sync_idx",
-          "columns": [
-            {
-              "expression": "space_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "revision",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

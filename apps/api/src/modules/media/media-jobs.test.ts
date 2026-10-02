@@ -2,16 +2,35 @@ import { readFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { afterAll, describe, expect, test } from 'vitest'
+import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { instanceSettings } from '../admin/tables.ts'
-import { createDraft } from '../journal/service.ts'
+import { createDraft, touchEntryRevision } from '../journal/service.ts'
 import { FEED_MAX_EDGE, FULL_MAX_EDGE } from './derivatives.ts'
 import { generateEntryImageDerivatives, MEDIA_DERIVATIVES_JOB } from './jobs.ts'
 import { imageObjectKey } from './keys.ts'
 import { getImageInSpace } from './repository.ts'
 import { uploadEntryImage } from './service.ts'
 import type { EntryImage } from './tables.ts'
+
+const repoMock = vi.hoisted(() => ({
+  hideImageRowAfter: Number.POSITIVE_INFINITY,
+  reads: 0,
+}))
+
+vi.mock('./repository.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./repository.ts')>()
+  return {
+    ...actual,
+    getImageInSpace: async (
+      ...arguments_: Parameters<typeof actual.getImageInSpace>
+    ): Promise<ReturnType<typeof actual.getImageInSpace>> => {
+      repoMock.reads += 1
+      if (repoMock.reads > repoMock.hideImageRowAfter) return undefined
+      return actual.getImageInSpace(...arguments_)
+    },
+  }
+})
 
 const harness: TestHarness = await createTestHarness()
 afterAll(async () => {
@@ -21,6 +40,11 @@ afterAll(async () => {
 // The installation settings are a singleton other test files may have
 // changed (the files share one database).
 await harness.db.delete(instanceSettings)
+
+beforeEach(() => {
+  repoMock.hideImageRowAfter = Number.POSITIVE_INFINITY
+  repoMock.reads = 0
+})
 
 /*
  * The derivatives worker (issue #17): every uploaded photo ends as two
@@ -74,7 +98,13 @@ async function entryWithPhoto(
     { text: 'с фотографией' },
   )
   const image = await uploadEntryImage(
-    { db: harness.db, storage: harness.storage, clock: harness.clock, jobs: harness.jobs },
+    {
+      db: harness.db,
+      storage: harness.storage,
+      clock: harness.clock,
+      jobs: harness.jobs,
+      touchEntry: touchEntryRevision,
+    },
     { spaceId, memberId, role: 'regular' },
     draft.id,
     { stream: Readable.from(bytes), contentType },
@@ -84,7 +114,12 @@ async function entryWithPhoto(
 }
 
 function jobDeps() {
-  return { db: harness.db, clock: harness.clock, storage: harness.storage }
+  return {
+    db: harness.db,
+    clock: harness.clock,
+    storage: harness.storage,
+    touchEntry: touchEntryRevision,
+  }
 }
 
 async function generateFor(spaceId: string, imageId: string): Promise<void> {
@@ -199,6 +234,22 @@ describe('generateEntryImageDerivatives', () => {
     // failure write is not repeated, so the revision stands still.
     await expect(generateFor(space.id, entry.image.id)).rejects.toThrow()
     expect((await rowOf(space.id, entry.image.id))?.revision).toBe(failedRevision)
+  })
+
+  test('a photo removed mid-flight has its fresh derivatives cleaned up', async () => {
+    const space = await harness.createSpace({ name: 'Мимо' })
+    const member = await harness.createMember(space.id, { name: 'Аня' })
+    const entry = await entryWithPhoto(space.id, member.id, await photoWithExif())
+    // The row vanishes while the job runs: the handler's first read still
+    // sees it, the state write under the lock does not. (A removal mid-
+    // flight also sent the delete job; this covers the race between that
+    // job and the derivatives the handler already wrote.)
+    repoMock.hideImageRowAfter = 1
+
+    await generateFor(space.id, entry.image.id)
+
+    // Nothing readable is left under the photo's keys.
+    expect(await harness.storage.list(`spaces/${space.id}/journal/`)).toEqual([])
   })
 
   test('a photo that is gone, or already ready, answers without writing', async () => {

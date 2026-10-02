@@ -15,7 +15,13 @@ import { syncTombstones } from '../sync/tables.ts'
 import { purgeDueTrashedEntries, purgeTrashedEntry } from './jobs.ts'
 import { getEntryInSpace } from './repository.ts'
 import type { JournalActor, JournalDeps } from './service.ts'
-import { createDraft, publishDraft, restoreTrashedEntry, trashEntry } from './service.ts'
+import {
+  createDraft,
+  publishDraft,
+  restoreTrashedEntry,
+  touchEntryRevision,
+  trashEntry,
+} from './service.ts'
 
 const harness: TestHarness = await createTestHarness()
 afterAll(async () => {
@@ -42,7 +48,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  */
 
 function jobDeps() {
-  return { db: harness.db, clock: harness.clock, storage: harness.storage }
+  return { db: harness.db, clock: harness.clock, storage: harness.storage, jobs: harness.jobs }
 }
 
 function serviceDeps(jobs: RecordingJobSender): JournalDeps {
@@ -173,7 +179,13 @@ describe('purgeTrashedEntry (the per-entry job)', () => {
     // the way the worker leaves them — the purge must sweep all of it.
     const allowAll = async () => {}
     const first = await uploadEntryImage(
-      { db: harness.db, storage: harness.storage, clock: harness.clock, jobs: harness.jobs },
+      {
+        db: harness.db,
+        storage: harness.storage,
+        clock: harness.clock,
+        jobs: harness.jobs,
+        touchEntry: touchEntryRevision,
+      },
       { memberId: author.id, spaceId: space.id, role: 'regular' },
       draft.id,
       { stream: Readable.from(Buffer.from('первый кадр')), contentType: 'image/jpeg' },
@@ -181,7 +193,13 @@ describe('purgeTrashedEntry (the per-entry job)', () => {
     )
     harness.clock.advance(10)
     const second = await uploadEntryImage(
-      { db: harness.db, storage: harness.storage, clock: harness.clock, jobs: harness.jobs },
+      {
+        db: harness.db,
+        storage: harness.storage,
+        clock: harness.clock,
+        jobs: harness.jobs,
+        touchEntry: touchEntryRevision,
+      },
       { memberId: author.id, spaceId: space.id, role: 'regular' },
       draft.id,
       { stream: Readable.from(Buffer.from('второй кадр')), contentType: 'image/jpeg' },
@@ -312,6 +330,42 @@ describe('purgeDueTrashedEntries (the recurring sweep)', () => {
     await purgeDueTrashedEntries(jobDeps())
     expect(await getEntryInSpace(harness.db, broken.id, brokenEntry)).toBeUndefined()
     expect(await tombstonesFor(broken.id, brokenEntry)).toHaveLength(2)
+  })
+
+  test('the sweep removes the photos of the entries it purges (issue #17)', async () => {
+    const space = await harness.createSpace({ name: 'Метла' })
+    const author = await harness.createMember(space.id, { name: 'Аня' })
+    const actor: JournalActor = { memberId: author.id, spaceId: space.id, role: 'regular' }
+    const draft = await createDraft(serviceDeps(harness.jobs), actor, { text: 'под метлой' })
+    const allowAll = async () => {}
+    const image = await uploadEntryImage(
+      {
+        db: harness.db,
+        storage: harness.storage,
+        clock: harness.clock,
+        jobs: harness.jobs,
+        touchEntry: touchEntryRevision,
+      },
+      { memberId: author.id, spaceId: space.id, role: 'regular' },
+      draft.id,
+      { stream: Readable.from(Buffer.from('кадр')), contentType: 'image/jpeg' },
+      { authorize: allowAll, authorizeInTx: allowAll, maxBytes: 26_214_400 },
+    )
+    for (const variant of ['feed', 'full'] as const) {
+      await harness.storage.put(
+        imageObjectKey(space.id, image.id, variant),
+        Readable.from(Buffer.from(variant)),
+      )
+    }
+    const prefix = `spaces/${space.id}/${IMAGE_OBJECT_KIND}/`
+    expect(await harness.storage.list(prefix)).toHaveLength(3)
+
+    await trashEntry(serviceDeps(harness.jobs), actor, draft.id)
+    harness.clock.advance(31 * DAY_MS)
+    await purgeDueTrashedEntries(jobDeps())
+
+    expect(await getEntryInSpace(harness.db, space.id, draft.id)).toBeUndefined()
+    expect(await harness.storage.list(prefix)).toEqual([])
   })
 
   test('an entry whose retention has not run out stays', async () => {

@@ -12,6 +12,7 @@ import {
   setActiveMemberId,
 } from '@/data/session-registry.ts'
 import { forgetSync } from '@/data/sync-engine.ts'
+import { JOURNAL_PHOTO_CACHE } from '@/lib/photo-cache.ts'
 
 /*
  * The member session probe mirrors the administrative one: 200 means the
@@ -199,6 +200,14 @@ export function forgetMember(queryClient: QueryClient, memberId: string): void {
   // one database per member, deleted whole. A storage failure must not keep
   // the session alive, so the deletion runs on its own.
   void deleteMemberData(memberId).catch(() => {})
+  // The photo previews are the one thing outside the partition that could
+  // outlive the session (issue #17): the service worker caches the
+  // derivatives it served. The cache is shared by the members of this
+  // device, so it goes whole — a kept member's previews simply refetch,
+  // through the API, under their own authorisation.
+  if (typeof caches !== 'undefined') {
+    void caches.delete(JOURNAL_PHOTO_CACHE).catch(() => {})
+  }
   for (const query of queryClient.getQueryCache().findAll({ queryKey: ['member', memberId] })) {
     query.reset()
   }

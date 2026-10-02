@@ -278,15 +278,14 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
             </div>
 
             {/* The photos (docs/design/screens/diary-editor.html): chips,
-                the add tile, and the «N из 12» counter. Hidden once
-                published — the photos of a shared entry stay as they are. */}
-            {editingDraft && (
-              <EntryPhotoEditor
-                entryId={existing?.id ?? createdId}
-                images={existing?.images ?? []}
-                onNeedEntry={ensureEntryForPhotos}
-              />
-            )}
+                the add tile, and the «N из 12» counter. The author edits
+                their entry in any state (CONTEXT.md, published entry) —
+                photos included — so the section stays. */}
+            <EntryPhotoEditor
+              entryId={existing?.id ?? createdId}
+              images={existing?.images ?? []}
+              onNeedEntry={ensureEntryForPhotos}
+            />
           </>
         )}
       </div>

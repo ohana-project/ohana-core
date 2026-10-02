@@ -1,5 +1,5 @@
 import sharp from 'sharp'
-import { heicDecodeToPng, isHeicImage } from './heic.ts'
+import { HeicDecodeError, heicDecodeToPng, isHeicImage } from './heic.ts'
 
 /*
  * The derivative generator (issue #17, ADR-0008): the worker turns one
@@ -25,10 +25,21 @@ export interface Derivative {
 
 /**
  * An input the pipeline can decode: the original's bytes directly, or the
- * PNG a HEIC photo first became through `heif-dec` (sharp has no HEVC).
+ * PNG a HEIC photo first became through `heif-dec` (sharp has no HEVC). A
+ * decoder refusal falls back to sharp — the HEIC brands also carry the
+ * occasional AVIF, which sharp decodes itself — and only a double failure
+ * marks the photo undecodable.
  */
 async function decodedInput(original: Buffer): Promise<Buffer> {
-  return isHeicImage(original) ? heicDecodeToPng(original) : original
+  if (!isHeicImage(original)) return original
+  try {
+    return await heicDecodeToPng(original)
+  } catch (cause) {
+    if (cause instanceof HeicDecodeError) {
+      return await sharp(original).png().toBuffer()
+    }
+    throw cause
+  }
 }
 
 function reshape(source: Buffer, maxEdge: number, quality: number) {

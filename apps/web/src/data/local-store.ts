@@ -47,13 +47,16 @@ export interface StoredJournalEntry {
   updatedAt: string
 }
 
-/** One photo of an entry: its id, the worker's progress, and the feed
- *  derivative's pixel size for laying the strip out before bytes arrive. */
+/** One photo of an entry: its id, the worker's progress, the feed
+ *  derivative's pixel size for laying the strip out before bytes arrive,
+ *  and what the original is (the viewer offers HEIC and TIFF originals as
+ *  a download; a partition synced before issue #17 carries none). */
 export interface StoredJournalEntryImage {
   id: string
   state: 'processing' | 'ready' | 'failed'
   width?: number
   height?: number
+  originalType?: string
 }
 
 export interface MemberSnapshot {

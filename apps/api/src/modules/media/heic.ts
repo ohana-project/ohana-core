@@ -62,7 +62,10 @@ export async function heicDecodeToPng(input: Buffer): Promise<Buffer> {
     const outputPath = join(dir, 'decoded.png')
     await writeFile(inputPath, input)
     try {
-      await execFileAsync('heif-dec', ['-o', outputPath, inputPath], { timeout: 60_000 })
+      // The output is the positional argument: it is the one interface
+      // every libheif the code may meet — the release image's 1.23, the
+      // CI runner's older 1.17, a developer's Homebrew build — accepts.
+      await execFileAsync('heif-dec', [inputPath, outputPath], { timeout: 60_000 })
     } catch (cause) {
       throw new HeicDecodeError('heif-dec could not decode the photo', { cause })
     }

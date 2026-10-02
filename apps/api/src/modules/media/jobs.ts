@@ -3,44 +3,62 @@ import { buffer as readWholeStream } from 'node:stream/consumers'
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import type { ObjectStorage } from '../../platform/storage/index.ts'
+import { lockSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { generateDerivatives } from './derivatives.ts'
-import { imageObjectKey } from './keys.ts'
+import { deleteImageObjects, imageObjectKey } from './keys.ts'
 import { getImageInSpace, updateImageState } from './repository.ts'
+import type { EntryTouch } from './service.ts'
 import type { EntryImage } from './tables.ts'
 
 /*
  * The media worker handlers (issue #17, ADR-0009): the derivatives of one
- * uploaded photo. The handler is safe to repeat — a second run finds the
- * photo ready and answers without writing — and it reports failure twice:
- * the queue retry decides whether the environment fixes itself, and the
- * row's `failed` state tells the screens the photo will not arrive, so the
- * feed never spins forever over an undecodable upload.
+ * uploaded photo, and the deferred cleanup of a removed photo's objects.
+ * Both check current state before acting — delivery is at-least-once — and
+ * the derivatives handler reports failure twice: the queue retry decides
+ * whether the environment fixes itself, and the row's `failed` state tells
+ * the screens the photo will not arrive, so the feed never spins forever
+ * over an undecodable upload.
  */
 
 /** The queue name of the derivatives job a finished upload schedules. */
 export const MEDIA_DERIVATIVES_JOB = 'media-derivatives'
 
-/** The queues this module's use cases send to — the api process ensures them. */
-export const MEDIA_SENT_QUEUES = [MEDIA_DERIVATIVES_JOB] as const
+/** The queue name of the idempotent storage cleanup a removal or a purge schedules. */
+export const MEDIA_DELETE_JOB = 'media-delete-objects'
+
+/**
+ * The queues this module's use cases send to — the api process ensures
+ * them. The delete job is also sent by the journal's purge handler, so the
+ * worker ensures the same set.
+ */
+export const MEDIA_SENT_QUEUES = [MEDIA_DERIVATIVES_JOB, MEDIA_DELETE_JOB] as const
 
 export interface MediaDerivativesJobData {
   spaceId: string
   imageId: string
 }
 
+export interface MediaDeleteJobData {
+  spaceId: string
+  imageIds: readonly string[]
+}
+
 export interface MediaJobsDeps {
   db: Db
   storage: ObjectStorage
   clock: Clock
+  /** The entry stamp that carries a photo's state change through the sync. */
+  touchEntry: EntryTouch
 }
 
 /**
  * Generates both derivatives of one photo and marks it ready with the
- * space's next revision — the entry DTO embeds the photo, so the revision
- * bump is what tells every device the preview exists. The original's bytes
- * are read once and never rewritten; a photo the decoder refuses is marked
- * failed and the error rethrown for the queue's retry.
+ * space's next revision — the entry DTO embeds the photo, so the entry
+ * stamp inside the same transaction is what tells every device the preview
+ * exists. The original's bytes are read once and never rewritten; a photo
+ * the decoder refuses is marked failed and the error rethrown for the
+ * queue's retry.
  */
 export async function generateEntryImageDerivatives(
   deps: MediaJobsDeps,
@@ -49,12 +67,13 @@ export async function generateEntryImageDerivatives(
   const image = await getImageInSpace(deps.db, data.spaceId, data.imageId)
   if (image === undefined || image.state === 'ready') return
 
-  // The original is bounded by the upload limit the row recorded, so
-  // reading it whole is bounded by configuration, not by trust.
-  const original = await readWholeStream(
-    await deps.storage.get(imageObjectKey(data.spaceId, data.imageId, 'original')),
-  )
   try {
+    // The original is bounded by the upload limit the row recorded, so
+    // reading it whole is bounded by configuration, not by trust. Inside
+    // the try: a missing original is this photo's failure to report.
+    const original = await readWholeStream(
+      await deps.storage.get(imageObjectKey(data.spaceId, data.imageId, 'original')),
+    )
     const derivatives = await generateDerivatives(original)
     for (const derivative of derivatives) {
       await deps.storage.put(
@@ -67,7 +86,13 @@ export async function generateEntryImageDerivatives(
     // photo strip out with it before the bytes arrive.
     const feed = derivatives[0]
     if (feed === undefined) throw new Error('Generating derivatives produced no feed variant')
-    await finalize(deps, data, 'ready', { width: feed.width, height: feed.height })
+    const gone = await finalize(deps, data, 'ready', { width: feed.width, height: feed.height })
+    // The entry was purged — or its photo removed — while the derivatives
+    // were in flight: the bytes just written are cleaned up here, where the
+    // delete job that raced them cannot have seen them.
+    if (gone) {
+      await deleteImageObjects(deps.storage, data.spaceId, data.imageId)
+    }
   } catch (cause) {
     await finalize(deps, data, 'failed')
     throw cause
@@ -75,21 +100,25 @@ export async function generateEntryImageDerivatives(
 }
 
 /**
- * The state write, inside the space's transaction and revision. Skips
- * silently when the photo is gone (its entry was purged mid-flight) or
- * already sits in the requested state — at-least-once delivery must not
- * churn the space's revision.
+ * The state write, inside the space's transaction: the space row lock
+ * comes first, the row is re-read under it, and the stamp on the entry
+ * carries the new state to every device. Answers whether the photo is gone
+ * (purged or removed mid-flight); skips silently when it already sits in
+ * the requested state — at-least-once delivery must not churn the space's
+ * revision.
  */
 async function finalize(
   deps: MediaJobsDeps,
   data: MediaDerivativesJobData,
   state: EntryImage['state'],
   size?: { width: number; height: number },
-): Promise<void> {
+): Promise<boolean> {
   const now = deps.clock.now()
-  await deps.db.transaction(async (tx) => {
+  return deps.db.transaction(async (tx) => {
+    await lockSpace(tx, data.spaceId)
     const image = await getImageInSpace(tx, data.spaceId, data.imageId)
-    if (image === undefined || image.state === state) return
+    if (image === undefined) return true
+    if (image.state === state) return false
     await recordChanges(
       tx,
       data.spaceId,
@@ -103,9 +132,27 @@ async function finalize(
             revision,
             now,
           )
+          await deps.touchEntry(writeTx, data.spaceId, image.entryId, revision)
         },
       },
       now,
     )
+    return false
   })
+}
+
+/**
+ * The deferred cleanup of removed photos' storage objects (issue #17). The
+ * rows are already gone when it runs — the removal and the purge schedule
+ * it inside their own transactions — so this is only the idempotent sweep
+ * over the keys: a direct pass usually deleted them moments before, and
+ * this one repairs whatever a storage hiccup kept.
+ */
+export async function deleteEntryImageObjects(
+  deps: { storage: ObjectStorage },
+  data: MediaDeleteJobData,
+): Promise<void> {
+  for (const imageId of data.imageIds) {
+    await deleteImageObjects(deps.storage, data.spaceId, imageId)
+  }
 }

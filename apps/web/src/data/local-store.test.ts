@@ -4,6 +4,11 @@ import { seedVersionOnePartition } from '../testing/fixtures.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from './local-store.ts'
 import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-store.ts'
 
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
+
 /*
  * The per-member local store (issue #14, ADR-0002): one IndexedDB database
  * per retained member, so a sign-out deletes the member's whole cache with
@@ -15,9 +20,7 @@ const DIMA = '01900000-0000-7000-8000-000000000002'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 const MISHA_ID = '01900000-0000-7000-8000-000000000003'
 
-function entry(
-  overrides?: Partial<StoredJournalEntry>,
-): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
+function entry(overrides?: Partial<WireEntry>): WireEntry {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ANYA,

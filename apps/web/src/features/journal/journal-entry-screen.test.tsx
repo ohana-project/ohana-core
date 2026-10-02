@@ -8,6 +8,11 @@ import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalEntryScreen } from './journal-entry-screen.tsx'
 
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
+
 /*
  * One entry (issue #15): the deep link answers from the synchronised
  * partition, so it reads the same online and offline — and it says what
@@ -34,7 +39,7 @@ const ME = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 const MISSING = '01900000-0000-7000-8000-000000000fff'
 
-function entry(): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
+function entry(): WireEntry {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ME,
@@ -60,9 +65,7 @@ function spaceChange(sections: { journal: boolean; calendar: boolean; wishlist: 
   }
 }
 
-function syncResult(
-  entries: Array<StoredJournalEntry & { images: StoredJournalEntryImage[] }>,
-): SyncResult {
+function syncResult(entries: WireEntry[]): SyncResult {
   return {
     revision: '7',
     changes: [
@@ -264,6 +267,7 @@ describe('JournalEntryScreen', () => {
           state: 'ready' as const,
           width: 800,
           height: 600,
+          originalType: 'image/jpeg',
         },
       ],
     }
@@ -305,7 +309,13 @@ describe('JournalEntryScreen', () => {
     vi.stubGlobal('fetch', fetchMock)
     const row = {
       ...entry(),
-      images: [{ id: '01900000-0000-7000-8000-000000000202', state: 'processing' as const }],
+      images: [
+        {
+          id: '01900000-0000-7000-8000-000000000202',
+          state: 'processing' as const,
+          originalType: 'image/jpeg',
+        },
+      ],
     }
     await applySyncResult(ME, syncResult([row]))
     mockQuietSync()

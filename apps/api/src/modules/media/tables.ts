@@ -32,10 +32,12 @@ export const imageStates = ['processing', 'ready', 'failed'] as const
  * stored byte-for-byte in object storage and never altered; this row only
  * names it — its size, hash, and content type — and describes the
  * derivatives the worker produces beside it. The photos are delivered to
- * clients inside their entry's DTO (contracts.ts of the journal), so the
- * row carries a revision but has no tombstone entity of its own: when the
+ * clients inside their entry's DTO (contracts.ts of the journal): a photo
+ * change stamps the entry row with the revision (the media module's
+ * touchEntry port), and that stamp is the delivery — this row's own
+ * revision is the convention's bookkeeping, read by nothing. When the
  * entry goes, its photos go with it — the storage objects are deleted by
- * the purge handler after the rows are gone.
+ * the purge's direct pass and its queued cleanup.
  */
 export const entryImages = pgTable(
   'entry_images',
@@ -78,9 +80,6 @@ export const entryImages = pgTable(
     // An entry's photo list reads whole; the purge sweep asks nothing here —
     // the photos go with the entry's own purge.
     index('entry_images_entry_idx').on(table.spaceId, table.entryId, table.createdAt),
-    // The sync contributor's delta scans one space's rows past a revision —
-    // the images ride their entry, whose revision they share.
-    index('entry_images_sync_idx').on(table.spaceId, table.revision),
     foreignKey({
       name: 'entry_images_space_id_entry_id_fk',
       columns: [table.spaceId, table.entryId],

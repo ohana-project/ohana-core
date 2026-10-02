@@ -9,6 +9,11 @@ import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalScreen } from './journal-screen.tsx'
 
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
+
 /*
  * The shared feed (issue #15): published entries newest first, every card
  * naming its author, paginated for reading; the drafts corner counts the
@@ -41,9 +46,7 @@ function memberCounter(): () => string {
   return () => `01900000-0000-7000-8000-${String(++next).padStart(12, '0')}`
 }
 
-function entry(
-  overrides?: Partial<StoredJournalEntry>,
-): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
+function entry(overrides?: Partial<WireEntry>): WireEntry {
   return {
     id: `01900000-0000-7000-8000-${Math.random().toString(16).slice(2, 14).padStart(12, '0')}`,
     authorId: ME,
@@ -58,9 +61,7 @@ function entry(
   }
 }
 
-function syncResult(
-  entries: Array<StoredJournalEntry & { images: StoredJournalEntryImage[] }>,
-): SyncResult {
+function syncResult(entries: WireEntry[]): SyncResult {
   return {
     revision: '7',
     changes: [

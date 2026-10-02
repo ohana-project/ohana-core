@@ -21,5 +21,4 @@ CREATE TABLE "entry_images" (
 ALTER TABLE "entry_images" ADD CONSTRAINT "entry_images_space_id_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."spaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "entry_images" ADD CONSTRAINT "entry_images_space_id_entry_id_fk" FOREIGN KEY ("space_id","entry_id") REFERENCES "public"."journal_entries"("space_id","id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "entry_images" ADD CONSTRAINT "entry_images_space_id_uploader_member_id_fk" FOREIGN KEY ("space_id","uploader_member_id") REFERENCES "public"."members"("space_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "entry_images_entry_idx" ON "entry_images" USING btree ("space_id","entry_id","created_at");--> statement-breakpoint
-CREATE INDEX "entry_images_sync_idx" ON "entry_images" USING btree ("space_id","revision");
+CREATE INDEX "entry_images_entry_idx" ON "entry_images" USING btree ("space_id","entry_id","created_at");

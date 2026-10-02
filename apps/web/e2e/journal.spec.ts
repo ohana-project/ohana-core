@@ -68,8 +68,20 @@ const SEEDED_PUBLISHED: StoredEntry = {
   state: 'published',
   publishedAt: '2026-09-21T14:00:00.000Z',
   images: [
-    { id: '01900000-0000-7000-8000-000000000201', state: 'ready', width: 1200, height: 800 },
-    { id: '01900000-0000-7000-8000-000000000202', state: 'ready', width: 900, height: 1200 },
+    {
+      id: '01900000-0000-7000-8000-000000000201',
+      state: 'ready',
+      width: 1200,
+      height: 800,
+      originalType: 'image/jpeg',
+    },
+    {
+      id: '01900000-0000-7000-8000-000000000202',
+      state: 'ready',
+      width: 900,
+      height: 1200,
+      originalType: 'image/heic',
+    },
   ],
   createdAt: '2026-09-21T12:00:00.000Z',
   updatedAt: '2026-09-21T14:00:00.000Z',
@@ -95,6 +107,7 @@ interface StoredEntry {
     state: 'processing' | 'ready' | 'failed'
     width?: number
     height?: number
+    originalType?: string
   }>
   trashedAt?: string
   purgeAt?: string

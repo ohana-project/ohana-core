@@ -1,3 +1,4 @@
+import type { ObjectStorage } from '../../platform/storage/index.ts'
 /**
  * The object keys of a journal photo (issue #17), in the one form the
  * architecture prescribes: `spaces/<spaceId>/<kind>/<id>/<variant>`. The
@@ -15,6 +16,14 @@ export function imageObjectKey(spaceId: string, imageId: string, variant: ImageV
   return `spaces/${spaceId}/${IMAGE_OBJECT_KIND}/${imageId}/${variant}`
 }
 
-export function imageObjectPrefix(spaceId: string, imageId: string): string {
-  return `spaces/${spaceId}/${IMAGE_OBJECT_KIND}/${imageId}/`
+/** Removes every object of one photo — the removal's and the purge's
+ *  cleanup. Idempotent: a missing object is already the goal. */
+export async function deleteImageObjects(
+  storage: ObjectStorage,
+  spaceId: string,
+  imageId: string,
+): Promise<void> {
+  for (const variant of ['original', 'feed', 'full'] as const satisfies readonly ImageVariant[]) {
+    await storage.delete(imageObjectKey(spaceId, imageId, variant))
+  }
 }

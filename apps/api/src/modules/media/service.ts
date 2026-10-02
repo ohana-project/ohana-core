@@ -14,8 +14,13 @@ import {
 } from '../../platform/storage/index.ts'
 import { recordChanges } from '../sync/index.ts'
 import { ALLOWED_IMAGE_CONTENT_TYPES, MAX_IMAGES_PER_ENTRY } from './contracts.ts'
-import { MEDIA_DERIVATIVES_JOB, type MediaDerivativesJobData } from './jobs.ts'
-import { type ImageVariant, imageObjectKey } from './keys.ts'
+import {
+  MEDIA_DELETE_JOB,
+  MEDIA_DERIVATIVES_JOB,
+  type MediaDeleteJobData,
+  type MediaDerivativesJobData,
+} from './jobs.ts'
+import { deleteImageObjects, type ImageVariant, imageObjectKey } from './keys.ts'
 import {
   countImagesOfEntry,
   deleteImage,
@@ -43,7 +48,27 @@ export interface MediaDeps {
   clock: Clock
   /** The jobs port: a finished upload schedules its derivatives inside the same transaction. */
   jobs: JobSender
+  /**
+   * The port that re-delivers the photo's entry (issue #17): photos ride
+   * the entry's DTO, and the sync delta filters on the entry row — so every
+   * photo change stamps the entry with the transaction's revision. The
+   * journal owns the entry table; the composition root wires it in, like
+   * the access rules.
+   */
+  touchEntry: EntryTouch
 }
+
+/**
+ * Stamps the entry row with the transaction's revision — the write that
+ * carries a photo change through the sync. Only the revision moves: a
+ * photo is not a text edit, and the entry's updatedAt stays.
+ */
+export type EntryTouch = (
+  tx: Tx,
+  spaceId: string,
+  entryId: string,
+  revision: bigint,
+) => Promise<void>
 
 /** The member a media use case runs for; the space always comes from the actor. */
 export interface MediaActor {
@@ -154,9 +179,17 @@ export async function uploadEntryImage(
   options: { authorize: ImageAccessRule; authorizeInTx: ImageAccessTxRule; maxBytes: number },
 ): Promise<EntryImage> {
   // The pre-flight: a stranger learns nothing about the entry (404) and no
-  // byte of theirs is read. The transaction below re-checks under the
-  // space row lock, so a change racing the upload is still honoured.
+  // byte of theirs is read; a full entry is refused before a byte of the
+  // thirteenth photo is stored. The transaction below re-checks both under
+  // the space row lock, so a change racing the upload is still honoured.
   await options.authorize(deps.db, actor, entryId)
+  if ((await countImagesOfEntry(deps.db, actor.spaceId, entryId)) >= MAX_IMAGES_PER_ENTRY) {
+    throw new DomainError(
+      'image_limit_reached',
+      `An entry carries at most ${MAX_IMAGES_PER_ENTRY} photos`,
+      409,
+    )
+  }
   if (!(ALLOWED_IMAGE_CONTENT_TYPES as readonly string[]).includes(upload.contentType)) {
     throw new DomainError(
       'unsupported_image_type',
@@ -175,11 +208,18 @@ export async function uploadEntryImage(
   const pumped = pipeline(upload.stream, stream)
   void pumped.catch(() => {})
   measured.catch(() => {})
+  let stored = false
   try {
     await deps.storage.put(imageObjectKey(actor.spaceId, imageId, 'original'), stream, {
       contentType: upload.contentType,
     })
+    stored = true
     const { bytes, sha256 } = await measured
+    if (bytes === 0) {
+      // An empty upload would only die on the row's own check, a 500; it
+      // is a client mistake, and says so.
+      throw new DomainError('image_required', 'The upload carried no bytes', 400)
+    }
     const now = deps.clock.now()
     const created = await deps.db.transaction(async (tx) => {
       await options.authorizeInTx(tx, actor, entryId)
@@ -207,6 +247,9 @@ export async function uploadEntryImage(
               revision,
               now,
             })
+            // The entry carries the photo: its stamp is what delivers the
+            // longer list to every device through the sync.
+            await deps.touchEntry(writeTx, actor.spaceId, entryId, revision)
           },
         },
         now,
@@ -223,6 +266,12 @@ export async function uploadEntryImage(
     // answer stays the 413 the limit means.
     if (error instanceof StorageError && error.cause instanceof DomainError) {
       throw error.cause
+    }
+    // A refused upload — the cap, a racing trash, a hidden section — must
+    // not leave its bytes behind: the original is removed best-effort, and
+    // nothing was committed that could have reached it.
+    if (stored) {
+      await deps.storage.delete(imageObjectKey(actor.spaceId, imageId, 'original')).catch(() => {})
     }
     throw error
   } finally {
@@ -298,28 +347,29 @@ export async function deleteEntryImage(
 ): Promise<void> {
   await deps.db.transaction(async (tx) => {
     await options.authorizeInTx(tx, actor, entryId)
-    const deleted = await deleteImage(tx, actor.spaceId, entryId, imageId)
-    if (deleted === undefined) {
-      throw notFound('image_not_found', `Image ${imageId} does not exist`)
-    }
+    await recordChanges(
+      tx,
+      actor.spaceId,
+      {
+        writes: async (writeTx, revision) => {
+          const deleted = await deleteImage(writeTx, actor.spaceId, entryId, imageId)
+          if (deleted === undefined) {
+            throw notFound('image_not_found', `Image ${imageId} does not exist`)
+          }
+          // The shorter list travels the way every photo change does: on
+          // the entry's stamp.
+          await deps.touchEntry(writeTx, actor.spaceId, entryId, revision)
+        },
+      },
+      deps.clock.now(),
+    )
+    // The objects go twice: now, so the space is clean at once, and
+    // through the queued cleanup, so a storage hiccup the direct pass
+    // meets is still repaired (the handler is idempotent).
+    const job: MediaDeleteJobData = { spaceId: actor.spaceId, imageIds: [imageId] }
+    await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
   })
   await deleteImageObjects(deps.storage, actor.spaceId, imageId)
-}
-
-/**
- * Removes every stored object of one photo — the original and both
- * derivatives. Idempotent: a missing object is already the goal. The purge
- * and the author's removal both call it after their transaction committed,
- * so a crash can only leave unreachable objects, never a broken photo.
- */
-export async function deleteImageObjects(
-  storage: ObjectStorage,
-  spaceId: string,
-  imageId: string,
-): Promise<void> {
-  for (const variant of ['original', 'feed', 'full'] as const satisfies readonly ImageVariant[]) {
-    await storage.delete(imageObjectKey(spaceId, imageId, variant))
-  }
 }
 
 /**

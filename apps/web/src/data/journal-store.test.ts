@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from './local-store.ts'
 import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-store.ts'
 
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
+
 /*
  * The journal in the per-member local store (issue #15, ADR-0002): the
  * entries the sync delivers land in the member's partition and read back
@@ -14,9 +19,7 @@ import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-s
 const ANYA = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 
-function entry(
-  overrides?: Partial<StoredJournalEntry>,
-): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
+function entry(overrides?: Partial<WireEntry>): WireEntry {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ANYA,

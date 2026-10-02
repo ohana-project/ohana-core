@@ -35,7 +35,7 @@ const ConfigSchema = Type.Object({
   // larger than this answers 413 before anything reaches storage. The
   // original is kept byte-for-byte (ADR-0008), so the limit bounds what one
   // phone photo costs in storage and memory.
-  mediaMaxUploadBytes: Type.Number({ default: 26_214_400, minimum: 1024, maximum: 262_144_000 }),
+  mediaMaxUploadBytes: Type.Integer({ default: 26_214_400, minimum: 1024, maximum: 262_144_000 }),
   webDist: Type.Optional(Type.String({ minLength: 1 })),
   // The initial instance-administrator password (ADR-0005): used once to
   // provision the first administrator on first start. An administrator that

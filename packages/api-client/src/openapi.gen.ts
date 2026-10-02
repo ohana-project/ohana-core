@@ -884,6 +884,7 @@ export interface paths {
                                     state: "processing" | "ready" | "failed";
                                     width?: number;
                                     height?: number;
+                                    originalType: string;
                                 }[];
                                 /** Format: date-time */
                                 createdAt: string;
@@ -944,6 +945,7 @@ export interface paths {
                                 state: "processing" | "ready" | "failed";
                                 width?: number;
                                 height?: number;
+                                originalType: string;
                             }[];
                             /** Format: date-time */
                             createdAt: string;
@@ -1066,6 +1068,7 @@ export interface paths {
                                 state: "processing" | "ready" | "failed";
                                 width?: number;
                                 height?: number;
+                                originalType: string;
                             }[];
                             /** Format: date-time */
                             createdAt: string;
@@ -1124,6 +1127,7 @@ export interface paths {
                                 state: "processing" | "ready" | "failed";
                                 width?: number;
                                 height?: number;
+                                originalType: string;
                             }[];
                             /** Format: date-time */
                             createdAt: string;
@@ -1176,6 +1180,7 @@ export interface paths {
                                 state: "processing" | "ready" | "failed";
                                 width?: number;
                                 height?: number;
+                                originalType: string;
                             }[];
                             /** Format: date-time */
                             createdAt: string;
@@ -1237,6 +1242,7 @@ export interface paths {
                                 state: "processing" | "ready" | "failed";
                                 width?: number;
                                 height?: number;
+                                originalType: string;
                             }[];
                             /** Format: date-time */
                             createdAt: string;
@@ -1352,6 +1358,7 @@ export interface paths {
                                 state: "processing" | "ready" | "failed";
                                 width?: number;
                                 height?: number;
+                                originalType: string;
                             }[];
                             /** Format: date-time */
                             createdAt: string;
@@ -1402,6 +1409,7 @@ export interface paths {
                             state: "processing" | "ready" | "failed";
                             width?: number;
                             height?: number;
+                            originalType: string;
                         };
                     };
                 };
@@ -1477,7 +1485,7 @@ export interface paths {
             requestBody?: never;
             responses: {
                 /** @description Default Response */
-                200: {
+                204: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1999,6 +2007,7 @@ export interface paths {
                                         state: "processing" | "ready" | "failed";
                                         width?: number;
                                         height?: number;
+                                        originalType: string;
                                     }[];
                                     /** Format: date-time */
                                     createdAt: string;

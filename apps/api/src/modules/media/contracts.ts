@@ -43,6 +43,9 @@ export const EntryImageDtoSchema = Type.Object(
     // out with it before the bytes arrive. Present once the photo is ready.
     width: Type.Optional(Type.Integer({ minimum: 1 })),
     height: Type.Optional(Type.Integer({ minimum: 1 })),
+    // What the original is, as uploaded: the viewer offers HEIC and TIFF
+    // originals as a download instead of an <img> no browser can show.
+    originalType: Type.String(),
   },
   { additionalProperties: false },
 )
@@ -57,5 +60,6 @@ export function toImageDto(image: EntryImage): EntryImageDto {
     ...(image.width !== null && image.height !== null
       ? { width: image.width, height: image.height }
       : {}),
+    originalType: image.originalContentType,
   }
 }

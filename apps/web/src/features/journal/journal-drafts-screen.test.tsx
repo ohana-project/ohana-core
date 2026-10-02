@@ -10,6 +10,11 @@ import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalDraftsScreen } from './journal-drafts-screen.tsx'
 
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
+
 /*
  * The drafts list (issue #15): the author's separate list — every row
  * continues in the editor or shares with the space. Publishing goes to
@@ -40,9 +45,7 @@ const triggerSyncMock = vi.mocked(triggerSync)
 const ME = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 
-function draft(
-  overrides?: Partial<StoredJournalEntry>,
-): StoredJournalEntry & { images: StoredJournalEntryImage[] } {
+function draft(overrides?: Partial<WireEntry>): WireEntry {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ME,
@@ -56,9 +59,7 @@ function draft(
   }
 }
 
-function syncResult(
-  entries: Array<StoredJournalEntry & { images: StoredJournalEntryImage[] }>,
-): SyncResult {
+function syncResult(entries: WireEntry[]): SyncResult {
   return {
     revision: '7',
     changes: [

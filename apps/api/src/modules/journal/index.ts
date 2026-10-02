@@ -23,5 +23,6 @@ export {
   assertEntryImageEditable,
   assertEntryImageEditableInTx,
   assertEntryImageViewable,
+  touchEntryRevision,
 } from './service.ts'
 export { journalSyncContributor } from './sync.ts'

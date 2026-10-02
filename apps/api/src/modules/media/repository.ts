@@ -84,11 +84,10 @@ export async function countImagesOfEntry(
   spaceId: string,
   entryId: string,
 ): Promise<number> {
-  const rows = await executor
-    .select({ id: entryImages.id })
-    .from(entryImages)
-    .where(and(eq(entryImages.spaceId, spaceId), eq(entryImages.entryId, entryId)))
-  return rows.length
+  return executor.$count(
+    entryImages,
+    and(eq(entryImages.spaceId, spaceId), eq(entryImages.entryId, entryId)),
+  )
 }
 
 /**

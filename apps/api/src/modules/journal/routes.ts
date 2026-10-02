@@ -10,6 +10,7 @@ import {
   requireMemberActor,
 } from '../access/index.ts'
 import {
+  ALLOWED_IMAGE_CONTENT_TYPES,
   deleteEntryImage,
   EntryImageDtoSchema,
   type ImageAccessRule,
@@ -253,6 +254,9 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
         schema: {
           headers: MemberHeadersSchema,
           params: EntryIdParamsSchema,
+          // One multipart part named "file"; the body itself is the parser's
+          // stream, not a JSON schema's.
+          consumes: ['multipart/form-data'],
           response: { 201: EntryImageDtoSchema },
         },
       },
@@ -290,6 +294,7 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
           // The answer is the photo's bytes, streamed from storage — no
           // JSON schema stands between (binary responses are the one
           // exception to the serialisation rule).
+          produces: [...ALLOWED_IMAGE_CONTENT_TYPES, 'image/webp'],
         },
       },
       async (request, reply) => {
@@ -302,10 +307,22 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
           request.params.variant,
           { authorize: opts.media.imageViewable },
         )
-        return reply
-          .header('content-type', stored.contentType)
-          .header('content-length', stored.size)
-          .send(stored.stream)
+        return (
+          reply
+            .header('content-type', stored.contentType)
+            .header('content-length', stored.size)
+            // The bytes are exactly the type the row names: no sniffing, and
+            // the originals never sit in a shared cache. The derivatives are
+            // immutable per id, so a member's browser may keep them.
+            .header('x-content-type-options', 'nosniff')
+            .header(
+              'cache-control',
+              request.params.variant === 'original'
+                ? 'private, no-store'
+                : 'private, max-age=31536000, immutable',
+            )
+            .send(stored.stream)
+        )
       },
     )
 
@@ -315,6 +332,7 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
         schema: {
           headers: MemberHeadersSchema,
           params: ImageIdParamsSchema,
+          response: { 204: Type.Null() },
         },
       },
       async (request, reply) => {
@@ -328,7 +346,7 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
             authorizeInTx: opts.media.imageEditableInTx,
           },
         )
-        return reply.code(204).send()
+        return reply.code(204).send(null)
       },
     )
   })

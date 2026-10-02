@@ -1,5 +1,6 @@
+import { and, eq } from 'drizzle-orm'
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
@@ -30,7 +31,7 @@ import {
   publishEntry,
   updateEntry,
 } from './repository.ts'
-import type { JournalEntry } from './tables.ts'
+import { type JournalEntry, journalEntries } from './tables.ts'
 
 export interface JournalDeps {
   db: Db
@@ -79,9 +80,9 @@ export async function createDraft(
             revision,
             now,
           })
-          // A new entry has no photos yet; the read keeps every ordinary
-          // delivery shaped the same, photos included.
-          created = await attachImages(writeTx, inserted)
+          // A new entry has no photos yet; the shape stays the same as
+          // every other ordinary delivery, photos included.
+          created = { ...inserted, images: [] }
         },
       },
       now,
@@ -106,11 +107,12 @@ async function attachImages(
 
 async function attachImagesAll(
   executor: Parameters<typeof imagesOfEntries>[0],
+  spaceId: string,
   entries: JournalEntry[],
 ): Promise<JournalEntryWithImages[]> {
   const grouped = await imagesOfEntries(
     executor,
-    entries[0]?.spaceId ?? '',
+    spaceId,
     entries.map((entry) => entry.id),
   )
   return entries.map((entry) => ({ ...entry, images: grouped.get(entry.id) ?? [] }))
@@ -273,6 +275,26 @@ export const assertEntryImageEditableInTx: ImageAccessTxRule = async (tx, actor,
   assertEntryAuthoredBy(entry, actor)
 }
 
+/**
+ * The port the media module calls on every photo change (issue #17): the
+ * photos ride the entry's DTO, and the sync delta filters on the entry
+ * row, so attaching, processing, and removing a photo all stamp the entry
+ * with the transaction's revision — that stamp is what re-delivers the
+ * entry, photos included. Only the revision moves: a photo is not a text
+ * edit, and the entry's updatedAt stays.
+ */
+export async function touchEntryRevision(
+  tx: Tx,
+  spaceId: string,
+  entryId: string,
+  revision: bigint,
+): Promise<void> {
+  await tx
+    .update(journalEntries)
+    .set({ revision })
+    .where(and(eq(journalEntries.spaceId, spaceId), eq(journalEntries.id, entryId)))
+}
+
 async function requireVisibleEntry(
   executor: Parameters<typeof getEntryInSpace>[0],
   actor: JournalActor,
@@ -298,7 +320,7 @@ export async function listFeed(
   const before = readCursor(query)
   const limit = query.limit ?? DEFAULT_FEED_LIMIT
   const rows = await listFeedPage(deps.db, actor.spaceId, before, limit + 1)
-  const withImages = await attachImagesAll(deps.db, rows.slice(0, limit))
+  const withImages = await attachImagesAll(deps.db, actor.spaceId, rows.slice(0, limit))
   return {
     entries: withImages,
     hasMore: rows.length > limit,
@@ -337,7 +359,7 @@ export async function listDrafts(
   actor: JournalActor,
 ): Promise<JournalEntryWithImages[]> {
   const rows = await listDraftsOfAuthor(deps.db, actor.spaceId, actor.memberId)
-  return attachImagesAll(deps.db, rows)
+  return attachImagesAll(deps.db, actor.spaceId, rows)
 }
 
 /** The sync contributor's delta: the entries this member may see, changed since the cursor. */
@@ -347,7 +369,7 @@ export async function listChangedEntriesFor(
   since: bigint,
 ): Promise<JournalEntryWithImages[]> {
   const rows = await listChangedEntriesVisibleTo(tx, actor.spaceId, actor.memberId, since)
-  return attachImagesAll(tx, rows)
+  return attachImagesAll(tx, actor.spaceId, rows)
 }
 
 /**

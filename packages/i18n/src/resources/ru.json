@@ -292,7 +292,8 @@
     "photoFailed": "Фото не обработалось",
     "openOriginalHint": "Нажмите на фото, чтобы открыть в оригинальном качестве",
     "viewerLoadingOriginal": "Загружаем оригинал…",
-    "viewerOriginalCaption": "Оригинал"
+    "viewerOriginalCaption": "Оригинал",
+    "downloadOriginal": "Скачать оригинал"
   },
   "signin": {
     "title": "Код входа",

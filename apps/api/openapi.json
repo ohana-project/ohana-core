@@ -1674,7 +1674,8 @@
                               "type": "object",
                               "required": [
                                 "id",
-                                "state"
+                                "state",
+                                "originalType"
                               ],
                               "properties": {
                                 "id": {
@@ -1710,6 +1711,9 @@
                                 "height": {
                                   "minimum": 1,
                                   "type": "integer"
+                                },
+                                "originalType": {
+                                  "type": "string"
                                 }
                               }
                             }
@@ -1810,7 +1814,8 @@
                           "type": "object",
                           "required": [
                             "id",
-                            "state"
+                            "state",
+                            "originalType"
                           ],
                           "properties": {
                             "id": {
@@ -1846,6 +1851,9 @@
                             "height": {
                               "minimum": 1,
                               "type": "integer"
+                            },
+                            "originalType": {
+                              "type": "string"
                             }
                           }
                         }
@@ -2064,7 +2072,8 @@
                         "type": "object",
                         "required": [
                           "id",
-                          "state"
+                          "state",
+                          "originalType"
                         ],
                         "properties": {
                           "id": {
@@ -2100,6 +2109,9 @@
                           "height": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "originalType": {
+                            "type": "string"
                           }
                         }
                       }
@@ -2201,7 +2213,8 @@
                         "type": "object",
                         "required": [
                           "id",
-                          "state"
+                          "state",
+                          "originalType"
                         ],
                         "properties": {
                           "id": {
@@ -2237,6 +2250,9 @@
                           "height": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "originalType": {
+                            "type": "string"
                           }
                         }
                       }
@@ -2363,7 +2379,8 @@
                         "type": "object",
                         "required": [
                           "id",
-                          "state"
+                          "state",
+                          "originalType"
                         ],
                         "properties": {
                           "id": {
@@ -2399,6 +2416,9 @@
                           "height": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "originalType": {
+                            "type": "string"
                           }
                         }
                       }
@@ -2500,7 +2520,8 @@
                         "type": "object",
                         "required": [
                           "id",
-                          "state"
+                          "state",
+                          "originalType"
                         ],
                         "properties": {
                           "id": {
@@ -2536,6 +2557,9 @@
                           "height": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "originalType": {
+                            "type": "string"
                           }
                         }
                       }
@@ -2732,7 +2756,8 @@
                         "type": "object",
                         "required": [
                           "id",
-                          "state"
+                          "state",
+                          "originalType"
                         ],
                         "properties": {
                           "id": {
@@ -2768,6 +2793,9 @@
                           "height": {
                             "minimum": 1,
                             "type": "integer"
+                          },
+                          "originalType": {
+                            "type": "string"
                           }
                         }
                       }
@@ -2820,7 +2848,8 @@
                   "type": "object",
                   "required": [
                     "id",
-                    "state"
+                    "state",
+                    "originalType"
                   ],
                   "properties": {
                     "id": {
@@ -2856,6 +2885,9 @@
                     "height": {
                       "minimum": 1,
                       "type": "integer"
+                    },
+                    "originalType": {
+                      "type": "string"
                     }
                   }
                 }
@@ -2962,7 +2994,7 @@
           }
         ],
         "responses": {
-          "200": {
+          "204": {
             "description": "Default Response"
           }
         }
@@ -4327,7 +4359,8 @@
                                       "type": "object",
                                       "required": [
                                         "id",
-                                        "state"
+                                        "state",
+                                        "originalType"
                                       ],
                                       "properties": {
                                         "id": {
@@ -4363,6 +4396,9 @@
                                         "height": {
                                           "minimum": 1,
                                           "type": "integer"
+                                        },
+                                        "originalType": {
+                                          "type": "string"
                                         }
                                       }
                                     }

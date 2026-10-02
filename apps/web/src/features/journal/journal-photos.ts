@@ -18,10 +18,15 @@ export function entryImageUrl(entryId: string, imageId: string, variant: ImageVa
   return `/api/v1/journal/entries/${entryId}/images/${imageId}/variants/${variant}`
 }
 
-/** The object URLs handed out for fetched photos, so a re-render reuses them. */
+/** The object URLs handed out for fetched photos, so a re-render reuses
+ *  them. Entries leave the map without revoking: the URL strings stay
+ *  alive in the query cache, and a revoked URL there would be a broken
+ *  image that never refetches (staleTime is infinite). The blobs die with
+ *  the document — bounded by a session's viewing, and the originals of a
+ *  lightbox visit are the exception, not the bulk. */
 const fetchedImages = new Map<string, string>()
 
-/** One session does not need a gallery of forgotten blobs; the oldest goes. */
+/** The map is a memo, not a store; this only bounds its growth. */
 const FETCHED_IMAGES_LIMIT = 120
 
 /**
@@ -47,11 +52,7 @@ export async function fetchEntryImage(
   fetchedImages.set(url, objectUrl)
   if (fetchedImages.size > FETCHED_IMAGES_LIMIT) {
     const oldest = fetchedImages.keys().next().value
-    if (oldest !== undefined) {
-      const stale = fetchedImages.get(oldest)
-      if (stale !== undefined) URL.revokeObjectURL(stale)
-      fetchedImages.delete(oldest)
-    }
+    if (oldest !== undefined) fetchedImages.delete(oldest)
   }
   return objectUrl
 }

@@ -7,6 +7,7 @@ import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { deleteEntryImage, fetchEntryImage, uploadEntryImage } from './journal-photos.ts'
+import { journalErrorMessage } from './use-journal.ts'
 
 /*
  * The journal's photo pieces (issue #17), built from the design system and
@@ -122,7 +123,7 @@ export function EntryPhotoStrip({ entry }: { entry: StoredJournalEntry }) {
 }
 
 function StripThumb({ entryId, image }: { entryId: string; image: StoredJournalEntryImage }) {
-  const preview = useEntryImageUrl(entryId, image.id, 'feed')
+  const preview = useEntryImageUrl(entryId, image.id, 'feed', image.state === 'ready')
   if (image.state !== 'ready' || preview.data === undefined) {
     return <div className="size-14 shrink-0 rounded-md bg-muted" aria-hidden="true" />
   }
@@ -166,6 +167,14 @@ export function EntryPhotoGallery({ entry }: { entry: StoredJournalEntry }) {
   )
 }
 
+/**
+ * The originals a browser can show in an <img>. A HEIC or TIFF original —
+ * the iPhone's own format — is offered as a download instead: swapping a
+ * working viewer image for bytes the browser cannot render would break the
+ * viewer exactly on the ticket's headline case.
+ */
+const RENDERABLE_ORIGINALS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+
 function PhotoLightbox({
   entryId,
   image,
@@ -178,7 +187,9 @@ function PhotoLightbox({
   const { t } = useTranslation()
   const viewer = useEntryImageUrl(entryId, image.id, 'full')
   const original = useEntryImageUrl(entryId, image.id, 'original')
-  const shown = original.data ?? viewer.data
+  const originalShown =
+    original.data !== undefined && RENDERABLE_ORIGINALS.has(image.originalType ?? 'image/jpeg')
+  const shown = originalShown ? original.data : viewer.data
 
   return (
     // A plain overlay, not ui/dialog: the lightbox is a photo on a scrim,
@@ -209,6 +220,15 @@ function PhotoLightbox({
           ? t('journal.viewerLoadingOriginal')
           : t('journal.viewerOriginalCaption')}
       </span>
+      {original.data !== undefined && !originalShown && (
+        <a
+          href={original.data}
+          download
+          className="rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+        >
+          {t('journal.downloadOriginal')}
+        </a>
+      )}
     </div>
   )
 }
@@ -236,7 +256,6 @@ export function EntryPhotoEditor({
   entryId,
   images,
   onNeedEntry,
-  onCountChange,
 }: {
   /** The entry the photos attach to; undefined until the editor has one. */
   entryId?: string
@@ -244,18 +263,11 @@ export function EntryPhotoEditor({
   /** Called when photos are picked but no entry exists yet; answers the
    *  entry to attach to, or null when it could not be created. */
   onNeedEntry: () => Promise<string | null>
-  /** The editor's bar counts photos in its meta line. */
-  onCountChange?: (count: number) => void
 }) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<PendingPhoto[]>([])
   const [removing, setRemoving] = useState<string[]>([])
-
-  const reportCount = (total: number) => {
-    onCountChange?.(total)
-    return total
-  }
 
   const onPick = async (files: FileList | null) => {
     if (files === null || files.length === 0) return
@@ -284,12 +296,16 @@ export function EntryPhotoEditor({
         await uploadEntryImage(targetId, file)
         setPending((current) => current.filter((candidate) => candidate.key !== placeholder.key))
         await triggerSync()
-      } catch {
+      } catch (cause) {
         setPending((current) => current.filter((candidate) => candidate.key !== placeholder.key))
-        toast(t('journal.errors.unexpected'), 'danger')
+        // The refusal is the answer about the row — the sync corrects it —
+        // and the toast names what the API said, not "unexpected".
+        void triggerSync()
+        toast(journalErrorMessage(cause, t), 'danger')
+      } finally {
+        URL.revokeObjectURL(placeholder.preview)
       }
     }
-    reportCount(images.length + pending.length)
   }
 
   const onRemove = async (imageId: string) => {
@@ -298,8 +314,9 @@ export function EntryPhotoEditor({
     try {
       await deleteEntryImage(entryId, imageId)
       await triggerSync()
-    } catch {
-      toast(t('journal.errors.unexpected'), 'danger')
+    } catch (cause) {
+      void triggerSync()
+      toast(journalErrorMessage(cause, t), 'danger')
     } finally {
       setRemoving((current) => current.filter((candidate) => candidate !== imageId))
     }
@@ -386,7 +403,7 @@ function EditorChip({
   onRemove: () => void
 }) {
   const { t } = useTranslation()
-  const preview = useEntryImageUrl(entryId, image.id, 'feed')
+  const preview = useEntryImageUrl(entryId, image.id, 'feed', image.state === 'ready')
   if (image.state !== 'ready' || preview.data === undefined) {
     return (
       <div className="grid aspect-square w-full place-items-center rounded-lg bg-muted">
