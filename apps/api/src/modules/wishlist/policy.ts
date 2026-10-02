@@ -1,4 +1,6 @@
+import { eq, ne, type SQL } from 'drizzle-orm'
 import { DomainError } from '../../platform/errors.ts'
+import { giftFavorites, wishes } from './tables.ts'
 
 /*
  * The wishlist's visibility and permission rules: the one place both the
@@ -7,7 +9,9 @@ import { DomainError } from '../../platform/errors.ts'
  * the space is deliverable to every member, whoever wrote it, and received
  * wishes travel the same way (the "open wish" selection is the client's
  * presentation over the same rows). The author alone writes: edits,
- * removals, and the received mark.
+ * removals, and the received mark. A gift favorite is private to the
+ * member who made it, and a gift reservation is visible to every member
+ * except the wish's author (issue #19, ADR-0001).
  */
 
 /**
@@ -51,4 +55,64 @@ export function assertWishAuthoredBy(
   if (wish.authorMemberId !== actor.memberId) {
     throw new DomainError('author_required', 'Only the author of a wish can change it', 403)
   }
+}
+
+/**
+ * Nobody favorites or reserves their own wish (issue #19): a bookmark or a
+ * claim is for giving to someone else. The two write paths answer with
+ * their own stable code, so the caller names it; the rule itself is this
+ * one comparison.
+ */
+export function assertWishNotAuthoredBy(
+  wish: { authorMemberId: string },
+  actor: { memberId: string },
+  errorCode: string,
+): void {
+  if (wish.authorMemberId === actor.memberId) {
+    throw new DomainError(errorCode, 'A member does not favorite or reserve their own wish', 403)
+  }
+}
+
+/**
+ * A gift favorite is visible to the member who made it alone (issue #19,
+ * CONTEXT.md, gift favorite): other members never see it, and its
+ * tombstones name that one member as their audience. The rule reads
+ * backwards on purpose — `favoriteVisibleTo` is asked by every read whose
+ * candidate rows are someone's favorites, and only the owner's own pass.
+ */
+export function favoriteVisibleTo(favorite: { memberId: string }, memberId: string): boolean {
+  return favorite.memberId === memberId
+}
+
+/**
+ * The favorite rule in its SQL dialect (architecture.md, "Sync
+ * contributors"): the queries that must decide visibility inside SQL —
+ * the own-favorites listing and the sync contributor's delta — carry the
+ * same narrowing beside their space scope.
+ */
+export function favoriteVisibleToSql(memberId: string): SQL {
+  return eq(giftFavorites.memberId, memberId)
+}
+
+/**
+ * A gift reservation is visible to every member except the wish's author
+ * (issue #19, CONTEXT.md, gift reservation; ADR-0001: the surprise is
+ * preserved) — and the author never learns of its ending either, which is
+ * why the deletion's tombstones name every member but them, never `all`.
+ */
+export function reservationVisibleTo(
+  reservation: { wishAuthorMemberId: string },
+  memberId: string,
+): boolean {
+  return reservation.wishAuthorMemberId !== memberId
+}
+
+/**
+ * The reservation rule in its SQL dialect, beside `reservationVisibleTo`:
+ * every query that selects reservations joins the wish for its author, and
+ * the visibility filter excludes the author's own rows. The space scoping
+ * is applied before this rule; it is not repeated here.
+ */
+export function reservationVisibleToSql(memberId: string): SQL {
+  return ne(wishes.authorMemberId, memberId)
 }

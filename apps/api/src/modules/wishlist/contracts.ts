@@ -1,5 +1,5 @@
 import { type Static, Type } from '@sinclair/typebox'
-import type { Wish } from './tables.ts'
+import type { GiftFavorite, GiftReservation, Wish } from './tables.ts'
 
 /*
  * The wishlist contracts (issue #18). The DTO names the author by id only:
@@ -116,3 +116,106 @@ export const WishSyncChangeSchema = Type.Object(
   { entity: Type.Literal('wishlist_wish'), wish: WishDtoSchema },
   { additionalProperties: false },
 )
+
+/*
+ * The gift favorite (issue #19): a member's private bookmark of someone
+ * else's wish. The wire shape names the wish by id — the wish itself
+ * travels on its own entity to every member, so the client renders the
+ * favorite from the wish its store already holds, and a favorite whose
+ * wish is gone is gone with it (the wish's removal deletes the favorite
+ * in the same transaction). No state, no details of its own.
+ */
+export const WISHLIST_GIFT_FAVORITE_SYNC_ENTITY = 'wishlist_gift_favorite'
+
+export const GiftFavoriteDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    wishId: Type.String({ format: 'uuid' }),
+    createdAt: Type.String({ format: 'date-time' }),
+    updatedAt: Type.String({ format: 'date-time' }),
+  },
+  { additionalProperties: false },
+)
+
+export type GiftFavoriteDto = Static<typeof GiftFavoriteDtoSchema>
+
+export function toGiftFavoriteDto(favorite: GiftFavorite): GiftFavoriteDto {
+  return {
+    id: favorite.id,
+    wishId: favorite.wishId,
+    createdAt: favorite.createdAt.toISOString(),
+    updatedAt: favorite.updatedAt.toISOString(),
+  }
+}
+
+/** The member's own favorites, the one listing that exists (policy.ts). */
+export const GiftFavoriteListDtoSchema = Type.Object(
+  { favorites: Type.Array(GiftFavoriteDtoSchema) },
+  { additionalProperties: false },
+)
+
+export type GiftFavoriteListDto = Static<typeof GiftFavoriteListDtoSchema>
+
+/** The favorite's change in the sync response — the owner's alone (issue #19). */
+export const GiftFavoriteSyncChangeSchema = Type.Object(
+  { entity: Type.Literal('wishlist_gift_favorite'), favorite: GiftFavoriteDtoSchema },
+  { additionalProperties: false },
+)
+
+/*
+ * The gift reservation (issue #19): a member's claim on a wish, visible to
+ * every member except the wish's author, who never learns a reservation
+ * exists — not the reservation, and not its ending. `memberId` is the
+ * reserving member: "including who reserved" is the point, and the client
+ * names them from the profiles its store already holds.
+ */
+export const WISHLIST_GIFT_RESERVATION_SYNC_ENTITY = 'wishlist_gift_reservation'
+
+export const GiftReservationDtoSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    wishId: Type.String({ format: 'uuid' }),
+    memberId: Type.String({ format: 'uuid' }),
+    createdAt: Type.String({ format: 'date-time' }),
+    updatedAt: Type.String({ format: 'date-time' }),
+  },
+  { additionalProperties: false },
+)
+
+export type GiftReservationDto = Static<typeof GiftReservationDtoSchema>
+
+export function toGiftReservationDto(reservation: GiftReservation): GiftReservationDto {
+  return {
+    id: reservation.id,
+    wishId: reservation.wishId,
+    memberId: reservation.memberId,
+    createdAt: reservation.createdAt.toISOString(),
+    updatedAt: reservation.updatedAt.toISOString(),
+  }
+}
+
+/** The reservations the requesting member may see, wishes by others (policy.ts). */
+export const GiftReservationListDtoSchema = Type.Object(
+  { reservations: Type.Array(GiftReservationDtoSchema) },
+  { additionalProperties: false },
+)
+
+export type GiftReservationListDto = Static<typeof GiftReservationListDtoSchema>
+
+/** The reservation's change in the sync response — never the author's (issue #19). */
+export const GiftReservationSyncChangeSchema = Type.Object(
+  { entity: Type.Literal('wishlist_gift_reservation'), reservation: GiftReservationDtoSchema },
+  { additionalProperties: false },
+)
+
+/**
+ * The wishlist contributor's whole change vocabulary (issues #18 and #19):
+ * the sync route composes the response union from the wired contributors,
+ * and the contributor's upserts are typed against this union, so a
+ * drifting shape fails to compile in sync.ts.
+ */
+export const WishlistSyncChangeSchema = Type.Union([
+  WishSyncChangeSchema,
+  GiftFavoriteSyncChangeSchema,
+  GiftReservationSyncChangeSchema,
+])

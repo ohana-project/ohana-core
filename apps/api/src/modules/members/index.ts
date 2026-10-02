@@ -13,6 +13,7 @@ export {
   describeMember,
   findMemberInSpace,
   listMembers,
+  listMembersInTx,
   type MemberInput,
   type MemberRole,
   type MembersDeps,
