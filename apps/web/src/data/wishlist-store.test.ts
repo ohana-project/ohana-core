@@ -166,11 +166,12 @@ describe('the wishes in the local store', () => {
     }
 
     // The next read upgrades in place: the wishes store appears, the
-    // cursor resets to 0, and the replay promise names the wishlist
-    // (ADR-0014) — the same move a re-shown section makes.
+    // cursor resets to 0, and the replay promise names the wishlist —
+    // and the calendar, whose events this device was never sent either
+    // (issue #20) — the same move a re-shown section makes (ADR-0014).
     const upgraded = await readMemberSnapshot(ANYA)
     expect(upgraded.revision).toBe('0')
-    expect(upgraded.pendingReplay).toEqual(['wishlist'])
+    expect(upgraded.pendingReplay).toEqual(['wishlist', 'calendar'])
   })
 
   test('a version 2 partition keeps its journal replay promise beside the wishlist one', async () => {
@@ -203,13 +204,14 @@ describe('the wishes in the local store', () => {
 
     const upgraded = await readMemberSnapshot(ANYA)
     expect(upgraded.revision).toBe('0')
-    expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist'])
+    expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist', 'calendar'])
   })
 
-  test('a version 1 partition upgrading straight to version 4 replays both sections', async () => {
+  test('a version 1 partition upgrading straight to the latest version replays every section', async () => {
     // A device that synced before the journal entries store existed and
-    // skipped version 2 entirely: the one upgrade adds both stores, so the
-    // replay promise names the journal and the wishlist together.
+    // skipped every version since: the one upgrade adds all the stores, so
+    // the replay promise names the journal, the wishlist, and the
+    // calendar (issue #20) together.
     const openVersionOne = new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(`ohana.sync.${ANYA}`, 1)
       request.onupgradeneeded = () => {
@@ -243,7 +245,7 @@ describe('the wishes in the local store', () => {
 
     const upgraded = await readMemberSnapshot(ANYA)
     expect(upgraded.revision).toBe('0')
-    expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist'])
+    expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist', 'calendar'])
   })
 
   test('each member reads only their own wishes, and sign-out deletes them whole', async () => {
@@ -430,10 +432,12 @@ describe('the gift favorites and reservations in the local store (issue #19)', (
     }
 
     // The next read upgrades in place: the gift stores appear, the cursor
-    // resets to 0, and the replay promise names the wishlist (ADR-0014).
+    // resets to 0, and the replay promise names the wishlist — and the
+    // calendar, whose events this device was never sent either (issue #20,
+    // ADR-0014).
     const upgraded = await readMemberSnapshot(ANYA)
     expect(upgraded.revision).toBe('0')
-    expect(upgraded.pendingReplay).toEqual(['wishlist'])
+    expect(upgraded.pendingReplay).toEqual(['wishlist', 'calendar'])
     expect(upgraded.favorites).toEqual([])
     expect(upgraded.reservations).toEqual([])
   })

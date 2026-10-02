@@ -131,10 +131,7 @@ export const TimedEventBodySchema = Type.Object(
   { additionalProperties: false },
 )
 
-export const CreateEventBodySchema = Type.Union([
-  AllDayEventBodySchema,
-  TimedEventBodySchema,
-])
+export const CreateEventBodySchema = Type.Union([AllDayEventBodySchema, TimedEventBodySchema])
 
 export type CreateEventBody = Static<typeof CreateEventBodySchema>
 

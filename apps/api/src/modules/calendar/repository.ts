@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { calendarEvents, type CalendarEvent } from './tables.ts'
+import { type CalendarEvent, calendarEvents } from './tables.ts'
 
 /**
  * Every query on this space-owned table takes the space as its required
@@ -23,7 +23,11 @@ export interface NewCalendarEvent {
   now: Date
 }
 
-export async function insertEvent(tx: Tx, spaceId: string, data: NewCalendarEvent): Promise<CalendarEvent> {
+export async function insertEvent(
+  tx: Tx,
+  spaceId: string,
+  data: NewCalendarEvent,
+): Promise<CalendarEvent> {
   const inserted = await tx
     .insert(calendarEvents)
     .values({

@@ -96,7 +96,10 @@ export async function getEvent(
 }
 
 /** The space's events — the HTTP contract the tests and the document speak. */
-export async function listEvents(deps: CalendarDeps, actor: CalendarActor): Promise<CalendarEvent[]> {
+export async function listEvents(
+  deps: CalendarDeps,
+  actor: CalendarActor,
+): Promise<CalendarEvent[]> {
   return listEventsInSpace(deps.db, actor.spaceId)
 }
 
@@ -125,7 +128,14 @@ export async function editEvent(
       actor.spaceId,
       {
         writes: async (writeTx, revision) => {
-          const row = await updateEvent(writeTx, actor.spaceId, eventId, { title: input.title, ...columns }, revision, now)
+          const row = await updateEvent(
+            writeTx,
+            actor.spaceId,
+            eventId,
+            { title: input.title, ...columns },
+            revision,
+            now,
+          )
           if (row === undefined) {
             // The defensive backstop: the row was read under the same space
             // row lock, so it cannot vanish before the UPDATE — and a

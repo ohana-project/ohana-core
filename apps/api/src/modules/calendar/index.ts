@@ -5,4 +5,4 @@
  */
 
 export { calendarRoutes } from './routes.ts'
-export { calendarSyncContributor, CALENDAR_EVENT_SYNC_ENTITY } from './sync.ts'
+export { CALENDAR_EVENT_SYNC_ENTITY, calendarSyncContributor } from './sync.ts'

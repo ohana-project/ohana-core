@@ -1,5 +1,8 @@
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
+import { upcomingEvents } from '@/features/calendar/calendar-entries.ts'
+import { EventTimeLine } from '@/features/calendar/event-time.tsx'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { ALL_SECTIONS_VISIBLE, useNavSections } from '@/features/member/use-nav-sections.ts'
 import { useSectionNav } from '@/features/member/use-section-nav.ts'
@@ -122,14 +125,47 @@ export function SpaceHomeScreen() {
             {visibility.calendar && (
               <section>
                 <SectionHeader title={t('member.home.eventsSection')} />
-                <Card>
-                  <Empty>
-                    <EmptyMedia>
-                      <Icon name="calendar" />
-                    </EmptyMedia>
-                    <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
-                  </Empty>
-                </Card>
+                {upcomingEvents(snapshot.data?.events ?? [], new Date()).slice(0, 3).length ===
+                0 ? (
+                  <Card>
+                    <Empty>
+                      <EmptyMedia>
+                        <Icon name="calendar" />
+                      </EmptyMedia>
+                      <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
+                    </Empty>
+                  </Card>
+                ) : (
+                  <Card className="py-0">
+                    <ul className="divide-y divide-border">
+                      {upcomingEvents(snapshot.data?.events ?? [], new Date())
+                        .slice(0, 3)
+                        .map((event) => (
+                          <li key={event.id}>
+                            <Link
+                              to="/calendar/$eventId"
+                              params={{ eventId: event.id }}
+                              className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
+                            >
+                              <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
+                                <Icon name={event.allDay ? 'sun' : 'clock'} className="size-5" />
+                              </span>
+                              <span className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate text-sm font-semibold">
+                                  {event.title}
+                                </span>
+                                <EventTimeLine
+                                  event={event}
+                                  className="truncate text-sm text-muted-foreground"
+                                />
+                              </span>
+                              <Icon name="chevron-right" className="text-muted-foreground" />
+                            </Link>
+                          </li>
+                        ))}
+                    </ul>
+                  </Card>
+                )}
               </section>
             )}
 

@@ -28,7 +28,7 @@ api, worker, and migrate are entrypoints of one image and one codebase (`apps/ap
 src/
   entrypoints/    server, worker, migrate, admin password reset
   app/            buildApp(deps) and buildWorker(deps): the composition roots
-  platform/       config, db, storage, jobs, push, clock, logging, errors, http plugins
+  platform/       config, db, storage, jobs, push, clock, timezone, logging, errors, http plugins
   modules/
     <module>/
       index.ts        public surface: service functions, sync contributor, job handlers

@@ -468,11 +468,7 @@ describe('calendar events (issue #20)', () => {
       expect(mixed.body).toMatchObject({ error: { code: 'validation_failed' } })
 
       // And an unknown event address answers the ordinary 404.
-      const missing = await getEvent(
-        app,
-        anna,
-        '01900000-0000-7000-8000-00000000c0de',
-      )
+      const missing = await getEvent(app, anna, '01900000-0000-7000-8000-00000000c0de')
       expect(missing.status).toBe(404)
     })
   })

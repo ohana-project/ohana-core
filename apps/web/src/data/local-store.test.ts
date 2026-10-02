@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { seedVersionOnePartition } from '../testing/fixtures.ts'
+import { seedVersionFourPartition, seedVersionOnePartition } from '../testing/fixtures.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from './local-store.ts'
 import { applySyncResult, deleteMemberData, readMemberSnapshot } from './local-store.ts'
 
@@ -102,6 +102,7 @@ describe('the per-member local store', () => {
       wishes: [],
       favorites: [],
       reservations: [],
+      events: [],
       revision: undefined,
       syncedAt: undefined,
       pendingReplay: [],
@@ -472,7 +473,7 @@ describe('the per-member local store', () => {
     expect(snapshot.members.map((member) => member.name)).toEqual(['Миша'])
     expect(snapshot.entries).toEqual([])
     expect(snapshot.revision).toBe('0')
-    expect(snapshot.pendingReplay).toEqual(['journal', 'wishlist'])
+    expect(snapshot.pendingReplay).toEqual(['journal', 'wishlist', 'calendar'])
 
     // The replay lands the journal entries and moves the cursor forward.
     await applySyncResult(ANYA, {
@@ -529,6 +530,7 @@ describe('the per-member local store', () => {
       wishes: [],
       favorites: [],
       reservations: [],
+      events: [],
       revision: undefined,
       syncedAt: undefined,
       pendingReplay: [],
@@ -536,5 +538,129 @@ describe('the per-member local store', () => {
     const dima = await readMemberSnapshot(DIMA)
     expect(dima.space?.id).toBe(SPACE_ID)
     expect(dima.members).toHaveLength(2)
+  })
+
+  test('calendar events land whole, change, and leave by tombstone', async () => {
+    const dinner = {
+      id: '01900000-0000-7000-8000-000000000401',
+      creatorId: ANYA,
+      title: 'Ужин у бабушки',
+      allDay: false,
+      startsAt: '2026-10-03T15:00:00.000Z',
+      endsAt: '2026-10-03T18:00:00.000Z',
+      timezone: 'Europe/Moscow',
+      createdAt: '2026-10-01T09:00:00.000Z',
+      updatedAt: '2026-10-01T09:00:00.000Z',
+    }
+    const birthday = {
+      id: '01900000-0000-7000-8000-000000000402',
+      creatorId: MISHA_ID,
+      title: 'День рождения Люды',
+      allDay: true,
+      date: '2026-10-19',
+      createdAt: '2026-10-01T09:05:00.000Z',
+      updatedAt: '2026-10-01T09:05:00.000Z',
+    }
+    await applySyncResult(
+      ANYA,
+      syncResult(undefined, [
+        { entity: 'calendar_event', event: dinner },
+        { entity: 'calendar_event', event: birthday },
+      ]),
+    )
+
+    const stored = await readMemberSnapshot(ANYA)
+    expect(stored.events).toHaveLength(2)
+
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [],
+      tombstones: [{ entity: 'calendar_event', entityId: dinner.id, audience: 'all' }],
+    })
+
+    const after = await readMemberSnapshot(ANYA)
+    expect(after.events.map((event) => event.id)).toEqual([birthday.id])
+    expect(after.revision).toBe('9')
+  })
+
+  test('a hidden calendar drops the events in the same apply', async () => {
+    const dinner = {
+      id: '01900000-0000-7000-8000-000000000403',
+      creatorId: ANYA,
+      title: 'Ужин у бабушки',
+      allDay: false,
+      startsAt: '2026-10-03T15:00:00.000Z',
+      endsAt: '2026-10-03T18:00:00.000Z',
+      timezone: 'Europe/Moscow',
+      createdAt: '2026-10-01T09:00:00.000Z',
+      updatedAt: '2026-10-01T09:00:00.000Z',
+    }
+    await applySyncResult(
+      ANYA,
+      syncResult(undefined, [{ entity: 'calendar_event', event: dinner }]),
+    )
+
+    await applySyncResult(ANYA, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: false, wishlist: true },
+          },
+        },
+      ],
+      tombstones: [],
+    })
+
+    const hidden = await readMemberSnapshot(ANYA)
+    expect(hidden.events).toEqual([])
+  })
+
+  test('a version 4 partition upgrades in place: the cursor resets for the calendar', async () => {
+    // A device that synced before the calendar's events store existed
+    // holds a version 4 database and a cursor that advanced past
+    // calendar_event revisions the old client ignored.
+    await seedVersionFourPartition(ANYA, { id: SPACE_ID, name: 'Наша семья' }, [
+      {
+        id: MISHA_ID,
+        name: 'Миша',
+        role: 'regular',
+        createdAt: '2026-08-14T10:00:00.000Z',
+      },
+    ])
+
+    const snapshot = await readMemberSnapshot(ANYA)
+    expect(snapshot.space?.id).toBe(SPACE_ID)
+    expect(snapshot.events).toEqual([])
+    expect(snapshot.revision).toBe('0')
+    expect(snapshot.pendingReplay).toEqual(['calendar'])
+
+    // The replay lands the events and moves the cursor forward.
+    await applySyncResult(ANYA, {
+      revision: '10',
+      changes: [
+        ...syncResult().changes,
+        {
+          entity: 'calendar_event',
+          event: {
+            id: '01900000-0000-7000-8000-000000000404',
+            creatorId: MISHA_ID,
+            title: 'Поход к Чёртову креслу',
+            allDay: true,
+            date: '2026-10-11',
+            createdAt: '2026-10-01T09:00:00.000Z',
+            updatedAt: '2026-10-01T09:00:00.000Z',
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    const upgraded = await readMemberSnapshot(ANYA)
+    expect(upgraded.events).toHaveLength(1)
+    expect(upgraded.revision).toBe('10')
   })
 })

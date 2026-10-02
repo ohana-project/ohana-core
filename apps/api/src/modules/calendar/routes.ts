@@ -17,9 +17,9 @@ import {
   UpdateEventBodySchema,
 } from './contracts.ts'
 import {
-  createEvent,
   type CalendarActor,
   type CalendarDeps,
+  createEvent,
   editEvent,
   getEvent,
   listEvents,
@@ -110,9 +110,7 @@ export const calendarRoutes: FastifyPluginAsyncTypebox<CalendarRoutesOptions> = 
       },
       async (request) => {
         const actor: CalendarActor = requireMemberActor(request)
-        return toEventDto(
-          await editEvent(opts.deps, actor, request.params.eventId, request.body),
-        )
+        return toEventDto(await editEvent(opts.deps, actor, request.params.eventId, request.body))
       },
     )
 
