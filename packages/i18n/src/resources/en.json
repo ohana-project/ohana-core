@@ -345,7 +345,7 @@
     "cancelConfirmText": "The wish becomes free again — another member can reserve it.",
     "cancelConfirmLabel": "Cancel",
     "cancelledToast": "Reservation cancelled",
-    "personSurpriseNote": "{name} never sees reservations or anyone's favorites. The other members do — so the gift is given only once.",
+    "personSurpriseNote": "{name} never sees reservations or your favorites. The other members see reservations — so the gift is given only once.",
     "edit": "Edit",
     "editorNewTitle": "New wish",
     "editorEditTitle": "Edit wish",

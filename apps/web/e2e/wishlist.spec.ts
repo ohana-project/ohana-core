@@ -118,6 +118,8 @@ async function mockWishlistApi(page: Page) {
     id: string
     wishId: string
     memberId?: string
+    createdAt: string
+    updatedAt: string
   }
   const favorites: GiftRow[] = []
   const reservations: GiftRow[] = []
@@ -203,10 +205,12 @@ async function mockWishlistApi(page: Page) {
       const created: GiftRow = {
         id: `01900000-0000-7000-8000-${String(nextId++).padStart(12, '0')}`,
         wishId,
+        createdAt: '2026-10-01T09:00:00.000Z',
+        updatedAt: '2026-10-01T09:00:00.000Z',
       }
       favorites.push(created)
       revision += 1
-      return route.fulfill(json(201, { ...created, createdAt: '2026-10-01T09:00:00.000Z' }))
+      return route.fulfill(json(201, created))
     }
     const favorite = favorites.find((row) => row.wishId === wishId)
     if (favorite === undefined) {
@@ -235,10 +239,12 @@ async function mockWishlistApi(page: Page) {
         id: `01900000-0000-7000-8000-${String(nextId++).padStart(12, '0')}`,
         wishId,
         memberId: ANYA_ID,
+        createdAt: '2026-10-01T09:00:00.000Z',
+        updatedAt: '2026-10-01T09:00:00.000Z',
       }
       reservations.push(created)
       revision += 1
-      return route.fulfill(json(201, { ...created, createdAt: '2026-10-01T09:00:00.000Z' }))
+      return route.fulfill(json(201, created))
     }
     const reservation = reservations.find((row) => row.wishId === wishId)
     if (reservation === undefined) {
@@ -488,7 +494,8 @@ test.describe('the gift favorites and reservations (issue #19)', () => {
       .getByRole('button', { name: 'Забронировать', exact: true })
       .click()
     await expect(page.getByText('Забронировано. Дима не узнает')).toBeVisible()
-    await expect(page.getByText('вы')).toBeVisible()
+    // The pill now reads «вы» beside the monogram, with the way back out.
+    await expect(page.getByRole('button', { name: 'Снять бронь' })).toBeVisible()
 
     // Taking the claim back asks too, and the wish is free again.
     await page.getByRole('button', { name: 'Снять бронь' }).click()

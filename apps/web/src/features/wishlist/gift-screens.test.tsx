@@ -192,8 +192,9 @@ describe('the person screen gift controls (issue #19)', () => {
     const user = userEvent.setup()
     renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
 
+    // The label carries the state; there is no pressed attribute beside it.
     const heart = await screen.findByRole('button', { name: 'В избранное' })
-    expect(heart).toHaveAttribute('aria-pressed', 'false')
+    expect(heart).not.toHaveAttribute('aria-pressed')
     await user.click(heart)
 
     expect(apiPost).toHaveBeenCalledWith(

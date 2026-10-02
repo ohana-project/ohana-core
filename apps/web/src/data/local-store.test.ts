@@ -466,7 +466,7 @@ describe('the per-member local store', () => {
     // space and members still read offline (ADR-0002), the entries store
     // appears empty, and the cursor has been reset so the next sync
     // replays the sections the upgrade added — the journal, and the
-    // wishlist the same upgrade passes on its way to version 3.
+    // wishlist the same upgrade passes on its way to version 4.
     const snapshot = await readMemberSnapshot(ANYA)
     expect(snapshot.space?.id).toBe(SPACE_ID)
     expect(snapshot.members.map((member) => member.name)).toEqual(['Миша'])

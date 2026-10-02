@@ -199,7 +199,7 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
  * cursor holds none of their rows and only a replay from revision 0 can
  * deliver them. The cursor goes to 0 and the replay promise names the
  * added sections merged with any promise already open (an upgrade can
- * chain: v1 straight to v3 adds the journal and the wishlist in one
+ * chain: v1 straight to v4 adds the journal and the wishlist in one
  * step), so the screens answer honestly until the replay lands. A
  * partition whose first apply never committed holds no cursor, and stays
  * honestly empty: resetting it would claim data it does not hold.

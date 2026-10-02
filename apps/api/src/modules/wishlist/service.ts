@@ -175,7 +175,7 @@ export async function removeWish(
         ? await tombstonesForReservationEnding(
             tx,
             actor.spaceId,
-            reservation.reservation.id,
+            reservation.id,
             wish.authorMemberId,
           )
         : []),
@@ -193,7 +193,7 @@ export async function removeWish(
       {
         writes: async (writeTx) => {
           if (reservation !== undefined) {
-            await deleteGiftReservation(writeTx, actor.spaceId, reservation.reservation.id)
+            await deleteGiftReservation(writeTx, actor.spaceId, reservation.id)
           }
           await deleteGiftFavoritesOfWish(writeTx, actor.spaceId, wishId)
           const row = await deleteWish(writeTx, actor.spaceId, wishId)
@@ -243,12 +243,7 @@ export async function markReceived(
     // reservation this mark ends, if one is held at all.
     const reservation = await getGiftReservationInSpace(tx, actor.spaceId, wishId)
     const tombstones: TombstoneInput[] = reservation
-      ? await tombstonesForReservationEnding(
-          tx,
-          actor.spaceId,
-          reservation.reservation.id,
-          wish.authorMemberId,
-        )
+      ? await tombstonesForReservationEnding(tx, actor.spaceId, reservation.id, wish.authorMemberId)
       : []
     await recordChanges(
       tx,
@@ -256,7 +251,7 @@ export async function markReceived(
       {
         writes: async (writeTx, revision) => {
           if (reservation !== undefined) {
-            await deleteGiftReservation(writeTx, actor.spaceId, reservation.reservation.id)
+            await deleteGiftReservation(writeTx, actor.spaceId, reservation.id)
           }
           const row = await markWishReceived(writeTx, actor.spaceId, wishId, now, revision, now)
           if (row === undefined) {
@@ -533,7 +528,7 @@ export async function cancelReservation(
     if (reservation === undefined) {
       throw new DomainError('wish_not_reserved', `Wish ${wishId} is not reserved`, 409)
     }
-    if (reservation.reservation.memberId !== actor.memberId) {
+    if (reservation.memberId !== actor.memberId) {
       throw new DomainError(
         'reservation_holder_required',
         'Only the member who reserved a wish can cancel the reservation',
@@ -545,12 +540,12 @@ export async function cancelReservation(
       actor.spaceId,
       {
         writes: async (writeTx) => {
-          await deleteGiftReservation(writeTx, actor.spaceId, reservation.reservation.id)
+          await deleteGiftReservation(writeTx, actor.spaceId, reservation.id)
         },
         tombstones: await tombstonesForReservationEnding(
           tx,
           actor.spaceId,
-          reservation.reservation.id,
+          reservation.id,
           wish.authorMemberId,
         ),
       },
@@ -581,7 +576,7 @@ export async function getWishReservation(
   if (reservation === undefined) {
     throw notFound('reservation_not_found', `Wish ${wishId} has no active reservation`)
   }
-  return reservation.reservation
+  return reservation
 }
 
 /** The reservations the requesting member may see, creation order (issue #19). */

@@ -131,9 +131,14 @@ export function useClearWishReceived() {
 
 /*
  * The gift favorite and the gift reservation (issue #19): the bookmark is
- * the member's private toggle, the reservation is the public claim — both
- * sync on success and on refusal, the screens reading the refused rows
- * from the local store.
+ * the member's private toggle, the reservation is the public claim. Both
+ * keep the mutation pending until the sync that carries the write has been
+ * applied — the screens' rows come from the synchronised partition alone,
+ * and a control that re-enables between the 201 and the apply invites a
+ * second press that the server would answer with a 409 for a write that
+ * succeeded. The sync runs on refusal too: the store holds the stale row
+ * the refusal corrects. The awaited triggerSync never rejects; a run asked
+ * for mid-flight queues, and the waiting press ends with it.
  */
 
 /** POST /api/v1/wishlist/wishes/{wishId}/favorite — the private bookmark. */
@@ -145,9 +150,9 @@ export function useFavoriteWish() {
       })
       await assertOk(response)
       if (response.data === undefined) throw new ApiError('unexpected')
+      await triggerSync()
       return response.data
     },
-    onSuccess: () => void triggerSync(),
     onError: () => void triggerSync(),
   })
 }
@@ -160,8 +165,8 @@ export function useUnfavoriteWish() {
         params: { path: { wishId: input.wishId } },
       })
       await assertOk(response)
+      await triggerSync()
     },
-    onSuccess: () => void triggerSync(),
     onError: () => void triggerSync(),
   })
 }
@@ -175,9 +180,9 @@ export function useReserveWish() {
       })
       await assertOk(response)
       if (response.data === undefined) throw new ApiError('unexpected')
+      await triggerSync()
       return response.data
     },
-    onSuccess: () => void triggerSync(),
     onError: () => void triggerSync(),
   })
 }
@@ -190,8 +195,8 @@ export function useCancelReservation() {
         params: { path: { wishId: input.wishId } },
       })
       await assertOk(response)
+      await triggerSync()
     },
-    onSuccess: () => void triggerSync(),
     onError: () => void triggerSync(),
   })
 }

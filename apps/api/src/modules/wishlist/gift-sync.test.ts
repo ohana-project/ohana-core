@@ -305,10 +305,24 @@ describe('the gift favorites and reservations in sync (issue #19)', () => {
 
       // The author's sync carries no reservation upsert — and no tombstone
       // of it either, when it ends: the author never learns a reservation
-      // existed, not even that one ended (issue #19, ADR-0001).
+      // existed, not even that one ended (issue #19, ADR-0001). The
+      // reserving member's own delta carries the tombstone naming her,
+      // like every member who could see the claim.
+      const annaCursor = (await sync(app, anna, '0')).revision
       const dimaCursor = (await sync(app, dima, '0')).revision
       const lyudaCursor = (await sync(app, lyuda, '0')).revision
       await cancelReservation(app, anna, lamp.id)
+
+      const annaDelta = await sync(app, anna, annaCursor)
+      expect(reservationsOf(annaDelta)).toEqual([])
+      expect(annaDelta.tombstones).toEqual([
+        {
+          entity: 'wishlist_gift_reservation',
+          entityId: held,
+          audience: 'member',
+          memberId: anna.memberId,
+        },
+      ])
 
       const dimaDelta = await sync(app, dima, dimaCursor)
       expect(reservationsOf(dimaDelta)).toEqual([])

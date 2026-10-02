@@ -206,7 +206,7 @@ describe('the wishes in the local store', () => {
     expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist'])
   })
 
-  test('a version 1 partition upgrading straight to version 3 replays both sections', async () => {
+  test('a version 1 partition upgrading straight to version 4 replays both sections', async () => {
     // A device that synced before the journal entries store existed and
     // skipped version 2 entirely: the one upgrade adds both stores, so the
     // replay promise names the journal and the wishlist together.
@@ -315,6 +315,36 @@ describe('the gift favorites and reservations in the local store (issue #19)', (
     const snapshot = await readMemberSnapshot(ANYA)
     expect(snapshot.favorites).toEqual([])
     expect(snapshot.reservations).toEqual([])
+  })
+
+  test('a delta applies the new reservation and a member-scoped tombstone removes it', async () => {
+    const held = {
+      id: '01900000-0000-7000-8000-000000000501',
+      wishId: '01900000-0000-7000-8000-000000000302',
+      memberId: DIMA,
+      createdAt: '2026-09-27T12:00:00.000Z',
+      updatedAt: '2026-09-27T12:00:00.000Z',
+    }
+    await applySyncResult(
+      ANYA,
+      syncResult([{ entity: 'wishlist_gift_reservation', reservation: held }]),
+    )
+    expect((await readMemberSnapshot(ANYA)).reservations).toEqual([held])
+
+    await applySyncResult(ANYA, {
+      revision: '9',
+      changes: [],
+      tombstones: [
+        {
+          entity: 'wishlist_gift_reservation',
+          entityId: held.id,
+          audience: 'member',
+          memberId: ANYA,
+        },
+      ],
+    })
+
+    expect((await readMemberSnapshot(ANYA)).reservations).toEqual([])
   })
 
   test('a space change that hides the wishlist drops the favorites and the reservations too', async () => {

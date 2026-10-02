@@ -20,9 +20,9 @@ import { giftFavorites, wishes } from './tables.ts'
  * for "what a member may see" exists and the reads go through it — a
  * future rule lands in this file and its SQL dialect beside it, and every
  * read and the sync contributor follow (architecture.md, "Sync
- * contributors") — issue #19 adds gift favorites and gift reservations,
- * whose own visibility rules land here beside this one. The space scoping
- * of the queries is applied before this rule; it is not repeated here.
+ * contributors"); the gift favorite and gift reservation rules of issue
+ * #19 sit beside this one below. The space scoping of the queries is
+ * applied before this rule; it is not repeated here.
  */
 export function wishVisibleTo(_wish: { authorMemberId: string }, _memberId: string): boolean {
   return true
@@ -36,8 +36,7 @@ export function wishVisibleTo(_wish: { authorMemberId: string }, _memberId: stri
  * `and(...)` is no extra filter beyond the space scope the query already
  * carries — the `memberId` keeps the signature level with `wishVisibleTo`,
  * so a rule that does narrow per member changes no call site; issue #19's
- * gift favorites and gift reservations bring filters of their own beside
- * this one.
+ * gift favorite and gift reservation rules sit beside this one.
  */
 export function wishVisibleToSql(_memberId: string): undefined {
   return undefined

@@ -361,22 +361,20 @@ export interface GiftReservationWithWishAuthor {
   wishAuthorMemberId: string
 }
 
-/** The wish's active reservation with its wish's author, or undefined when free. */
+/**
+ * The wish's active reservation, or undefined when free. The visibility
+ * rule is not applied here — every caller holds the wish in hand and
+ * applies policy.ts's rule with its author — so the single-table lookup by
+ * the wish's unique key is all the answer needs.
+ */
 export async function getGiftReservationInSpace(
   executor: Executor,
   spaceId: string,
   wishId: string,
-): Promise<GiftReservationWithWishAuthor | undefined> {
+): Promise<GiftReservation | undefined> {
   const rows = await executor
-    .select({
-      reservation: giftReservations,
-      wishAuthorMemberId: wishes.authorMemberId,
-    })
+    .select()
     .from(giftReservations)
-    .innerJoin(
-      wishes,
-      and(eq(wishes.spaceId, giftReservations.spaceId), eq(wishes.id, giftReservations.wishId)),
-    )
     .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.wishId, wishId)))
     .limit(1)
   return rows[0]

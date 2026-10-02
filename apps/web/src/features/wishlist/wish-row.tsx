@@ -92,7 +92,9 @@ export function WishRow({
             <Button
               variant="ghost"
               size="icon"
-              aria-pressed={favorite.on}
+              // The label carries the state ("в избранное" / "убрать из
+              // избранного") — announcing a pressed state beside it would
+              // say everything twice.
               aria-label={favorite.on ? t('wishlist.unfavorite') : t('wishlist.favorite')}
               disabled={favorite.pending}
               onClick={favorite.onToggle}
