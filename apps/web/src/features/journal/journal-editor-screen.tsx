@@ -16,6 +16,7 @@ import { Spinner } from '@/ui/spinner.tsx'
 import { Textarea } from '@/ui/textarea.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { entryById } from './journal-entries.ts'
+import { EntryPhotoEditor } from './journal-photos.tsx'
 import { JournalShell } from './journal-shell.tsx'
 import {
   ENTRY_TEXT_MAX_LENGTH,
@@ -130,6 +131,35 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
   }
 
   const editingDraft = existing === undefined || existing.state === 'draft'
+
+  // The photos attach to an entry (issue #17): on a pick from a not-yet-
+  // saved entry, the draft is created first — the same move the editor's
+  // publish-after-create makes — and the photos go to it. A blank text has
+  // no draft to hold them, and the field below says so.
+  const ensureEntryForPhotos = async (): Promise<string | null> => {
+    const targetId = existing?.id ?? createdId
+    if (targetId !== undefined) return targetId
+    if (effectiveText.trim().length === 0) {
+      setTextTouched(true)
+      toast(t('journal.textRequired'), 'danger')
+      return null
+    }
+    return new Promise<string | null>((resolve) => {
+      createDraft.mutate(
+        {
+          title: effectiveTitle.trim().length > 0 ? effectiveTitle.trim() : undefined,
+          text: effectiveText,
+        },
+        {
+          onSuccess: (created) => {
+            setCreatedId(created.id)
+            resolve(created.id)
+          },
+          onError: () => resolve(null),
+        },
+      )
+    })
+  }
 
   return (
     <JournalShell
@@ -246,6 +276,16 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 {existing?.state === 'published' ? t('journal.save') : t('journal.publish')}
               </Button>
             </div>
+
+            {/* The photos (docs/design/screens/diary-editor.html): chips,
+                the add tile, and the «N из 12» counter. The author edits
+                their entry in any state (CONTEXT.md, published entry) —
+                photos included — so the section stays. */}
+            <EntryPhotoEditor
+              entryId={existing?.id ?? createdId}
+              images={existing?.images ?? []}
+              onNeedEntry={ensureEntryForPhotos}
+            />
           </>
         )}
       </div>

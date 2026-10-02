@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
 import type { Tx } from '../db/index.ts'
 import type { Logger } from '../logging.ts'
-import type { JobSender, JobSubmission } from './index.ts'
+import type { JobSender, JobSubmission, QueueSetup } from './index.ts'
 
 /*
  * The pg-boss implementation of the jobs port (ADR-0009). One PgBoss
@@ -41,9 +41,15 @@ export async function startJobQueue(databaseUrl: string, logger: Logger): Promis
  * a queue nobody has created, and the api must not depend on a worker
  * having started before its first trash.
  */
-export async function ensureQueues(boss: PgBoss, names: readonly string[]): Promise<void> {
-  for (const name of names) {
-    await boss.createQueue(name)
+export async function ensureQueues(boss: PgBoss, queues: readonly QueueSetup[]): Promise<void> {
+  for (const queue of queues) {
+    // createQueue inserts with ON CONFLICT DO NOTHING: a queue an earlier
+    // deployment made would keep its old contract, so the options are
+    // restated for the existing queue too.
+    await boss.createQueue(queue.name, queue.options)
+    if (queue.options !== undefined) {
+      await boss.updateQueue(queue.name, queue.options)
+    }
   }
 }
 
@@ -56,12 +62,12 @@ export async function ensureQueues(boss: PgBoss, names: readonly string[]): Prom
 export async function startSendingJobQueue(
   databaseUrl: string,
   logger: Logger,
-  queueNames: readonly string[],
+  queues: readonly QueueSetup[],
 ): Promise<{ boss: PgBoss; sender: JobSender }> {
   const boss = new PgBoss({ connectionString: databaseUrl, supervise: false, schedule: false })
   listenForErrors(boss, logger)
   await boss.start()
-  await ensureQueues(boss, queueNames)
+  await ensureQueues(boss, queues)
   return { boss, sender: createPgBossJobSender(boss) }
 }
 

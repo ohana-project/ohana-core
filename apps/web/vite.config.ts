@@ -10,6 +10,10 @@ const rootDir = fileURLToPath(new URL('../..', import.meta.url))
 // The API reads PORT from the root .env, so the dev proxy follows it.
 const apiTarget = `http://localhost:${loadEnv('development', rootDir, 'PORT').PORT ?? '3000'}`
 
+// The photo cache's name is one constant for the build and the runtime
+// (the sign-out deletes it) — see src/lib/photo-cache.ts.
+import { JOURNAL_PHOTO_CACHE } from './src/lib/photo-cache.ts'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -63,6 +67,27 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        /*
+         * The photo derivatives are the one API response the worker caches
+         * (issue #17, ADR-0002): the feed and viewer images a member has
+         * seen are kept for offline reading, keyed by their immutable ids.
+         * The original is deliberately absent from the pattern — it is
+         * never cached and never fetched in bulk; the API responses proper
+         * stay out of the cache, offline data comes only from the local
+         * store.
+         */
+        runtimeCaching: [
+          {
+            urlPattern:
+              /\/api\/v1\/journal\/entries\/[0-9a-f-]+\/images\/[0-9a-f-]+\/variants\/(feed|full)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: JOURNAL_PHOTO_CACHE,
+              expiration: { maxEntries: 600, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
       // The worker exists only in real builds: development keeps HMR, and
       // the Playwright dev-server harness stays free of a caching

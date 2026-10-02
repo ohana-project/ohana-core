@@ -22,7 +22,14 @@ const storage = createS3Storage({
 // is needed behind the jobs port.
 const jobs: JobSender = { sendInTx: async () => {} }
 
-const app = buildApp({ db, storage, clock: systemClock, logger: createSilentLogger(), jobs })
+const app = buildApp({
+  db,
+  storage,
+  clock: systemClock,
+  logger: createSilentLogger(),
+  jobs,
+  mediaMaxUploadBytes: 26_214_400,
+})
 await app.ready()
 const document = `${JSON.stringify(app.swagger(), null, 2)}\n`
 await close()

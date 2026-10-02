@@ -1,11 +1,12 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
+import { type ImageAccessRule, type ImageAccessTxRule, imagesOfEntries } from '../media/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
-import type { CreateEntryBody, FeedQuery } from './contracts.ts'
+import type { CreateEntryBody, FeedQuery, JournalEntryWithImages } from './contracts.ts'
 import { DEFAULT_FEED_LIMIT, JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
 import { JOURNAL_PURGE_JOB, type JournalPurgeJobData } from './jobs.ts'
 import {
@@ -27,6 +28,7 @@ import {
   markEntryRestored,
   markEntryTrashed,
   publishEntry,
+  stampEntryRevision,
   updateEntry,
 } from './repository.ts'
 import type { JournalEntry } from './tables.ts'
@@ -61,9 +63,9 @@ export async function createDraft(
   deps: JournalDeps,
   actor: JournalActor,
   input: CreateEntryBody,
-): Promise<JournalEntry> {
+): Promise<JournalEntryWithImages> {
   const now = deps.clock.now()
-  let created: JournalEntry | undefined
+  let created: JournalEntryWithImages | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
     await recordChanges(
@@ -71,13 +73,16 @@ export async function createDraft(
       actor.spaceId,
       {
         writes: async (writeTx, revision) => {
-          created = await insertEntry(writeTx, actor.spaceId, {
+          const inserted = await insertEntry(writeTx, actor.spaceId, {
             authorMemberId: actor.memberId,
             title: normaliseTitle(input.title),
             text: input.text.trim(),
             revision,
             now,
           })
+          // A new entry has no photos yet; the shape stays the same as
+          // every other ordinary delivery, photos included.
+          created = { ...inserted, images: [] }
         },
       },
       now,
@@ -85,6 +90,32 @@ export async function createDraft(
   })
   if (created === undefined) throw new Error('Creating a journal entry produced no row')
   return created
+}
+
+/**
+ * The entry's photos, attached to its row — the shape every ordinary
+ * delivery takes, so the wire never shows a half-listed entry (the photos
+ * ride inside it, issue #17).
+ */
+async function attachImages(
+  executor: Parameters<typeof imagesOfEntries>[0],
+  entry: JournalEntry,
+): Promise<JournalEntryWithImages> {
+  const grouped = await imagesOfEntries(executor, entry.spaceId, [entry.id])
+  return { ...entry, images: grouped.get(entry.id) ?? [] }
+}
+
+async function attachImagesAll(
+  executor: Parameters<typeof imagesOfEntries>[0],
+  spaceId: string,
+  entries: JournalEntry[],
+): Promise<JournalEntryWithImages[]> {
+  const grouped = await imagesOfEntries(
+    executor,
+    spaceId,
+    entries.map((entry) => entry.id),
+  )
+  return entries.map((entry) => ({ ...entry, images: grouped.get(entry.id) ?? [] }))
 }
 
 /**
@@ -97,9 +128,9 @@ export async function updateEntryText(
   actor: JournalActor,
   entryId: string,
   input: CreateEntryBody,
-): Promise<JournalEntry> {
+): Promise<JournalEntryWithImages> {
   const now = deps.clock.now()
-  let updated: JournalEntry | undefined
+  let updated: JournalEntryWithImages | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
     const entry = await requireVisibleEntry(tx, actor, entryId)
@@ -123,7 +154,7 @@ export async function updateEntryText(
             // refusal here spends no revision.
             throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
           }
-          updated = row
+          updated = await attachImages(writeTx, row)
         },
       },
       now,
@@ -146,9 +177,9 @@ export async function publishDraft(
   deps: JournalDeps,
   actor: JournalActor,
   entryId: string,
-): Promise<JournalEntry> {
+): Promise<JournalEntryWithImages> {
   const now = deps.clock.now()
-  let published: JournalEntry | undefined
+  let published: JournalEntryWithImages | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
     const entry = await requireVisibleEntry(tx, actor, entryId)
@@ -175,7 +206,7 @@ export async function publishDraft(
               409,
             )
           }
-          published = row
+          published = await attachImages(writeTx, row)
         },
       },
       now,
@@ -190,9 +221,75 @@ export async function publishDraft(
  * any published entry; a stranger's draft answers 404, its existence
  * unrevealed (architecture.md, "Errors"). A trashed entry answers 404 too —
  * it has left the ordinary views; the trash view is its only audience.
+ * The photos ride along (issue #17) under the entry's own visibility.
  */
-export async function getEntry(deps: JournalDeps, actor: JournalActor, entryId: string) {
-  return requireVisibleEntry(deps.db, actor, entryId)
+export async function getEntry(
+  deps: JournalDeps,
+  actor: JournalActor,
+  entryId: string,
+): Promise<JournalEntryWithImages> {
+  const entry = await requireVisibleEntry(deps.db, actor, entryId)
+  return attachImages(deps.db, entry)
+}
+
+/**
+ * Whether this actor may see an entry's photos — the rule the media
+ * module's read calls through the port the composition root wires. A
+ * photo's permissions are its entry's: a draft's photos are the author's
+ * alone, a published entry's belong to the space, and a trashed entry's
+ * photos have left the ordinary views with it. (The section gate and the
+ * in-transaction flavour below carry the section-visibility rule, ADR-0011.)
+ */
+export const assertEntryImageViewable: ImageAccessRule = async (executor, actor, entryId) => {
+  const entry = await getEntryInSpace(executor, actor.spaceId, entryId)
+  if (entry === undefined || !entryVisibleTo(entry, actor.memberId)) {
+    throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
+  }
+}
+
+/**
+ * The upload's pre-flight: only the author attaches photos, in any state
+ * (CONTEXT.md, published entry). Lock-free — it runs before a byte of the
+ * upload is read; the authoritative check inside the transaction is the
+ * flavour below.
+ */
+export const assertEntryImageEditable: ImageAccessRule = async (executor, actor, entryId) => {
+  const entry = await getEntryInSpace(executor, actor.spaceId, entryId)
+  if (entry === undefined || !entryVisibleTo(entry, actor.memberId)) {
+    throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
+  }
+  assertEntryAuthoredBy(entry, actor)
+}
+
+/**
+ * The write's authoritative check, inside the upload's or the removal's
+ * transaction: the section recheck takes the space row lock first (ADR-0011),
+ * then the same authorship rule decides under it.
+ */
+export const assertEntryImageEditableInTx: ImageAccessTxRule = async (tx, actor, entryId) => {
+  await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
+  const entry = await getEntryInSpace(tx, actor.spaceId, entryId)
+  if (entry === undefined || !entryVisibleTo(entry, actor.memberId)) {
+    throw notFound('entry_not_found', `Journal entry ${entryId} does not exist`)
+  }
+  assertEntryAuthoredBy(entry, actor)
+}
+
+/**
+ * The port the media module calls on every photo change (issue #17): the
+ * photos ride the entry's DTO, and the sync delta filters on the entry
+ * row, so attaching, processing, and removing a photo all stamp the entry
+ * with the transaction's revision — that stamp is what re-delivers the
+ * entry, photos included. The query is the repository's
+ * `stampEntryRevision`; this wrapper is the port's shape.
+ */
+export async function touchEntryRevision(
+  tx: Tx,
+  spaceId: string,
+  entryId: string,
+  revision: bigint,
+): Promise<void> {
+  return stampEntryRevision(tx, spaceId, entryId, revision)
 }
 
 async function requireVisibleEntry(
@@ -216,12 +313,13 @@ export async function listFeed(
   deps: JournalDeps,
   actor: JournalActor,
   query: FeedQuery,
-): Promise<{ entries: JournalEntry[]; hasMore: boolean }> {
+): Promise<{ entries: JournalEntryWithImages[]; hasMore: boolean }> {
   const before = readCursor(query)
   const limit = query.limit ?? DEFAULT_FEED_LIMIT
   const rows = await listFeedPage(deps.db, actor.spaceId, before, limit + 1)
+  const withImages = await attachImagesAll(deps.db, actor.spaceId, rows.slice(0, limit))
   return {
-    entries: rows.slice(0, limit),
+    entries: withImages,
     hasMore: rows.length > limit,
   }
 }
@@ -253,8 +351,12 @@ function readCursor(query: FeedQuery): { at: Date; id: string } | undefined {
  * The author's own drafts, newest edit first — the separate list (issue
  * #15). The rows go back raw; the route maps them onto the wire shape.
  */
-export async function listDrafts(deps: JournalDeps, actor: JournalActor): Promise<JournalEntry[]> {
-  return listDraftsOfAuthor(deps.db, actor.spaceId, actor.memberId)
+export async function listDrafts(
+  deps: JournalDeps,
+  actor: JournalActor,
+): Promise<JournalEntryWithImages[]> {
+  const rows = await listDraftsOfAuthor(deps.db, actor.spaceId, actor.memberId)
+  return attachImagesAll(deps.db, actor.spaceId, rows)
 }
 
 /** The sync contributor's delta: the entries this member may see, changed since the cursor. */
@@ -262,8 +364,9 @@ export async function listChangedEntriesFor(
   tx: Parameters<typeof listChangedEntriesVisibleTo>[0],
   actor: { memberId: string; spaceId: string },
   since: bigint,
-): Promise<JournalEntry[]> {
-  return listChangedEntriesVisibleTo(tx, actor.spaceId, actor.memberId, since)
+): Promise<JournalEntryWithImages[]> {
+  const rows = await listChangedEntriesVisibleTo(tx, actor.spaceId, actor.memberId, since)
+  return attachImagesAll(tx, actor.spaceId, rows)
 }
 
 /**
@@ -368,9 +471,9 @@ export async function restoreTrashedEntry(
   deps: JournalDeps,
   actor: JournalActor,
   entryId: string,
-): Promise<JournalEntry> {
+): Promise<JournalEntryWithImages> {
   const now = deps.clock.now()
-  let restored: JournalEntry | undefined
+  let restored: JournalEntryWithImages | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'journal')
     const entry = await getEntryInSpace(tx, actor.spaceId, entryId)
@@ -409,7 +512,7 @@ export async function restoreTrashedEntry(
               409,
             )
           }
-          restored = row
+          restored = await attachImages(writeTx, row)
         },
       },
       now,

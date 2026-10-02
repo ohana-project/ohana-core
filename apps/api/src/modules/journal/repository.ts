@@ -314,6 +314,24 @@ export async function listPurgeableEntriesInSpace(
 }
 
 /**
+ * The media module's entry stamp (issue #17): a photo change is delivered
+ * through the entry's revision, and this is the one write that puts it
+ * there. Only the revision moves — a photo is not a text edit, and the
+ * entry's updatedAt stays.
+ */
+export async function stampEntryRevision(
+  tx: Tx,
+  spaceId: string,
+  entryId: string,
+  revision: bigint,
+): Promise<void> {
+  await tx
+    .update(journalEntries)
+    .set({ revision })
+    .where(and(eq(journalEntries.spaceId, spaceId), eq(journalEntries.id, entryId)))
+}
+
+/**
  * The purge's write: the rows go for good. The tombstones the caller
  * writes beside it carry the revision, so the delete itself needs none.
  * The state guard keeps a row that stopped being trashed (a restore that

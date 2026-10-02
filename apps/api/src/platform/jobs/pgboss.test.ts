@@ -25,7 +25,24 @@ afterAll(async () => {
 test('the pinned pg-boss starts against PostgreSQL 18', async () => {
   const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueues(boss, ['jobs-integration-start'])
+    await ensureQueues(boss, [{ name: 'jobs-integration-start' }])
+  } finally {
+    await boss.stop()
+  }
+})
+
+test('a queue’s creation options survive the queue already existing', async () => {
+  const queue = 'jobs-integration-retries'
+  const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
+  try {
+    // The first creation without options stands for an older deployment's
+    // queue; the second, carrying the contract, must bring it up to date.
+    await boss.createQueue(queue)
+    await ensureQueues(boss, [
+      { name: queue, options: { retryLimit: 7, retryDelay: 45, retryBackoff: true } },
+    ])
+    const [stored] = await boss.getQueues([queue])
+    expect(stored).toMatchObject({ retryLimit: 7, retryDelay: 45, retryBackoff: true })
   } finally {
     await boss.stop()
   }
@@ -35,7 +52,7 @@ test('a job sent inside a transaction commits with the domain change', async () 
   const queue = 'jobs-integration-commit'
   const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueues(boss, [queue])
+    await ensureQueues(boss, [{ name: queue }])
     const sender = createPgBossJobSender(boss)
     const received = new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('the job was never delivered')), 15_000)
@@ -59,7 +76,7 @@ test('a rollback takes the job with the domain change', async () => {
   const queue = 'jobs-integration-rollback'
   const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueues(boss, [queue])
+    await ensureQueues(boss, [{ name: queue }])
     const sender = createPgBossJobSender(boss)
 
     const rolledBack = harness.db.transaction(async (tx) => {
@@ -83,7 +100,7 @@ test('a scheduled submission carries its start-after moment', async () => {
   const queue = 'jobs-integration-schedule'
   const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
   try {
-    await ensureQueues(boss, [queue])
+    await ensureQueues(boss, [{ name: queue }])
     const sender = createPgBossJobSender(boss)
     const startAfter = new Date(Date.now() + 60 * 60 * 1000)
     await harness.db.transaction(async (tx) => {
@@ -114,7 +131,7 @@ test('the sending instance ensures its queues, so the first send has somewhere t
   const { boss, sender } = await startSendingJobQueue(
     harness.environment.databaseUrl,
     createSilentLogger(),
-    [queue],
+    [{ name: queue }],
   )
   try {
     // A send into a queue nobody created is refused outright — the shape

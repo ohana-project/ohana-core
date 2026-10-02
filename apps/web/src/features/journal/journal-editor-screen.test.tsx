@@ -3,12 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
+import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalEditorScreen } from './journal-editor-screen.tsx'
+
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
 
 /*
  * The editor (issue #15): a new entry starts as a draft and the author can
@@ -41,20 +46,21 @@ const triggerSyncMock = vi.mocked(triggerSync)
 const ME = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 
-function draft(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
+function draft(overrides?: Partial<WireEntry>): WireEntry {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ME,
     title: 'Черновик',
     text: 'Черновой текст',
     state: 'draft',
+    images: [],
     createdAt: '2026-09-21T12:00:00.000Z',
     updatedAt: '2026-09-21T14:00:00.000Z',
     ...overrides,
   }
 }
 
-function syncResult(entries: StoredJournalEntry[]): SyncResult {
+function syncResult(entries: WireEntry[]): SyncResult {
   return {
     revision: '7',
     changes: [
@@ -356,7 +362,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
               sections: { journal: true, calendar: true, wishlist: true },
             },
           },
-          { entity: 'journal_entry', entry: existing },
+          { entity: 'journal_entry', entry: { ...existing, images: existing.images ?? [] } },
         ],
         tombstones: [],
       },
@@ -455,5 +461,101 @@ describe('JournalEditorScreen (editing an entry)', () => {
     expect(await screen.findByText('Запись может изменить только её автор.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Текст записи')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Опубликовать' })).not.toBeInTheDocument()
+  })
+})
+
+describe('JournalEditorScreen (photos, issue #17)', () => {
+  beforeEach(() => {
+    // jsdom has no blob store; the uploads only need a stable fake handle.
+    URL.createObjectURL = vi.fn(() => 'blob:pending-photo')
+    URL.revokeObjectURL = vi.fn()
+  })
+
+  it('attaches a picked photo to the saved draft through the API', async () => {
+    seedRegistry()
+    const row = draft()
+    await applySyncResult(ME, syncResult([row]))
+    const upload = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: '01900000-0000-7000-8000-000000000301', state: 'processing' }),
+        {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', upload)
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen entryId={row.id} />)
+
+    const picker = await screen.findByLabelText('Добавить')
+    const file = new File(['jpeg-bytes'], 'photo.jpg', { type: 'image/jpeg' })
+    await user.upload(picker, file)
+
+    await waitFor(() => {
+      const [url, init] = upload.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe(`/api/v1/journal/entries/${row.id}/images`)
+      expect((init.body as FormData).get('file')).toBeInstanceOf(File)
+      expect((init.headers as Record<string, string>)['x-ohana-member']).toBe(ME)
+    })
+    // The entry with its photo arrives through the sync, as always.
+    await waitFor(() => expect(triggerSyncMock).toHaveBeenCalled())
+    // The picker is cleared, so the same file can be chosen again.
+    expect((picker as HTMLInputElement).value).toBe('')
+  })
+
+  it('refuses a photo while the new entry has no text to hold a draft', async () => {
+    seedRegistry()
+    const upload = vi.fn()
+    vi.stubGlobal('fetch', upload)
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen />)
+
+    const picker = await screen.findByLabelText('Добавить')
+    await user.upload(picker, new File(['x'], 'photo.jpg', { type: 'image/jpeg' }))
+
+    // The field says it and the toast repeats it: no draft holds the photo.
+    await screen.findAllByText('Добавьте текст записи')
+    expect(upload).not.toHaveBeenCalled()
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('creates the draft first when photos are picked on a not-yet-saved entry', async () => {
+    seedRegistry()
+    const created = draft({ text: 'Собрались за час.' })
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries') {
+        return { data: created, error: undefined, response: new Response(null, { status: 201 }) }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    const upload = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: '01900000-0000-7000-8000-000000000302', state: 'processing' }),
+        {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', upload)
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Текст записи'), 'Собрались за час.')
+    await user.upload(
+      await screen.findByLabelText('Добавить'),
+      new File(['x'], 'photo.jpg', { type: 'image/jpeg' }),
+    )
+
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith('/api/v1/journal/entries', {
+        body: { title: undefined, text: 'Собрались за час.' },
+      }),
+    )
+    await waitFor(() => {
+      const [url] = upload.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe(`/api/v1/journal/entries/${created.id}/images`)
+    })
   })
 })

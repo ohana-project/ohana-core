@@ -88,7 +88,16 @@ export async function createTestHarness(): Promise<TestHarness> {
     bucket: environment.storageBucket,
   })
   const jobs = recordingJobSender()
-  const deps: AppDeps = { db, clock, storage, logger: createSilentLogger(), jobs }
+  const deps: AppDeps = {
+    db,
+    clock,
+    storage,
+    logger: createSilentLogger(),
+    jobs,
+    // The production default; an upload-limit test passes its own smaller
+    // bound through buildTestApp's overrides.
+    mediaMaxUploadBytes: 26_214_400,
+  }
 
   return {
     db,

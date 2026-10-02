@@ -3,12 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
-import type { StoredJournalEntry, SyncResult } from '@/data/local-store.ts'
+import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { JournalDraftsScreen } from './journal-drafts-screen.tsx'
+
+/** The entry as the wire carries it: photos name what their original is. */
+type WireEntry = StoredJournalEntry & {
+  images: Array<StoredJournalEntryImage & { originalType: string }>
+}
 
 /*
  * The drafts list (issue #15): the author's separate list — every row
@@ -40,20 +45,21 @@ const triggerSyncMock = vi.mocked(triggerSync)
 const ME = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 
-function draft(overrides?: Partial<StoredJournalEntry>): StoredJournalEntry {
+function draft(overrides?: Partial<WireEntry>): WireEntry {
   return {
     id: '01900000-0000-7000-8000-000000000101',
     authorId: ME,
     title: 'Осенний пикник',
     text: 'Собрались за час: бутерброды, термос, плед и Бублик.',
     state: 'draft',
+    images: [],
     createdAt: '2026-09-21T12:00:00.000Z',
     updatedAt: '2026-09-21T14:00:00.000Z',
     ...overrides,
   }
 }
 
-function syncResult(entries: StoredJournalEntry[]): SyncResult {
+function syncResult(entries: WireEntry[]): SyncResult {
   return {
     revision: '7',
     changes: [

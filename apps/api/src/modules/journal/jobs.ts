@@ -1,6 +1,8 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
+import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
+import { imagesOfEntries, MEDIA_DELETE_JOB, type MediaDeleteJobData } from '../media/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
@@ -23,7 +25,10 @@ import type { JournalEntry } from './tables.ts'
  * at-least-once, and both are safe to repeat: a second run finds the entry
  * already gone and answers without writing. The deletion, its tombstones,
  * and the space's revision bump share one transaction, exactly like a
- * write that arrives over HTTP.
+ * write that arrives over HTTP. The entry's photos (issue #17) are part of
+ * the purge: their rows cascade away with the entry's, and the removal of
+ * their storage objects is scheduled inside the same transaction as an
+ * idempotent job — a storage hiccup costs retries, never leaked bytes.
  */
 
 /** The queue name of the per-entry purge job the trash use case schedules. */
@@ -51,6 +56,8 @@ export interface JournalPurgeJobData {
 export interface JournalJobsDeps {
   db: Db
   clock: Clock
+  /** The jobs port: the purge schedules the objects' cleanup inside its transaction. */
+  jobs: JobSender
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -89,6 +96,8 @@ export async function purgeTrashedEntry(
     if (entry === undefined || entry.state !== 'trashed') return
     const retentionDays = await readTrashRetentionDays(tx)
     if (purgeAtFor(trashedAtOf(entry), retentionDays) > now) return
+    const grouped = await imagesOfEntries(tx, data.spaceId, [entry.id])
+    const imageIds = (grouped.get(entry.id) ?? []).map((image) => image.id)
     await recordChanges(
       tx,
       data.spaceId,
@@ -100,6 +109,12 @@ export async function purgeTrashedEntry(
       },
       now,
     )
+    if (imageIds.length > 0) {
+      // The objects' cleanup rides the same transaction: a storage hiccup
+      // costs the idempotent job its retries, never leaked bytes.
+      const job: MediaDeleteJobData = { spaceId: data.spaceId, imageIds }
+      await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
+    }
   })
 }
 
@@ -133,6 +148,12 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
           purgeCutoff(now, currentRetentionDays),
         )
         if (entries.length === 0) return
+        const grouped = await imagesOfEntries(
+          tx,
+          spaceId,
+          entries.map((entry) => entry.id),
+        )
+        const imageIds = [...grouped.values()].flat().map((image) => image.id)
         await recordChanges(
           tx,
           spaceId,
@@ -148,6 +169,12 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
           },
           now,
         )
+        if (imageIds.length > 0) {
+          // The photos' objects go the way the per-entry purge sends them:
+          // the idempotent cleanup job, inside this same transaction.
+          const job: MediaDeleteJobData = { spaceId, imageIds }
+          await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
+        }
       })
     } catch (cause) {
       failures.push({ spaceId, cause })

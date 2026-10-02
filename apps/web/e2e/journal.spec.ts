@@ -19,6 +19,9 @@ const PUBLISH = '**/api/v1/journal/entries/*/publish'
 const TRASH = '**/api/v1/journal/entries/*/trash'
 const RESTORE = '**/api/v1/journal/entries/*/restore'
 const TRASH_LIST = '**/api/v1/journal/trash'
+const IMAGES = '**/api/v1/journal/entries/*/images'
+const IMAGE = '**/api/v1/journal/entries/*/images/*'
+const VARIANTS = '**/api/v1/journal/entries/*/images/*/variants/*'
 // The sync request carries ?since=…, so the glob spans the query too.
 const SYNC = '**/api/v1/sync*'
 
@@ -64,6 +67,22 @@ const SEEDED_PUBLISHED: StoredEntry = {
   text: 'Вид стоит каждого шага: хребет над озером и черника у самой тропы.',
   state: 'published',
   publishedAt: '2026-09-21T14:00:00.000Z',
+  images: [
+    {
+      id: '01900000-0000-7000-8000-000000000201',
+      state: 'ready',
+      width: 1200,
+      height: 800,
+      originalType: 'image/jpeg',
+    },
+    {
+      id: '01900000-0000-7000-8000-000000000202',
+      state: 'ready',
+      width: 900,
+      height: 1200,
+      originalType: 'image/heic',
+    },
+  ],
   createdAt: '2026-09-21T12:00:00.000Z',
   updatedAt: '2026-09-21T14:00:00.000Z',
 }
@@ -83,6 +102,13 @@ interface StoredEntry {
   text: string
   state: 'draft' | 'published' | 'trashed'
   publishedAt?: string
+  images?: Array<{
+    id: string
+    state: 'processing' | 'ready' | 'failed'
+    width?: number
+    height?: number
+    originalType?: string
+  }>
   trashedAt?: string
   purgeAt?: string
   createdAt: string
@@ -101,6 +127,7 @@ async function mockJournalApi(page: Page) {
   const signedIn = new Set<string>([ANYA_ID])
   const entries: StoredEntry[] = [SEEDED_PUBLISHED]
   let nextId = 0x200
+  let nextImageId = 0x300
   let revision = 7
 
   await page.route(REDEEM, (route) =>
@@ -246,6 +273,61 @@ async function mockJournalApi(page: Page) {
         updatedAt: trashed.updatedAt,
       }),
     )
+  })
+
+  // The photo routes (issue #17): the variants stream bytes, the upload
+  // attaches and bumps the revision the way the server does.
+  await page.route(VARIANTS, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId === undefined || !signedIn.has(memberId)) return route.fulfill(json(401, {}))
+    // A one-pixel image: the screens only show it.
+    return route.fulfill({
+      status: 200,
+      contentType: 'image/webp',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    })
+  })
+
+  await page.route(IMAGES, (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const entryId = route.request().url().split('/').at(-2) as string
+    const entry = entries.find((row) => row.id === entryId)
+    if (entry === undefined) {
+      return route.fulfill(
+        json(404, { error: { code: 'entry_not_found', message: 'No such entry' } }),
+      )
+    }
+    const image = {
+      id: `01900000-0000-7000-8000-${String(nextImageId++).padStart(12, '0')}`,
+      state: 'ready' as const,
+      width: 800,
+      height: 600,
+    }
+    entry.images = [...(entry.images ?? []), image]
+    revision += 1
+    return route.fulfill(json(201, image))
+  })
+
+  await page.route(IMAGE, (route) => {
+    if (route.request().method() !== 'DELETE') return route.fallback()
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const parts = route.request().url().split('/')
+    const entry = entries.find((row) => row.id === parts.at(-3))
+    const imageId = parts.at(-1) as string
+    if (entry === undefined) {
+      return route.fulfill(
+        json(404, { error: { code: 'entry_not_found', message: 'No such entry' } }),
+      )
+    }
+    entry.images = (entry.images ?? []).filter((image) => image.id !== imageId)
+    revision += 1
+    return route.fulfill({ status: 204 })
   })
 
   await page.route(RESTORE, (route) => {
@@ -434,5 +516,58 @@ test.describe('the journal', () => {
     await page.getByText('Мои черновики').click()
     await expect(page).toHaveURL(/\/journal\/drafts$/)
     await expect(page.getByText('Черновик под нож')).toBeVisible()
+  })
+
+  test('photos ride the entry: the gallery opens them, the editor attaches and removes', async ({
+    page,
+  }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    // The entry screen carries the photo pill and the gallery.
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await page.getByText('Поход к Чёртову креслу').click()
+    await expect(page).toHaveURL(new RegExp(`/journal/${SEEDED_PUBLISHED.id}`))
+    await expect(page.getByText('Фото ×2')).toBeVisible()
+
+    // A tap opens the lightbox; it upgrades to the original and closes.
+    await page
+      .getByRole('button', { name: 'Нажмите на фото, чтобы открыть в оригинальном качестве' })
+      .first()
+      .click()
+    // The exact caption: the loading line and the gallery hint both name
+    // the original, so the substring match would be ambiguous.
+    await expect(page.getByText('Оригинал', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Закрыть' }).click()
+    await expect(page.getByText('Оригинал', { exact: true })).toHaveCount(0)
+
+    // A photo attaches to a draft: the author writes one and opens it.
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await expect(page).toHaveURL(/\/journal$/)
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await expect(page).toHaveURL(/\/journal\/new$/)
+    await page.getByLabel('Текст записи').fill('С фотографией вершины.')
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+    await expect(page).toHaveURL(/\/journal$/)
+    await page.getByText('Мои черновики').click()
+    await page.getByRole('button', { name: 'Дописать' }).click()
+    await expect(page.getByText('0 из 12')).toBeVisible()
+
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    )
+    await page.setInputFiles('input[type="file"]', [
+      { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: png },
+    ])
+    await expect(page.getByText('1 из 12')).toBeVisible()
+
+    // The chip's cross removes it; the counter follows.
+    await page.getByRole('button', { name: 'Убрать фото' }).click()
+    await expect(page.getByText('0 из 12')).toBeVisible()
   })
 })

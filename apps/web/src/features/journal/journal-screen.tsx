@@ -21,6 +21,7 @@ import {
   journalDrafts,
   journalFeed,
 } from './journal-entries.ts'
+import { EntryPhotoStrip } from './journal-photos.tsx'
 import { JournalShell } from './journal-shell.tsx'
 import { useJournalData } from './use-journal.ts'
 
@@ -196,6 +197,10 @@ function FeedCard({
         </div>
         <h3 className="text-h2">{title}</h3>
         <p className="line-clamp-3 text-sm text-muted-foreground">{entryExcerpt(entry.text)}</p>
+        {/* The card's photo strip (docs/design/screens/diary.html): the
+            worker's previews, cached by the service worker as they are
+            viewed — never the originals (issue #17). */}
+        <EntryPhotoStrip entry={entry} />
       </Card>
     </Link>
   )

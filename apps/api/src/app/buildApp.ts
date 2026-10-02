@@ -10,7 +10,15 @@ import {
   requireOwnerActor,
 } from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
-import { journalRoutes, journalSyncContributor } from '../modules/journal/index.ts'
+import {
+  assertEntryImageEditable,
+  assertEntryImageEditableInTx,
+  assertEntryImageViewable,
+  journalRoutes,
+  journalSyncContributor,
+  touchEntryRevision,
+} from '../modules/journal/index.ts'
+import type { MediaDeps } from '../modules/media/index.ts'
 import {
   adminCountMembersBySpace,
   findMemberInSpace,
@@ -36,6 +44,11 @@ export interface AppDeps {
   logger: Logger
   /** The jobs port: domain transactions schedule their follow-up work through it. */
   jobs: JobSender
+  /**
+   * The photo upload limit in bytes (issue #17): the multipart backstop and
+   * the service's streaming counter are one configuration value.
+   */
+  mediaMaxUploadBytes: number
   webDist?: string
 }
 
@@ -90,10 +103,29 @@ export function buildApp(deps: AppDeps) {
   // module's guard and the spaces module's section gate, and its writes
   // recheck visibility inside their transactions. Trashing schedules the
   // entry's purge job through the jobs port, inside the same transaction.
+  // The photos (issue #17) ride the media module's engine, with the
+  // journal's own visibility rules wired in: a photo's permissions are its
+  // entry's, and the media module never imports upward to learn them.
+  const mediaDeps: MediaDeps = {
+    db: deps.db,
+    storage: deps.storage,
+    clock: deps.clock,
+    jobs: deps.jobs,
+    // The photos ride the entry's DTO: every photo change stamps the entry,
+    // and the journal owns that stamp.
+    touchEntry: touchEntryRevision,
+  }
   app.register(journalRoutes, {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock, jobs: deps.jobs },
     access: accessDeps,
+    media: {
+      deps: mediaDeps,
+      maxUploadBytes: deps.mediaMaxUploadBytes,
+      imageViewable: assertEntryImageViewable,
+      imageEditable: assertEntryImageEditable,
+      imageEditableInTx: assertEntryImageEditableInTx,
+    },
   })
   app.register(membersRoutes, {
     prefix: '/api/v1',

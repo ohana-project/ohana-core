@@ -71,6 +71,13 @@
       "when": 1790883792711,
       "tag": "0009_misty_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790897739811,
+      "tag": "0010_striped_shotgun",
+      "breakpoints": true
     }
   ]
 }

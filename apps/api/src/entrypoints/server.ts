@@ -1,12 +1,21 @@
 import { buildApp } from '../app/buildApp.ts'
 import { ensureInitialAdministrator } from '../modules/admin/index.ts'
 import { JOURNAL_SENT_QUEUES } from '../modules/journal/index.ts'
+import { MEDIA_QUEUE_SETUPS } from '../modules/media/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
+import type { QueueSetup } from '../platform/jobs/index.ts'
 import { startSendingJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
+
+/** Every queue the api's own use cases send to, across the sending
+ *  modules — the media queues with the retries their contracts name. */
+const SENT_QUEUES: QueueSetup[] = [
+  ...JOURNAL_SENT_QUEUES.map((name) => ({ name })),
+  ...MEDIA_QUEUE_SETUPS,
+]
 
 async function main(): Promise<void> {
   const config = await loadConfigOrExit()
@@ -21,11 +30,7 @@ async function main(): Promise<void> {
   // their jobs through it; the worker process claims and runs them. The
   // queues are ensured here too — a fresh installation must not depend on
   // the worker having started before the api's first trash.
-  const { boss, sender: jobs } = await startSendingJobQueue(
-    config.databaseUrl,
-    logger,
-    JOURNAL_SENT_QUEUES,
-  )
+  const { boss, sender: jobs } = await startSendingJobQueue(config.databaseUrl, logger, SENT_QUEUES)
 
   // The first instance administrator is provisioned from deployment
   // configuration on first start (ADR-0005); an existing administrator is
@@ -51,6 +56,7 @@ async function main(): Promise<void> {
     clock: systemClock,
     logger,
     jobs,
+    mediaMaxUploadBytes: config.mediaMaxUploadBytes,
     webDist: config.webDist,
   })
   await app.listen({ port: config.port, host: '0.0.0.0' })
