@@ -12,6 +12,7 @@ export {
 } from './policy.ts'
 export { sectionGate } from './routes.ts'
 export {
+  assertTimezone,
   advanceSpaceRevision,
   createSpace,
   getSpace,

@@ -1931,6 +1931,251 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/calendar/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            events: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                creatorId: string;
+                                title: string;
+                                allDay: boolean;
+                                date?: string;
+                                /** Format: date-time */
+                                startsAt?: string;
+                                /** Format: date-time */
+                                endsAt?: string;
+                                timezone?: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title: string;
+                        /** @enum {boolean} */
+                        allDay: true;
+                        date: string;
+                    } | {
+                        title: string;
+                        /** @enum {boolean} */
+                        allDay: false;
+                        date: string;
+                        startTime: string;
+                        endTime: string;
+                        timezone?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            creatorId: string;
+                            title: string;
+                            allDay: boolean;
+                            date?: string;
+                            /** Format: date-time */
+                            startsAt?: string;
+                            /** Format: date-time */
+                            endsAt?: string;
+                            timezone?: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/events/{eventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    eventId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            creatorId: string;
+                            title: string;
+                            allDay: boolean;
+                            date?: string;
+                            /** Format: date-time */
+                            startsAt?: string;
+                            /** Format: date-time */
+                            endsAt?: string;
+                            timezone?: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    eventId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title: string;
+                        /** @enum {boolean} */
+                        allDay: true;
+                        date: string;
+                    } | {
+                        title: string;
+                        /** @enum {boolean} */
+                        allDay: false;
+                        date: string;
+                        startTime: string;
+                        endTime: string;
+                        timezone?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            creatorId: string;
+                            title: string;
+                            allDay: boolean;
+                            date?: string;
+                            /** Format: date-time */
+                            startsAt?: string;
+                            /** Format: date-time */
+                            endsAt?: string;
+                            timezone?: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    eventId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/wishlist/wishes": {
         parameters: {
             query?: never;
@@ -2639,7 +2884,28 @@ export interface paths {
                                     /** Format: date-time */
                                     updatedAt: string;
                                 };
-                            }))[];
+                            }) | {
+                                /** @enum {string} */
+                                entity: "calendar_event";
+                                event: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    /** Format: uuid */
+                                    creatorId: string;
+                                    title: string;
+                                    allDay: boolean;
+                                    date?: string;
+                                    /** Format: date-time */
+                                    startsAt?: string;
+                                    /** Format: date-time */
+                                    endsAt?: string;
+                                    timezone?: string;
+                                    /** Format: date-time */
+                                    createdAt: string;
+                                    /** Format: date-time */
+                                    updatedAt: string;
+                                };
+                            })[];
                             tombstones: {
                                 entity: string;
                                 /** Format: uuid */
