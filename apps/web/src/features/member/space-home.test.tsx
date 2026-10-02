@@ -1,4 +1,9 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+
+// The home screen's answers are pinned to UTC, whatever zone the machine
+// that runs them sits in: the agenda's window runs from the device's day.
+process.env.TZ = 'UTC'
+
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'

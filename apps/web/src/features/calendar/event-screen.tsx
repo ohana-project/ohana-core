@@ -6,12 +6,13 @@ import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-stor
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { authorName } from '@/features/wishlist/wishlist-entries.ts'
 import {
+  formatDateOnly,
   formatDayFull,
   formatDayOfYear,
   localDateKey,
   parseDateOnly,
-  shiftDateKey,
   todayDateOnly,
+  zonedDateKey,
 } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -30,14 +31,7 @@ import { toast } from '@/ui/toast.tsx'
 import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
-import {
-  expandOccurrenceDates,
-  isRecurring,
-  occurrenceOf,
-  type Recurrence,
-  seriesRecurrence,
-  seriesStartDate,
-} from './recurrence.ts'
+import { isRecurring, nextLiveOccurrenceDate, occurrenceOf, type Recurrence } from './recurrence.ts'
 import {
   calendarErrorMessage,
   useCalendarData,
@@ -77,18 +71,25 @@ export function EventScreen({
   const event = snapshot.isPending ? undefined : eventOf(events, eventId)
   const editable = event !== undefined && canEditEvent(event, getActiveMemberId(), profiles)
   const recurring = event !== undefined && isRecurring(event)
+  // The today the anchor's search starts from: the device's day — but a
+  // timed series lives in its own zone, and an occurrence still ahead
+  // there must not be jumped over because the device has rolled past it.
+  const todayKey = useMemo(() => {
+    const deviceKey = formatDateOnly(todayDateOnly())
+    if (event === undefined || event.allDay || event.timezone === undefined) return deviceKey
+    return zonedDateKey(new Date().toISOString(), event.timezone)
+  }, [event])
   // The date the occurrence actions act on: the one the link named, or —
   // a series opened without a date, as after its creation — the series'
   // next live occurrence, so a cancelled first date neither dead-ends the
   // screen nor passes itself off as an ordinary event (issue #21). The
   // search costs an expansion, so it runs once per row, not per render.
-  const anchorDate = useMemo(() => {
-    if (occurrenceDate !== undefined) return occurrenceDate
-    if (!recurring || event === undefined) return undefined
-    const today = todayDateOnly()
-    const todayKey = `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`
-    return firstLiveOccurrenceDate(event, todayKey)
-  }, [occurrenceDate, recurring, event])
+  const anchorDate = useMemo(
+    () =>
+      occurrenceDate ??
+      (recurring && event !== undefined ? nextLiveOccurrenceDate(event, todayKey) : undefined),
+    [occurrenceDate, recurring, event, todayKey],
+  )
   const occurrence =
     event !== undefined && anchorDate !== undefined ? occurrenceOf(event, anchorDate) : undefined
   // What the screen shows: the occurrence the anchor names — its effective
@@ -311,48 +312,6 @@ function ScopeDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-/**
- * The series' next live occurrence from today — the landing's anchor. The
- * search walks the pattern from today forward, so a series that has run
- * for years lands on its next date, not one from the past; an occurrence
- * moved in from outside counts, since the membership test carries no
- * window. Nothing live ahead — a series whose until has passed — falls
- * back to the first live one overall, then to the row's own first date.
- * The horizon is the rule's until, capped by what the frequency can
- * skip: a yearly February 29 series may hold four years between
- * neighbours, so the cap reaches past one skipped cycle.
- */
-function firstLiveOccurrenceDate(event: StoredCalendarEvent, todayKey: string): string | undefined {
-  const firstDate = seriesStartDate(event)
-  if (firstDate === undefined) return undefined
-  const recurrence = seriesRecurrence(event)
-  if (recurrence === undefined) return firstDate
-  const capDays =
-    recurrence.frequency === 'yearly'
-      ? 366 * 9
-      : recurrence.frequency === 'monthly'
-        ? 366 * 4
-        : 366 * 2
-  const cap = shiftDateKey(firstDate, capDays)
-  const end =
-    recurrence.until === undefined ? cap : maxDateKey(firstDate, minDateKey(recurrence.until, cap))
-  const liveFrom = (fromKey: string): string | undefined =>
-    expandOccurrenceDates(firstDate, recurrence, fromKey, end).find(
-      (date) => occurrenceOf(event, date) !== undefined,
-    )
-  const fromToday = liveFrom(maxDateKey(firstDate, todayKey))
-  if (fromToday !== undefined) return fromToday
-  return liveFrom(firstDate) ?? firstDate
-}
-
-function maxDateKey(a: string, b: string): string {
-  return a >= b ? a : b
-}
-
-function minDateKey(a: string, b: string): string {
-  return a <= b ? a : b
 }
 
 function eventOf(events: StoredCalendarEvent[], eventId: string): StoredCalendarEvent | undefined {

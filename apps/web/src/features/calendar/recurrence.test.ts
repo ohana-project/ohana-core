@@ -3,6 +3,7 @@ import type { StoredCalendarEvent } from '@/data/local-store.ts'
 import { wallTimeToInstant } from '@/lib/calendar-dates.ts'
 import {
   expandEvent,
+  nextLiveOccurrenceDate,
   occurrenceInstants,
   occurrenceOf,
   type Recurrence,
@@ -672,5 +673,36 @@ describe('the stored first occurrence and moved overrides (review round one)', (
       '2026-10-19',
       '2026-10-26',
     ])
+  })
+})
+
+describe('the landing anchor (nextLiveOccurrenceDate, review round five)', () => {
+  const today = '2026-10-01'
+
+  test('a series that has run for years lands on its next date, not its first', () => {
+    const series = storedEvent({ allDay: true, date: '2024-01-05' }, { frequency: 'weekly' })
+    expect(nextLiveOccurrenceDate(series, today)).toBe('2026-10-02')
+  })
+
+  test('a yearly February 29 series reaches past one skipped cycle', () => {
+    const leap = storedEvent({ allDay: true, date: '2024-02-29' }, { frequency: 'yearly' })
+    const withCancelledFirst: StoredCalendarEvent = {
+      ...leap,
+      exceptions: [{ originalDate: '2024-02-29', kind: 'cancelled' }],
+    }
+    expect(nextLiveOccurrenceDate(withCancelledFirst, today)).toBe('2028-02-29')
+  })
+
+  test('a series whose until has passed falls back to its first live date', () => {
+    const past = storedEvent(
+      { allDay: true, date: '2026-01-01' },
+      { frequency: 'daily', until: '2026-01-03' },
+    )
+    expect(nextLiveOccurrenceDate(past, today)).toBe('2026-01-01')
+  })
+
+  test('a one-time event anchors on its own date', () => {
+    const oneTime = storedEvent({ allDay: true, date: '2026-01-01' }, undefined)
+    expect(nextLiveOccurrenceDate(oneTime, today)).toBe('2026-01-01')
   })
 })

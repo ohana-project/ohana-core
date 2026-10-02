@@ -751,7 +751,7 @@ describe('EventScreen (a series opened without a date, issue #21)', () => {
 })
 
 describe('EventScreen (a series whose first occurrence is cancelled, review round three)', () => {
-  it('the landing shows the first live occurrence and keeps both scope choices', async () => {
+  it('the landing shows the next live occurrence and keeps both scope choices', async () => {
     seedRegistry()
     const series = timedEvent({ recurrence: { frequency: 'weekly' } })
     const cancelledFirst: StoredCalendarEvent = {

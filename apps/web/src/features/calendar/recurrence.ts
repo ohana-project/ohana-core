@@ -6,6 +6,7 @@ import type {
 import {
   formatZonedTime,
   parseDateOnly,
+  shiftDateKey,
   wallTimeToInstant,
   zonedDateKey,
 } from '@/lib/calendar-dates.ts'
@@ -336,6 +337,55 @@ function isCancelled(event: StoredCalendarEvent, originalDate: string): boolean 
       (candidate) => candidate.originalDate === originalDate && candidate.kind === 'cancelled',
     ) ?? false
   )
+}
+
+/**
+ * The series' next live occurrence from `todayKey` — the event screen's
+ * landing anchor. The search walks the pattern from the device's today
+ * forward (for a timed event, pass the today the event's zone reads), so
+ * a series that has run for years lands on its next date, not one from
+ * the past; an occurrence moved in from outside counts, since the
+ * membership test carries no window. Nothing live ahead — a series whose
+ * until has passed — falls back to the first live one overall, then to
+ * the row's own first date. The horizon runs from the search's own start
+ * to the rule's until, capped by what the frequency can skip: a yearly
+ * February 29 series may hold four years between neighbours, so the cap
+ * reaches past one skipped cycle. The walk is over original dates: an
+ * occurrence an override moved across today is still named by the date
+ * the series gives it.
+ */
+export function nextLiveOccurrenceDate(
+  event: StoredCalendarEvent,
+  todayKey: string,
+): string | undefined {
+  const firstDate = seriesStartDate(event)
+  if (firstDate === undefined) return undefined
+  const recurrence = seriesRecurrence(event)
+  if (recurrence === undefined) return firstDate
+  const capDays = recurrence.frequency === 'yearly' ? 366 * 9 : 366 * 2
+  const from = maxDateKey(firstDate, todayKey)
+  const fromCap = shiftDateKey(from, capDays)
+  const end =
+    recurrence.until === undefined
+      ? fromCap
+      : maxDateKey(firstDate, minDateKey(recurrence.until, fromCap))
+  const live = (start: string, stop: string): string | undefined =>
+    expandOccurrenceDates(firstDate, recurrence, start, stop).find(
+      (date) => occurrenceOf(event, date) !== undefined,
+    )
+  return (
+    live(from, end) ??
+    live(firstDate, minDateKey(end, shiftDateKey(firstDate, capDays))) ??
+    firstDate
+  )
+}
+
+function maxDateKey(a: string, b: string): string {
+  return a >= b ? a : b
+}
+
+function minDateKey(a: string, b: string): string {
+  return a <= b ? a : b
 }
 
 function buildOccurrence(event: StoredCalendarEvent, originalDate: string): EventOccurrence {
