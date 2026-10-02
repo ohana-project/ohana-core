@@ -2,7 +2,7 @@ import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { onMemberRefused, triggerSync } from '@/data/sync-engine.ts'
@@ -99,6 +99,10 @@ describe('forgetMember', () => {
     window.localStorage.clear()
   })
 
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('clears the departing member’s data and resets everything else', () => {
     const queryClient = new QueryClient()
     const profilesOf = (memberId: string) => ['member', memberId, 'profiles'] as const
@@ -125,7 +129,6 @@ describe('forgetMember', () => {
     expect(queryClient.getQueryData(memberSessionQueryKey)).toBeUndefined()
     expect(queryClient.getQueryData(profilesOf('m-2'))).toBeUndefined()
     expect(deleteCache).toHaveBeenCalledWith('journal-photos')
-    vi.unstubAllGlobals()
   })
 })
 

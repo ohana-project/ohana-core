@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { fromDrizzle, PgBoss } from 'pg-boss'
 import type { Tx } from '../db/index.ts'
 import type { Logger } from '../logging.ts'
-import type { JobSender, JobSubmission } from './index.ts'
+import type { JobSender, JobSubmission, QueueSetup } from './index.ts'
 
 /*
  * The pg-boss implementation of the jobs port (ADR-0009). One PgBoss
@@ -35,13 +35,6 @@ export async function startJobQueue(databaseUrl: string, logger: Logger): Promis
   return boss
 }
 
-/** A queue to ensure, with the creation options a queue's contract needs —
- *  the retries a cleanup job exists for are declared here, not hoped for. */
-export interface QueueSetup {
-  name: string
-  options?: { retryLimit?: number; retryDelay?: number; retryBackoff?: boolean }
-}
-
 /**
  * Creates the queues the named jobs travel on, idempotently. Every process
  * that sends to a queue ensures it exists first: pg-boss refuses a send to
@@ -50,7 +43,13 @@ export interface QueueSetup {
  */
 export async function ensureQueues(boss: PgBoss, queues: readonly QueueSetup[]): Promise<void> {
   for (const queue of queues) {
+    // createQueue inserts with ON CONFLICT DO NOTHING: a queue an earlier
+    // deployment made would keep its old contract, so the options are
+    // restated for the existing queue too.
     await boss.createQueue(queue.name, queue.options)
+    if (queue.options !== undefined) {
+      await boss.updateQueue(queue.name, queue.options)
+    }
   }
 }
 

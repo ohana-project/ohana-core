@@ -1,5 +1,5 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
@@ -284,7 +284,7 @@ export const assertEntryImageEditableInTx: ImageAccessTxRule = async (tx, actor,
  * `stampEntryRevision`; this wrapper is the port's shape.
  */
 export async function touchEntryRevision(
-  tx: Parameters<typeof stampEntryRevision>[0],
+  tx: Tx,
   spaceId: string,
   entryId: string,
   revision: bigint,

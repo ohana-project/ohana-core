@@ -121,6 +121,10 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 afterEach(async () => {
   const names = await globalThis.indexedDB.databases()
   for (const name of names) {
@@ -333,14 +337,19 @@ describe('JournalEntryScreen', () => {
     })
     await photo.click()
 
-    // The original's bytes are never fetched: the viewer derivative is
-    // what shows, and the HEIC goes through the explicit download.
+    // The original's bytes are never fetched on open: the viewer
+    // derivative is what shows, and the HEIC goes through the explicit
+    // download, named for its id.
     await screen.findByText('Скачать оригинал')
-    const originalUrl =
-      '/api/v1/journal/entries/' +
-      row.id +
-      '/images/01900000-0000-7000-8000-000000000203/variants/original'
+    const imageId = '01900000-0000-7000-8000-000000000203'
+    const originalUrl = `/api/v1/journal/entries/${row.id}/images/${imageId}/variants/original`
     expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(false)
+
+    await screen.getByText('Скачать оригинал').click()
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(true)
+    })
+    expect(URL.createObjectURL).toHaveBeenCalled()
   })
 
   it('shows the processing placeholder of a photo the worker has not finished', async () => {

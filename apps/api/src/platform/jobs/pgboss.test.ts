@@ -31,6 +31,23 @@ test('the pinned pg-boss starts against PostgreSQL 18', async () => {
   }
 })
 
+test('a queue’s creation options survive the queue already existing', async () => {
+  const queue = 'jobs-integration-retries'
+  const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())
+  try {
+    // The first creation without options stands for an older deployment's
+    // queue; the second, carrying the contract, must bring it up to date.
+    await boss.createQueue(queue)
+    await ensureQueues(boss, [
+      { name: queue, options: { retryLimit: 7, retryDelay: 45, retryBackoff: true } },
+    ])
+    const [stored] = await boss.getQueues([queue])
+    expect(stored).toMatchObject({ retryLimit: 7, retryDelay: 45, retryBackoff: true })
+  } finally {
+    await boss.stop()
+  }
+})
+
 test('a job sent inside a transaction commits with the domain change', async () => {
   const queue = 'jobs-integration-commit'
   const boss = await startJobQueue(harness.environment.databaseUrl, createSilentLogger())

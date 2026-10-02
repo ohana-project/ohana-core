@@ -1,7 +1,6 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
-import type { ObjectStorage } from '../../platform/storage/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
 import { imagesOfEntries, MEDIA_DELETE_JOB, type MediaDeleteJobData } from '../media/index.ts'
 import { lockSpace } from '../spaces/index.ts'
@@ -57,8 +56,6 @@ export interface JournalPurgeJobData {
 export interface JournalJobsDeps {
   db: Db
   clock: Clock
-  /** The photos' storage: the purge removes their objects after the commit (issue #17). */
-  storage: ObjectStorage
   /** The jobs port: the purge schedules the objects' cleanup inside its transaction. */
   jobs: JobSender
 }
@@ -93,9 +90,6 @@ export async function purgeTrashedEntry(
   data: JournalPurgeJobData,
 ): Promise<void> {
   const now = deps.clock.now()
-  // The photo ids are read inside the transaction but cleaned up after it:
-  // the cascade removes the rows, the storage objects follow the commit.
-  let imageIds: string[] = []
   await deps.db.transaction(async (tx) => {
     await lockSpace(tx, data.spaceId)
     const entry = await getEntryInSpace(tx, data.spaceId, data.entryId)
@@ -103,7 +97,7 @@ export async function purgeTrashedEntry(
     const retentionDays = await readTrashRetentionDays(tx)
     if (purgeAtFor(trashedAtOf(entry), retentionDays) > now) return
     const grouped = await imagesOfEntries(tx, data.spaceId, [entry.id])
-    imageIds = (grouped.get(entry.id) ?? []).map((image) => image.id)
+    const imageIds = (grouped.get(entry.id) ?? []).map((image) => image.id)
     await recordChanges(
       tx,
       data.spaceId,
@@ -143,7 +137,6 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
   const failures: Array<{ spaceId: string; cause: unknown }> = []
   for (const spaceId of spaceIds) {
     try {
-      let imageIds: string[] = []
       await deps.db.transaction(async (tx) => {
         await lockSpace(tx, spaceId)
         // The retention is read again under the lock, so a change that
@@ -160,7 +153,7 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
           spaceId,
           entries.map((entry) => entry.id),
         )
-        imageIds = [...grouped.values()].flat().map((image) => image.id)
+        const imageIds = [...grouped.values()].flat().map((image) => image.id)
         await recordChanges(
           tx,
           spaceId,

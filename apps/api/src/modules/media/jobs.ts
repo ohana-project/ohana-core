@@ -2,7 +2,7 @@ import { Readable } from 'node:stream'
 import { buffer as readWholeStream } from 'node:stream/consumers'
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
-import type { QueueSetup } from '../../platform/jobs/pgboss.ts'
+import type { QueueSetup } from '../../platform/jobs/index.ts'
 import type { ObjectStorage } from '../../platform/storage/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
@@ -19,7 +19,8 @@ import type { EntryImage } from './tables.ts'
  * the derivatives handler reports failure twice: the queue retry decides
  * whether the environment fixes itself, and the row's `failed` state tells
  * the screens the photo will not arrive, so the feed never spins forever
- * over an undecodable upload.
+ * over an undecodable upload. The delete handler has no state to check —
+ * deleting is idempotent.
  */
 
 /** The queue name of the derivatives job a finished upload schedules. */
@@ -72,7 +73,15 @@ export async function generateEntryImageDerivatives(
   data: MediaDerivativesJobData,
 ): Promise<void> {
   const image = await getImageInSpace(deps.db, data.spaceId, data.imageId)
-  if (image === undefined || image.state === 'ready') return
+  if (image === undefined) {
+    // The row is gone before this run started: a removal or purge raced
+    // the queue, and its delete job cannot have seen the derivatives a
+    // killed earlier run may have left. Cleaning up here is that run's
+    // last chance, and the retry arrives at the same answer.
+    await deleteImageObjects(deps.storage, data.spaceId, data.imageId)
+    return
+  }
+  if (image.state === 'ready') return
 
   try {
     // The original is bounded by the upload limit the row recorded, so
@@ -98,14 +107,16 @@ export async function generateEntryImageDerivatives(
     // were in flight: the bytes just written are cleaned up here, where the
     // delete job that raced them cannot have seen them.
     if (gone) {
-      await deleteImageObjects(deps.storage, data.spaceId, data.imageId).catch(() => {})
+      // The last chance: the removal's delete job ran before these bytes
+      // existed. Throwing is what brings the retry back here.
+      await deleteImageObjects(deps.storage, data.spaceId, data.imageId)
     }
   } catch (cause) {
     // The same race on the failure path: a feed derivative may exist while
     // the row does not.
     const gone = await finalize(deps, data, 'failed')
     if (gone) {
-      await deleteImageObjects(deps.storage, data.spaceId, data.imageId).catch(() => {})
+      await deleteImageObjects(deps.storage, data.spaceId, data.imageId)
     }
     throw cause
   }
@@ -156,9 +167,9 @@ async function finalize(
 /**
  * The deferred cleanup of removed photos' storage objects (issue #17). The
  * rows are already gone when it runs — the removal and the purge schedule
- * it inside their own transactions — so this is only the idempotent sweep
- * over the keys: a direct pass usually deleted them moments before, and
- * this one repairs whatever a storage hiccup kept.
+ * it inside their own transactions — so this is the whole cleanup: an
+ * idempotent sweep over the keys, retried under the queue's explicit
+ * limits until storage takes every delete.
  */
 export async function deleteEntryImageObjects(
   deps: { storage: ObjectStorage },

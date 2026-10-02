@@ -20,7 +20,26 @@ const fetchedImages = new Map<string, string>()
 /** The memo is not a store; this only bounds its growth. */
 const FETCHED_IMAGES_LIMIT = 120
 
-export function rememberFetchedImage(url: string, objectUrl: string): string {
+/**
+ * The generation a fetch belongs to: a sign-out bumps it, and a fetch that
+ * was still in flight answers to a session that no longer exists — its
+ * blob is revoked, not remembered.
+ */
+let generation = 0
+
+export function currentGeneration(): number {
+  return generation
+}
+
+export function rememberFetchedImage(
+  url: string,
+  objectUrl: string,
+  fetchedAtGeneration: number,
+): string {
+  if (fetchedAtGeneration !== generation) {
+    URL.revokeObjectURL(objectUrl)
+    return objectUrl
+  }
   fetchedImages.set(url, objectUrl)
   if (fetchedImages.size > FETCHED_IMAGES_LIMIT) {
     const oldest = fetchedImages.keys().next().value
@@ -34,8 +53,10 @@ export function peekFetchedImage(url: string): string | undefined {
 }
 
 /** Revokes and forgets every fetched photo. The sign-out calls it — the
- *  blobs must not outlive the session that viewed them. */
+ *  blobs must not outlive the session that viewed them, including the ones
+ *  still in flight when it happened. */
 export function forgetFetchedImages(): void {
+  generation += 1
   for (const objectUrl of fetchedImages.values()) URL.revokeObjectURL(objectUrl)
   fetchedImages.clear()
 }

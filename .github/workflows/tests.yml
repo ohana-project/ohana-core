@@ -34,7 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libheif-examples
-          heif-dec --version 2>/dev/null || heif-convert --version
+          command -v heif-dec || command -v heif-convert
 
       - name: Lint
         run: pnpm lint

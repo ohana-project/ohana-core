@@ -7,7 +7,7 @@ import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { instanceSettings } from '../admin/tables.ts'
 import { createDraft, touchEntryRevision } from '../journal/service.ts'
 import { FEED_MAX_EDGE, FULL_MAX_EDGE } from './derivatives.ts'
-import { generateEntryImageDerivatives, MEDIA_DERIVATIVES_JOB } from './jobs.ts'
+import { generateEntryImageDerivatives, MEDIA_DELETE_JOB, MEDIA_DERIVATIVES_JOB } from './jobs.ts'
 import { imageObjectKey } from './keys.ts'
 import { getImageInSpace } from './repository.ts'
 import { deleteEntryImage, uploadEntryImage } from './service.ts'
@@ -271,6 +271,35 @@ describe('generateEntryImageDerivatives', () => {
     // Nothing readable is left under the photo's keys: the removal's own
     // delete job and the handler's post-lock cleanup both ran.
     expect(await harness.storage.list(`spaces/${space.id}/journal/`)).toEqual([])
+  })
+
+  test('a refused upload whose cleanup delete also fails queues the cleanup job', async () => {
+    const space = await harness.createSpace({ name: 'Двойной отказ' })
+    const member = await harness.createMember(space.id, { name: 'Аня' })
+    const refusingDelete = {
+      ...harness.storage,
+      delete: async (): Promise<void> => {
+        throw new Error('storage refuses the delete too')
+      },
+    }
+    const submissionsBefore = harness.jobs.submissions.length
+    await expect(
+      uploadEntryImage(
+        { ...serviceDeps(), storage: refusingDelete, touchEntry: touchEntryRevision },
+        { spaceId: space.id, memberId: member.id, role: 'regular' },
+        await draftId(space.id, member.id),
+        { stream: Readable.from(Buffer.alloc(0)), contentType: 'image/jpeg' },
+        { authorize: allowAll, authorizeInTx: allowAll, maxBytes: 26_214_400 },
+      ),
+    ).rejects.toMatchObject({ code: 'image_required' })
+
+    const cleanups = harness.jobs.submissions
+      .slice(submissionsBefore)
+      .filter((submission) => submission.name === MEDIA_DELETE_JOB)
+    expect(cleanups).toHaveLength(1)
+    const cleanup = cleanups[0]
+    if (cleanup === undefined) throw new Error('no cleanup job was queued')
+    expect((cleanup.data as { imageIds: string[] }).imageIds).toHaveLength(1)
   })
 
   test('a refused upload leaves nothing in storage: an empty file, and a refusal mid-transaction', async () => {

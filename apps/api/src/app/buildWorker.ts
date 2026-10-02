@@ -56,12 +56,7 @@ export function buildWorker(deps: WorkerDeps): Worker {
   // The worker's own sender: the purge schedules the photos' cleanup inside
   // its transactions, the way the api's use cases schedule theirs.
   const jobs = createPgBossJobSender(deps.boss)
-  const jobDeps: JournalJobsDeps = {
-    db: deps.db,
-    clock: deps.clock,
-    storage: deps.storage,
-    jobs,
-  }
+  const jobDeps: JournalJobsDeps = { db: deps.db, clock: deps.clock, jobs }
   const mediaJobDeps: MediaJobsDeps = {
     db: deps.db,
     clock: deps.clock,

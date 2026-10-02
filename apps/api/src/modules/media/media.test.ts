@@ -476,7 +476,10 @@ describe('photo removal', () => {
       const cleanups = harness.jobs.submissions.filter(
         (submission) => submission.name === MEDIA_DELETE_JOB,
       )
-      expect(cleanups.length).toBeGreaterThan(0)
+      expect(cleanups).toHaveLength(1)
+      const cleanup = cleanups[0]
+      if (cleanup === undefined) throw new Error('no cleanup job was queued')
+      expect((cleanup.data as { imageIds: string[] }).imageIds).toEqual([image.id])
       for (const submission of cleanups) {
         await deleteEntryImageObjects(harness, submission.data as MediaDeleteJobData)
       }

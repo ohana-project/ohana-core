@@ -22,3 +22,11 @@ export interface JobSubmission {
 export interface JobSender {
   sendInTx(tx: Tx, submission: JobSubmission): Promise<void>
 }
+
+/** A queue to ensure, with the creation options a queue's contract needs —
+ *  the retries a cleanup job exists for are declared here, not hoped for.
+ *  The pg-boss adapter applies it through `ensureQueues`. */
+export interface QueueSetup {
+  name: string
+  options?: { retryLimit?: number; retryDelay?: number; retryBackoff?: boolean }
+}

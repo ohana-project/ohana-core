@@ -65,15 +65,25 @@ export async function heicDecodeToPng(input: Buffer): Promise<Buffer> {
     // libheif the code may meet — the release image's 1.23, the CI runner's
     // older 1.17, a developer's Homebrew build — accepts. The newer
     // distributions name the tool `heif-dec`; Debian and Ubuntu kept
-    // `heif-convert` for longer, and it decodes just the same.
-    try {
-      await execFileAsync('heif-dec', [inputPath, outputPath], { timeout: 60_000 })
-    } catch (cause) {
-      if ((cause as { code?: string }).code === 'ENOENT') {
-        await execFileAsync('heif-convert', [inputPath, outputPath], { timeout: 60_000 })
-      } else {
-        throw new HeicDecodeError('the HEIC decoder refused the photo', { cause })
+    // `heif-convert` for longer, and it decodes just the same. A binary
+    // that is absent moves the attempt to the next name; every other
+    // outcome — a refusal, or both names missing — is one decode failure.
+    let lastCause: unknown
+    let decoded = false
+    for (const binary of ['heif-dec', 'heif-convert']) {
+      try {
+        await execFileAsync(binary, [inputPath, outputPath], { timeout: 60_000 })
+        decoded = true
+        break
+      } catch (cause) {
+        lastCause = cause
+        if ((cause as { code?: string }).code !== 'ENOENT') break
       }
+    }
+    if (!decoded) {
+      throw new HeicDecodeError('the HEIC decoder is missing or refused the photo', {
+        cause: lastCause,
+      })
     }
     return await readFile(outputPath)
   } finally {

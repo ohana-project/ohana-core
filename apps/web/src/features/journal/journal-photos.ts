@@ -1,7 +1,15 @@
 import { ApiError, extractErrorCode } from '@/data/api-error.ts'
 import type { StoredJournalEntryImage } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
-import { peekFetchedImage, rememberFetchedImage } from '@/lib/photo-cache.ts'
+import { currentGeneration, peekFetchedImage, rememberFetchedImage } from '@/lib/photo-cache.ts'
+
+/** The headers a hand-rolled photo request carries: the member named, the
+ *  session cookie authenticating — the client middleware's shape, for the
+ *  requests the generated client cannot express (multipart, binary). */
+export function memberHeader(): Record<string, string> {
+  const memberId = getActiveMemberId()
+  return memberId === undefined ? {} : { 'x-ohana-member': memberId }
+}
 
 /*
  * The journal photos' data access (issue #17). Photo bytes never travel in
@@ -32,13 +40,13 @@ export async function fetchEntryImage(
   const url = entryImageUrl(entryId, imageId, variant)
   const known = peekFetchedImage(url)
   if (known !== undefined) return known
-  const memberId = getActiveMemberId()
+  const fetchedAtGeneration = currentGeneration()
   const response = await fetch(url, {
     credentials: 'same-origin',
-    headers: memberId === undefined ? undefined : { 'x-ohana-member': memberId },
+    headers: memberHeader(),
   })
   if (!response.ok) throw new ApiError(extractErrorCode(await response.json().catch(() => null)))
-  return rememberFetchedImage(url, URL.createObjectURL(await response.blob()))
+  return rememberFetchedImage(url, URL.createObjectURL(await response.blob()), fetchedAtGeneration)
 }
 
 /**
@@ -51,13 +59,12 @@ export async function uploadEntryImage(
   entryId: string,
   file: File,
 ): Promise<StoredJournalEntryImage> {
-  const memberId = getActiveMemberId()
   const form = new FormData()
   form.append('file', file)
   const response = await fetch(`/api/v1/journal/entries/${entryId}/images`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: memberId === undefined ? undefined : { 'x-ohana-member': memberId },
+    headers: memberHeader(),
     body: form,
   })
   const body: unknown = await response.json().catch(() => null)
@@ -67,11 +74,10 @@ export async function uploadEntryImage(
 
 /** Removes one photo; the shorter list arrives through the sync. */
 export async function deleteEntryImage(entryId: string, imageId: string): Promise<void> {
-  const memberId = getActiveMemberId()
   const response = await fetch(`/api/v1/journal/entries/${entryId}/images/${imageId}`, {
     method: 'DELETE',
     credentials: 'same-origin',
-    headers: memberId === undefined ? undefined : { 'x-ohana-member': memberId },
+    headers: memberHeader(),
   })
   if (!response.ok) throw new ApiError(extractErrorCode(await response.json().catch(() => null)))
 }

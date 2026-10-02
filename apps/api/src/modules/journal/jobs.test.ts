@@ -53,7 +53,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  */
 
 function jobDeps() {
-  return { db: harness.db, clock: harness.clock, storage: harness.storage, jobs: harness.jobs }
+  return { db: harness.db, clock: harness.clock, jobs: harness.jobs }
 }
 
 function serviceDeps(jobs: RecordingJobSender): JournalDeps {

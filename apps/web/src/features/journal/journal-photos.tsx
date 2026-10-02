@@ -1,12 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ApiError, extractErrorCode } from '@/data/api-error.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
-import { deleteEntryImage, fetchEntryImage, uploadEntryImage } from './journal-photos.ts'
+import {
+  deleteEntryImage,
+  entryImageUrl,
+  fetchEntryImage,
+  memberHeader,
+  uploadEntryImage,
+} from './journal-photos.ts'
 import { journalErrorMessage } from './use-journal.ts'
 
 /*
@@ -173,7 +180,13 @@ export function EntryPhotoGallery({ entry }: { entry: StoredJournalEntry }) {
  * working viewer image for bytes the browser cannot render would break the
  * viewer exactly on the ticket's headline case.
  */
-const RENDERABLE_ORIGINALS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const RENDERABLE_ORIGINALS = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+])
 
 /** The file extension a non-renderable original downloads under. */
 const DOWNLOAD_EXTENSIONS: Record<string, string> = {
@@ -183,7 +196,6 @@ const DOWNLOAD_EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
 }
 
-/** The file extension a non-renderable original downloads under. */
 function PhotoLightbox({
   entryId,
   image,
@@ -204,12 +216,32 @@ function PhotoLightbox({
   const originalShown = renderable && !originalBroken && original.data !== undefined
   const shown = originalShown ? original.data : viewer.data
 
+  const [downloading, setDownloading] = useState(false)
   const downloadOriginal = async () => {
-    const url = await fetchEntryImage(entryId, image.id, 'original')
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${image.id}.${DOWNLOAD_EXTENSIONS[image.originalType ?? ''] ?? 'bin'}`
-    anchor.click()
+    if (downloading) return
+    setDownloading(true)
+    try {
+      // The download bypasses the memo: one explicit save, the blob is
+      // revoked as soon as the browser has the click.
+      const response = await fetch(entryImageUrl(entryId, image.id, 'original'), {
+        credentials: 'same-origin',
+        headers: memberHeader(),
+      })
+      if (!response.ok) {
+        throw new ApiError(extractErrorCode(await response.json().catch(() => null)))
+      }
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = `${image.id}.${DOWNLOAD_EXTENSIONS[image.originalType ?? ''] ?? 'bin'}`
+      anchor.click()
+      URL.revokeObjectURL(objectUrl)
+    } catch (cause) {
+      toast(journalErrorMessage(cause, t), 'danger')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -241,7 +273,7 @@ function PhotoLightbox({
           onError={() => setOriginalBroken(true)}
         />
       )}
-      {originalShown && (
+      {renderable && !originalBroken && !original.isError && (
         <span className="font-mono text-meta tracking-wide text-white/70 uppercase">
           {original.data === undefined
             ? t('journal.viewerLoadingOriginal')
@@ -251,9 +283,11 @@ function PhotoLightbox({
       {!renderable && (
         <button
           type="button"
-          className="rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          className="flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          disabled={downloading}
           onClick={() => void downloadOriginal()}
         >
+          {downloading && <Spinner className="size-4" />}
           {t('journal.downloadOriginal')}
         </button>
       )}
