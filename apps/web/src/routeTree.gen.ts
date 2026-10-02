@@ -27,6 +27,9 @@ import { Route as JournalTrashRouteImport } from './routes/journal/trash'
 import { Route as MembersIndexRouteImport } from './routes/members/index'
 import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
 import { Route as MembersInviteRouteImport } from './routes/members/invite'
+import { Route as WishlistIndexRouteImport } from './routes/wishlist/index'
+import { Route as WishlistMemberIdRouteImport } from './routes/wishlist/$memberId'
+import { Route as WishlistMineRouteImport } from './routes/wishlist/mine'
 import { Route as AdminSpacesSpaceIdRouteImport } from './routes/admin/spaces/$spaceId'
 import { Route as JournalEntryIdEditRouteImport } from './routes/journal/$entryId_.edit'
 
@@ -120,6 +123,21 @@ const MembersInviteRoute = MembersInviteRouteImport.update({
   path: '/members/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WishlistIndexRoute = WishlistIndexRouteImport.update({
+  id: '/wishlist/',
+  path: '/wishlist/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WishlistMemberIdRoute = WishlistMemberIdRouteImport.update({
+  id: '/wishlist/$memberId',
+  path: '/wishlist/$memberId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WishlistMineRoute = WishlistMineRouteImport.update({
+  id: '/wishlist/mine',
+  path: '/wishlist/mine',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSpacesSpaceIdRoute = AdminSpacesSpaceIdRouteImport.update({
   id: '/admin/spaces/$spaceId',
   path: '/admin/spaces/$spaceId',
@@ -147,9 +165,12 @@ export interface FileRoutesByFullPath {
   '/journal/trash': typeof JournalTrashRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
+  '/wishlist/$memberId': typeof WishlistMemberIdRoute
+  '/wishlist/mine': typeof WishlistMineRoute
   '/admin/': typeof AdminIndexRoute
   '/journal/': typeof JournalIndexRoute
   '/members/': typeof MembersIndexRoute
+  '/wishlist/': typeof WishlistIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
   '/journal/$entryId/edit': typeof JournalEntryIdEditRoute
 }
@@ -169,9 +190,12 @@ export interface FileRoutesByTo {
   '/journal/trash': typeof JournalTrashRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
+  '/wishlist/$memberId': typeof WishlistMemberIdRoute
+  '/wishlist/mine': typeof WishlistMineRoute
   '/admin': typeof AdminIndexRoute
   '/journal': typeof JournalIndexRoute
   '/members': typeof MembersIndexRoute
+  '/wishlist': typeof WishlistIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
   '/journal/$entryId/edit': typeof JournalEntryIdEditRoute
 }
@@ -192,9 +216,12 @@ export interface FileRoutesById {
   '/journal/trash': typeof JournalTrashRoute
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
+  '/wishlist/$memberId': typeof WishlistMemberIdRoute
+  '/wishlist/mine': typeof WishlistMineRoute
   '/admin/': typeof AdminIndexRoute
   '/journal/': typeof JournalIndexRoute
   '/members/': typeof MembersIndexRoute
+  '/wishlist/': typeof WishlistIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
   '/journal/$entryId_/edit': typeof JournalEntryIdEditRoute
 }
@@ -216,9 +243,12 @@ export interface FileRouteTypes {
     | '/journal/trash'
     | '/members/$memberId'
     | '/members/invite'
+    | '/wishlist/$memberId'
+    | '/wishlist/mine'
     | '/admin/'
     | '/journal/'
     | '/members/'
+    | '/wishlist/'
     | '/admin/spaces/$spaceId'
     | '/journal/$entryId/edit'
   fileRoutesByTo: FileRoutesByTo
@@ -238,9 +268,12 @@ export interface FileRouteTypes {
     | '/journal/trash'
     | '/members/$memberId'
     | '/members/invite'
+    | '/wishlist/$memberId'
+    | '/wishlist/mine'
     | '/admin'
     | '/journal'
     | '/members'
+    | '/wishlist'
     | '/admin/spaces/$spaceId'
     | '/journal/$entryId/edit'
   id:
@@ -260,9 +293,12 @@ export interface FileRouteTypes {
     | '/journal/trash'
     | '/members/$memberId'
     | '/members/invite'
+    | '/wishlist/$memberId'
+    | '/wishlist/mine'
     | '/admin/'
     | '/journal/'
     | '/members/'
+    | '/wishlist/'
     | '/admin/spaces/$spaceId'
     | '/journal/$entryId_/edit'
   fileRoutesById: FileRoutesById
@@ -283,9 +319,12 @@ export interface RootRouteChildren {
   JournalTrashRoute: typeof JournalTrashRoute
   MembersMemberIdRoute: typeof MembersMemberIdRoute
   MembersInviteRoute: typeof MembersInviteRoute
+  WishlistMemberIdRoute: typeof WishlistMemberIdRoute
+  WishlistMineRoute: typeof WishlistMineRoute
   AdminIndexRoute: typeof AdminIndexRoute
   JournalIndexRoute: typeof JournalIndexRoute
   MembersIndexRoute: typeof MembersIndexRoute
+  WishlistIndexRoute: typeof WishlistIndexRoute
   AdminSpacesSpaceIdRoute: typeof AdminSpacesSpaceIdRoute
   JournalEntryIdEditRoute: typeof JournalEntryIdEditRoute
 }
@@ -418,6 +457,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MembersInviteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/wishlist/': {
+      id: '/wishlist/'
+      path: '/wishlist'
+      fullPath: '/wishlist/'
+      preLoaderRoute: typeof WishlistIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wishlist/$memberId': {
+      id: '/wishlist/$memberId'
+      path: '/wishlist/$memberId'
+      fullPath: '/wishlist/$memberId'
+      preLoaderRoute: typeof WishlistMemberIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wishlist/mine': {
+      id: '/wishlist/mine'
+      path: '/wishlist/mine'
+      fullPath: '/wishlist/mine'
+      preLoaderRoute: typeof WishlistMineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/spaces/$spaceId': {
       id: '/admin/spaces/$spaceId'
       path: '/admin/spaces/$spaceId'
@@ -451,9 +511,12 @@ const rootRouteChildren: RootRouteChildren = {
   JournalTrashRoute: JournalTrashRoute,
   MembersMemberIdRoute: MembersMemberIdRoute,
   MembersInviteRoute: MembersInviteRoute,
+  WishlistMemberIdRoute: WishlistMemberIdRoute,
+  WishlistMineRoute: WishlistMineRoute,
   AdminIndexRoute: AdminIndexRoute,
   JournalIndexRoute: JournalIndexRoute,
   MembersIndexRoute: MembersIndexRoute,
+  WishlistIndexRoute: WishlistIndexRoute,
   AdminSpacesSpaceIdRoute: AdminSpacesSpaceIdRoute,
   JournalEntryIdEditRoute: JournalEntryIdEditRoute,
 }
