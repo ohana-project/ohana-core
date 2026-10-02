@@ -17,11 +17,9 @@ const ZONE_PARTS_OPTIONS: Intl.DateTimeFormatOptions = {
   hourCycle: 'h23',
 }
 
-/**
- * The zone's offset at `instant`, in seconds east of UTC. The wall time the
- * zone shows at the instant, read back as if it were UTC, is the instant
- * shifted by exactly this offset.
- */
+// One formatter per zone: constructing one is the expensive part of the
+// lookup, and the composition runs inside the transaction that holds the
+// space row lock.
 const zoneFormatters = new Map<string, Intl.DateTimeFormat>()
 
 function zoneFormatter(zone: string): Intl.DateTimeFormat {
@@ -33,6 +31,11 @@ function zoneFormatter(zone: string): Intl.DateTimeFormat {
   return formatter
 }
 
+/**
+ * The zone's offset at `instant`, in seconds east of UTC. The wall time the
+ * zone shows at the instant, read back as if it were UTC, is the instant
+ * shifted by exactly this offset.
+ */
 export function zoneOffsetSeconds(zone: string, instant: Date): number {
   const parts = zoneFormatter(zone).formatToParts(instant)
   const value = (type: Intl.DateTimeFormatPartTypes): number => {

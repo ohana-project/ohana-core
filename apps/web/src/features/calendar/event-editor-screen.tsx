@@ -82,7 +82,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
   // The zone list is the runtime's, stable per locale; the event's own
   // spelling is prepended per render — the alias case is rare and cheap.
   const zoneOptions = useMemo(() => timezoneOptions(locale, new Date()), [locale])
-  const zoneChoicesMemo = prependZone(zoneOptions, effective.timezone)
+  const zoneChoices = prependZone(zoneOptions, effective.timezone)
   const pending = createEvent.isPending || updateEvent.isPending
   const titleBlank = effective.title.trim().length === 0
   const dateBlank = effective.date.trim().length === 0
@@ -300,7 +300,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
                       setTimezoneTouched(true)
                     }}
                   >
-                    {zoneChoicesMemo.map((option) => (
+                    {zoneChoices.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>

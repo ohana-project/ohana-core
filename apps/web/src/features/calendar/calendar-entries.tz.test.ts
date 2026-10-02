@@ -28,7 +28,7 @@ const BIRTHDAY: StoredCalendarEvent = {
   updatedAt: '2026-10-01T09:00:00.000Z',
 }
 
-describe('calendar dates in America/Los_Angeles', () => {
+describe('the calendar’s date derivations in America/Los_Angeles', () => {
   test('an all-day event keeps its date; the device never shifts it', () => {
     expect(eventDateKey(BIRTHDAY)).toBe('2026-10-19')
     expect(localDateKey('2026-10-19T05:00:00.000Z')).toBe('2026-10-18')

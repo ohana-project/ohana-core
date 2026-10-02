@@ -471,55 +471,6 @@ describe('calendar events (issue #20)', () => {
       expect(gapped.status).toBe(400)
       expect(gapped.body).toMatchObject({ error: { code: 'event_start_in_gap' } })
 
-      // The gap swallowing the whole interval refuses the same way
-      // through the edit — and a longer event over the same nonexistent
-      // start is kept from the gap's far side.
-      const gappedEdit = await createEvent(app, anna, {
-        title: 'Созвон',
-        allDay: false,
-        date: '2026-06-10',
-        startTime: '10:00',
-        endTime: '11:00',
-        timezone: 'America/New_York',
-      })
-      expect(gappedEdit.status).toBe(201)
-      const eventId = (gappedEdit.body as EventDto).id
-      const gapEdit = await editEvent(app, anna, eventId, {
-        title: 'Созвон',
-        allDay: false,
-        date: '2026-03-08',
-        startTime: '02:30',
-        endTime: '03:15',
-        timezone: 'America/New_York',
-      })
-      expect(gapEdit.status).toBe(400)
-      expect(gapEdit.body).toMatchObject({ error: { code: 'event_start_in_gap' } })
-      const overTheGap = await editEvent(app, anna, eventId, {
-        title: 'Созвон',
-        allDay: false,
-        date: '2026-03-08',
-        startTime: '02:30',
-        endTime: '04:00',
-        timezone: 'America/New_York',
-      })
-      expect(overTheGap.status).toBe(200)
-      expect(overTheGap.body).toMatchObject({
-        startsAt: '2026-03-08T07:30:00.000Z',
-        endsAt: '2026-03-08T08:00:00.000Z',
-      })
-
-      // A padded title is trimmed on the edit as on the create.
-      const padded = await editEvent(app, anna, eventId, {
-        title: '  Созвон  ',
-        allDay: false,
-        date: '2026-06-10',
-        startTime: '10:00',
-        endTime: '11:00',
-        timezone: 'America/New_York',
-      })
-      expect(padded.status).toBe(200)
-      expect(padded.body).toMatchObject({ title: 'Созвон' })
-
       // A zone the runtime does not know.
       const unknownZone = await createEvent(app, anna, {
         title: 'Созвон',
@@ -547,6 +498,66 @@ describe('calendar events (issue #20)', () => {
       // And an unknown event address answers the ordinary 404.
       const missing = await getEvent(app, anna, '01900000-0000-7000-8000-00000000c0de')
       expect(missing.status).toBe(404)
+    })
+  })
+
+  test('an edit composes across the gap and trims its title', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+
+      const created = await createEvent(app, anna, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-06-10',
+        startTime: '10:00',
+        endTime: '11:00',
+        timezone: 'America/New_York',
+      })
+      expect(created.status).toBe(201)
+      const eventId = (created.body as EventDto).id
+
+      // New York jumps 02:00 → 03:00 on 2026-03-08. A pair the gap
+      // swallows whole is refused through the edit exactly as through the
+      // create; a longer event over the same nonexistent start is kept
+      // from the gap's far side.
+      const refused = await editEvent(app, anna, eventId, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-03-08',
+        startTime: '02:30',
+        endTime: '03:15',
+        timezone: 'America/New_York',
+      })
+      expect(refused.status).toBe(400)
+      expect(refused.body).toMatchObject({ error: { code: 'event_start_in_gap' } })
+
+      const overTheGap = await editEvent(app, anna, eventId, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-03-08',
+        startTime: '02:30',
+        endTime: '04:00',
+        timezone: 'America/New_York',
+      })
+      expect(overTheGap.status).toBe(200)
+      expect(overTheGap.body).toMatchObject({
+        startsAt: '2026-03-08T07:30:00.000Z',
+        endsAt: '2026-03-08T08:00:00.000Z',
+      })
+
+      // A padded title is trimmed on the edit as on the create.
+      const padded = await editEvent(app, anna, eventId, {
+        title: '  Созвон  ',
+        allDay: false,
+        date: '2026-06-10',
+        startTime: '10:00',
+        endTime: '11:00',
+        timezone: 'America/New_York',
+      })
+      expect(padded.status).toBe(200)
+      expect(padded.body).toMatchObject({ title: 'Созвон' })
     })
   })
 

@@ -250,8 +250,12 @@ function agendaLabelKey(
   today: DateOnly,
 ): 'calendar.today' | 'calendar.tomorrow' | 'calendar.dayTitle' {
   const tomorrow = new Date(today.year, today.month - 1, today.day + 1)
-  const tomorrowKey = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
-  const todayKey = `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`
+  const tomorrowKey = formatDateOnly({
+    year: tomorrow.getFullYear(),
+    month: tomorrow.getMonth() + 1,
+    day: tomorrow.getDate(),
+  })
+  const todayKey = formatDateOnly(today)
   if (key === todayKey) return 'calendar.today'
   if (key === tomorrowKey) return 'calendar.tomorrow'
   return 'calendar.dayTitle'

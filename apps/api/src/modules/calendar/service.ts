@@ -266,7 +266,7 @@ function timedEventColumns(
     // store less than the member asked for, and is refused instead.
     throw new DomainError(
       'event_start_in_gap',
-      `A timed event's start does not exist on ${input.date} and the clocks' jump swallows the whole interval`,
+      `A timed event’s start does not exist on ${input.date} and the clocks’ jump swallows the whole interval`,
       400,
     )
   }

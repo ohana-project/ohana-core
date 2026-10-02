@@ -260,6 +260,7 @@ describe('SpaceHomeScreen', () => {
         creatorId: world.memberId,
         title: 'Ужин у бабушки',
         allDay: true,
+        // Far enough ahead to stay upcoming for the life of this test.
         date: '2200-01-01',
         createdAt: '2026-10-01T09:00:00.000Z',
         updatedAt: '2026-10-01T09:00:00.000Z',
