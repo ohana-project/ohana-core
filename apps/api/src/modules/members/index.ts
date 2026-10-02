@@ -12,6 +12,7 @@ export {
   completeOnboarding,
   describeMember,
   findMemberInSpace,
+  listMemberIdsInTx,
   listMembers,
   type MemberInput,
   type MemberRole,

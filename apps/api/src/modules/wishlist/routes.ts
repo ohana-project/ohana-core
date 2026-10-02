@@ -9,6 +9,12 @@ import {
 } from '../access/index.ts'
 import { sectionGate } from '../spaces/index.ts'
 import {
+  GiftFavoriteDtoSchema,
+  GiftFavoriteListDtoSchema,
+  GiftReservationDtoSchema,
+  GiftReservationListDtoSchema,
+  toGiftFavoriteDto,
+  toGiftReservationDto,
   toWishDto,
   WishDtoSchema,
   WishIdParamsSchema,
@@ -17,13 +23,20 @@ import {
   WriteWishBodySchema,
 } from './contracts.ts'
 import {
+  cancelReservation,
   clearReceived,
   createWish,
   editWish,
+  favoriteWish,
   getWish,
+  getWishReservation,
+  listGiftFavorites,
+  listGiftReservations,
   listWishes,
   markReceived,
   removeWish,
+  reserveWish,
+  unfavoriteWish,
   type WishlistActor,
   type WishlistDeps,
 } from './service.ts'
@@ -166,6 +179,132 @@ export const wishlistRoutes: FastifyPluginAsyncTypebox<WishlistRoutesOptions> = 
       async (request) => {
         const actor: WishlistActor = requireMemberActor(request)
         return toWishDto(await clearReceived(opts.deps, actor, request.params.wishId))
+      },
+    )
+
+    // The member's own gift favorites (issue #19): the one listing that
+    // exists, the bookmark being private to the member who made it.
+    scoped.get(
+      '/wishlist/favorites',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          response: { 200: GiftFavoriteListDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        const favorites = await listGiftFavorites(opts.deps, actor)
+        return { favorites: favorites.map(toGiftFavoriteDto) }
+      },
+    )
+
+    // The private bookmark (issue #19): the member's own wish refuses, and
+    // the answer goes to no one but the member who made it.
+    scoped.post(
+      '/wishlist/wishes/:wishId/favorite',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: WishIdParamsSchema,
+          response: { 201: GiftFavoriteDtoSchema },
+        },
+      },
+      async (request, reply) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        const favorite = await favoriteWish(opts.deps, actor, request.params.wishId)
+        return reply.code(201).send(toGiftFavoriteDto(favorite))
+      },
+    )
+
+    // Taking the bookmark back (issue #19).
+    scoped.delete(
+      '/wishlist/wishes/:wishId/favorite',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: WishIdParamsSchema,
+          response: { 204: Type.Null() },
+        },
+      },
+      async (request, reply) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        await unfavoriteWish(opts.deps, actor, request.params.wishId)
+        return reply.code(204).send(null)
+      },
+    )
+
+    // The reservations the requesting member may see (issue #19): every
+    // member's but their own — the wish's author never sees one.
+    scoped.get(
+      '/wishlist/reservations',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          response: { 200: GiftReservationListDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        const reservations = await listGiftReservations(opts.deps, actor)
+        return { reservations: reservations.map((row) => toGiftReservationDto(row.reservation)) }
+      },
+    )
+
+    // One wish's reservation (issue #19): an unreserved wish and the
+    // author's own wish answer the same 404, so the author probing the
+    // read learns nothing either way.
+    scoped.get(
+      '/wishlist/wishes/:wishId/reservation',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: WishIdParamsSchema,
+          response: { 200: GiftReservationDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        return toGiftReservationDto(
+          await getWishReservation(opts.deps, actor, request.params.wishId),
+        )
+      },
+    )
+
+    // The claim (issue #19): visible to every member except the wish's
+    // author from the moment it lands.
+    scoped.post(
+      '/wishlist/wishes/:wishId/reservation',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: WishIdParamsSchema,
+          response: { 201: GiftReservationDtoSchema },
+        },
+      },
+      async (request, reply) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        const reservation = await reserveWish(opts.deps, actor, request.params.wishId)
+        return reply.code(201).send(toGiftReservationDto(reservation))
+      },
+    )
+
+    // Only the reserving member cancels (issue #19); the wish's author's
+    // cancel answers what an unreserved wish answers, so probing reveals
+    // nothing.
+    scoped.delete(
+      '/wishlist/wishes/:wishId/reservation',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: WishIdParamsSchema,
+          response: { 204: Type.Null() },
+        },
+      },
+      async (request, reply) => {
+        const actor: WishlistActor = requireMemberActor(request)
+        await cancelReservation(opts.deps, actor, request.params.wishId)
+        return reply.code(204).send(null)
       },
     )
   })

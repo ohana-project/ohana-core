@@ -29,6 +29,7 @@ import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
 import { Route as MembersInviteRouteImport } from './routes/members/invite'
 import { Route as WishlistIndexRouteImport } from './routes/wishlist/index'
 import { Route as WishlistMemberIdRouteImport } from './routes/wishlist/$memberId'
+import { Route as WishlistFavoritesRouteImport } from './routes/wishlist/favorites'
 import { Route as WishlistMineRouteImport } from './routes/wishlist/mine'
 import { Route as AdminSpacesSpaceIdRouteImport } from './routes/admin/spaces/$spaceId'
 import { Route as JournalEntryIdEditRouteImport } from './routes/journal/$entryId_.edit'
@@ -133,6 +134,11 @@ const WishlistMemberIdRoute = WishlistMemberIdRouteImport.update({
   path: '/wishlist/$memberId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WishlistFavoritesRoute = WishlistFavoritesRouteImport.update({
+  id: '/wishlist/favorites',
+  path: '/wishlist/favorites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WishlistMineRoute = WishlistMineRouteImport.update({
   id: '/wishlist/mine',
   path: '/wishlist/mine',
@@ -166,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/wishlist/$memberId': typeof WishlistMemberIdRoute
+  '/wishlist/favorites': typeof WishlistFavoritesRoute
   '/wishlist/mine': typeof WishlistMineRoute
   '/admin/': typeof AdminIndexRoute
   '/journal/': typeof JournalIndexRoute
@@ -191,6 +198,7 @@ export interface FileRoutesByTo {
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/wishlist/$memberId': typeof WishlistMemberIdRoute
+  '/wishlist/favorites': typeof WishlistFavoritesRoute
   '/wishlist/mine': typeof WishlistMineRoute
   '/admin': typeof AdminIndexRoute
   '/journal': typeof JournalIndexRoute
@@ -217,6 +225,7 @@ export interface FileRoutesById {
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/invite': typeof MembersInviteRoute
   '/wishlist/$memberId': typeof WishlistMemberIdRoute
+  '/wishlist/favorites': typeof WishlistFavoritesRoute
   '/wishlist/mine': typeof WishlistMineRoute
   '/admin/': typeof AdminIndexRoute
   '/journal/': typeof JournalIndexRoute
@@ -244,6 +253,7 @@ export interface FileRouteTypes {
     | '/members/$memberId'
     | '/members/invite'
     | '/wishlist/$memberId'
+    | '/wishlist/favorites'
     | '/wishlist/mine'
     | '/admin/'
     | '/journal/'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/members/$memberId'
     | '/members/invite'
     | '/wishlist/$memberId'
+    | '/wishlist/favorites'
     | '/wishlist/mine'
     | '/admin'
     | '/journal'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/members/$memberId'
     | '/members/invite'
     | '/wishlist/$memberId'
+    | '/wishlist/favorites'
     | '/wishlist/mine'
     | '/admin/'
     | '/journal/'
@@ -320,6 +332,7 @@ export interface RootRouteChildren {
   MembersMemberIdRoute: typeof MembersMemberIdRoute
   MembersInviteRoute: typeof MembersInviteRoute
   WishlistMemberIdRoute: typeof WishlistMemberIdRoute
+  WishlistFavoritesRoute: typeof WishlistFavoritesRoute
   WishlistMineRoute: typeof WishlistMineRoute
   AdminIndexRoute: typeof AdminIndexRoute
   JournalIndexRoute: typeof JournalIndexRoute
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WishlistMemberIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/wishlist/favorites': {
+      id: '/wishlist/favorites'
+      path: '/wishlist/favorites'
+      fullPath: '/wishlist/favorites'
+      preLoaderRoute: typeof WishlistFavoritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/wishlist/mine': {
       id: '/wishlist/mine'
       path: '/wishlist/mine'
@@ -512,6 +532,7 @@ const rootRouteChildren: RootRouteChildren = {
   MembersMemberIdRoute: MembersMemberIdRoute,
   MembersInviteRoute: MembersInviteRoute,
   WishlistMemberIdRoute: WishlistMemberIdRoute,
+  WishlistFavoritesRoute: WishlistFavoritesRoute,
   WishlistMineRoute: WishlistMineRoute,
   AdminIndexRoute: AdminIndexRoute,
   JournalIndexRoute: JournalIndexRoute,

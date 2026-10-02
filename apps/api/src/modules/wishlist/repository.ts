@@ -1,7 +1,14 @@
 import { and, asc, desc, eq, gt, isNotNull, isNull } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
-import { wishVisibleToSql } from './policy.ts'
-import { type Wish, wishes } from './tables.ts'
+import { favoriteVisibleToSql, reservationVisibleToSql, wishVisibleToSql } from './policy.ts'
+import {
+  type GiftFavorite,
+  type GiftReservation,
+  giftFavorites,
+  giftReservations,
+  type Wish,
+  wishes,
+} from './tables.ts'
 
 export interface NewWish {
   authorMemberId: string
@@ -182,4 +189,257 @@ export async function listChangedWishesVisibleTo(
     .from(wishes)
     .where(and(eq(wishes.spaceId, spaceId), gt(wishes.revision, since), wishVisibleToSql(memberId)))
     .orderBy(desc(wishes.revision), desc(wishes.id))
+}
+
+/*
+ * The gift favorites (issue #19): a member's private bookmarks. Every
+ * query narrows to the requesting member — the module's one visibility
+ * rule for favorites (policy.ts, in its SQL dialect) beside the space
+ * scope — so another member's favorites cannot leave the server through
+ * any read, the sync contributor's included.
+ */
+
+export interface NewGiftFavorite {
+  memberId: string
+  wishId: string
+  revision: bigint
+  now: Date
+}
+
+export async function insertGiftFavorite(
+  tx: Tx,
+  spaceId: string,
+  data: NewGiftFavorite,
+): Promise<GiftFavorite> {
+  const inserted = await tx
+    .insert(giftFavorites)
+    .values({
+      spaceId,
+      memberId: data.memberId,
+      wishId: data.wishId,
+      revision: data.revision,
+      createdAt: data.now,
+      updatedAt: data.now,
+    })
+    .returning()
+  const row = inserted[0]
+  if (!row) throw new Error('Inserting a gift favorite returned no row')
+  return row
+}
+
+/** The member's own bookmark of the wish, or undefined when it is not favorited. */
+export async function getGiftFavoriteInSpace(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+  wishId: string,
+): Promise<GiftFavorite | undefined> {
+  const rows = await executor
+    .select()
+    .from(giftFavorites)
+    .where(
+      and(
+        eq(giftFavorites.spaceId, spaceId),
+        eq(giftFavorites.memberId, memberId),
+        eq(giftFavorites.wishId, wishId),
+      ),
+    )
+    .limit(1)
+  return rows[0]
+}
+
+export async function deleteGiftFavorite(
+  tx: Tx,
+  spaceId: string,
+  favoriteId: string,
+): Promise<GiftFavorite | undefined> {
+  const deleted = await tx
+    .delete(giftFavorites)
+    .where(and(eq(giftFavorites.spaceId, spaceId), eq(giftFavorites.id, favoriteId)))
+    .returning()
+  return deleted[0]
+}
+
+/**
+ * One member's favorites, creation order — the whole listing that exists:
+ * the routes and the sync contributor deliver a member nobody's favorites
+ * but their own.
+ */
+export async function listGiftFavoritesOfMember(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<GiftFavorite[]> {
+  return executor
+    .select()
+    .from(giftFavorites)
+    .where(and(eq(giftFavorites.spaceId, spaceId), favoriteVisibleToSql(memberId)))
+    .orderBy(asc(giftFavorites.createdAt), asc(giftFavorites.id))
+}
+
+/** The favorites changed after `since` that the requesting member may see. */
+export async function listChangedGiftFavoritesVisibleTo(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  since: bigint,
+): Promise<GiftFavorite[]> {
+  return tx
+    .select()
+    .from(giftFavorites)
+    .where(
+      and(
+        eq(giftFavorites.spaceId, spaceId),
+        gt(giftFavorites.revision, since),
+        favoriteVisibleToSql(memberId),
+      ),
+    )
+    .orderBy(desc(giftFavorites.revision), desc(giftFavorites.id))
+}
+
+/** The wish's favorites, whoever made them — the wish's removal ends each one. */
+export async function listGiftFavoritesOfWish(
+  tx: Tx,
+  spaceId: string,
+  wishId: string,
+): Promise<GiftFavorite[]> {
+  return tx
+    .select()
+    .from(giftFavorites)
+    .where(and(eq(giftFavorites.spaceId, spaceId), eq(giftFavorites.wishId, wishId)))
+}
+
+export async function deleteGiftFavoritesOfWish(
+  tx: Tx,
+  spaceId: string,
+  wishId: string,
+): Promise<void> {
+  await tx
+    .delete(giftFavorites)
+    .where(and(eq(giftFavorites.spaceId, spaceId), eq(giftFavorites.wishId, wishId)))
+}
+
+/*
+ * The gift reservations (issue #19): a wish has at most one active
+ * reservation — the row exists exactly while it is held — visible to every
+ * member except the wish's author. Every read joins the wish, because the
+ * visibility rule is about the wish's author (policy.ts, in its SQL
+ * dialect); the space scope is applied before that rule.
+ */
+
+export interface NewGiftReservation {
+  memberId: string
+  wishId: string
+  revision: bigint
+  now: Date
+}
+
+export async function insertGiftReservation(
+  tx: Tx,
+  spaceId: string,
+  data: NewGiftReservation,
+): Promise<GiftReservation> {
+  const inserted = await tx
+    .insert(giftReservations)
+    .values({
+      spaceId,
+      memberId: data.memberId,
+      wishId: data.wishId,
+      revision: data.revision,
+      createdAt: data.now,
+      updatedAt: data.now,
+    })
+    .returning()
+  const row = inserted[0]
+  if (!row) throw new Error('Inserting a gift reservation returned no row')
+  return row
+}
+
+/** A reservation row together with the author of the wish it holds. */
+export interface GiftReservationWithWishAuthor {
+  reservation: GiftReservation
+  wishAuthorMemberId: string
+}
+
+/**
+ * The wish's active reservation, or undefined when free. The visibility
+ * rule is not applied here — every caller holds the wish in hand and
+ * applies policy.ts's rule with its author — so the single-table lookup by
+ * the wish's unique key is all the answer needs.
+ */
+export async function getGiftReservationInSpace(
+  executor: Executor,
+  spaceId: string,
+  wishId: string,
+): Promise<GiftReservation | undefined> {
+  const rows = await executor
+    .select()
+    .from(giftReservations)
+    .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.wishId, wishId)))
+    .limit(1)
+  return rows[0]
+}
+
+/**
+ * The reservations the requesting member may see — on every member's
+ * wishes but their own (policy.ts), creation order. The author's own
+ * wishes' reservations never enter the answer, so the author probing the
+ * listing learns nothing.
+ */
+export async function listGiftReservationsVisibleTo(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+): Promise<GiftReservationWithWishAuthor[]> {
+  return executor
+    .select({
+      reservation: giftReservations,
+      wishAuthorMemberId: wishes.authorMemberId,
+    })
+    .from(giftReservations)
+    .innerJoin(
+      wishes,
+      and(eq(wishes.spaceId, giftReservations.spaceId), eq(wishes.id, giftReservations.wishId)),
+    )
+    .where(and(eq(giftReservations.spaceId, spaceId), reservationVisibleToSql(memberId)))
+    .orderBy(asc(giftReservations.createdAt), asc(giftReservations.id))
+}
+
+/** The reservations changed after `since` that the requesting member may see. */
+export async function listChangedGiftReservationsVisibleTo(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  since: bigint,
+): Promise<GiftReservationWithWishAuthor[]> {
+  return tx
+    .select({
+      reservation: giftReservations,
+      wishAuthorMemberId: wishes.authorMemberId,
+    })
+    .from(giftReservations)
+    .innerJoin(
+      wishes,
+      and(eq(wishes.spaceId, giftReservations.spaceId), eq(wishes.id, giftReservations.wishId)),
+    )
+    .where(
+      and(
+        eq(giftReservations.spaceId, spaceId),
+        gt(giftReservations.revision, since),
+        reservationVisibleToSql(memberId),
+      ),
+    )
+    .orderBy(desc(giftReservations.revision), desc(giftReservations.id))
+}
+
+export async function deleteGiftReservation(
+  tx: Tx,
+  spaceId: string,
+  reservationId: string,
+): Promise<GiftReservation | undefined> {
+  const deleted = await tx
+    .delete(giftReservations)
+    .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.id, reservationId)))
+    .returning()
+  return deleted[0]
 }

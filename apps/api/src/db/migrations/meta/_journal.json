@@ -85,6 +85,13 @@
       "when": 1790907142161,
       "tag": "0011_spicy_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790934215605,
+      "tag": "0012_past_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

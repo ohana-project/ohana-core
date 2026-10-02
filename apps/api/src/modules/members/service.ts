@@ -1,5 +1,5 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db, Executor } from '../../platform/db/index.ts'
+import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import { getSpace, lockSpace, type SpacesDeps } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
@@ -9,6 +9,7 @@ import {
   countOwnersInSpace,
   getMemberInSpace,
   insertMember,
+  listMemberIdsInSpace,
   listMembersInSpace,
   updateMemberProfile,
   updateMemberRole,
@@ -171,6 +172,17 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
   // names a space, instead of an empty list.
   await getSpace(deps, spaceId)
   return listMembersInSpace(deps.db, spaceId)
+}
+
+/**
+ * The space's member ids, read inside a caller's transaction: a section
+ * module whose deletion concerns more members than its actor — the
+ * wishlist's reservation leaves every member's view except the wish's
+ * author's (issue #19) — writes one tombstone per member, and the audience
+ * must be read under the same space row lock the deletion runs behind.
+ */
+export async function listMemberIdsInTx(tx: Tx, spaceId: string): Promise<string[]> {
+  return listMemberIdsInSpace(tx, spaceId)
 }
 
 /**

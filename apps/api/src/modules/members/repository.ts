@@ -48,6 +48,16 @@ export async function listMembersInSpace(executor: Executor, spaceId: string): P
     .orderBy(asc(members.createdAt), asc(members.id))
 }
 
+/** The space's member ids, nothing else: callers that name the audience of
+ *  per-member tombstones need no profile columns. */
+export async function listMemberIdsInSpace(executor: Executor, spaceId: string): Promise<string[]> {
+  const rows = await executor
+    .select({ id: members.id })
+    .from(members)
+    .where(eq(members.spaceId, spaceId))
+  return rows.map((row) => row.id)
+}
+
 /** The rows changed after `since` — the delta the sync contributor delivers. */
 export async function listChangedMembersInSpace(
   tx: Tx,

@@ -81,7 +81,7 @@ Something a member would like for themselves, recorded in their wishlist.
 _Avoid_: Shared household purchase.
 
 **Gift favorite** (RU: избранная идея подарка):
-A member's private bookmark of someone else's wish as a possible gift. Other members never see it, and it does not reserve the wish.
+A member's private bookmark of someone else's wish as a possible gift. Other members never see it, and it does not reserve the wish. It ends when the wish is removed or the member takes the bookmark back; a wish's received mark does not end it, the idea simply stops being one to give.
 _Avoid_: Shared favorite, gift reservation.
 
 **Gift reservation** (RU: бронь подарка):

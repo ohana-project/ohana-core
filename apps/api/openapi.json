@@ -4644,6 +4644,384 @@
         }
       }
     },
+    "/api/v1/wishlist/favorites": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "favorites"
+                  ],
+                  "properties": {
+                    "favorites": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "wishId",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "wishId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/wishlist/wishes/{wishId}/favorite": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "wishId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "wishId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "wishId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "wishId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/wishlist/reservations": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "reservations"
+                  ],
+                  "properties": {
+                    "reservations": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "wishId",
+                          "memberId",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "wishId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/wishlist/wishes/{wishId}/reservation": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "wishId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "wishId",
+                    "memberId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "wishId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "memberId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "wishId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "wishId",
+                    "memberId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "wishId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "memberId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "wishId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/sync": {
       "get": {
         "parameters": [
@@ -4954,62 +5332,159 @@
                             }
                           },
                           {
-                            "additionalProperties": false,
-                            "type": "object",
-                            "required": [
-                              "entity",
-                              "wish"
-                            ],
-                            "properties": {
-                              "entity": {
-                                "type": "string",
-                                "enum": [
-                                  "wishlist_wish"
-                                ]
-                              },
-                              "wish": {
+                            "anyOf": [
+                              {
                                 "additionalProperties": false,
                                 "type": "object",
                                 "required": [
-                                  "id",
-                                  "authorId",
-                                  "title",
-                                  "createdAt",
-                                  "updatedAt"
+                                  "entity",
+                                  "wish"
                                 ],
                                 "properties": {
-                                  "id": {
-                                    "format": "uuid",
-                                    "type": "string"
+                                  "entity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "wishlist_wish"
+                                    ]
                                   },
-                                  "authorId": {
-                                    "format": "uuid",
-                                    "type": "string"
+                                  "wish": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "authorId",
+                                      "title",
+                                      "createdAt",
+                                      "updatedAt"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "authorId": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "details": {
+                                        "type": "string"
+                                      },
+                                      "link": {
+                                        "type": "string"
+                                      },
+                                      "receivedAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "createdAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "updatedAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "entity",
+                                  "favorite"
+                                ],
+                                "properties": {
+                                  "entity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "wishlist_gift_favorite"
+                                    ]
                                   },
-                                  "title": {
-                                    "type": "string"
+                                  "favorite": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "wishId",
+                                      "createdAt",
+                                      "updatedAt"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "wishId": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "createdAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "updatedAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "entity",
+                                  "reservation"
+                                ],
+                                "properties": {
+                                  "entity": {
+                                    "type": "string",
+                                    "enum": [
+                                      "wishlist_gift_reservation"
+                                    ]
                                   },
-                                  "details": {
-                                    "type": "string"
-                                  },
-                                  "link": {
-                                    "type": "string"
-                                  },
-                                  "receivedAt": {
-                                    "format": "date-time",
-                                    "type": "string"
-                                  },
-                                  "createdAt": {
-                                    "format": "date-time",
-                                    "type": "string"
-                                  },
-                                  "updatedAt": {
-                                    "format": "date-time",
-                                    "type": "string"
+                                  "reservation": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "wishId",
+                                      "memberId",
+                                      "createdAt",
+                                      "updatedAt"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "wishId": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "memberId": {
+                                        "format": "uuid",
+                                        "type": "string"
+                                      },
+                                      "createdAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "updatedAt": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    }
                                   }
                                 }
                               }
-                            }
+                            ]
                           }
                         ]
                       }

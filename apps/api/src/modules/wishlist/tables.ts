@@ -65,3 +65,109 @@ export const wishes = pgTable(
 )
 
 export type Wish = typeof wishes.$inferSelect
+
+/**
+ * A gift favorite (issue #19, CONTEXT.md): a member's private bookmark of
+ * someone else's wish as a possible gift. Only the member who made it ever
+ * sees it — the routes and the sync contributor deliver it to that member
+ * alone (policy.ts) — and it reserves nothing. The row carries no state:
+ * un-favoriting deletes it, and the member-scoped tombstone the delete
+ * writes carries it out of that one member's devices.
+ */
+export const giftFavorites = pgTable(
+  'gift_favorites',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    spaceId: uuid('space_id')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    // The member whose private bookmark this is. The composite foreign keys
+    // keep every reference inside one space (ADR-0016).
+    memberId: uuid('member_id').notNull(),
+    wishId: uuid('wish_id').notNull(),
+    revision: bigint('revision', { mode: 'bigint' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique('gift_favorites_space_id_id_key').on(table.spaceId, table.id),
+    // One favorite per member per wish: the bookmark is a toggle. The
+    // space row lock every write takes serialises the writers, and the
+    // unique index stands behind them as the database's own backstop. The
+    // btree also serves the reads that look a member's bookmark up by wish.
+    unique('gift_favorites_member_wish_key').on(table.spaceId, table.memberId, table.wishId),
+    // The owner's listing reads by member in creation order; the sync
+    // contributor's delta scans one member's rows past a revision.
+    index('gift_favorites_member_idx').on(table.spaceId, table.memberId, table.createdAt),
+    // The wish's removal deletes the wish's favorites and tombstones each
+    // favoriter's own.
+    index('gift_favorites_wish_idx').on(table.spaceId, table.wishId),
+    // The sync contributor's delta scans one space's rows past a revision.
+    index('gift_favorites_sync_idx').on(table.spaceId, table.revision),
+    foreignKey({
+      name: 'gift_favorites_space_id_member_id_fk',
+      columns: [table.spaceId, table.memberId],
+      foreignColumns: [members.spaceId, members.id],
+    }),
+    foreignKey({
+      name: 'gift_favorites_space_id_wish_id_fk',
+      columns: [table.spaceId, table.wishId],
+      foreignColumns: [wishes.spaceId, wishes.id],
+    }),
+  ],
+)
+
+export type GiftFavorite = typeof giftFavorites.$inferSelect
+
+/**
+ * A gift reservation (issue #19, CONTEXT.md): a member's claim that they
+ * intend to give a particular wish, visible to every member except the
+ * wish's author, so that relatives do not buy the same gift. The row
+ * exists exactly while the reservation is active — cancelling it, marking
+ * the wish received, or removing the wish deletes it — so the unique index
+ * on the wish states the "at most one active reservation" rule: the space
+ * row lock every write takes serialises the writers, and the index stands
+ * behind them as the database's own backstop.
+ * The member-scoped tombstones the deletion writes reach every member
+ * except the author, who never learns a reservation existed.
+ */
+export const giftReservations = pgTable(
+  'gift_reservations',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    spaceId: uuid('space_id')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    // The member who reserved the wish — the only one who can cancel.
+    memberId: uuid('member_id').notNull(),
+    wishId: uuid('wish_id').notNull(),
+    revision: bigint('revision', { mode: 'bigint' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique('gift_reservations_space_id_id_key').on(table.spaceId, table.id),
+    // At most one active reservation per wish (issue #19). The unique
+    // btree also serves the reads that look a reservation up by wish.
+    unique('gift_reservations_wish_key').on(table.spaceId, table.wishId),
+    // The sync contributor's delta scans one space's rows past a revision;
+    // the visible listing joins the wish for its author.
+    index('gift_reservations_sync_idx').on(table.spaceId, table.revision),
+    foreignKey({
+      name: 'gift_reservations_space_id_member_id_fk',
+      columns: [table.spaceId, table.memberId],
+      foreignColumns: [members.spaceId, members.id],
+    }),
+    foreignKey({
+      name: 'gift_reservations_space_id_wish_id_fk',
+      columns: [table.spaceId, table.wishId],
+      foreignColumns: [wishes.spaceId, wishes.id],
+    }),
+  ],
+)
+
+export type GiftReservation = typeof giftReservations.$inferSelect
