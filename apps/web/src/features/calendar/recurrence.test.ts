@@ -5,9 +5,9 @@ import {
   expandEvent,
   occurrenceInstants,
   occurrenceOf,
+  type Recurrence,
   seriesStartDate,
   seriesTimedFrame,
-  type Recurrence,
   type TimedFrame,
 } from './recurrence.ts'
 
@@ -386,9 +386,18 @@ function storedEvent(
     updatedAt: '2026-01-01T00:00:00.000Z',
   }
   if (series.allDay) {
-    return { ...base, allDay: true, date: series.date, ...(recurrence === undefined ? {} : { recurrence }) }
+    return {
+      ...base,
+      allDay: true,
+      date: series.date,
+      ...(recurrence === undefined ? {} : { recurrence }),
+    }
   }
-  if (series.timezone === undefined || series.startTime === undefined || series.endTime === undefined) {
+  if (
+    series.timezone === undefined ||
+    series.startTime === undefined ||
+    series.endTime === undefined
+  ) {
     throw new Error('A timed case names its zone and its wall pair')
   }
   const startsAt = wallTimeToInstant(series.date, series.startTime, series.timezone)
@@ -428,7 +437,13 @@ describe('the series a stored row keeps', () => {
       '2026-05-01',
     )
     const timed = storedEvent(
-      { allDay: false, date: '2026-03-01', startTime: '18:00', endTime: '19:30', timezone: 'Europe/Berlin' },
+      {
+        allDay: false,
+        date: '2026-03-01',
+        startTime: '18:00',
+        endTime: '19:30',
+        timezone: 'Europe/Berlin',
+      },
       { frequency: 'weekly' },
     )
     expect(seriesStartDate(timed)).toBe('2026-03-01')
@@ -436,7 +451,13 @@ describe('the series a stored row keeps', () => {
 
   test('the timed frame reads the wall pair back out of the stored instants', () => {
     const timed = storedEvent(
-      { allDay: false, date: '2026-03-01', startTime: '18:00', endTime: '19:30', timezone: 'Europe/Berlin' },
+      {
+        allDay: false,
+        date: '2026-03-01',
+        startTime: '18:00',
+        endTime: '19:30',
+        timezone: 'Europe/Berlin',
+      },
       { frequency: 'weekly' },
     )
     expect(seriesTimedFrame(timed)).toEqual({
@@ -454,7 +475,13 @@ describe('the series a stored row keeps', () => {
 
 describe('occurrences with exceptions applied (issue #21)', () => {
   const series = storedEvent(
-    { allDay: false, date: '2026-10-05', startTime: '18:00', endTime: '21:00', timezone: 'Europe/Moscow' },
+    {
+      allDay: false,
+      date: '2026-10-05',
+      startTime: '18:00',
+      endTime: '21:00',
+      timezone: 'Europe/Moscow',
+    },
     { frequency: 'weekly' },
   )
 
@@ -479,7 +506,13 @@ describe('occurrences with exceptions applied (issue #21)', () => {
     const overridden: StoredCalendarEvent = {
       ...series,
       exceptions: [
-        { originalDate: '2026-10-12', kind: 'override', title: 'Поход в театр', allDay: true, date: '2026-10-13' },
+        {
+          originalDate: '2026-10-12',
+          kind: 'override',
+          title: 'Поход в театр',
+          allDay: true,
+          date: '2026-10-13',
+        },
       ],
     }
     const occurrence = occurrenceOf(overridden, '2026-10-12')

@@ -3,13 +3,6 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  type CalendarOccurrence,
-  eventDateKey,
-  calendarOccurrences,
-  eventsByDate,
-  upcomingEvents,
-} from './calendar-entries.ts'
-import {
   type DateOnly,
   formatDateOnly,
   formatDayLong,
@@ -29,6 +22,13 @@ import { Fab } from '@/ui/fab.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
+import {
+  type CalendarOccurrence,
+  calendarOccurrences,
+  eventDateKey,
+  eventsByDate,
+  upcomingEvents,
+} from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { EventTimeLine } from './event-time.tsx'
 import { useCalendarData } from './use-calendar.ts'
@@ -203,9 +203,7 @@ export function CalendarScreen() {
                             to="/calendar/$eventId"
                             params={{ eventId: event.seriesId ?? event.id }}
                             search={
-                              event.originalDate === undefined
-                                ? {}
-                                : { date: event.originalDate }
+                              event.originalDate === undefined ? {} : { date: event.originalDate }
                             }
                             className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
                           >
@@ -326,9 +324,7 @@ function DaySheet({
                 key={event.id}
                 to="/calendar/$eventId"
                 params={{ eventId: event.seriesId ?? event.id }}
-                search={
-                  event.originalDate === undefined ? {} : { date: event.originalDate }
-                }
+                search={event.originalDate === undefined ? {} : { date: event.originalDate }}
                 className="flex min-h-16 items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
                 onClick={onClose}
               >

@@ -29,8 +29,8 @@ import {
   type EventInput,
   useCalendarData,
   useCreateEvent,
-  useUpdateOccurrence,
   useUpdateEvent,
+  useUpdateOccurrence,
 } from './use-calendar.ts'
 
 /*
@@ -129,15 +129,14 @@ export function EventEditorScreen({
     effective.endTime !== '' &&
     effective.endTime <= effective.startTime
   const untilBeforeStart =
-    effective.repeat !== 'none' &&
-    effective.until !== '' &&
-    effective.until < effective.date
+    effective.repeat !== 'none' && effective.until !== '' && effective.until < effective.date
 
-  const editorTitle = eventId === undefined
-    ? t('calendar.editorNewTitle')
-    : occurrenceMode
-      ? t('calendar.editorOccurrenceTitle')
-      : t('calendar.editorEditTitle')
+  const editorTitle =
+    eventId === undefined
+      ? t('calendar.editorNewTitle')
+      : occurrenceMode
+        ? t('calendar.editorOccurrenceTitle')
+        : t('calendar.editorEditTitle')
 
   const goBack = () => {
     if (existing !== undefined) {
@@ -219,7 +218,11 @@ export function EventEditorScreen({
   }
 
   return (
-    <CalendarShell title={editorTitle} backTo={existing === undefined ? '/calendar' : `/calendar/${existing.id}`} width="narrow">
+    <CalendarShell
+      title={editorTitle}
+      backTo={existing === undefined ? '/calendar' : `/calendar/${existing.id}`}
+      width="narrow"
+    >
       <div className="flex flex-col gap-5 pt-6 pb-32">
         {snapshot.isPending ? (
           // Both kinds wait for the partition read: the edit needs its row,
@@ -276,18 +279,10 @@ export function EventEditorScreen({
               <p className="px-1 text-sm text-muted-foreground">
                 {occurrenceMode
                   ? t('calendar.editingOccurrence', {
-                      name: authorName(
-                        existing.creatorId,
-                        profiles,
-                        t('calendar.creatorUnknown'),
-                      ),
+                      name: authorName(existing.creatorId, profiles, t('calendar.creatorUnknown')),
                     })
                   : t('calendar.editingBy', {
-                      name: authorName(
-                        existing.creatorId,
-                        profiles,
-                        t('calendar.creatorUnknown'),
-                      ),
+                      name: authorName(existing.creatorId, profiles, t('calendar.creatorUnknown')),
                     })}
               </p>
             )}

@@ -1,7 +1,4 @@
-import type {
-  StoredCalendarEvent,
-  StoredEventRecurrence,
-} from '@/data/local-store.ts'
+import type { StoredCalendarEvent, StoredEventRecurrence } from '@/data/local-store.ts'
 import {
   formatZonedTime,
   parseDateOnly,
@@ -57,7 +54,11 @@ function dayNumber({ year, month, day }: DateParts): number {
 
 function addDays(parts: DateParts, days: number): DateParts {
   const shifted = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days))
-  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() }
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  }
 }
 
 function compare(a: DateParts | string, b: DateParts | string): number {
@@ -80,7 +81,11 @@ function minDate(a: DateParts, b: DateParts): DateParts {
  * actually have the day — the RFC 5545 skip, the acceptance criteria's
  * "monthly events on the 31st skip months that have no 31st".
  */
-function* candidateDates(first: DateParts, frequency: RecurrenceFrequency, skip: number): Generator<DateParts> {
+function* candidateDates(
+  first: DateParts,
+  frequency: RecurrenceFrequency,
+  skip: number,
+): Generator<DateParts> {
   if (frequency === 'daily' || frequency === 'weekly') {
     const step = frequency === 'daily' ? 1 : 7
     for (let days = Math.max(skip, 0) * step; ; days += step) yield addDays(first, days)
@@ -92,7 +97,11 @@ function* candidateDates(first: DateParts, frequency: RecurrenceFrequency, skip:
   const firstMonthIndex = first.year * 12 + (first.month - 1)
   for (let index = Math.max(skip, 0) * monthStep; ; index += monthStep) {
     const monthIndex = firstMonthIndex + index
-    const candidate = { year: Math.floor(monthIndex / 12), month: (monthIndex % 12) + 1, day: first.day }
+    const candidate = {
+      year: Math.floor(monthIndex / 12),
+      month: (monthIndex % 12) + 1,
+      day: first.day,
+    }
     if (candidate.day <= daysInMonth(candidate.year, candidate.month)) yield candidate
   }
 }
@@ -238,7 +247,12 @@ export function occurrenceOf(
 ): EventOccurrence | undefined {
   const firstDate = seriesStartDate(event)
   if (firstDate === undefined) return undefined
-  const around = expandOccurrenceDates(firstDate, seriesRecurrence(event), originalDate, originalDate)
+  const around = expandOccurrenceDates(
+    firstDate,
+    seriesRecurrence(event),
+    originalDate,
+    originalDate,
+  )
   if (!around.includes(originalDate)) return undefined
   if (isCancelled(event, originalDate)) return undefined
   return buildOccurrence(event, originalDate)
@@ -302,7 +316,15 @@ function occurrenceOfSeries(
   key: string,
 ): StoredCalendarEvent {
   if (event.allDay || event.startsAt === undefined) {
-    return { id: key, creatorId: event.creatorId, title: event.title, allDay: true, date: originalDate, createdAt: event.createdAt, updatedAt: event.updatedAt }
+    return {
+      id: key,
+      creatorId: event.creatorId,
+      title: event.title,
+      allDay: true,
+      date: originalDate,
+      createdAt: event.createdAt,
+      updatedAt: event.updatedAt,
+    }
   }
   const frame = seriesTimedFrame(event)
   if (frame === undefined) {

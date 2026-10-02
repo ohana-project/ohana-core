@@ -22,8 +22,8 @@ import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
-import { isRecurring, occurrenceOf, type Recurrence } from './recurrence.ts'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
+import { isRecurring, occurrenceOf, type Recurrence } from './recurrence.ts'
 import {
   calendarErrorMessage,
   useCalendarData,
@@ -64,7 +64,9 @@ export function EventScreen({
   const editable = event !== undefined && canEditEvent(event, getActiveMemberId(), profiles)
   const recurring = event !== undefined && isRecurring(event)
   const occurrence =
-    event !== undefined && occurrenceDate !== undefined ? occurrenceOf(event, occurrenceDate) : undefined
+    event !== undefined && occurrenceDate !== undefined
+      ? occurrenceOf(event, occurrenceDate)
+      : undefined
   // What the screen shows: the occurrence the link named — its effective
   // fields, an override's included — or the series' own first occurrence.
   const shown: StoredCalendarEvent | undefined =
@@ -339,7 +341,9 @@ function EventDetails({
                 <Icon name="repeat" className="size-5" />
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="text-sm font-semibold">{t(repeatLabelKey(recurrence.frequency))}</span>
+                <span className="text-sm font-semibold">
+                  {t(repeatLabelKey(recurrence.frequency))}
+                </span>
                 {recurrence.until !== undefined && (
                   <span className="text-sm text-muted-foreground">
                     {t('calendar.repeatUntilLine', {

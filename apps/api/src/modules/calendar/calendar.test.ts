@@ -670,10 +670,9 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
       expect(read.status).toBe(200)
       expect((read.body as EventDto).recurrence).toEqual({ frequency: 'weekly' })
       const listed = await listEvents(app, anna)
-      expect((listed.body as { events: EventDto[] }).events.map((event) => event.recurrence)).toEqual([
-        { frequency: 'yearly', until: '2036-10-19' },
-        { frequency: 'weekly' },
-      ])
+      expect(
+        (listed.body as { events: EventDto[] }).events.map((event) => event.recurrence),
+      ).toEqual([{ frequency: 'yearly', until: '2036-10-19' }, { frequency: 'weekly' }])
     })
   })
 
@@ -741,7 +740,10 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
         recurrence: { frequency: 'monthly', until: '2026-10-19' },
       })
       expect(onIt.status).toBe(201)
-      expect((onIt.body as EventDto).recurrence).toEqual({ frequency: 'monthly', until: '2026-10-19' })
+      expect((onIt.body as EventDto).recurrence).toEqual({
+        frequency: 'monthly',
+        until: '2026-10-19',
+      })
     })
   })
 
@@ -833,7 +835,13 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
       })
       expect(override.status).toBe(200)
       expect((override.body as EventDto).exceptions).toEqual([
-        { originalDate: '2026-10-12', kind: 'override', title: 'Поход в театр', allDay: true, date: '2026-10-13' },
+        {
+          originalDate: '2026-10-12',
+          kind: 'override',
+          title: 'Поход в театр',
+          allDay: true,
+          date: '2026-10-13',
+        },
       ])
       // The series itself is untouched: the override is keyed by the
       // original date, the rule and first occurrence stand.
@@ -1010,7 +1018,12 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
       expect(malformed.json()).toMatchObject({ error: { code: 'validation_failed' } })
 
       // An event that is not here answers the ordinary 404.
-      const missing = await cancelOccurrence(app, anna, '01900000-0000-7000-8000-00000000c0de', '2026-10-05')
+      const missing = await cancelOccurrence(
+        app,
+        anna,
+        '01900000-0000-7000-8000-00000000c0de',
+        '2026-10-05',
+      )
       expect(missing.status).toBe(404)
       expect(missing.body).toMatchObject({ error: { code: 'event_not_found' } })
     })

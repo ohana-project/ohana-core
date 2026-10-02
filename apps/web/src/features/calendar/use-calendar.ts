@@ -90,10 +90,12 @@ export function useUpdateEvent() {
  */
 export function useUpdateOccurrence() {
   return useMutation({
-    mutationFn: async (input: {
-      eventId: string
-      originalDate: string
-    } & EventInput): Promise<CalendarEventDto> => {
+    mutationFn: async (
+      input: {
+        eventId: string
+        originalDate: string
+      } & EventInput,
+    ): Promise<CalendarEventDto> => {
       const response = await api.PUT(
         '/api/v1/calendar/events/{eventId}/occurrences/{originalDate}',
         {

@@ -580,7 +580,9 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     await user.type(screen.getByLabelText('Дата окончания'), '2020-01-01')
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
-    expect(screen.getByText('Дата окончания не может быть раньше первого события')).toBeInTheDocument()
+    expect(
+      screen.getByText('Дата окончания не может быть раньше первого события'),
+    ).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
   })
 
@@ -619,7 +621,10 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [path, options] = apiPut.mock.calls.at(-1) as unknown as [
       string,
-      { params: { path: { eventId: string; originalDate: string } }; body: Record<string, unknown> },
+      {
+        params: { path: { eventId: string; originalDate: string } }
+        body: Record<string, unknown>
+      },
     ]
     expect(path).toBe('/api/v1/calendar/events/{eventId}/occurrences/{originalDate}')
     expect(options.params.path).toEqual({ eventId: series.id, originalDate: '2026-10-09' })
@@ -639,9 +644,9 @@ describe('EventScreen (a series, issue #21)', () => {
     renderWithProviders(<EventScreen eventId={series().id} />)
 
     expect(await screen.findByText('Каждую неделю')).toBeInTheDocument()
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
-      screen.getByRole('button', { name: /Изменить/ }),
-    )
+    await userEvent
+      .setup({ advanceTimers: vi.advanceTimersByTime })
+      .click(screen.getByRole('button', { name: /Изменить/ }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Что изменить?')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Только это событие' })).toBeInTheDocument()
@@ -696,7 +701,13 @@ describe('EventScreen (a series, issue #21)', () => {
     const overridden: StoredCalendarEvent = {
       ...series(),
       exceptions: [
-        { originalDate: '2026-10-09', kind: 'override', title: 'Ужин в кафе', allDay: true, date: '2026-10-10' },
+        {
+          originalDate: '2026-10-09',
+          kind: 'override',
+          title: 'Ужин в кафе',
+          allDay: true,
+          date: '2026-10-10',
+        },
       ],
     }
     await applySyncResult(ME, syncResult([overridden]))

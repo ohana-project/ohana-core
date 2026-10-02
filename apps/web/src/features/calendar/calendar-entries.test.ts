@@ -73,7 +73,13 @@ describe('the partition with a series in it (issue #21)', () => {
       ...WEEKLY,
       exceptions: [
         { originalDate: '2026-10-12', kind: 'cancelled' },
-        { originalDate: '2026-10-19', kind: 'override', title: 'Поход в театр', allDay: true, date: '2026-10-19' },
+        {
+          originalDate: '2026-10-19',
+          kind: 'override',
+          title: 'Поход в театр',
+          allDay: true,
+          date: '2026-10-19',
+        },
       ],
     }
     const occurrences = calendarOccurrences([withExceptions], '2026-10-01', '2026-10-31')
@@ -106,7 +112,9 @@ describe('the agenda with a series in it (issue #21)', () => {
     // Mondays all: the window holds the season's occurrences.
     const dates = upcoming.map((occurrence) => occurrence.originalDate)
     expect(dates).toContain('2026-11-30')
-    expect(new Set(dates.map((date) => new Date(`${date}T00:00:00Z`).getUTCDay()))).toEqual(new Set([1]))
+    expect(new Set(dates.map((date) => new Date(`${date}T00:00:00Z`).getUTCDay()))).toEqual(
+      new Set([1]),
+    )
   })
 
   test('the window bounds the series, never a one-time event', () => {
