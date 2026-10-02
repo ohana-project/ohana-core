@@ -98,6 +98,10 @@ function json(status: number, body: unknown) {
  * server does (issue #20).
  */
 async function mockCalendarApi(page: Page) {
+  // The month grid opens on the device's today, and the specs click its
+  // cells by name: the clock is pinned to a day the seeded events surround
+  // (October 2026), whatever day the suite runs on.
+  await page.clock.setFixedTime(new Date('2026-10-01T09:00:00.000Z'))
   const signedIn = new Set<string>([ANYA_ID])
   const events: Array<Record<string, unknown>> = [SEEDED_DINNER, SEEDED_BIRTHDAY]
   const removed: string[] = []

@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
@@ -11,6 +11,7 @@ import {
   localDateKey,
   parseDateOnly,
   shiftDateKey,
+  todayDateOnly,
 } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -30,7 +31,7 @@ import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
 import {
-  expandEvent,
+  expandOccurrenceDates,
   isRecurring,
   occurrenceOf,
   type Recurrence,
@@ -78,21 +79,26 @@ export function EventScreen({
   const recurring = event !== undefined && isRecurring(event)
   // The date the occurrence actions act on: the one the link named, or —
   // a series opened without a date, as after its creation — the series'
-  // first live occurrence, so a cancelled first date neither dead-ends
-  // the screen nor passes itself off as an ordinary event (issue #21).
-  const anchorDate =
-    occurrenceDate ??
-    (recurring && event !== undefined ? firstLiveOccurrenceDate(event) : undefined)
+  // next live occurrence, so a cancelled first date neither dead-ends the
+  // screen nor passes itself off as an ordinary event (issue #21). The
+  // search costs an expansion, so it runs once per row, not per render.
+  const anchorDate = useMemo(() => {
+    if (occurrenceDate !== undefined) return occurrenceDate
+    if (!recurring || event === undefined) return undefined
+    const today = todayDateOnly()
+    const todayKey = `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`
+    return firstLiveOccurrenceDate(event, todayKey)
+  }, [occurrenceDate, recurring, event])
   const occurrence =
     event !== undefined && anchorDate !== undefined ? occurrenceOf(event, anchorDate) : undefined
   // What the screen shows: the occurrence the anchor names — its effective
-  // fields, an override's included — or the series' own first occurrence.
+  // fields, an override's included — or the series' own row.
   const shown: StoredCalendarEvent | undefined =
     occurrence?.event ?? (occurrenceDate === undefined ? event : undefined)
   // "Cancelled" is the answer only to a link that named its date: on the
-  // default landing the series row stands in, and its actions stay — a
-  // first occurrence's cancellation must not dead-end the screen the
-  // series edits return to (issue #21).
+  // default landing the anchor is a live occurrence by construction, so
+  // the series actions stay — a first occurrence's cancellation must not
+  // dead-end the screen the series edits return to (issue #21).
   const cancelledHere =
     event !== undefined &&
     occurrenceDate !== undefined &&
@@ -102,8 +108,8 @@ export function EventScreen({
     ) ??
       false)
   // The occurrence-scoped choices exist when the anchor names a live
-  // occurrence; a series whose first occurrence is cancelled still offers
-  // its series actions on the landing.
+  // occurrence; a series with none live ahead still offers its series
+  // actions on the landing.
   const hasOccurrence = occurrence !== undefined
 
   const backToCalendar = () => void navigate({ to: '/calendar' })
@@ -307,17 +313,46 @@ function ScopeDialog({
   )
 }
 
-/** The series' next live occurrence on or after its start — the landing's
- *  anchor. The search runs two years out, the family plan horizon's
- *  neighbour; a series with no live occurrence in it (until in the past)
- *  falls back to the row's own first date. */
-function firstLiveOccurrenceDate(event: StoredCalendarEvent): string | undefined {
+/**
+ * The series' next live occurrence from today — the landing's anchor. The
+ * search walks the pattern from today forward, so a series that has run
+ * for years lands on its next date, not one from the past; an occurrence
+ * moved in from outside counts, since the membership test carries no
+ * window. Nothing live ahead — a series whose until has passed — falls
+ * back to the first live one overall, then to the row's own first date.
+ * The horizon is the rule's until, capped by what the frequency can
+ * skip: a yearly February 29 series may hold four years between
+ * neighbours, so the cap reaches past one skipped cycle.
+ */
+function firstLiveOccurrenceDate(event: StoredCalendarEvent, todayKey: string): string | undefined {
   const firstDate = seriesStartDate(event)
   if (firstDate === undefined) return undefined
   const recurrence = seriesRecurrence(event)
   if (recurrence === undefined) return firstDate
-  const horizon = recurrence.until ?? shiftDateKey(firstDate, 366 * 2)
-  return expandEvent(event, firstDate, horizon)[0]?.originalDate ?? firstDate
+  const capDays =
+    recurrence.frequency === 'yearly'
+      ? 366 * 9
+      : recurrence.frequency === 'monthly'
+        ? 366 * 4
+        : 366 * 2
+  const cap = shiftDateKey(firstDate, capDays)
+  const end =
+    recurrence.until === undefined ? cap : maxDateKey(firstDate, minDateKey(recurrence.until, cap))
+  const liveFrom = (fromKey: string): string | undefined =>
+    expandOccurrenceDates(firstDate, recurrence, fromKey, end).find(
+      (date) => occurrenceOf(event, date) !== undefined,
+    )
+  const fromToday = liveFrom(maxDateKey(firstDate, todayKey))
+  if (fromToday !== undefined) return fromToday
+  return liveFrom(firstDate) ?? firstDate
+}
+
+function maxDateKey(a: string, b: string): string {
+  return a >= b ? a : b
+}
+
+function minDateKey(a: string, b: string): string {
+  return a <= b ? a : b
 }
 
 function eventOf(events: StoredCalendarEvent[], eventId: string): StoredCalendarEvent | undefined {

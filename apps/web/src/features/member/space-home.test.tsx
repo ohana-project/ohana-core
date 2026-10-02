@@ -455,6 +455,16 @@ describe('SpaceHomeScreen', () => {
 })
 
 describe('SpaceHomeScreen (a series occurrence in the events column, issue #21)', () => {
+  // The agenda's window runs from the device's today, so the clock is
+  // pinned and the expected occurrence computed from the pinned day.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('an occurrence links by its series and original date, not by its composite id', async () => {
     const world = makeWorld()
     seedRegistry(world)
@@ -466,12 +476,12 @@ describe('SpaceHomeScreen (a series occurrence in the events column, issue #21)'
         creatorId: world.memberId,
         title: 'Утренняя зарядка',
         allDay: true,
-        // A daily series that has run for years keeps occurrences in the
-        // agenda's window whatever day the test runs on.
-        date: '2020-01-05',
-        createdAt: '2020-01-05T09:00:00.000Z',
-        updatedAt: '2020-01-05T09:00:00.000Z',
-        recurrence: { frequency: 'daily' },
+        // A weekly Monday series whose first occurrence is the pinned
+        // today: the window always holds it.
+        date: '2026-10-05',
+        createdAt: '2026-10-01T09:00:00.000Z',
+        updatedAt: '2026-10-01T09:00:00.000Z',
+        recurrence: { frequency: 'weekly' },
       },
     } as never)
     await applySyncResult(world.memberId, withSeries)
@@ -483,12 +493,9 @@ describe('SpaceHomeScreen (a series occurrence in the events column, issue #21)'
     // occurrence's own id (`eventId:date`) is not an event address.
     const links = await screen.findAllByRole('link', { name: /Утренняя зарядка/ })
     expect(links.length).toBeGreaterThan(0)
-    const today = new Date()
-    const key = (at: Date): string =>
-      `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`
     expect(links[0]).toHaveAttribute(
       'href',
-      `/calendar/01900000-0000-7000-8000-000000000431?date=${key(today)}`,
+      '/calendar/01900000-0000-7000-8000-000000000431?date=2026-10-05',
     )
     for (const link of links) {
       expect(link).toHaveAttribute(

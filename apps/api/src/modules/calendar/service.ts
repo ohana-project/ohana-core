@@ -243,10 +243,11 @@ function staleExceptions(
 ): CalendarEventException[] {
   const recurrence = seriesRecurrence(row)
   const firstDate = seriesStartDate(row)
-  // The caller routes a dropped rule to the delete-everything branch; an
-  // unreadable series reaching here is a corrupted row, not a prune.
+  // The caller routes a dropped rule to the delete-everything branch;
+  // reaching here without a readable series is a corrupted row, not a
+  // prune.
   if (firstDate === undefined || recurrence === undefined) {
-    throw new Error(`Calendar event ${row.id} carries a rule this service cannot read`)
+    throw new Error(`Calendar event ${row.id} is not a readable series (no rule or no start)`)
   }
   return exceptions.filter(
     (exception) => !isOccurrenceDate(firstDate, recurrence, exception.originalDate),

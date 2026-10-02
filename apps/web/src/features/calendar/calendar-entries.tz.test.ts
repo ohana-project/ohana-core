@@ -92,8 +92,8 @@ describe('the occurrence windows away from UTC (issue #21)', () => {
     expect(landed).toBeDefined()
     // The device-local day is the 8th — the season's last day.
     expect(eventDateKey(landed as StoredCalendarEvent)).toBe('2026-11-08')
-    // And the bucketing keeps the whole window inside the drawn bounds:
-    // the padded expansion's own wall dates stop at the 9th.
+    // This last assertion guards the season bound, not the margin: nothing
+    // the padded expansion reaches may land past the far edge.
     expect(upcoming.every((occurrence) => (eventDateKey(occurrence) ?? '') <= '2026-11-08')).toBe(
       true,
     )

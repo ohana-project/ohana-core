@@ -504,7 +504,7 @@ describe('rrule composition and parsing', () => {
     // A timed series' date-time UNTIL is validated on its date part: the
     // runtime would roll an impossible day forward and silently move the
     // bound.
-    const foreignTimed = ['FREQ=DAILY;UNTIL=20260230T215900Z', 'FREQ=DAILY;UNTIL=20261399T215900Z']
+    const foreignTimed = ['FREQ=DAILY;UNTIL=20260230T215900Z', 'FREQ=DAILY;UNTIL=20270229T215900Z']
     for (const rrule of foreignTimed) {
       expect(() => parseRrule(rrule, { allDay: false, timezone: 'Europe/Berlin' })).toThrow()
     }

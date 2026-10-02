@@ -751,7 +751,7 @@ describe('EventScreen (a series opened without a date, issue #21)', () => {
 })
 
 describe('EventScreen (a series whose first occurrence is cancelled, review round three)', () => {
-  it('the landing shows the next live occurrence and offers the series actions only', async () => {
+  it('the landing shows the first live occurrence and keeps both scope choices', async () => {
     seedRegistry()
     const series = timedEvent({ recurrence: { frequency: 'weekly' } })
     const cancelledFirst: StoredCalendarEvent = {
@@ -761,16 +761,14 @@ describe('EventScreen (a series whose first occurrence is cancelled, review roun
     await applySyncResult(ME, syncResult([cancelledFirst]))
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     // The default landing, no ?date=: the next live occurrence (the 9th)
-    // stands in, the cancelled first date does not dead-end the screen.
+    // stands in, the cancelled first date does not dead-end the screen —
+    // and since the anchor is a live occurrence, both scope choices stay.
     renderWithProviders(<EventScreen eventId={series.id} />)
 
     expect(await screen.findByText('Миша — зубной врач')).toBeInTheDocument()
     expect(screen.queryByText('Это событие отменено')).not.toBeInTheDocument()
     expect(screen.getByText('пятница, 9 октября 2026 г.')).toBeInTheDocument()
 
-    // The edit asks what to change, but only the series is on offer: the
-    // landing's anchor is live, yet the occurrence it names is not the
-    // cancelled one — the series choice is what stays honest here.
     await user.click(screen.getByRole('button', { name: /Изменить/ }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('button', { name: 'Только это событие' })).toBeInTheDocument()
@@ -780,6 +778,30 @@ describe('EventScreen (a series whose first occurrence is cancelled, review roun
     expect(
       within(deleteDialog).getByRole('button', { name: 'Отменить только это событие' }),
     ).toBeInTheDocument()
+  })
+
+  it('an occurrence moved off the series’ first date still anchors the landing', async () => {
+    seedRegistry()
+    const series = timedEvent({ recurrence: { frequency: 'weekly' } })
+    // The first date (the 2nd) was replaced whole by an event of its own
+    // on the 1st: the landing anchors on it, the move being live.
+    const movedFirst: StoredCalendarEvent = {
+      ...series,
+      exceptions: [
+        {
+          originalDate: '2026-10-02',
+          kind: 'override',
+          title: 'Перенесли на день',
+          allDay: true,
+          date: '2026-10-01',
+        },
+      ],
+    }
+    await applySyncResult(ME, syncResult([movedFirst]))
+    renderWithProviders(<EventScreen eventId={series.id} />)
+
+    expect(await screen.findByText('Перенесли на день')).toBeInTheDocument()
+    expect(screen.getByText('четверг, 1 октября 2026 г.')).toBeInTheDocument()
   })
 
   it('a link that names the cancelled date still says so', async () => {
