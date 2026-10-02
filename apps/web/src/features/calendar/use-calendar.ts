@@ -115,6 +115,7 @@ type CalendarErrorKey =
   | 'calendar.errors.creator_required'
   | 'calendar.errors.invalid_event_date'
   | 'calendar.errors.event_end_before_start'
+  | 'calendar.errors.event_start_in_gap'
   | 'calendar.errors.invalid_timezone'
   | 'calendar.errors.section_hidden'
   | 'calendar.errors.validation_failed'
@@ -125,6 +126,7 @@ const calendarErrorKeys: Partial<Record<string, CalendarErrorKey>> = {
   creator_required: 'calendar.errors.creator_required',
   invalid_event_date: 'calendar.errors.invalid_event_date',
   event_end_before_start: 'calendar.errors.event_end_before_start',
+  event_start_in_gap: 'calendar.errors.event_start_in_gap',
   invalid_timezone: 'calendar.errors.invalid_timezone',
   section_hidden: 'calendar.errors.section_hidden',
   validation_failed: 'calendar.errors.validation_failed',

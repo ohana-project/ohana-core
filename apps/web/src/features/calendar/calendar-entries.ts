@@ -1,5 +1,5 @@
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
-import { type DateOnly, formatDateOnly, localDateKey } from '@/lib/calendar-dates.ts'
+import { formatDateOnly, localDateKey } from '@/lib/calendar-dates.ts'
 
 /*
  * The calendar's read-side derivation (issue #20): pure selection over the
@@ -25,12 +25,6 @@ function byDayOrder(a: StoredCalendarEvent, b: StoredCalendarEvent): number {
   const aStart = a.startsAt ?? ''
   const bStart = b.startsAt ?? ''
   return aStart.localeCompare(bStart) || a.id.localeCompare(b.id)
-}
-
-/** The events of one day, in the day's order. */
-export function eventsOnDate(events: StoredCalendarEvent[], date: DateOnly): StoredCalendarEvent[] {
-  const key = formatDateOnly(date)
-  return events.filter((event) => eventDateKey(event) === key).sort(byDayOrder)
 }
 
 /**

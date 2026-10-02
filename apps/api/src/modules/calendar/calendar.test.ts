@@ -453,6 +453,20 @@ describe('calendar events (issue #20)', () => {
       expect(backwards.status).toBe(400)
       expect(backwards.body).toMatchObject({ error: { code: 'event_end_before_start' } })
 
+      // A pair the wall order of which holds, but whose start the
+      // spring-forward gap swallows: New York jumps 02:00 → 03:00 on
+      // 2026-03-08, so 02:30–03:15 composes to an end before its start.
+      const gapped = await createEvent(app, anna, {
+        title: 'Созвон',
+        allDay: false,
+        date: '2026-03-08',
+        startTime: '02:30',
+        endTime: '03:15',
+        timezone: 'America/New_York',
+      })
+      expect(gapped.status).toBe(400)
+      expect(gapped.body).toMatchObject({ error: { code: 'event_start_in_gap' } })
+
       // A zone the runtime does not know.
       const unknownZone = await createEvent(app, anna, {
         title: 'Созвон',

@@ -243,6 +243,48 @@ describe('SpaceHomeScreen', () => {
     expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
   })
 
+  it('a calendar awaiting its replay says nothing is downloaded in the events column', async () => {
+    // A re-show or the store upgrade wrote the replay promise (cursor '0',
+    // ADR-0014): the rows the store holds are a fraction of the calendar,
+    // and the column says so rather than showing them (issue #20). The
+    // promise is written the way the store's own apply writes it.
+    const world = makeWorld()
+    seedRegistry(world)
+    const withEvent = syncResultFor(world)
+    withEvent.changes.push({
+      entity: 'calendar_event',
+      event: {
+        id: '01900000-0000-7000-8000-000000000421',
+        creatorId: world.memberId,
+        title: 'Ужин у бабушки',
+        allDay: true,
+        date: '2026-10-19',
+        createdAt: '2026-10-01T09:00:00.000Z',
+        updatedAt: '2026-10-01T09:00:00.000Z',
+      },
+    } as never)
+    await applySyncResult(world.memberId, withEvent)
+
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${world.memberId}`)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Opening the store failed'))
+    })
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(['meta'], 'readwrite')
+      tx.objectStore('meta').put({ key: 'pendingReplay', sections: ['calendar'] })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Writing the promise failed'))
+    })
+    db.close()
+
+    mockResponses(world, syncResultFor(world))
+    renderWithProviders(<HomeRoute />)
+
+    await screen.findByText('Пока нечего читать без сети')
+    expect(screen.queryByText('Ужин у бабушки')).not.toBeInTheDocument()
+  })
+
   it('hides a hidden section from the navigation and the home columns', async () => {
     const world = makeWorld()
     seedRegistry(world)

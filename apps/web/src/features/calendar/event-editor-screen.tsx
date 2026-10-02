@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { authorName } from '@/features/wishlist/wishlist-entries.ts'
@@ -74,6 +74,10 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
     spaceZone,
   )
 
+  const zoneChoicesMemo = useMemo(
+    () => zoneChoices(locale, effective.timezone),
+    [locale, effective.timezone],
+  )
   const pending = createEvent.isPending || updateEvent.isPending
   const titleBlank = effective.title.trim().length === 0
   const dateBlank = effective.date.trim().length === 0
@@ -102,7 +106,11 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
         : {
             startTime: effective.startTime,
             endTime: effective.endTime,
-            timezone: timezoneTouched ? effective.timezone : undefined,
+            // An edit keeps the event's own zone — the form shows its
+            // wall time there, and an untouched picker must not silently
+            // re-zone it into the space's. Only a brand-new event leaves
+            // the zone to the API's default.
+            timezone: timezoneTouched || existing !== undefined ? effective.timezone : undefined,
           }),
     }
     const onError = (error: unknown) => toast(calendarErrorMessage(error, t), 'danger')
@@ -219,9 +227,9 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
                       // compose; the evening default the new-event form
                       // carries is seeded rather than blocking Save on
                       // fields the member never saw.
-                      if (!next && (startTime ?? '') === '') {
-                        setStartTime('18:00')
-                        setEndTime('21:00')
+                      if (!next) {
+                        if (effective.startTime === '') setStartTime('18:00')
+                        if (effective.endTime === '') setEndTime('21:00')
                       }
                     }}
                   />
@@ -285,7 +293,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
                       setTimezoneTouched(true)
                     }}
                   >
-                    {zoneChoices(locale, effective.timezone).map((option) => (
+                    {zoneChoicesMemo.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>

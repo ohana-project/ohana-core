@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import type { StoredCalendarEvent } from '@/data/local-store.ts'
-import { eventDateKey } from '@/features/calendar/calendar-entries.ts'
 import {
   formatDayLong,
   formatMonthTitle,
   localDateKey,
   zoneDiffersFromDevice,
-} from './calendar-dates.ts'
+} from '@/lib/calendar-dates.ts'
+import { eventDateKey } from './calendar-entries.ts'
 
 /*
  * The calendar's date rules away from UTC (issue #20): the acceptance

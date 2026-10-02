@@ -856,7 +856,8 @@
       "invalid_timezone": "Unknown time zone",
       "section_hidden": "Calendar is hidden",
       "validation_failed": "Check the form fields",
-      "unexpected": "Something went wrong. Please try again"
+      "unexpected": "Something went wrong. Please try again",
+      "event_start_in_gap": "The clocks jump over this time — pick another start"
     }
   }
 }

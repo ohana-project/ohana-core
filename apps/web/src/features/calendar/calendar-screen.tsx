@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { StoredCalendarEvent } from '@/data/local-store.ts'
 import {
   type DateOnly,
+  formatDateOnly,
   formatDayLong,
   formatMonthTitle,
   monthGrid,
@@ -21,7 +22,7 @@ import { Fab } from '@/ui/fab.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
-import { eventDateKey, eventsByDate, eventsOnDate, upcomingEvents } from './calendar-entries.ts'
+import { eventDateKey, eventsByDate, upcomingEvents } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { EventTimeLine } from './event-time.tsx'
 import { useCalendarData } from './use-calendar.ts'
@@ -120,7 +121,7 @@ export function CalendarScreen() {
               </div>
               <div className="grid grid-cols-7 gap-y-1 px-2">
                 {grid.map(({ date, inMonth }) => {
-                  const key = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
+                  const key = formatDateOnly(date)
                   const dayEvents = byDate.get(key) ?? []
                   const isToday =
                     date.year === today.year && date.month === today.month && date.day === today.day
@@ -221,7 +222,7 @@ export function CalendarScreen() {
       {openDay !== undefined && (
         <DaySheet
           day={openDay}
-          events={events}
+          dayEvents={byDate.get(formatDateOnly(openDay)) ?? []}
           locale={locale}
           onClose={() => setOpenDay(undefined)}
         />
@@ -266,17 +267,16 @@ function parseKey(key: string): DateOnly {
 
 function DaySheet({
   day,
-  events,
+  dayEvents,
   locale,
   onClose,
 }: {
   day: DateOnly
-  events: StoredCalendarEvent[]
+  dayEvents: StoredCalendarEvent[]
   locale: Locale
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const dayEvents = eventsOnDate(events, day)
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent>

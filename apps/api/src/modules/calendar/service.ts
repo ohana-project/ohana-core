@@ -132,7 +132,7 @@ export async function editEvent(
             writeTx,
             actor.spaceId,
             eventId,
-            { title: input.title, ...columns },
+            { title: input.title.trim(), ...columns },
             revision,
             now,
           )
@@ -246,15 +246,25 @@ function timedEventColumns(
   // The space's zone is the default (issue #1, story 64); a named zone must be one
   // the runtime knows, spelled canonically like the space's own.
   const timezone = input.timezone === undefined ? spaceTimezone : assertTimezone(input.timezone)
-  const startsAt = wallTimeToInstant(input.date, input.startTime, timezone)
-  const endsAt = wallTimeToInstant(input.date, input.endTime, timezone)
-  if (endsAt.getTime() <= startsAt.getTime()) {
-    // The editor's two times sit on one date, so an end that is not after
-    // the start would store a non-event — refused, not silently rolled to
-    // the next day.
+  // The wall pair is judged on the wall itself: an end that is not after
+  // the start would store a non-event — refused, not silently rolled to
+  // the next day.
+  if (input.endTime <= input.startTime) {
     throw new DomainError(
       'event_end_before_start',
       'A timed event’s end must be after its start',
+      400,
+    )
+  }
+  const startsAt = wallTimeToInstant(input.date, input.startTime, timezone)
+  const endsAt = wallTimeToInstant(input.date, input.endTime, timezone)
+  if (endsAt.getTime() <= startsAt.getTime()) {
+    // The wall order held but the instants inverted: the spring-forward
+    // gap swallowed the interval. The start does not exist on this date,
+    // and composing it past its own end is a refusal, not an event.
+    throw new DomainError(
+      'event_start_in_gap',
+      `A timed event’s start does not exist on ${input.date} — the clocks jump over it`,
       400,
     )
   }
@@ -277,13 +287,15 @@ const MAX_EVENT_YEAR = 2200
 
 function assertRealDate(date: string): void {
   const parsed = Date.parse(`${date}T00:00:00Z`)
-  const year = Number(date.slice(0, 4))
-  if (
-    Number.isNaN(parsed) ||
-    new Date(parsed).toISOString().slice(0, 10) !== date ||
-    year < MIN_EVENT_YEAR ||
-    year > MAX_EVENT_YEAR
-  ) {
+  if (Number.isNaN(parsed) || new Date(parsed).toISOString().slice(0, 10) !== date) {
     throw new DomainError('invalid_event_date', `“${date}” is not a calendar date`, 400)
+  }
+  const year = Number(date.slice(0, 4))
+  if (year < MIN_EVENT_YEAR || year > MAX_EVENT_YEAR) {
+    throw new DomainError(
+      'invalid_event_date',
+      `“${date}” is outside the supported range ${MIN_EVENT_YEAR}–${MAX_EVENT_YEAR}`,
+      400,
+    )
   }
 }

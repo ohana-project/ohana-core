@@ -26,7 +26,7 @@ import { EventScreen } from './event-screen.tsx'
 process.env.TZ = 'UTC'
 
 vi.mock('@/data/api.ts', () => ({
-  api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn(), DELETE: vi.fn() },
+  api: { GET: vi.fn(), POST: vi.fn(), PATCH: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() },
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -39,6 +39,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const apiGet = vi.mocked(api.GET)
 const apiPost = vi.mocked(api.POST)
+const apiPut = vi.mocked(api.PUT)
 const apiDelete = vi.mocked(api.DELETE)
 
 const ME = '01900000-0000-7000-8000-000000000001'
@@ -296,6 +297,76 @@ describe('EventEditorScreen (a new event)', () => {
       startTime: '18:00',
       endTime: '21:00',
     })
+  })
+
+  it('an edit keeps the event’s own zone even when the picker is untouched', async () => {
+    seedRegistry()
+    const doctor = timedEvent() // 18:00 wall in Europe/Moscow
+    await applySyncResult(ME, syncResult([doctor]))
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}') {
+        return { data: doctor, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
+
+    // A title-only edit: the wall times show in the event's own zone, and
+    // the PUT carries that zone — an untouched picker never re-zones the
+    // event into the space's.
+    await user.clear(await screen.findByLabelText('Название'))
+    await user.type(screen.getByLabelText('Название'), 'Миша — зубной врач, кабинет 4')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
+    const [, options] = apiPut.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({
+      title: 'Миша — зубной врач, кабинет 4',
+      allDay: false,
+      startTime: '18:00',
+      endTime: '19:00',
+      timezone: 'Europe/Moscow',
+    })
+  })
+
+  it('timed → all-day → timed keeps the event’s own times', async () => {
+    seedRegistry()
+    const doctor = timedEvent()
+    await applySyncResult(ME, syncResult([doctor]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
+
+    const allDay = await screen.findByRole('switch', { name: 'Весь день' })
+    await screen.findByLabelText('Начало')
+    await user.click(allDay)
+    await user.click(allDay)
+
+    // The fields the member never touched come back as they were.
+    expect(screen.getByLabelText('Начало')).toHaveValue('18:00')
+    expect(screen.getByLabelText('Конец')).toHaveValue('19:00')
+  })
+
+  it('blank times and a blank date are refused in the form, not by the server', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Название'), 'Вечеринка')
+    await user.clear(screen.getByLabelText('Начало'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(screen.getByText('Укажите время начала и конца')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+
+    await user.type(screen.getByLabelText('Начало'), '18:00')
+    await user.clear(screen.getByLabelText('Дата'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(screen.getByText('Выберите дату')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
   })
 
   it('a zone the member picked is sent; the space’s stays for the API', async () => {

@@ -74,10 +74,9 @@ describe('wallTimeToInstant', () => {
   })
 
   test('reads the southern hemisphere’s opposite transitions', () => {
-    // Sydney springs forward on 2026-10-04 (02:30 does not exist: the
-    // answer is 03:30 AEDT, 16:30Z on the 3rd in UTC terms — wait, the
-    // clocks jump 02:00 → 03:00 at 16:00Z on the 3rd), and falls back on
-    // 2026-04-05, where 02:30 repeats and the first (AEDT) one wins.
+    // Sydney springs forward on 2026-10-04 at 16:00Z on the 3rd (02:00 →
+    // 03:00): the nonexistent 02:30 answers 03:30 AEDT, 16:30Z. It falls
+    // back on 2026-04-05, where 02:30 repeats and the first (AEDT) wins.
     expect(wallTimeToInstant('2026-10-04', '02:30', 'Australia/Sydney').toISOString()).toBe(
       '2026-10-03T16:30:00.000Z',
     )
@@ -85,7 +84,9 @@ describe('wallTimeToInstant', () => {
       '2026-04-04T15:30:00.000Z',
     )
   })
+})
 
+describe('zoneOffsetSeconds', () => {
   test('reads the zone’s offset at an instant', () => {
     expect(zoneOffsetSeconds('Europe/Moscow', new Date('2026-10-03T15:00:00Z'))).toBe(3 * 3600)
     expect(zoneOffsetSeconds('America/New_York', new Date('2026-10-03T22:00:00Z'))).toBe(-4 * 3600)
