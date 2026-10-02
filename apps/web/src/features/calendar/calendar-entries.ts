@@ -60,6 +60,22 @@ export function calendarOccurrences(
  *  unbounded, so the agenda asks for a season, not for ever. */
 export const AGENDA_WINDOW_DAYS = 60
 
+/**
+ * Where an occurrence row leads: its series' event screen at the
+ * occurrence's original date — a one-time event's own screen. One helper
+ * for every list that renders one, so the link cannot drift back to the
+ * occurrence's composite id, which is no event's address.
+ */
+export function occurrenceLink(occurrence: CalendarOccurrence): {
+  params: { eventId: string }
+  search: { date?: string }
+} {
+  return {
+    params: { eventId: occurrence.seriesId ?? occurrence.id },
+    search: occurrence.originalDate === undefined ? {} : { date: occurrence.originalDate },
+  }
+}
+
 /** The device-local day an event sits on: an all-day event its own
  *  zoneless date, a timed event the local day its start falls on
  *  (issue #1, stories 62–63). */
@@ -135,9 +151,9 @@ export function upcomingEvents(events: StoredCalendarEvent[], now: Date): Calend
       if (key === undefined) return false
       if (key >= todayKey && key <= toKey) return true
       // Started before today but possibly still running: a timed event
-      // stays until its end has passed. The still-running rule reaches one
-      // day into the past, never past the season's far edge — that bound
-      // is the repeating series' alone.
+      // stays until its end has passed. The still-running rule reaches
+      // into the past alone — never past the season's far edge, which is
+      // the repeating series' bound.
       if (key < todayKey) {
         return (
           !occurrence.allDay &&

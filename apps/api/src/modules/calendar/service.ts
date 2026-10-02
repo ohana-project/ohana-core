@@ -235,15 +235,19 @@ export async function editEvent(
   return result
 }
 
-/** The exceptions a replaced rule can no longer honour: the ones whose
- *  original date the new series never produces. */
+/** The exceptions the edited series can no longer honour: the ones whose
+ *  original date it never produces. */
 function staleExceptions(
   row: CalendarEvent,
   exceptions: readonly CalendarEventException[],
 ): CalendarEventException[] {
   const recurrence = seriesRecurrence(row)
   const firstDate = seriesStartDate(row)
-  if (firstDate === undefined || recurrence === undefined) return [...exceptions]
+  // The caller routes a dropped rule to the delete-everything branch; an
+  // unreadable series reaching here is a corrupted row, not a prune.
+  if (firstDate === undefined || recurrence === undefined) {
+    throw new Error(`Calendar event ${row.id} carries a rule this service cannot read`)
+  }
   return exceptions.filter(
     (exception) => !isOccurrenceDate(firstDate, recurrence, exception.originalDate),
   )

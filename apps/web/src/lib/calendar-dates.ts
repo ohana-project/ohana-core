@@ -66,8 +66,10 @@ export function localDateKey(instant: string): string {
 /**
  * The date key `days` away from `key` — the one-day margins the
  * occurrence windows are padded with, so a timed occurrence a zone shift
- * lands on the drawn edge is not lost to the wall-date bounds (issue #21).
- * A malformed key answers itself.
+ * lands on the drawn edge is not lost to the wall-date bounds (issue
+ * #21). One day covers the zone pairs a family plausibly spans; zones
+ * more than twenty-four hours apart (UTC+14 against UTC−12) could want
+ * two. A malformed key answers itself.
  */
 export function shiftDateKey(key: string, days: number): string {
   const at = Date.parse(`${key}T00:00:00Z`)

@@ -28,6 +28,7 @@ import {
   calendarOccurrences,
   eventDateKey,
   eventsByDate,
+  occurrenceLink,
   upcomingEvents,
 } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
@@ -208,10 +209,7 @@ export function CalendarScreen() {
                         <li key={event.id}>
                           <Link
                             to="/calendar/$eventId"
-                            params={{ eventId: event.seriesId ?? event.id }}
-                            search={
-                              event.originalDate === undefined ? {} : { date: event.originalDate }
-                            }
+                            {...occurrenceLink(event)}
                             className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
                           >
                             <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
@@ -330,8 +328,7 @@ function DaySheet({
               <Link
                 key={event.id}
                 to="/calendar/$eventId"
-                params={{ eventId: event.seriesId ?? event.id }}
-                search={event.originalDate === undefined ? {} : { date: event.originalDate }}
+                {...occurrenceLink(event)}
                 className="flex min-h-16 items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
                 onClick={onClose}
               >

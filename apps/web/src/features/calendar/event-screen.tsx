@@ -10,6 +10,7 @@ import {
   formatDayOfYear,
   localDateKey,
   parseDateOnly,
+  shiftDateKey,
 } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -28,7 +29,14 @@ import { toast } from '@/ui/toast.tsx'
 import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
-import { isRecurring, occurrenceOf, type Recurrence, seriesStartDate } from './recurrence.ts'
+import {
+  expandEvent,
+  isRecurring,
+  occurrenceOf,
+  type Recurrence,
+  seriesRecurrence,
+  seriesStartDate,
+} from './recurrence.ts'
 import {
   calendarErrorMessage,
   useCalendarData,
@@ -41,7 +49,7 @@ import {
  * device-local time with the zone the event keeps, its length, who created
  * it. For a repeating event (issue #21) the screen shows one occurrence at
  * a time: the link the calendar's lists carry names its original date, and
- * without one the series' first occurrence stands in. The edit and the
+ * without one the series' next live occurrence stands in. The edit and the
  * delete belong to the event's creator and the owners (issue #20, the
  * journal's moderation model); on a series they ask what to change — this
  * occurrence, or the whole series ("this and following" is not offered, by
@@ -70,10 +78,11 @@ export function EventScreen({
   const recurring = event !== undefined && isRecurring(event)
   // The date the occurrence actions act on: the one the link named, or —
   // a series opened without a date, as after its creation — the series'
-  // first. Without the anchor, "this occurrence" on the default landing
-  // would quietly reach for nothing (issue #21).
+  // first live occurrence, so a cancelled first date neither dead-ends
+  // the screen nor passes itself off as an ordinary event (issue #21).
   const anchorDate =
-    occurrenceDate ?? (recurring && event !== undefined ? seriesStartDate(event) : undefined)
+    occurrenceDate ??
+    (recurring && event !== undefined ? firstLiveOccurrenceDate(event) : undefined)
   const occurrence =
     event !== undefined && anchorDate !== undefined ? occurrenceOf(event, anchorDate) : undefined
   // What the screen shows: the occurrence the anchor names — its effective
@@ -296,6 +305,19 @@ function ScopeDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+/** The series' next live occurrence on or after its start — the landing's
+ *  anchor. The search runs two years out, the family plan horizon's
+ *  neighbour; a series with no live occurrence in it (until in the past)
+ *  falls back to the row's own first date. */
+function firstLiveOccurrenceDate(event: StoredCalendarEvent): string | undefined {
+  const firstDate = seriesStartDate(event)
+  if (firstDate === undefined) return undefined
+  const recurrence = seriesRecurrence(event)
+  if (recurrence === undefined) return firstDate
+  const horizon = recurrence.until ?? shiftDateKey(firstDate, 366 * 2)
+  return expandEvent(event, firstDate, horizon)[0]?.originalDate ?? firstDate
 }
 
 function eventOf(events: StoredCalendarEvent[], eventId: string): StoredCalendarEvent | undefined {

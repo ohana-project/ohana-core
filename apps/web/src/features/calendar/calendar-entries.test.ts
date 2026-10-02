@@ -3,6 +3,7 @@ import type { StoredCalendarEvent } from '@/data/local-store.ts'
 import {
   AGENDA_WINDOW_DAYS,
   calendarOccurrences,
+  eventDateKey,
   eventsByDate,
   upcomingEvents,
 } from './calendar-entries.ts'
@@ -156,5 +157,29 @@ describe('the agenda with a series in it (issue #21)', () => {
     // is still on.
     const running = upcomingEvents([lateCall], new Date('2026-10-05T00:30:00.000Z'))
     expect(running.map((occurrence) => occurrence.originalDate)).toContain('2026-10-05')
+  })
+})
+
+describe('the agenda’s season bound holds for timed series too (review round three)', () => {
+  test('a daily timed series stops at the window’s far edge', () => {
+    // Daily at 18:00 Moscow (UTC+3, fixed): the device in UTC reads each
+    // occurrence on its own wall date, so the padded expansion reaches
+    // 2026-12-05 — one day past the 60-day season — and the bound must
+    // drop it (a leak here would grow the agenda without end).
+    const daily = stored({
+      id: '01900000-0000-7000-8000-000000000435',
+      title: 'Вечерняя зарядка',
+      allDay: false,
+      date: undefined,
+      startsAt: '2026-10-05T15:00:00.000Z',
+      endsAt: '2026-10-05T18:00:00.000Z',
+      timezone: 'Europe/Moscow',
+      recurrence: { frequency: 'daily' },
+    })
+    const upcoming = upcomingEvents([daily], NOW)
+    const keys = upcoming.map((occurrence) => eventDateKey(occurrence) ?? '')
+    expect(keys.every((key) => key <= '2026-12-04')).toBe(true)
+    expect(keys).toContain('2026-12-04')
+    expect(keys).not.toContain('2026-12-05')
   })
 })

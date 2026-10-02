@@ -242,8 +242,8 @@ async function mockCalendarApi(page: Page) {
               kind: 'override',
               title: body.title,
               allDay: false,
-              // Moscow is a fixed UTC+3: the wall pair composes from the
-              // replacement's own date.
+              // The mock's fixed 18:00–21:00 Moscow pair on the
+              // replacement's own date (Moscow keeps UTC+3 all year).
               startsAt: `${String(body.date)}T15:00:00.000Z`,
               endsAt: `${String(body.date)}T18:00:00.000Z`,
               timezone: body.timezone ?? 'Europe/Moscow',

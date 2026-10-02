@@ -749,3 +749,49 @@ describe('EventScreen (a series opened without a date, issue #21)', () => {
     expect(options.params.path).toEqual({ eventId: series.id, originalDate: '2026-10-02' })
   })
 })
+
+describe('EventScreen (a series whose first occurrence is cancelled, review round three)', () => {
+  it('the landing shows the next live occurrence and offers the series actions only', async () => {
+    seedRegistry()
+    const series = timedEvent({ recurrence: { frequency: 'weekly' } })
+    const cancelledFirst: StoredCalendarEvent = {
+      ...series,
+      exceptions: [{ originalDate: '2026-10-02', kind: 'cancelled' }],
+    }
+    await applySyncResult(ME, syncResult([cancelledFirst]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    // The default landing, no ?date=: the next live occurrence (the 9th)
+    // stands in, the cancelled first date does not dead-end the screen.
+    renderWithProviders(<EventScreen eventId={series.id} />)
+
+    expect(await screen.findByText('Миша — зубной врач')).toBeInTheDocument()
+    expect(screen.queryByText('Это событие отменено')).not.toBeInTheDocument()
+    expect(screen.getByText('пятница, 9 октября 2026 г.')).toBeInTheDocument()
+
+    // The edit asks what to change, but only the series is on offer: the
+    // landing's anchor is live, yet the occurrence it names is not the
+    // cancelled one — the series choice is what stays honest here.
+    await user.click(screen.getByRole('button', { name: /Изменить/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Только это событие' })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Всю серию' }))
+    await user.click(await screen.findByRole('button', { name: /Удалить/ }))
+    const deleteDialog = await screen.findByRole('dialog')
+    expect(
+      within(deleteDialog).getByRole('button', { name: 'Отменить только это событие' }),
+    ).toBeInTheDocument()
+  })
+
+  it('a link that names the cancelled date still says so', async () => {
+    seedRegistry()
+    const series = timedEvent({ recurrence: { frequency: 'weekly' } })
+    const cancelledFirst: StoredCalendarEvent = {
+      ...series,
+      exceptions: [{ originalDate: '2026-10-02', kind: 'cancelled' }],
+    }
+    await applySyncResult(ME, syncResult([cancelledFirst]))
+    renderWithProviders(<EventScreen eventId={series.id} occurrenceDate="2026-10-02" />)
+
+    expect(await screen.findByText('Это событие отменено')).toBeInTheDocument()
+  })
+})

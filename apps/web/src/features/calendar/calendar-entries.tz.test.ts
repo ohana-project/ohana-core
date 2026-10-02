@@ -4,10 +4,9 @@ import {
   formatDayLong,
   formatMonthTitle,
   localDateKey,
-  shiftDateKey,
   zoneDiffersFromDevice,
 } from '@/lib/calendar-dates.ts'
-import { calendarOccurrences, eventDateKey } from './calendar-entries.ts'
+import { eventDateKey, upcomingEvents } from './calendar-entries.ts'
 
 /*
  * The calendar's date rules away from UTC (issue #20): the acceptance
@@ -70,10 +69,12 @@ describe('the calendar’s date derivations in America/Los_Angeles', () => {
 
 describe('the occurrence windows away from UTC (issue #21)', () => {
   // The device sits in Los Angeles; the series keeps Auckland time. A
-  // 09:00 Auckland wall time is the previous evening in California, so the
-  // occurrence a grid's last Sunday cell shows is anchored to a wall date
-  // one day past the window — the margin is what reaches it.
-  test('a timed occurrence lands on the drawn edge only through the margin', () => {
+  // 09:00 Auckland wall time is the previous evening in California, so an
+  // occurrence whose wall date is one day past the agenda's far edge
+  // still lands on that edge in the device's day — the window's +1-day
+  // margin is what reaches it. The test drives `upcomingEvents`, the
+  // margin's real caller: removing the padding fails this test.
+  test('an occurrence lands on the agenda’s last day only through the margin', () => {
     const aucklandMorning: StoredCalendarEvent = {
       ...BIRTHDAY,
       id: '01900000-0000-7000-8000-000000000413',
@@ -85,16 +86,16 @@ describe('the occurrence windows away from UTC (issue #21)', () => {
       timezone: 'Pacific/Auckland',
       recurrence: { frequency: 'daily' },
     }
-    // A November 2026 grid's drawn cells run 2026-10-26 … 2026-12-06; the
-    // series starts on the 9th (NZ wall), outside the un-padded window.
-    const window = calendarOccurrences(
-      [aucklandMorning],
-      shiftDateKey('2026-11-08', -1),
-      shiftDateKey('2026-11-08', 1),
-    )
-    const landed = window.find((occurrence) => occurrence.originalDate === '2026-11-09')
+    // 2026-09-09 + the 60-day season ends on 2026-11-08 — the far edge.
+    const upcoming = upcomingEvents([aucklandMorning], new Date('2026-09-09T12:00:00.000Z'))
+    const landed = upcoming.find((occurrence) => occurrence.originalDate === '2026-11-09')
     expect(landed).toBeDefined()
-    // The device-local day is the 8th — the drawn cell the grid reads.
+    // The device-local day is the 8th — the season's last day.
     expect(eventDateKey(landed as StoredCalendarEvent)).toBe('2026-11-08')
+    // And the bucketing keeps the whole window inside the drawn bounds:
+    // the padded expansion's own wall dates stop at the 9th.
+    expect(upcoming.every((occurrence) => (eventDateKey(occurrence) ?? '') <= '2026-11-08')).toBe(
+      true,
+    )
   })
 })

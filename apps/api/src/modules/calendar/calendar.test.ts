@@ -765,15 +765,16 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
       const series = (created.body as EventDto).id
 
       // Exceptions exist first, so the edits' effect on them is visible:
-      // the 7th is a Wednesday, the 12th the next Monday.
+      // the 7th a Wednesday, the 8th a Thursday, the 12th the next Monday.
       expect((await cancelOccurrence(app, anna, series, '2026-10-07')).status).toBe(204)
+      expect((await cancelOccurrence(app, anna, series, '2026-10-08')).status).toBe(204)
       expect((await cancelOccurrence(app, anna, series, '2026-10-12')).status).toBe(204)
 
       // The whole-series edit keeps the series a series: the rule is
       // replaced, and the exceptions it can still honour survive — while
-      // one anchored to a date the new rule no longer produces goes with
+      // the ones anchored to dates the new rule never produces go with
       // the replace (a weekly series from Monday the 5th has no Wednesday
-      // the 7th to skip any more).
+      // the 7th or Thursday the 8th to skip any more).
       const replaced = await editEvent(app, anna, series, {
         title: 'Утренняя зарядка',
         allDay: false,
