@@ -1,9 +1,11 @@
 import { buildWorker } from '../app/buildWorker.ts'
+import { ensureVapidKeys } from '../modules/notifications/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
 import { startJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
+import { createWebPushSender } from '../platform/push/webpush.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
 
 async function main(): Promise<void> {
@@ -14,8 +16,13 @@ async function main(): Promise<void> {
   const { db, close } = createDb(config.databaseUrl)
   const storage = storageFromConfig(config)
   await storage.ensureBucket()
+  // The Web Push identity (issue #22): generated on the installation's
+  // first start and persisted, so every subscription the browsers minted
+  // against the public key keeps answering this sender's signature.
+  const vapid = await ensureVapidKeys({ db, clock: systemClock })
+  const push = createWebPushSender(vapid, logger)
   const boss = await startJobQueue(config.databaseUrl, logger)
-  const worker = buildWorker({ db, clock: systemClock, logger, storage, boss })
+  const worker = buildWorker({ db, clock: systemClock, logger, storage, push, boss })
   await worker.start()
 
   const shutdown = async (): Promise<void> => {

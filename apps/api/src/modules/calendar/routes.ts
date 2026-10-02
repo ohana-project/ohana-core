@@ -71,8 +71,8 @@ export const calendarRoutes: FastifyPluginAsyncTypebox<CalendarRoutesOptions> = 
       async (request) => {
         const actor: CalendarActor = requireMemberActor(request)
         return {
-          events: (await listEvents(opts.deps, actor)).map(({ event, exceptions }) =>
-            toEventDto(event, exceptions),
+          events: (await listEvents(opts.deps, actor)).map(({ event, exceptions, reminder }) =>
+            toEventDto(event, exceptions, reminder),
           ),
         }
       },
@@ -89,8 +89,8 @@ export const calendarRoutes: FastifyPluginAsyncTypebox<CalendarRoutesOptions> = 
       },
       async (request, reply) => {
         const actor: CalendarActor = requireMemberActor(request)
-        const { event, exceptions } = await createEvent(opts.deps, actor, request.body)
-        return reply.code(201).send(toEventDto(event, exceptions))
+        const { event, exceptions, reminder } = await createEvent(opts.deps, actor, request.body)
+        return reply.code(201).send(toEventDto(event, exceptions, reminder))
       },
     )
 
@@ -105,8 +105,12 @@ export const calendarRoutes: FastifyPluginAsyncTypebox<CalendarRoutesOptions> = 
       },
       async (request) => {
         const actor: CalendarActor = requireMemberActor(request)
-        const { event, exceptions } = await getEvent(opts.deps, actor, request.params.eventId)
-        return toEventDto(event, exceptions)
+        const { event, exceptions, reminder } = await getEvent(
+          opts.deps,
+          actor,
+          request.params.eventId,
+        )
+        return toEventDto(event, exceptions, reminder)
       },
     )
 
@@ -126,13 +130,13 @@ export const calendarRoutes: FastifyPluginAsyncTypebox<CalendarRoutesOptions> = 
       },
       async (request) => {
         const actor: CalendarActor = requireMemberActor(request)
-        const { event, exceptions } = await editEvent(
+        const { event, exceptions, reminder } = await editEvent(
           opts.deps,
           actor,
           request.params.eventId,
           request.body,
         )
-        return toEventDto(event, exceptions)
+        return toEventDto(event, exceptions, reminder)
       },
     )
 
@@ -150,14 +154,14 @@ export const calendarRoutes: FastifyPluginAsyncTypebox<CalendarRoutesOptions> = 
       },
       async (request) => {
         const actor: CalendarActor = requireMemberActor(request)
-        const { event, exceptions } = await editOccurrence(
+        const { event, exceptions, reminder } = await editOccurrence(
           opts.deps,
           actor,
           request.params.eventId,
           request.params.originalDate,
           request.body,
         )
-        return toEventDto(event, exceptions)
+        return toEventDto(event, exceptions, reminder)
       },
     )
 

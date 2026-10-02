@@ -4106,6 +4106,191 @@
         }
       }
     },
+    "/api/v1/notifications/push/public-key": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "publicKey"
+                  ],
+                  "properties": {
+                    "publicKey": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/push/subscription": {
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "endpoint",
+                  "keys",
+                  "notifyDetails"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  "keys": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "p256dh",
+                      "auth"
+                    ],
+                    "properties": {
+                      "p256dh": {
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "type": "string"
+                      },
+                      "auth": {
+                        "minLength": 1,
+                        "maxLength": 512,
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "notifyDetails": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "endpoint",
+                  "notifyDetails"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  "notifyDetails": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/calendar/events": {
       "get": {
         "parameters": [
@@ -4325,6 +4510,58 @@
                               ]
                             }
                           },
+                          "reminder": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "leadMinutes",
+                              "recipients"
+                            ],
+                            "properties": {
+                              "leadMinutes": {
+                                "minimum": 1,
+                                "maximum": 43200,
+                                "type": "integer"
+                              },
+                              "recipients": {
+                                "anyOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "everyone"
+                                    ],
+                                    "properties": {
+                                      "everyone": {
+                                        "type": "boolean",
+                                        "enum": [
+                                          true
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "memberIds"
+                                    ],
+                                    "properties": {
+                                      "memberIds": {
+                                        "minItems": 1,
+                                        "uniqueItems": true,
+                                        "type": "array",
+                                        "items": {
+                                          "format": "uuid",
+                                          "type": "string"
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          },
                           "createdAt": {
                             "format": "date-time",
                             "type": "string"
@@ -4415,6 +4652,58 @@
                             "type": "string"
                           }
                         }
+                      },
+                      "reminder": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "leadMinutes",
+                          "recipients"
+                        ],
+                        "properties": {
+                          "leadMinutes": {
+                            "minimum": 1,
+                            "maximum": 43200,
+                            "type": "integer"
+                          },
+                          "recipients": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "everyone"
+                                ],
+                                "properties": {
+                                  "everyone": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      true
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "memberIds"
+                                ],
+                                "properties": {
+                                  "memberIds": {
+                                    "minItems": 1,
+                                    "uniqueItems": true,
+                                    "type": "array",
+                                    "items": {
+                                      "format": "uuid",
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
                       }
                     }
                   },
@@ -4496,6 +4785,58 @@
                           "until": {
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
+                          }
+                        }
+                      },
+                      "reminder": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "leadMinutes",
+                          "recipients"
+                        ],
+                        "properties": {
+                          "leadMinutes": {
+                            "minimum": 1,
+                            "maximum": 43200,
+                            "type": "integer"
+                          },
+                          "recipients": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "everyone"
+                                ],
+                                "properties": {
+                                  "everyone": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      true
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "memberIds"
+                                ],
+                                "properties": {
+                                  "memberIds": {
+                                    "minItems": 1,
+                                    "uniqueItems": true,
+                                    "type": "array",
+                                    "items": {
+                                      "format": "uuid",
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
                           }
                         }
                       }
@@ -4712,6 +5053,58 @@
                             }
                           }
                         ]
+                      }
+                    },
+                    "reminder": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "leadMinutes",
+                        "recipients"
+                      ],
+                      "properties": {
+                        "leadMinutes": {
+                          "minimum": 1,
+                          "maximum": 43200,
+                          "type": "integer"
+                        },
+                        "recipients": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "everyone"
+                              ],
+                              "properties": {
+                                "everyone": {
+                                  "type": "boolean",
+                                  "enum": [
+                                    true
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "memberIds"
+                              ],
+                              "properties": {
+                                "memberIds": {
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "type": "array",
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
                       }
                     },
                     "createdAt": {
@@ -4949,6 +5342,58 @@
                         ]
                       }
                     },
+                    "reminder": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "leadMinutes",
+                        "recipients"
+                      ],
+                      "properties": {
+                        "leadMinutes": {
+                          "minimum": 1,
+                          "maximum": 43200,
+                          "type": "integer"
+                        },
+                        "recipients": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "everyone"
+                              ],
+                              "properties": {
+                                "everyone": {
+                                  "type": "boolean",
+                                  "enum": [
+                                    true
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "memberIds"
+                              ],
+                              "properties": {
+                                "memberIds": {
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "type": "array",
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string"
@@ -5036,6 +5481,58 @@
                             "type": "string"
                           }
                         }
+                      },
+                      "reminder": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "leadMinutes",
+                          "recipients"
+                        ],
+                        "properties": {
+                          "leadMinutes": {
+                            "minimum": 1,
+                            "maximum": 43200,
+                            "type": "integer"
+                          },
+                          "recipients": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "everyone"
+                                ],
+                                "properties": {
+                                  "everyone": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      true
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "memberIds"
+                                ],
+                                "properties": {
+                                  "memberIds": {
+                                    "minItems": 1,
+                                    "uniqueItems": true,
+                                    "type": "array",
+                                    "items": {
+                                      "format": "uuid",
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
                       }
                     }
                   },
@@ -5117,6 +5614,58 @@
                           "until": {
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
+                          }
+                        }
+                      },
+                      "reminder": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "leadMinutes",
+                          "recipients"
+                        ],
+                        "properties": {
+                          "leadMinutes": {
+                            "minimum": 1,
+                            "maximum": 43200,
+                            "type": "integer"
+                          },
+                          "recipients": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "everyone"
+                                ],
+                                "properties": {
+                                  "everyone": {
+                                    "type": "boolean",
+                                    "enum": [
+                                      true
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "memberIds"
+                                ],
+                                "properties": {
+                                  "memberIds": {
+                                    "minItems": 1,
+                                    "uniqueItems": true,
+                                    "type": "array",
+                                    "items": {
+                                      "format": "uuid",
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
                           }
                         }
                       }
@@ -5342,6 +5891,58 @@
                             }
                           }
                         ]
+                      }
+                    },
+                    "reminder": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "leadMinutes",
+                        "recipients"
+                      ],
+                      "properties": {
+                        "leadMinutes": {
+                          "minimum": 1,
+                          "maximum": 43200,
+                          "type": "integer"
+                        },
+                        "recipients": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "everyone"
+                              ],
+                              "properties": {
+                                "everyone": {
+                                  "type": "boolean",
+                                  "enum": [
+                                    true
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "memberIds"
+                              ],
+                              "properties": {
+                                "memberIds": {
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "type": "array",
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
                       }
                     },
                     "createdAt": {
@@ -5693,6 +6294,58 @@
                             }
                           }
                         ]
+                      }
+                    },
+                    "reminder": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "leadMinutes",
+                        "recipients"
+                      ],
+                      "properties": {
+                        "leadMinutes": {
+                          "minimum": 1,
+                          "maximum": 43200,
+                          "type": "integer"
+                        },
+                        "recipients": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "everyone"
+                              ],
+                              "properties": {
+                                "everyone": {
+                                  "type": "boolean",
+                                  "enum": [
+                                    true
+                                  ]
+                                }
+                              }
+                            },
+                            {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "memberIds"
+                              ],
+                              "properties": {
+                                "memberIds": {
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "type": "array",
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
                       }
                     },
                     "createdAt": {
@@ -7331,6 +7984,58 @@
                                           }
                                         }
                                       ]
+                                    }
+                                  },
+                                  "reminder": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "leadMinutes",
+                                      "recipients"
+                                    ],
+                                    "properties": {
+                                      "leadMinutes": {
+                                        "minimum": 1,
+                                        "maximum": 43200,
+                                        "type": "integer"
+                                      },
+                                      "recipients": {
+                                        "anyOf": [
+                                          {
+                                            "additionalProperties": false,
+                                            "type": "object",
+                                            "required": [
+                                              "everyone"
+                                            ],
+                                            "properties": {
+                                              "everyone": {
+                                                "type": "boolean",
+                                                "enum": [
+                                                  true
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "additionalProperties": false,
+                                            "type": "object",
+                                            "required": [
+                                              "memberIds"
+                                            ],
+                                            "properties": {
+                                              "memberIds": {
+                                                "minItems": 1,
+                                                "uniqueItems": true,
+                                                "type": "array",
+                                                "items": {
+                                                  "format": "uuid",
+                                                  "type": "string"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
                                     }
                                   },
                                   "createdAt": {

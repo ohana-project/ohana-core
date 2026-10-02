@@ -25,6 +25,16 @@ export interface RecurrenceInput {
   until?: string
 }
 
+/**
+ * The reminder the editor hands over (issue #22): the lead in minutes and
+ * the recipients — everyone, or the named members. An occurrence's
+ * replacement never carries one: the series' reminder stands.
+ */
+export interface ReminderInput {
+  leadMinutes: number
+  recipients: { everyone: true; memberIds?: never } | { memberIds: string[]; everyone?: never }
+}
+
 /** The editor's input, in the wall-time form the API composes instants from. */
 export interface EventInput {
   title: string
@@ -34,6 +44,7 @@ export interface EventInput {
   endTime?: string
   timezone?: string
   recurrence?: RecurrenceInput
+  reminder?: ReminderInput
 }
 
 /**
@@ -138,12 +149,14 @@ export function useCancelOccurrence() {
  * sent payload.
  */
 function eventBody(input: EventInput) {
+  const reminder = input.reminder === undefined ? {} : { reminder: input.reminder }
   if (input.allDay) {
     return {
       title: input.title,
       allDay: true as const,
       date: input.date,
       ...(input.recurrence === undefined ? {} : { recurrence: input.recurrence }),
+      ...reminder,
     }
   }
   return {
@@ -154,6 +167,7 @@ function eventBody(input: EventInput) {
     endTime: input.endTime ?? '',
     ...(input.timezone === undefined ? {} : { timezone: input.timezone }),
     ...(input.recurrence === undefined ? {} : { recurrence: input.recurrence }),
+    ...reminder,
   }
 }
 

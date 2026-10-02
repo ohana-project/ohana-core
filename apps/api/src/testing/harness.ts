@@ -9,6 +9,12 @@ import { fixedClock } from '../platform/clock.ts'
 import { createDb, type Db, type Tx } from '../platform/db/index.ts'
 import type { JobSender, JobSubmission } from '../platform/jobs/index.ts'
 import { createSilentLogger } from '../platform/logging.ts'
+import type {
+  PushCredentials,
+  PushPayload,
+  PushSender,
+  PushSendResult,
+} from '../platform/push/index.ts'
 import { createS3Storage, type ObjectStorageWithSetup } from '../platform/storage/s3.ts'
 
 export interface TestEnvironment {
@@ -55,6 +61,39 @@ export function recordingJobSender(): RecordingJobSender {
     async sendInTx(tx: Tx, submission: JobSubmission) {
       void tx
       sender.submissions.push(submission)
+    },
+  }
+  return sender
+}
+
+/**
+ * The recording push port the harness wires by default (issue #22): every
+ * send is kept for the test's assertions and answered by the script the
+ * test sets — delivered unless told otherwise. The real Web Push sender is
+ * exercised by the platform's own tests, which mock only the transport.
+ */
+export interface RecordingPushSender extends PushSender {
+  sends: Array<{ credentials: PushCredentials; payload: PushPayload }>
+  /** The answer the next sends give, until changed. */
+  respondWith(
+    result:
+      | PushSendResult
+      | ((credentials: PushCredentials, payload: PushPayload) => PushSendResult),
+  ): void
+}
+
+export function recordingPushSender(): RecordingPushSender {
+  let respond:
+    | PushSendResult
+    | ((credentials: PushCredentials, payload: PushPayload) => PushSendResult) = 'delivered'
+  const sender: RecordingPushSender = {
+    sends: [],
+    respondWith(result) {
+      respond = result
+    },
+    async send(credentials, payload) {
+      sender.sends.push({ credentials, payload })
+      return typeof respond === 'function' ? respond(credentials, payload) : respond
     },
   }
   return sender

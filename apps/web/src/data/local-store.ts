@@ -141,6 +141,11 @@ export type StoredEventException =
  * the exceptions it has accumulated; the device expands the occurrences
  * from this one row, offline included.
  */
+export interface StoredEventReminder {
+  leadMinutes: number
+  recipients: { everyone: true; memberIds?: never } | { memberIds: string[]; everyone?: never }
+}
+
 export interface StoredCalendarEvent {
   id: string
   creatorId: string
@@ -152,6 +157,8 @@ export interface StoredCalendarEvent {
   timezone?: string
   recurrence?: StoredEventRecurrence
   exceptions?: StoredEventException[]
+  /** The event's one reminder (issue #22), riding the event's DTO. */
+  reminder?: StoredEventReminder
   createdAt: string
   updatedAt: string
 }

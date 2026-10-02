@@ -10,13 +10,16 @@ import {
   todayDateOnly,
   zonedDateKey,
 } from '@/lib/calendar-dates.ts'
+import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
+import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
+import { PickRow } from '@/ui/pick-row.tsx'
 import { Select } from '@/ui/select.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { Switch } from '@/ui/switch.tsx'
@@ -27,6 +30,7 @@ import { occurrenceOf, type Recurrence } from './recurrence.ts'
 import {
   calendarErrorMessage,
   type EventInput,
+  type ReminderInput,
   useCalendarData,
   useCreateEvent,
   useUpdateEvent,
@@ -50,6 +54,16 @@ import {
 const REPEAT_CHOICES = ['none', 'daily', 'weekly', 'monthly', 'yearly'] as const
 
 type RepeatChoice = (typeof REPEAT_CHOICES)[number]
+
+/** The lead choices the editor offers (issue #22), the prototype's set:
+ *  the API takes any minute count; these are the ones a family plans in. */
+const REMINDER_LEAD_CHOICES = [
+  { minutes: 15, labelKey: 'calendar.reminderLead15' },
+  { minutes: 60, labelKey: 'calendar.reminderLead60' },
+  { minutes: 120, labelKey: 'calendar.reminderLead120' },
+  { minutes: 1440, labelKey: 'calendar.reminderLeadDay' },
+  { minutes: 10080, labelKey: 'calendar.reminderLeadWeek' },
+] as const
 
 export function EventEditorScreen({
   eventId,
@@ -92,6 +106,14 @@ export function EventEditorScreen({
   const [timezone, setTimezone] = useState<string | undefined>(undefined)
   const [repeat, setRepeat] = useState<RepeatChoice | undefined>(undefined)
   const [until, setUntil] = useState<string | undefined>(undefined)
+  // The reminder (issue #22): the editor holds the attempt like the other
+  // fields; the stored reminder seeds it. An occurrence's replacement has
+  // no reminder of its own, so the section only shows for a new event or
+  // the whole series.
+  const [reminderOn, setReminderOn] = useState<boolean | undefined>(undefined)
+  const [reminderLead, setReminderLead] = useState<number | undefined>(undefined)
+  const [reminderEveryone, setReminderEveryone] = useState<boolean | undefined>(undefined)
+  const [reminderMembers, setReminderMembers] = useState<string[] | undefined>(undefined)
   // The zone the member actually chose: left alone, the field shows the
   // space's zone and the API applies that default itself, so a space-zone
   // change between opening the form and saving is honoured.
@@ -115,6 +137,18 @@ export function EventEditorScreen({
   )
   const occurrenceMode = occurrenceDate !== undefined
 
+  // The reminder's effective fields: the member's edits, the stored
+  // reminder where nothing was touched, the sensible start (half an hour,
+  // the whole space) for one being added now.
+  const storedReminder = source?.reminder
+  const reminderVisible = !occurrenceMode
+  const effectiveReminderOn = reminderOn ?? storedReminder !== undefined
+  const effectiveReminderLead = reminderLead ?? storedReminder?.leadMinutes ?? 120
+  const effectiveReminderEveryone =
+    reminderEveryone ??
+    (storedReminder?.recipients.everyone === true || storedReminder === undefined)
+  const effectiveReminderMembers = reminderMembers ?? storedReminder?.recipients.memberIds ?? []
+
   // The zone list is the runtime's, stable per locale; the event's own
   // spelling is prepended per render — the alias case is rare and cheap.
   const zoneOptions = useMemo(() => timezoneOptions(locale, new Date()), [locale])
@@ -130,6 +164,13 @@ export function EventEditorScreen({
     effective.endTime <= effective.startTime
   const untilBeforeStart =
     effective.repeat !== 'none' && effective.until !== '' && effective.until < effective.date
+  // A named recipient list needs at least one name (the API refuses an
+  // empty one), so the save waits until the picks say who.
+  const reminderIncomplete =
+    reminderVisible &&
+    effectiveReminderOn &&
+    !effectiveReminderEveryone &&
+    effectiveReminderMembers.length === 0
 
   const editorTitle =
     eventId === undefined
@@ -152,12 +193,30 @@ export function EventEditorScreen({
 
   const save = () => {
     setTouched(true)
-    if (titleBlank || dateBlank || timesBlank || endBeforeStart || untilBeforeStart) return
+    if (
+      titleBlank ||
+      dateBlank ||
+      timesBlank ||
+      endBeforeStart ||
+      untilBeforeStart ||
+      reminderIncomplete
+    ) {
+      return
+    }
     const recurrence: Recurrence | undefined =
       !occurrenceMode && effective.repeat !== 'none'
         ? {
             frequency: effective.repeat,
             ...(effective.until === '' ? {} : { until: effective.until }),
+          }
+        : undefined
+    const reminder: ReminderInput | undefined =
+      reminderVisible && effectiveReminderOn
+        ? {
+            leadMinutes: effectiveReminderLead,
+            recipients: effectiveReminderEveryone
+              ? { everyone: true }
+              : { memberIds: effectiveReminderMembers },
           }
         : undefined
     const input: EventInput = {
@@ -178,6 +237,7 @@ export function EventEditorScreen({
               timezoneTouched || source?.timezone !== undefined ? effective.timezone : undefined,
           }),
       ...(recurrence === undefined ? {} : { recurrence }),
+      ...(reminder === undefined ? {} : { reminder }),
     }
     const onError = (error: unknown) => toast(calendarErrorMessage(error, t), 'danger')
     if (existing === undefined) {
@@ -433,6 +493,92 @@ export function EventEditorScreen({
                     </Field>
                   )}
                 </>
+              )}
+
+              {reminderVisible && (
+                <Card className="py-0">
+                  <div className="flex min-h-16 items-center gap-3 px-5 py-3">
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-sm font-semibold">{t('calendar.reminderLabel')}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {t('calendar.reminderHint')}
+                      </span>
+                    </span>
+                    <Switch
+                      aria-label={t('calendar.reminderLabel')}
+                      checked={effectiveReminderOn}
+                      onCheckedChange={(checked) => {
+                        setReminderOn(checked === true)
+                        // "Everyone" is the start: a named list begins as
+                        // the creator themself, never an empty one.
+                        if (
+                          checked &&
+                          !effectiveReminderEveryone &&
+                          effectiveReminderMembers.length === 0
+                        ) {
+                          const me = getActiveMemberId()
+                          if (me !== undefined) setReminderMembers([me])
+                        }
+                      }}
+                    />
+                  </div>
+                  {effectiveReminderOn && (
+                    <div className="flex flex-col gap-4 border-t border-border px-5 py-4">
+                      <Field>
+                        <FieldLabel htmlFor="event-reminder-lead">
+                          {t('calendar.reminderLead')}
+                        </FieldLabel>
+                        <Select
+                          id="event-reminder-lead"
+                          value={String(effectiveReminderLead)}
+                          onChange={(event) => setReminderLead(Number(event.target.value))}
+                        >
+                          {REMINDER_LEAD_CHOICES.map((choice) => (
+                            <option key={choice.minutes} value={String(choice.minutes)}>
+                              {t(choice.labelKey)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <div className="-mx-5 -mb-4 border-t border-border">
+                        <PickRow
+                          pressed={effectiveReminderEveryone}
+                          onPressedChange={() => setReminderEveryone(true)}
+                        >
+                          {t('calendar.reminderEveryone')}
+                        </PickRow>
+                        {profiles.map((profile) => (
+                          <PickRow
+                            key={profile.id}
+                            pressed={effectiveReminderMembers.includes(profile.id)}
+                            onPressedChange={(pressed) => {
+                              setReminderEveryone(false)
+                              setReminderMembers(
+                                pressed
+                                  ? [...effectiveReminderMembers, profile.id]
+                                  : effectiveReminderMembers.filter((id) => id !== profile.id),
+                              )
+                            }}
+                            leading={
+                              <Avatar size="sm" hue={hueFromId(profile.id)}>
+                                <AvatarFallback>
+                                  {monogramOf(profile.displayName ?? profile.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            }
+                          >
+                            {profile.displayName ?? profile.name}
+                          </PickRow>
+                        ))}
+                        <p className="px-3.5 py-2.5 text-sm text-muted-foreground">
+                          {reminderIncomplete
+                            ? t('calendar.reminderRecipientsRequired')
+                            : t('calendar.reminderRecipientsHint')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </Card>
               )}
             </FieldGroup>
 

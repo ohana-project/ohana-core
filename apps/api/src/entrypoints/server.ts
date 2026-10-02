@@ -1,7 +1,9 @@
 import { buildApp } from '../app/buildApp.ts'
 import { ensureInitialAdministrator } from '../modules/admin/index.ts'
+import { CALENDAR_SENT_QUEUES } from '../modules/calendar/index.ts'
 import { JOURNAL_SENT_QUEUES } from '../modules/journal/index.ts'
 import { MEDIA_QUEUE_SETUPS } from '../modules/media/index.ts'
+import { ensureVapidKeys } from '../modules/notifications/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
@@ -11,10 +13,12 @@ import { createLogger } from '../platform/logging.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
 
 /** Every queue the api's own use cases send to, across the sending
- *  modules — the media queues with the retries their contracts name. */
+ *  modules — the media queues with the retries their contracts name, the
+ *  reminder queue with its own. */
 const SENT_QUEUES: QueueSetup[] = [
   ...JOURNAL_SENT_QUEUES.map((name) => ({ name })),
   ...MEDIA_QUEUE_SETUPS,
+  ...CALENDAR_SENT_QUEUES.map((name) => ({ name })),
 ]
 
 async function main(): Promise<void> {
@@ -49,6 +53,12 @@ async function main(): Promise<void> {
   if (bootstrap === 'exists' && config.adminInitialPassword !== undefined) {
     logger.info('The instance administrator already exists; ADMIN_INITIAL_PASSWORD is ignored')
   }
+
+  // The Web Push identity (issue #22): generated on the installation's
+  // first start and persisted, so the public key a device signs up against
+  // is the one this installation keeps answering with — the worker reads
+  // the same row to sign what it sends.
+  await ensureVapidKeys({ db, clock: systemClock })
 
   const app = buildApp({
     db,

@@ -1931,6 +1931,142 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/notifications/push/public-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            publicKey: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/push/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        endpoint: string;
+                        keys: {
+                            p256dh: string;
+                            auth: string;
+                        };
+                        notifyDetails: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        endpoint: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        endpoint: string;
+                        notifyDetails: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Default Response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/calendar/events": {
         parameters: {
             query?: never;
@@ -1998,6 +2134,15 @@ export interface paths {
                                     endsAt: string;
                                     timezone: string;
                                 })[];
+                                reminder?: {
+                                    leadMinutes: number;
+                                    recipients: {
+                                        /** @enum {boolean} */
+                                        everyone: true;
+                                    } | {
+                                        memberIds: string[];
+                                    };
+                                };
                                 /** Format: date-time */
                                 createdAt: string;
                                 /** Format: date-time */
@@ -2029,6 +2174,15 @@ export interface paths {
                             frequency: "daily" | "weekly" | "monthly" | "yearly";
                             until?: string;
                         };
+                        reminder?: {
+                            leadMinutes: number;
+                            recipients: {
+                                /** @enum {boolean} */
+                                everyone: true;
+                            } | {
+                                memberIds: string[];
+                            };
+                        };
                     } | {
                         title: string;
                         /** @enum {boolean} */
@@ -2040,6 +2194,15 @@ export interface paths {
                         recurrence?: {
                             frequency: "daily" | "weekly" | "monthly" | "yearly";
                             until?: string;
+                        };
+                        reminder?: {
+                            leadMinutes: number;
+                            recipients: {
+                                /** @enum {boolean} */
+                                everyone: true;
+                            } | {
+                                memberIds: string[];
+                            };
                         };
                     };
                 };
@@ -2093,6 +2256,15 @@ export interface paths {
                                 endsAt: string;
                                 timezone: string;
                             })[];
+                            reminder?: {
+                                leadMinutes: number;
+                                recipients: {
+                                    /** @enum {boolean} */
+                                    everyone: true;
+                                } | {
+                                    memberIds: string[];
+                                };
+                            };
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -2176,6 +2348,15 @@ export interface paths {
                                 endsAt: string;
                                 timezone: string;
                             })[];
+                            reminder?: {
+                                leadMinutes: number;
+                                recipients: {
+                                    /** @enum {boolean} */
+                                    everyone: true;
+                                } | {
+                                    memberIds: string[];
+                                };
+                            };
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -2207,6 +2388,15 @@ export interface paths {
                             frequency: "daily" | "weekly" | "monthly" | "yearly";
                             until?: string;
                         };
+                        reminder?: {
+                            leadMinutes: number;
+                            recipients: {
+                                /** @enum {boolean} */
+                                everyone: true;
+                            } | {
+                                memberIds: string[];
+                            };
+                        };
                     } | {
                         title: string;
                         /** @enum {boolean} */
@@ -2218,6 +2408,15 @@ export interface paths {
                         recurrence?: {
                             frequency: "daily" | "weekly" | "monthly" | "yearly";
                             until?: string;
+                        };
+                        reminder?: {
+                            leadMinutes: number;
+                            recipients: {
+                                /** @enum {boolean} */
+                                everyone: true;
+                            } | {
+                                memberIds: string[];
+                            };
                         };
                     };
                 };
@@ -2271,6 +2470,15 @@ export interface paths {
                                 endsAt: string;
                                 timezone: string;
                             })[];
+                            reminder?: {
+                                leadMinutes: number;
+                                recipients: {
+                                    /** @enum {boolean} */
+                                    everyone: true;
+                                } | {
+                                    memberIds: string[];
+                                };
+                            };
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -2395,6 +2603,15 @@ export interface paths {
                                 endsAt: string;
                                 timezone: string;
                             })[];
+                            reminder?: {
+                                leadMinutes: number;
+                                recipients: {
+                                    /** @enum {boolean} */
+                                    everyone: true;
+                                } | {
+                                    memberIds: string[];
+                                };
+                            };
                             /** Format: date-time */
                             createdAt: string;
                             /** Format: date-time */
@@ -3186,6 +3403,15 @@ export interface paths {
                                         endsAt: string;
                                         timezone: string;
                                     })[];
+                                    reminder?: {
+                                        leadMinutes: number;
+                                        recipients: {
+                                            /** @enum {boolean} */
+                                            everyone: true;
+                                        } | {
+                                            memberIds: string[];
+                                        };
+                                    };
                                     /** Format: date-time */
                                     createdAt: string;
                                     /** Format: date-time */

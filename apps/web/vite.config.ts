@@ -65,6 +65,10 @@ export default defineConfig({
         // The favicon and the icons are precached through this glob; there
         // is no separate includeAssets list to keep in step with it.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The push half (issue #22): the generated worker imports the
+        // public script that shows the reminders and opens the app on a
+        // tap; the text itself is composed server-side (ADR-0006).
+        importScripts: ['/push-handler.js'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
         /*

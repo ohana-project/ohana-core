@@ -881,6 +881,51 @@
     "editingOccurrence": "Created by {name} · this event only",
     "occurrenceCancelledToast": "Event cancelled",
     "occurrenceCancelledTitle": "This event is cancelled",
-    "occurrenceCancelledText": "The series goes on without this date."
+    "occurrenceCancelledText": "The series goes on without this date.",
+    "reminderLabel": "Reminder",
+    "reminderHint": "The recipients get a push notification ahead of the event.",
+    "reminderLead": "Lead time",
+    "reminderLead15": "15 minutes before",
+    "reminderLead60": "An hour before",
+    "reminderLead120": "2 hours before",
+    "reminderLeadDay": "A day before",
+    "reminderEveryone": "Everyone",
+    "reminderRecipients": "Recipients",
+    "reminderLeadWeek": "A week before",
+    "reminderRecipientsHint": "Only the picked members get the reminder",
+    "reminderRecipientsRequired": "Pick at least one recipient"
+  },
+  "notifications": {
+    "menuItem": "Notifications",
+    "push": {
+      "neutralTitle": "Event reminder",
+      "neutralBody": "An event in your calendar is coming up",
+      "detailsBody": "Starts {time}"
+    },
+    "settings": {
+      "title": "Notifications",
+      "subtitle": "Calendar reminders on this device.",
+      "deviceSection": "This device",
+      "deviceTitle": "Reminders on this device",
+      "deviceOn": "This device will receive the reminder ahead of the event.",
+      "deviceOff": "Turn reminders on — the browser will ask for permission.",
+      "deviceBlocked": "Notification permission is blocked in the browser settings.",
+      "onBadge": "On",
+      "enableButton": "Enable",
+      "enableSwitch": "Enable reminders on this device",
+      "enabledToast": "Reminders are enabled on this device",
+      "disabledToast": "Reminders are disabled on this device",
+      "deniedToast": "The browser did not grant the notification permission",
+      "enableFailedToast": "Could not enable reminders",
+      "disableFailedToast": "Could not disable reminders",
+      "detailsTitle": "Show the event in the notification",
+      "detailsText": "The event's title and time — on this device only.",
+      "detailsSwitch": "Show event details",
+      "detailsSavedToast": "Saved",
+      "detailsFailedToast": "Could not save",
+      "neutralHint": "Without it, the notification arrives in a neutral form: it does not say which event.",
+      "iosTitle": "iOS: the installed app is required",
+      "iosText": "On iPhone and iPad, reminders arrive only in the Ohana app installed to the Home Screen. Add it from Safari's Share menu → “Add to Home Screen”."
+    }
   }
 }

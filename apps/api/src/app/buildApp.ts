@@ -26,6 +26,7 @@ import {
   membersSyncContributor,
 } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
+import { notificationsRoutes } from '../modules/notifications/index.ts'
 import { spacesSyncContributor } from '../modules/spaces/index.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import { syncRoutes } from '../modules/sync/routes.ts'
@@ -134,14 +135,25 @@ export function buildApp(deps: AppDeps) {
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
   })
+  // The notifications module owns the devices' push subscriptions (issue
+  // #22): a member manages their own devices' subscriptions and their
+  // per-device opt-in to event details. Notifications are not a section —
+  // the routes carry the member session guard alone.
+  app.register(notificationsRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock },
+    access: accessDeps,
+  })
   // The calendar is a section module (ADR-0011) like the journal and the
   // wishlist: its routes mount the access module's guard and the spaces
   // module's section gate, and its writes recheck visibility inside their
   // transactions (issue #20). Its removals are true deletes, so their
-  // tombstones ride the same transactions.
+  // tombstones ride the same transactions. The reminders (issue #22)
+  // schedule their per-occurrence jobs through the jobs port, inside the
+  // transaction that changed the event.
   app.register(calendarRoutes, {
     prefix: '/api/v1',
-    deps: { db: deps.db, clock: deps.clock },
+    deps: { db: deps.db, clock: deps.clock, jobs: deps.jobs },
     access: accessDeps,
   })
   // The wishlist is a section module (ADR-0011) like the journal: its
