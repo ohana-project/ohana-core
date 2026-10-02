@@ -92,7 +92,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
                   <Icon name="gift" />
                 </EmptyMedia>
                 <EmptyTitle>{t('wishlist.personEmptyTitle')}</EmptyTitle>
-                <EmptyDescription>{t('wishlist.personEmptyText')}</EmptyDescription>
+                <EmptyDescription>{t('wishlist.personEmptyText', { name })}</EmptyDescription>
               </Empty>
             </Card>
           ) : (

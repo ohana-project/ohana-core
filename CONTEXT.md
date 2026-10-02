@@ -72,11 +72,11 @@ _Avoid_: Permanently deleted entry.
 
 ### Wishlist
 
-**Wishlist** (RU: виш-лист):
+**Wishlist** (RU: вишлист):
 A member's collection of their own wishes, visible to the other members of the space.
 _Avoid_: Gift favorites (which are private to a member).
 
-**Wish** (RU: пожелание):
+**Wish** (RU: желание):
 Something a member would like for themselves, recorded in their wishlist.
 _Avoid_: Shared household purchase.
 
@@ -88,7 +88,7 @@ _Avoid_: Shared favorite, gift reservation.
 A member's claim that they intend to give a particular wish, visible to every member except the wish's author, so that relatives do not buy the same gift.
 _Avoid_: Gift favorite, purchase.
 
-**Received wish** (RU: полученное пожелание):
+**Received wish** (RU: полученное желание):
 A wish its author has marked as received. It is no longer an open wish, and the author can return it to open.
 _Avoid_: Deleted wish, fulfilled reservation.
 

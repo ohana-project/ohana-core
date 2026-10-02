@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { StoredWish } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
@@ -53,8 +53,17 @@ export function WishlistMineScreen() {
   const meId = getActiveMemberId()
   // The id, not the row: while the sheet is open a sync may re-deliver the
   // wish, and the editor must edit the wish as it is now, not a snapshot
-  // frozen when the edit began.
+  // frozen when the edit began. 'new' and an id stay apart: a wish the
+  // sync removes while its sheet is open closes the sheet — an editor
+  // that fell back to "new" would offer to re-create the removed wish.
   const [editingId, setEditingId] = useState<string | 'new' | undefined>(undefined)
+  const editing =
+    editingId === undefined || editingId === 'new' ? undefined : wishById(wishes, editingId)
+  useEffect(() => {
+    if (editingId !== undefined && editingId !== 'new' && editing === undefined) {
+      setEditingId(undefined)
+    }
+  }, [editingId, editing])
 
   const mine = meId === undefined ? [] : wishesOf(wishes, meId)
   const author = meId === undefined ? undefined : authorName(meId, profiles, t('wishlist.me'))
@@ -119,11 +128,11 @@ export function WishlistMineScreen() {
 
       <Fab aria-label={t('wishlist.addWish')} onClick={() => setEditingId('new')} />
 
-      {editingId !== undefined && (
-        <WishEditorSheet
-          wish={editingId === 'new' ? undefined : wishById(wishes, editingId)}
-          onClose={() => setEditingId(undefined)}
-        />
+      {editingId === 'new' && (
+        <WishEditorSheet wish={undefined} onClose={() => setEditingId(undefined)} />
+      )}
+      {editing !== undefined && (
+        <WishEditorSheet wish={editing} onClose={() => setEditingId(undefined)} />
       )}
     </WishlistShell>
   )
@@ -149,7 +158,11 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
   const [title, setTitle] = useState(wish?.title ?? '')
   const [details, setDetails] = useState(wish?.details ?? '')
   const [link, setLink] = useState(wish?.link ?? '')
-  const [received, setReceived] = useState(wish?.receivedAt !== undefined)
+  // The switch's start is frozen at mount, and only a member's move of it
+  // is sent: a mark another device landed while the sheet was open must
+  // not be cleared (or re-marked) by a save that never touched the switch.
+  const initialReceived = useRef(wish?.receivedAt !== undefined)
+  const [received, setReceived] = useState(initialReceived.current)
   const [confirmRemove, setConfirmRemove] = useState(false)
   // The field errors wait for the first save attempt: a sheet the member
   // has just opened is not yet wrong (docs/design/README.md, "Field").
@@ -157,8 +170,9 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
 
   const titleBlank = title.trim().length === 0
   // The client-side guard the field hint names, mirroring the API
-  // contract's link rule (issue #18).
-  const linkInvalid = link.trim().length > 0 && !/^https?:\/\/\S+$/.test(link.trim())
+  // contract's link rule (issue #18) — case-insensitive, so the
+  // auto-capitalised `Https://…` a mobile keyboard types is a link.
+  const linkInvalid = link.trim().length > 0 && !/^https?:\/\/\S+$/i.test(link.trim())
   const invalid = titleBlank || linkInvalid
   const pending =
     create.isPending ||
@@ -187,17 +201,21 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
     }
     // The triple's replace goes first, the mark or its clearing second: a
     // validation refusal changes nothing, and the switch's outcome rides
-    // the same save. Any refusal surfaces through the toast, the sheet
-    // stays open, and the refusal's sync corrects the stale row underneath
-    // (use-wishlist.ts).
+    // the same save — but only when the member moved the switch, so a
+    // mark another device landed under the open sheet is never cleared by
+    // an untouched switch (nor re-marked). Any refusal surfaces through
+    // the toast, the sheet stays open, and the refusal's sync corrects
+    // the stale row underneath (use-wishlist.ts).
     void (async () => {
       try {
         await update.mutateAsync({ wishId: wish.id, ...input })
-        if (received && wish.receivedAt === undefined) {
-          await markReceived.mutateAsync({ wishId: wish.id })
-        }
-        if (!received && wish.receivedAt !== undefined) {
-          await clearReceived.mutateAsync({ wishId: wish.id })
+        if (received !== initialReceived.current) {
+          if (received && wish.receivedAt === undefined) {
+            await markReceived.mutateAsync({ wishId: wish.id })
+          }
+          if (!received && wish.receivedAt !== undefined) {
+            await clearReceived.mutateAsync({ wishId: wish.id })
+          }
         }
         toast(t('wishlist.savedToast'))
         onClose()

@@ -251,6 +251,13 @@ describe('the wishlist wishes (issue #18)', () => {
       const minimalWish = minimal.body as WishDto
       expect(minimalWish.details).toBeUndefined()
       expect(minimalWish.link).toBeUndefined()
+
+      // The service trims: the title loses its padding, and an optional
+      // that is whitespace only arrives as absent.
+      const padded = await createWish(app, anna, { title: '  Термос  ', details: '   ' })
+      expect(padded.status).toBe(201)
+      expect(padded.body).toMatchObject({ title: 'Термос' })
+      expect((padded.body as WishDto).details).toBeUndefined()
     })
   })
 
@@ -282,6 +289,31 @@ describe('the wishlist wishes (issue #18)', () => {
 
       const http = await createWish(app, anna, { title: 'Фонарь', link: 'http://example.com/a' })
       expect(http.status).toBe(201)
+
+      // The bounds are the contract's own: one past the limit refuses.
+      const tooLongTitle = await createWish(app, anna, { title: 'Ф'.repeat(201) })
+      expect(tooLongTitle.status).toBe(400)
+      expect(errorCode(tooLongTitle.body)).toBe('validation_failed')
+
+      const tooLongDetails = await createWish(app, anna, {
+        title: 'Фонарь',
+        details: 'Д'.repeat(2001),
+      })
+      expect(tooLongDetails.status).toBe(400)
+
+      const tooLongLink = await createWish(app, anna, {
+        title: 'Фонарь',
+        link: `https://example.com/${'x'.repeat(2048)}`,
+      })
+      expect(tooLongLink.status).toBe(400)
+
+      // The boundary itself goes through: 200, 2000, and 2048 characters.
+      const atTheBounds = await createWish(app, anna, {
+        title: 'Ф'.repeat(200),
+        details: 'Д'.repeat(2000),
+        link: `https://example.com/${'x'.repeat(2028)}`,
+      })
+      expect(atTheBounds.status).toBe(201)
     })
   })
 
@@ -464,6 +496,7 @@ describe('the wishlist wishes (issue #18)', () => {
 
       const remove = await removeWish(app, dima, wishId)
       expect(remove.status).toBe(404)
+      expect(errorCode(remove.body)).toBe('section_hidden')
 
       const mark = await markReceived(app, dima, wishId)
       expect(mark.status).toBe(404)
