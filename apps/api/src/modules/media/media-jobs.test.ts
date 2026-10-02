@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterAll, describe, expect, test } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { instanceSettings } from '../admin/tables.ts'
 import { createDraft, touchEntryRevision } from '../journal/service.ts'
@@ -10,27 +10,8 @@ import { FEED_MAX_EDGE, FULL_MAX_EDGE } from './derivatives.ts'
 import { generateEntryImageDerivatives, MEDIA_DERIVATIVES_JOB } from './jobs.ts'
 import { imageObjectKey } from './keys.ts'
 import { getImageInSpace } from './repository.ts'
-import { uploadEntryImage } from './service.ts'
+import { deleteEntryImage, uploadEntryImage } from './service.ts'
 import type { EntryImage } from './tables.ts'
-
-const repoMock = vi.hoisted(() => ({
-  hideImageRowAfter: Number.POSITIVE_INFINITY,
-  reads: 0,
-}))
-
-vi.mock('./repository.ts', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./repository.ts')>()
-  return {
-    ...actual,
-    getImageInSpace: async (
-      ...arguments_: Parameters<typeof actual.getImageInSpace>
-    ): Promise<ReturnType<typeof actual.getImageInSpace>> => {
-      repoMock.reads += 1
-      if (repoMock.reads > repoMock.hideImageRowAfter) return undefined
-      return actual.getImageInSpace(...arguments_)
-    },
-  }
-})
 
 const harness: TestHarness = await createTestHarness()
 afterAll(async () => {
@@ -40,11 +21,6 @@ afterAll(async () => {
 // The installation settings are a singleton other test files may have
 // changed (the files share one database).
 await harness.db.delete(instanceSettings)
-
-beforeEach(() => {
-  repoMock.hideImageRowAfter = Number.POSITIVE_INFINITY
-  repoMock.reads = 0
-})
 
 /*
  * The derivatives worker (issue #17): every uploaded photo ends as two
@@ -120,6 +96,19 @@ function jobDeps() {
     storage: harness.storage,
     touchEntry: touchEntryRevision,
   }
+}
+
+function serviceDeps() {
+  return { db: harness.db, storage: harness.storage, clock: harness.clock, jobs: harness.jobs }
+}
+
+async function draftId(spaceId: string, memberId: string): Promise<string> {
+  const draft = await createDraft(
+    { db: harness.db, clock: harness.clock, jobs: harness.jobs },
+    { memberId, spaceId, role: 'regular' },
+    { text: 'с фотографией' },
+  )
+  return draft.id
 }
 
 async function generateFor(spaceId: string, imageId: string): Promise<void> {
@@ -240,15 +229,84 @@ describe('generateEntryImageDerivatives', () => {
     const space = await harness.createSpace({ name: 'Мимо' })
     const member = await harness.createMember(space.id, { name: 'Аня' })
     const entry = await entryWithPhoto(space.id, member.id, await photoWithExif())
-    // The row vanishes while the job runs: the handler's first read still
-    // sees it, the state write under the lock does not. (A removal mid-
-    // flight also sent the delete job; this covers the race between that
-    // job and the derivatives the handler already wrote.)
-    repoMock.hideImageRowAfter = 1
 
-    await generateFor(space.id, entry.image.id)
+    // The removal happens while the job runs, staged where the handler
+    // cannot miss it: the landing of the feed derivative performs the
+    // author's removal through the real service. The handler's first read
+    // still saw the row; the state write under the lock does not.
+    const racingDeps = {
+      ...jobDeps(),
+      storage: {
+        ...harness.storage,
+        put: async (
+          key: string,
+          body: Parameters<typeof harness.storage.put>[1],
+          options: Parameters<typeof harness.storage.put>[2],
+        ): Promise<void> => {
+          await harness.storage.put(key, body, options)
+          if (key.endsWith('/feed')) {
+            await deleteEntryImage(
+              {
+                db: harness.db,
+                storage: harness.storage,
+                clock: harness.clock,
+                jobs: harness.jobs,
+                touchEntry: touchEntryRevision,
+              },
+              { spaceId: space.id, memberId: member.id, role: 'regular' },
+              entry.entryId,
+              entry.image.id,
+              { authorizeInTx: allowAll },
+            )
+          }
+        },
+      },
+    }
 
-    // Nothing readable is left under the photo's keys.
+    await generateEntryImageDerivatives(racingDeps, {
+      spaceId: space.id,
+      imageId: entry.image.id,
+    })
+
+    // Nothing readable is left under the photo's keys: the removal's own
+    // delete job and the handler's post-lock cleanup both ran.
+    expect(await harness.storage.list(`spaces/${space.id}/journal/`)).toEqual([])
+  })
+
+  test('a refused upload leaves nothing in storage: an empty file, and a refusal mid-transaction', async () => {
+    const space = await harness.createSpace({ name: 'Пусто' })
+    const member = await harness.createMember(space.id, { name: 'Аня' })
+
+    // An empty file answers 400 before the row is made, and its bytes —
+    // already streamed into storage — are taken back.
+    await expect(
+      uploadEntryImage(
+        { ...serviceDeps(), touchEntry: touchEntryRevision },
+        { spaceId: space.id, memberId: member.id, role: 'regular' },
+        await draftId(space.id, member.id),
+        { stream: Readable.from(Buffer.alloc(0)), contentType: 'image/jpeg' },
+        { authorize: allowAll, authorizeInTx: allowAll, maxBytes: 26_214_400 },
+      ),
+    ).rejects.toMatchObject({ code: 'image_required' })
+    expect(await harness.storage.list(`spaces/${space.id}/journal/`)).toEqual([])
+
+    // A transaction that refuses — the author lost the entry between the
+    // pre-flight and the commit — takes the stored bytes with it.
+    await expect(
+      uploadEntryImage(
+        { ...serviceDeps(), touchEntry: touchEntryRevision },
+        { spaceId: space.id, memberId: member.id, role: 'regular' },
+        await draftId(space.id, member.id),
+        { stream: Readable.from(Buffer.from('настоящие байты')), contentType: 'image/jpeg' },
+        {
+          authorize: allowAll,
+          authorizeInTx: async () => {
+            throw new Error('the entry was trashed mid-upload')
+          },
+          maxBytes: 26_214_400,
+        },
+      ),
+    ).rejects.toThrow('the entry was trashed mid-upload')
     expect(await harness.storage.list(`spaces/${space.id}/journal/`)).toEqual([])
   })
 

@@ -1,6 +1,5 @@
-import { and, eq } from 'drizzle-orm'
 import type { Clock } from '../../platform/clock.ts'
-import type { Db, Tx } from '../../platform/db/index.ts'
+import type { Db } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
@@ -29,9 +28,10 @@ import {
   markEntryRestored,
   markEntryTrashed,
   publishEntry,
+  stampEntryRevision,
   updateEntry,
 } from './repository.ts'
-import { type JournalEntry, journalEntries } from './tables.ts'
+import type { JournalEntry } from './tables.ts'
 
 export interface JournalDeps {
   db: Db
@@ -280,19 +280,16 @@ export const assertEntryImageEditableInTx: ImageAccessTxRule = async (tx, actor,
  * photos ride the entry's DTO, and the sync delta filters on the entry
  * row, so attaching, processing, and removing a photo all stamp the entry
  * with the transaction's revision — that stamp is what re-delivers the
- * entry, photos included. Only the revision moves: a photo is not a text
- * edit, and the entry's updatedAt stays.
+ * entry, photos included. The query is the repository's
+ * `stampEntryRevision`; this wrapper is the port's shape.
  */
 export async function touchEntryRevision(
-  tx: Tx,
+  tx: Parameters<typeof stampEntryRevision>[0],
   spaceId: string,
   entryId: string,
   revision: bigint,
 ): Promise<void> {
-  await tx
-    .update(journalEntries)
-    .set({ revision })
-    .where(and(eq(journalEntries.spaceId, spaceId), eq(journalEntries.id, entryId)))
+  return stampEntryRevision(tx, spaceId, entryId, revision)
 }
 
 async function requireVisibleEntry(

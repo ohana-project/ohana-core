@@ -26,10 +26,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The media worker's HEIC test decodes through the system `heif-dec`,
-      # the same decoder the release image ships (issue #17, ADR-0008).
+      # The media worker's HEIC test decodes through the system libheif
+      # CLI, the same decoder the release image ships (issue #17,
+      # ADR-0008). The version check fails loudly if the package named no
+      # usable decoder instead of failing the tests cryptically later.
       - name: Install HEIC decoder
-        run: sudo apt-get update && sudo apt-get install -y libheif-examples
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libheif-examples
+          heif-dec --version 2>/dev/null || heif-convert --version
 
       - name: Lint
         run: pnpm lint

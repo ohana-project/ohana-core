@@ -1,6 +1,7 @@
 import { ApiError, extractErrorCode } from '@/data/api-error.ts'
 import type { StoredJournalEntryImage } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
+import { peekFetchedImage, rememberFetchedImage } from '@/lib/photo-cache.ts'
 
 /*
  * The journal photos' data access (issue #17). Photo bytes never travel in
@@ -18,17 +19,6 @@ export function entryImageUrl(entryId: string, imageId: string, variant: ImageVa
   return `/api/v1/journal/entries/${entryId}/images/${imageId}/variants/${variant}`
 }
 
-/** The object URLs handed out for fetched photos, so a re-render reuses
- *  them. Entries leave the map without revoking: the URL strings stay
- *  alive in the query cache, and a revoked URL there would be a broken
- *  image that never refetches (staleTime is infinite). The blobs die with
- *  the document — bounded by a session's viewing, and the originals of a
- *  lightbox visit are the exception, not the bulk. */
-const fetchedImages = new Map<string, string>()
-
-/** The map is a memo, not a store; this only bounds its growth. */
-const FETCHED_IMAGES_LIMIT = 120
-
 /**
  * Fetches one photo's bytes through the authorised API (the member header
  * rides along, the session cookie authenticates) and answers an object URL.
@@ -40,7 +30,7 @@ export async function fetchEntryImage(
   variant: ImageVariant,
 ): Promise<string> {
   const url = entryImageUrl(entryId, imageId, variant)
-  const known = fetchedImages.get(url)
+  const known = peekFetchedImage(url)
   if (known !== undefined) return known
   const memberId = getActiveMemberId()
   const response = await fetch(url, {
@@ -48,13 +38,7 @@ export async function fetchEntryImage(
     headers: memberId === undefined ? undefined : { 'x-ohana-member': memberId },
   })
   if (!response.ok) throw new ApiError(extractErrorCode(await response.json().catch(() => null)))
-  const objectUrl = URL.createObjectURL(await response.blob())
-  fetchedImages.set(url, objectUrl)
-  if (fetchedImages.size > FETCHED_IMAGES_LIMIT) {
-    const oldest = fetchedImages.keys().next().value
-    if (oldest !== undefined) fetchedImages.delete(oldest)
-  }
-  return objectUrl
+  return rememberFetchedImage(url, URL.createObjectURL(await response.blob()))
 }
 
 /**

@@ -12,7 +12,7 @@ import {
   setActiveMemberId,
 } from '@/data/session-registry.ts'
 import { forgetSync } from '@/data/sync-engine.ts'
-import { JOURNAL_PHOTO_CACHE } from '@/lib/photo-cache.ts'
+import { forgetFetchedImages, JOURNAL_PHOTO_CACHE } from '@/lib/photo-cache.ts'
 
 /*
  * The member session probe mirrors the administrative one: 200 means the
@@ -208,6 +208,7 @@ export function forgetMember(queryClient: QueryClient, memberId: string): void {
   if (typeof caches !== 'undefined') {
     void caches.delete(JOURNAL_PHOTO_CACHE).catch(() => {})
   }
+  forgetFetchedImages()
   for (const query of queryClient.getQueryCache().findAll({ queryKey: ['member', memberId] })) {
     query.reset()
   }

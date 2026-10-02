@@ -48,7 +48,7 @@ export class HeicDecodeError extends Error {
 }
 
 /**
- * Decodes a HEIC photo into a lossless PNG through the `heif-dec` CLI the
+ * Decodes a HEIC photo into a lossless PNG through the libheif CLI the
  * worker image provides. The bytes travel through a private temporary
  * directory that is always removed; a decoder that is missing (not
  * installed) or refuses the file raises HeicDecodeError either way — the
@@ -61,13 +61,19 @@ export async function heicDecodeToPng(input: Buffer): Promise<Buffer> {
     const inputPath = join(dir, 'input.heic')
     const outputPath = join(dir, 'decoded.png')
     await writeFile(inputPath, input)
+    // The output is the positional argument: it is the one interface every
+    // libheif the code may meet — the release image's 1.23, the CI runner's
+    // older 1.17, a developer's Homebrew build — accepts. The newer
+    // distributions name the tool `heif-dec`; Debian and Ubuntu kept
+    // `heif-convert` for longer, and it decodes just the same.
     try {
-      // The output is the positional argument: it is the one interface
-      // every libheif the code may meet — the release image's 1.23, the
-      // CI runner's older 1.17, a developer's Homebrew build — accepts.
       await execFileAsync('heif-dec', [inputPath, outputPath], { timeout: 60_000 })
     } catch (cause) {
-      throw new HeicDecodeError('heif-dec could not decode the photo', { cause })
+      if ((cause as { code?: string }).code === 'ENOENT') {
+        await execFileAsync('heif-convert', [inputPath, outputPath], { timeout: 60_000 })
+      } else {
+        throw new HeicDecodeError('the HEIC decoder refused the photo', { cause })
+      }
     }
     return await readFile(outputPath)
   } finally {

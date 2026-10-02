@@ -8,6 +8,11 @@ import {
 } from '../../testing/harness.ts'
 import { updateSettings } from '../admin/index.ts'
 import { instanceSettings } from '../admin/tables.ts'
+import {
+  deleteEntryImageObjects,
+  MEDIA_DELETE_JOB,
+  type MediaDeleteJobData,
+} from '../media/index.ts'
 import { IMAGE_OBJECT_KIND, imageObjectKey } from '../media/keys.ts'
 import { uploadEntryImage } from '../media/service.ts'
 import { getSpace } from '../spaces/index.ts'
@@ -220,8 +225,21 @@ describe('purgeTrashedEntry (the per-entry job)', () => {
     harness.clock.advance(31 * DAY_MS)
     await purgeTrashedEntry(jobDeps(), { spaceId: space.id, entryId: draft.id })
 
-    // The rows and every object went together.
+    // The rows are gone; the objects' cleanup rode the transaction as an
+    // idempotent job, and the worker's run of it is what the test repeats.
     expect(await getEntryInSpace(harness.db, space.id, draft.id)).toBeUndefined()
+    expect(
+      harness.jobs.submissions.some(
+        (submission) =>
+          submission.name === MEDIA_DELETE_JOB &&
+          (submission.data as MediaDeleteJobData).imageIds.length === 2,
+      ),
+    ).toBe(true)
+    for (const submission of harness.jobs.submissions) {
+      if (submission.name === MEDIA_DELETE_JOB) {
+        await deleteEntryImageObjects(harness, submission.data as MediaDeleteJobData)
+      }
+    }
     expect(await harness.storage.list(prefix)).toEqual([])
 
     // The repeat finds neither rows nor objects — and writes nothing.
@@ -365,6 +383,13 @@ describe('purgeDueTrashedEntries (the recurring sweep)', () => {
     await purgeDueTrashedEntries(jobDeps())
 
     expect(await getEntryInSpace(harness.db, space.id, draft.id)).toBeUndefined()
+    // The sweep queued the objects' cleanup; the worker's run of it is
+    // what the test repeats.
+    for (const submission of harness.jobs.submissions) {
+      if (submission.name === MEDIA_DELETE_JOB) {
+        await deleteEntryImageObjects(harness, submission.data as MediaDeleteJobData)
+      }
+    }
     expect(await harness.storage.list(prefix)).toEqual([])
   })
 

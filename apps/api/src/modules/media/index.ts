@@ -21,7 +21,7 @@ export {
   generateEntryImageDerivatives,
   MEDIA_DELETE_JOB,
   MEDIA_DERIVATIVES_JOB,
-  MEDIA_SENT_QUEUES,
+  MEDIA_QUEUE_SETUPS,
   type MediaDeleteJobData,
   type MediaDerivativesJobData,
   type MediaJobsDeps,

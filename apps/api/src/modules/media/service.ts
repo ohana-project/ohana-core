@@ -20,7 +20,7 @@ import {
   type MediaDeleteJobData,
   type MediaDerivativesJobData,
 } from './jobs.ts'
-import { deleteImageObjects, type ImageVariant, imageObjectKey } from './keys.ts'
+import { type ImageVariant, imageObjectKey } from './keys.ts'
 import {
   countImagesOfEntry,
   deleteImage,
@@ -267,11 +267,20 @@ export async function uploadEntryImage(
     if (error instanceof StorageError && error.cause instanceof DomainError) {
       throw error.cause
     }
-    // A refused upload — the cap, a racing trash, a hidden section — must
-    // not leave its bytes behind: the original is removed best-effort, and
-    // nothing was committed that could have reached it.
+    // A refused upload — the cap, a racing trash, a hidden section, an
+    // empty file — must not leave its bytes behind. The delete runs now;
+    // if storage refuses even that, the queued cleanup repairs it.
     if (stored) {
-      await deps.storage.delete(imageObjectKey(actor.spaceId, imageId, 'original')).catch(() => {})
+      try {
+        await deps.storage.delete(imageObjectKey(actor.spaceId, imageId, 'original'))
+      } catch {
+        await deps.db
+          .transaction(async (tx) => {
+            const job: MediaDeleteJobData = { spaceId: actor.spaceId, imageIds: [imageId] }
+            await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
+          })
+          .catch(() => {})
+      }
     }
     throw error
   } finally {
@@ -363,13 +372,12 @@ export async function deleteEntryImage(
       },
       deps.clock.now(),
     )
-    // The objects go twice: now, so the space is clean at once, and
-    // through the queued cleanup, so a storage hiccup the direct pass
-    // meets is still repaired (the handler is idempotent).
+    // The objects' cleanup rides the transaction as an idempotent job: the
+    // removal is already committed, and a storage hiccup must not turn it
+    // into an error the client sees — nor leave the bytes behind.
     const job: MediaDeleteJobData = { spaceId: actor.spaceId, imageIds: [imageId] }
     await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
   })
-  await deleteImageObjects(deps.storage, actor.spaceId, imageId)
 }
 
 /**

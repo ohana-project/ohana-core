@@ -15,6 +15,7 @@ import {
   generateEntryImageDerivatives,
   MEDIA_DELETE_JOB,
   MEDIA_DERIVATIVES_JOB,
+  MEDIA_QUEUE_SETUPS,
   type MediaDeleteJobData,
   type MediaDerivativesJobData,
   type MediaJobsDeps,
@@ -71,10 +72,9 @@ export function buildWorker(deps: WorkerDeps): Worker {
     async start() {
       await deps.db.execute(sql`select 1`)
       await ensureQueues(deps.boss, [
-        JOURNAL_PURGE_JOB,
-        JOURNAL_PURGE_SWEEP_JOB,
-        MEDIA_DERIVATIVES_JOB,
-        MEDIA_DELETE_JOB,
+        { name: JOURNAL_PURGE_JOB },
+        { name: JOURNAL_PURGE_SWEEP_JOB },
+        ...MEDIA_QUEUE_SETUPS,
       ])
       await deps.boss.work<JournalPurgeJobData>(JOURNAL_PURGE_JOB, async (jobs) => {
         for (const job of jobs) await purgeTrashedEntry(jobDeps, job.data)

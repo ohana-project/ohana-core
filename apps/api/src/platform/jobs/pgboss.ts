@@ -35,15 +35,22 @@ export async function startJobQueue(databaseUrl: string, logger: Logger): Promis
   return boss
 }
 
+/** A queue to ensure, with the creation options a queue's contract needs —
+ *  the retries a cleanup job exists for are declared here, not hoped for. */
+export interface QueueSetup {
+  name: string
+  options?: { retryLimit?: number; retryDelay?: number; retryBackoff?: boolean }
+}
+
 /**
  * Creates the queues the named jobs travel on, idempotently. Every process
  * that sends to a queue ensures it exists first: pg-boss refuses a send to
  * a queue nobody has created, and the api must not depend on a worker
  * having started before its first trash.
  */
-export async function ensureQueues(boss: PgBoss, names: readonly string[]): Promise<void> {
-  for (const name of names) {
-    await boss.createQueue(name)
+export async function ensureQueues(boss: PgBoss, queues: readonly QueueSetup[]): Promise<void> {
+  for (const queue of queues) {
+    await boss.createQueue(queue.name, queue.options)
   }
 }
 
@@ -56,12 +63,12 @@ export async function ensureQueues(boss: PgBoss, names: readonly string[]): Prom
 export async function startSendingJobQueue(
   databaseUrl: string,
   logger: Logger,
-  queueNames: readonly string[],
+  queues: readonly QueueSetup[],
 ): Promise<{ boss: PgBoss; sender: JobSender }> {
   const boss = new PgBoss({ connectionString: databaseUrl, supervise: false, schedule: false })
   listenForErrors(boss, logger)
   await boss.start()
-  await ensureQueues(boss, queueNames)
+  await ensureQueues(boss, queues)
   return { boss, sender: createPgBossJobSender(boss) }
 }
 

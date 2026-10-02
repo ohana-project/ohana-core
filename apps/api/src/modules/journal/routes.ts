@@ -312,15 +312,13 @@ export const journalRoutes: FastifyPluginAsyncTypebox<JournalRoutesOptions> = as
             .header('content-type', stored.contentType)
             .header('content-length', stored.size)
             // The bytes are exactly the type the row names: no sniffing, and
-            // the originals never sit in a shared cache. The derivatives are
-            // immutable per id, so a member's browser may keep them.
+            // nothing sits in the browser's HTTP cache — a shared cache on
+            // this device would answer after a sign-out, a trash, or a
+            // hidden section without reaching the API. Offline previews are
+            // the service worker's job: its CacheFirst rule stores the
+            // response regardless, and its cache dies with the session.
             .header('x-content-type-options', 'nosniff')
-            .header(
-              'cache-control',
-              request.params.variant === 'original'
-                ? 'private, no-store'
-                : 'private, max-age=31536000, immutable',
-            )
+            .header('cache-control', 'private, no-store')
             .send(stored.stream)
         )
       },

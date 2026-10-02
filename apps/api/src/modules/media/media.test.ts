@@ -11,7 +11,12 @@ import {
 import { administrators, adminSessions, instanceSettings } from '../admin/tables.ts'
 import { touchEntryRevision } from '../journal/service.ts'
 import type { EntryImageDto } from './contracts.ts'
-import { generateEntryImageDerivatives, MEDIA_DELETE_JOB } from './jobs.ts'
+import {
+  deleteEntryImageObjects,
+  generateEntryImageDerivatives,
+  MEDIA_DELETE_JOB,
+  type MediaDeleteJobData,
+} from './jobs.ts'
 import { IMAGE_OBJECT_KIND, imageObjectKey } from './keys.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -466,12 +471,16 @@ describe('photo removal', () => {
 
       const shown = await getEntry(app, author, entry.id)
       expect(shown.images).toEqual([])
-      expect(await harness.storage.list(`spaces/${space.id}/${IMAGE_OBJECT_KIND}/`)).toEqual([])
-      // And the queued cleanup rode the same transaction, so a storage
-      // hiccup the direct pass met would still be repaired.
-      expect(harness.jobs.submissions.map((submission) => submission.name)).toContain(
-        MEDIA_DELETE_JOB,
+      // The objects' cleanup rode the transaction as an idempotent job;
+      // the worker runs it, so the test does the same.
+      const cleanups = harness.jobs.submissions.filter(
+        (submission) => submission.name === MEDIA_DELETE_JOB,
       )
+      expect(cleanups.length).toBeGreaterThan(0)
+      for (const submission of cleanups) {
+        await deleteEntryImageObjects(harness, submission.data as MediaDeleteJobData)
+      }
+      expect(await harness.storage.list(`spaces/${space.id}/${IMAGE_OBJECT_KIND}/`)).toEqual([])
     })
   })
 
@@ -617,7 +626,7 @@ describe('photo changes travel the sync (issue #17)', () => {
       expect(served.statusCode).toBe(200)
       expect(served.headers['content-type']).toBe('image/webp')
       expect(served.headers['x-content-type-options']).toBe('nosniff')
-      expect(served.headers['cache-control']).toBe('private, max-age=31536000, immutable')
+      expect(served.headers['cache-control']).toBe('private, no-store')
 
       const original = await app.inject({
         method: 'GET',

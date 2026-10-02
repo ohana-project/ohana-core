@@ -3,12 +3,7 @@ import type { Db } from '../../platform/db/index.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import type { ObjectStorage } from '../../platform/storage/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
-import {
-  deleteImageObjects,
-  imagesOfEntries,
-  MEDIA_DELETE_JOB,
-  type MediaDeleteJobData,
-} from '../media/index.ts'
+import { imagesOfEntries, MEDIA_DELETE_JOB, type MediaDeleteJobData } from '../media/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
@@ -32,10 +27,9 @@ import type { JournalEntry } from './tables.ts'
  * already gone and answers without writing. The deletion, its tombstones,
  * and the space's revision bump share one transaction, exactly like a
  * write that arrives over HTTP. The entry's photos (issue #17) are part of
- * the purge: their rows cascade away with the entry's, and their storage
- * objects are removed after the commit — a crash between the two leaves
- * unreachable objects, never a broken photo, and no route reaches an
- * object whose row is gone.
+ * the purge: their rows cascade away with the entry's, and the removal of
+ * their storage objects is scheduled inside the same transaction as an
+ * idempotent job — a storage hiccup costs retries, never leaked bytes.
  */
 
 /** The queue name of the per-entry purge job the trash use case schedules. */
@@ -122,15 +116,12 @@ export async function purgeTrashedEntry(
       now,
     )
     if (imageIds.length > 0) {
-      // The objects' cleanup rides the transaction too: a storage hiccup
-      // the direct pass below meets is repaired by the idempotent job.
+      // The objects' cleanup rides the same transaction: a storage hiccup
+      // costs the idempotent job its retries, never leaked bytes.
       const job: MediaDeleteJobData = { spaceId: data.spaceId, imageIds }
       await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
     }
   })
-  for (const imageId of imageIds) {
-    await deleteImageObjects(deps.storage, data.spaceId, imageId)
-  }
 }
 
 /**
@@ -185,10 +176,13 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
           },
           now,
         )
+        if (imageIds.length > 0) {
+          // The photos' objects go the way the per-entry purge sends them:
+          // the idempotent cleanup job, inside this same transaction.
+          const job: MediaDeleteJobData = { spaceId, imageIds }
+          await deps.jobs.sendInTx(tx, { name: MEDIA_DELETE_JOB, data: job })
+        }
       })
-      for (const imageId of imageIds) {
-        await deleteImageObjects(deps.storage, spaceId, imageId)
-      }
     } catch (cause) {
       failures.push({ spaceId, cause })
     }

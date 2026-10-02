@@ -9,11 +9,10 @@ const srcDir = fileURLToPath(new URL('./src', import.meta.url))
 const rootDir = fileURLToPath(new URL('../..', import.meta.url))
 // The API reads PORT from the root .env, so the dev proxy follows it.
 const apiTarget = `http://localhost:${loadEnv('development', rootDir, 'PORT').PORT ?? '3000'}`
+
 // The photo cache's name is one constant for the build and the runtime
 // (the sign-out deletes it) — see src/lib/photo-cache.ts.
-const { JOURNAL_PHOTO_CACHE } = (await import('./src/lib/photo-cache.ts')) as {
-  JOURNAL_PHOTO_CACHE: string
-}
+import { JOURNAL_PHOTO_CACHE } from './src/lib/photo-cache.ts'
 
 // https://vite.dev/config/
 export default defineConfig({

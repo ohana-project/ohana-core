@@ -175,6 +175,15 @@ export function EntryPhotoGallery({ entry }: { entry: StoredJournalEntry }) {
  */
 const RENDERABLE_ORIGINALS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
+/** The file extension a non-renderable original downloads under. */
+const DOWNLOAD_EXTENSIONS: Record<string, string> = {
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/tiff': 'tiff',
+  'image/avif': 'avif',
+}
+
+/** The file extension a non-renderable original downloads under. */
 function PhotoLightbox({
   entryId,
   image,
@@ -186,10 +195,22 @@ function PhotoLightbox({
 }) {
   const { t } = useTranslation()
   const viewer = useEntryImageUrl(entryId, image.id, 'full')
-  const original = useEntryImageUrl(entryId, image.id, 'original')
-  const originalShown =
-    original.data !== undefined && RENDERABLE_ORIGINALS.has(image.originalType ?? 'image/jpeg')
+  // The original is fetched only where a browser can show it: a HEIC
+  // original is up to the whole upload limit, and its bytes belong behind
+  // an explicit tap, not an open viewer.
+  const renderable = RENDERABLE_ORIGINALS.has(image.originalType ?? 'image/jpeg')
+  const original = useEntryImageUrl(entryId, image.id, 'original', renderable)
+  const [originalBroken, setOriginalBroken] = useState(false)
+  const originalShown = renderable && !originalBroken && original.data !== undefined
   const shown = originalShown ? original.data : viewer.data
+
+  const downloadOriginal = async () => {
+    const url = await fetchEntryImage(entryId, image.id, 'original')
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${image.id}.${DOWNLOAD_EXTENSIONS[image.originalType ?? ''] ?? 'bin'}`
+    anchor.click()
+  }
 
   return (
     // A plain overlay, not ui/dialog: the lightbox is a photo on a scrim,
@@ -213,21 +234,28 @@ function PhotoLightbox({
       {shown === undefined ? (
         <Spinner className="size-8 text-white/80" />
       ) : (
-        <img src={shown} alt="" className="max-h-[82vh] max-w-full rounded-lg object-contain" />
+        <img
+          src={shown}
+          alt=""
+          className="max-h-[82vh] max-w-full rounded-lg object-contain"
+          onError={() => setOriginalBroken(true)}
+        />
       )}
-      <span className="font-mono text-meta tracking-wide text-white/70 uppercase">
-        {original.data === undefined
-          ? t('journal.viewerLoadingOriginal')
-          : t('journal.viewerOriginalCaption')}
-      </span>
-      {original.data !== undefined && !originalShown && (
-        <a
-          href={original.data}
-          download
+      {originalShown && (
+        <span className="font-mono text-meta tracking-wide text-white/70 uppercase">
+          {original.data === undefined
+            ? t('journal.viewerLoadingOriginal')
+            : t('journal.viewerOriginalCaption')}
+        </span>
+      )}
+      {!renderable && (
+        <button
+          type="button"
           className="rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          onClick={() => void downloadOriginal()}
         >
           {t('journal.downloadOriginal')}
-        </a>
+        </button>
       )}
     </div>
   )

@@ -1,16 +1,21 @@
 import { buildApp } from '../app/buildApp.ts'
 import { ensureInitialAdministrator } from '../modules/admin/index.ts'
 import { JOURNAL_SENT_QUEUES } from '../modules/journal/index.ts'
-import { MEDIA_SENT_QUEUES } from '../modules/media/index.ts'
+import { MEDIA_QUEUE_SETUPS } from '../modules/media/index.ts'
 import { systemClock } from '../platform/clock.ts'
 import { loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
+import type { QueueSetup } from '../platform/jobs/pgboss.ts'
 import { startSendingJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
 
-/** Every queue the api's own use cases send to, across the sending modules. */
-const SENT_QUEUES = [...JOURNAL_SENT_QUEUES, ...MEDIA_SENT_QUEUES]
+/** Every queue the api's own use cases send to, across the sending
+ *  modules — the media queues with the retries their contracts name. */
+const SENT_QUEUES: QueueSetup[] = [
+  ...JOURNAL_SENT_QUEUES.map((name) => ({ name })),
+  ...MEDIA_QUEUE_SETUPS,
+]
 
 async function main(): Promise<void> {
   const config = await loadConfigOrExit()

@@ -2,6 +2,7 @@ import { Readable } from 'node:stream'
 import { buffer as readWholeStream } from 'node:stream/consumers'
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
+import type { QueueSetup } from '../../platform/jobs/pgboss.ts'
 import type { ObjectStorage } from '../../platform/storage/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges } from '../sync/index.ts'
@@ -29,10 +30,16 @@ export const MEDIA_DELETE_JOB = 'media-delete-objects'
 
 /**
  * The queues this module's use cases send to — the api process ensures
- * them. The delete job is also sent by the journal's purge handler, so the
- * worker ensures the same set.
+ * the same set, with the same creation options. Retries are the point of
+ * the delete job (it exists to survive a storage hiccup), and the
+ * derivatives job's transient failures deserve the same patience; every
+ * handler also checks current state before acting, so a repeated delivery
+ * writes nothing twice.
  */
-export const MEDIA_SENT_QUEUES = [MEDIA_DERIVATIVES_JOB, MEDIA_DELETE_JOB] as const
+export const MEDIA_QUEUE_SETUPS: QueueSetup[] = [
+  { name: MEDIA_DERIVATIVES_JOB, options: { retryLimit: 5, retryDelay: 30, retryBackoff: true } },
+  { name: MEDIA_DELETE_JOB, options: { retryLimit: 10, retryDelay: 30, retryBackoff: true } },
+]
 
 export interface MediaDerivativesJobData {
   spaceId: string
@@ -91,10 +98,15 @@ export async function generateEntryImageDerivatives(
     // were in flight: the bytes just written are cleaned up here, where the
     // delete job that raced them cannot have seen them.
     if (gone) {
-      await deleteImageObjects(deps.storage, data.spaceId, data.imageId)
+      await deleteImageObjects(deps.storage, data.spaceId, data.imageId).catch(() => {})
     }
   } catch (cause) {
-    await finalize(deps, data, 'failed')
+    // The same race on the failure path: a feed derivative may exist while
+    // the row does not.
+    const gone = await finalize(deps, data, 'failed')
+    if (gone) {
+      await deleteImageObjects(deps.storage, data.spaceId, data.imageId).catch(() => {})
+    }
     throw cause
   }
 }

@@ -110,6 +110,11 @@ describe('forgetMember', () => {
     queryClient.setQueryData(profilesOf('m-2'), [{ id: 'm-2' }])
     queryClient.setQueryData(memberSessionQueryKey, { status: 'signed-in' })
 
+    // The photo previews are the one cached API response (issue #17): the
+    // sign-out deletes their cache whole.
+    const deleteCache = vi.fn(() => Promise.resolve(true))
+    vi.stubGlobal('caches', { delete: deleteCache, open: vi.fn() })
+
     forgetMember(queryClient, 'm-1')
 
     // The forgotten member's answers are cleared outright.
@@ -119,6 +124,8 @@ describe('forgetMember', () => {
     // survives the boundary.
     expect(queryClient.getQueryData(memberSessionQueryKey)).toBeUndefined()
     expect(queryClient.getQueryData(profilesOf('m-2'))).toBeUndefined()
+    expect(deleteCache).toHaveBeenCalledWith('journal-photos')
+    vi.unstubAllGlobals()
   })
 })
 

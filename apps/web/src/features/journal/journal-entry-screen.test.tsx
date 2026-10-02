@@ -300,7 +300,47 @@ describe('JournalEntryScreen', () => {
       expect(fetchMock.mock.calls.some(([url]) => url === fullUrl)).toBe(true)
       expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(true)
     })
-    expect(await screen.findByText('Оригинал')).toBeInTheDocument()
+    expect(await screen.findByText('Оригинал', { exact: true })).toBeInTheDocument()
+  })
+
+  it('offers a HEIC original as a download instead of undisplayable bytes', async () => {
+    seedRegistry()
+    URL.createObjectURL = vi.fn(() => `blob:photo-${Math.random()}`)
+    URL.revokeObjectURL = vi.fn()
+    // A fresh response per call: a Response's body can be read once.
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(new Response(new Blob(['bytes']), { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    const row = {
+      ...entry(),
+      images: [
+        {
+          id: '01900000-0000-7000-8000-000000000203',
+          state: 'ready' as const,
+          width: 800,
+          height: 600,
+          originalType: 'image/heic',
+        },
+      ],
+    }
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    const photo = await screen.findByRole('button', {
+      name: 'Нажмите на фото, чтобы открыть в оригинальном качестве',
+    })
+    await photo.click()
+
+    // The original's bytes are never fetched: the viewer derivative is
+    // what shows, and the HEIC goes through the explicit download.
+    await screen.findByText('Скачать оригинал')
+    const originalUrl =
+      '/api/v1/journal/entries/' +
+      row.id +
+      '/images/01900000-0000-7000-8000-000000000203/variants/original'
+    expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(false)
   })
 
   it('shows the processing placeholder of a photo the worker has not finished', async () => {
