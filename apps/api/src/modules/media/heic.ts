@@ -49,7 +49,8 @@ export class HeicDecodeError extends Error {
 
 /**
  * Decodes a HEIC photo into a lossless PNG through the libheif CLI the
- * worker image provides. The bytes travel through a private temporary
+ * worker image provides (`heif-dec`; the distribution's `heif-convert`
+ * decodes just the same). The bytes travel through a private temporary
  * directory that is always removed; a decoder that is missing (not
  * installed) or refuses the file raises HeicDecodeError either way — the
  * caller marks the photo failed, and the queue's retry decides whether a
@@ -81,11 +82,21 @@ export async function heicDecodeToPng(input: Buffer): Promise<Buffer> {
       }
     }
     if (!decoded) {
-      throw new HeicDecodeError('the HEIC decoder is missing or refused the photo', {
-        cause: lastCause,
-      })
+      const missing = (lastCause as { code?: string }).code === 'ENOENT'
+      throw new HeicDecodeError(
+        missing
+          ? 'no HEIC decoder is installed (heif-dec, heif-convert)'
+          : 'the HEIC decoder refused the photo',
+        { cause: lastCause },
+      )
     }
-    return await readFile(outputPath)
+    try {
+      return await readFile(outputPath)
+    } catch (cause) {
+      // An exit-0 run that wrote nothing is the decoder's failure to
+      // produce, not a missing file to crash on.
+      throw new HeicDecodeError('the HEIC decoder wrote no output', { cause })
+    }
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

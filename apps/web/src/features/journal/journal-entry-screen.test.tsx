@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
@@ -6,6 +6,7 @@ import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from '@/
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
+import { toastManager } from '@/ui/toast.tsx'
 import { JournalEntryScreen } from './journal-entry-screen.tsx'
 
 /** The entry as the wire carries it: photos name what their original is. */
@@ -350,6 +351,31 @@ describe('JournalEntryScreen', () => {
       expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(true)
     })
     expect(URL.createObjectURL).toHaveBeenCalled()
+
+    // A refused download names the API's answer instead of doing nothing.
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: { code: 'image_not_found' } }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+    await screen.getByText('Скачать оригинал').click()
+    await vi.waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Скачать оригинал' })).toBeEnabled()
+    })
+
+    // A refused download names the API's answer instead of doing nothing.
+    // Base UI's toasts do not paint in jsdom; the manager's queue is what
+    // the assertion can honestly pin.
+    const addToast = vi.spyOn(toastManager, 'add')
+    fireEvent.click(screen.getByRole('button', { name: 'Скачать оригинал' }))
+    await vi.waitFor(() => {
+      expect(addToast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Фотография не найдена.' }),
+      )
+    })
   })
 
   it('shows the processing placeholder of a photo the worker has not finished', async () => {

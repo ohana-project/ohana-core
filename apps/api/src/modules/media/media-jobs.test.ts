@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { afterAll, describe, expect, test } from 'vitest'
+import { afterAll, describe, expect, test, vi } from 'vitest'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { instanceSettings } from '../admin/tables.ts'
 import { createDraft, touchEntryRevision } from '../journal/service.ts'
@@ -271,6 +271,17 @@ describe('generateEntryImageDerivatives', () => {
     // Nothing readable is left under the photo's keys: the removal's own
     // delete job and the handler's post-lock cleanup both ran.
     expect(await harness.storage.list(`spaces/${space.id}/journal/`)).toEqual([])
+  })
+
+  test('a machine with no HEIC decoder fails the decode as one loud failure', async () => {
+    const { heicDecodeToPng, HeicDecodeError } = await import('./heic.ts')
+    vi.stubEnv('PATH', '')
+    try {
+      await expect(heicDecodeToPng(HEIC_BYTES)).rejects.toBeInstanceOf(HeicDecodeError)
+      await expect(heicDecodeToPng(HEIC_BYTES)).rejects.toThrow('no HEIC decoder is installed')
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   test('a refused upload whose cleanup delete also fails queues the cleanup job', async () => {

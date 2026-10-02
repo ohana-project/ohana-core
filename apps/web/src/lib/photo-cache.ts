@@ -37,8 +37,11 @@ export function rememberFetchedImage(
   fetchedAtGeneration: number,
 ): string {
   if (fetchedAtGeneration !== generation) {
+    // The session the fetch was started for is gone: the blob is revoked,
+    // and the dead URL is refused — an eager query cache under an infinite
+    // staleTime would otherwise hold a broken image forever.
     URL.revokeObjectURL(objectUrl)
-    return objectUrl
+    throw new Error('the session ended before the photo arrived')
   }
   fetchedImages.set(url, objectUrl)
   if (fetchedImages.size > FETCHED_IMAGES_LIMIT) {

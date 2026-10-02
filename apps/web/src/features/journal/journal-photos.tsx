@@ -193,7 +193,6 @@ const DOWNLOAD_EXTENSIONS: Record<string, string> = {
   'image/heic': 'heic',
   'image/heif': 'heif',
   'image/tiff': 'tiff',
-  'image/avif': 'avif',
 }
 
 function PhotoLightbox({
@@ -221,13 +220,16 @@ function PhotoLightbox({
     if (downloading) return
     setDownloading(true)
     try {
-      // The download bypasses the memo: one explicit save, the blob is
-      // revoked as soon as the browser has the click.
+      // The download bypasses the memo: one explicit save, and the blob is
+      // revoked on a delay — WebKit resolves a blob download after the
+      // click, so revoking in the same tick fails the save.
       const response = await fetch(entryImageUrl(entryId, image.id, 'original'), {
         credentials: 'same-origin',
         headers: memberHeader(),
       })
       if (!response.ok) {
+        // eslint-disable-next-line no-console
+        console.log('DOWNLOAD NOT OK', response.status)
         throw new ApiError(extractErrorCode(await response.json().catch(() => null)))
       }
       const blob = await response.blob()
@@ -235,8 +237,10 @@ function PhotoLightbox({
       const anchor = document.createElement('a')
       anchor.href = objectUrl
       anchor.download = `${image.id}.${DOWNLOAD_EXTENSIONS[image.originalType ?? ''] ?? 'bin'}`
+      document.body.append(anchor)
       anchor.click()
-      URL.revokeObjectURL(objectUrl)
+      anchor.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
     } catch (cause) {
       toast(journalErrorMessage(cause, t), 'danger')
     } finally {
@@ -266,11 +270,14 @@ function PhotoLightbox({
       {shown === undefined ? (
         <Spinner className="size-8 text-white/80" />
       ) : (
+        // biome-ignore lint/a11y/noStaticElementInteractions: the photo sits on the scrim; the click keeps the viewer open, the scrim's own click closes it
+        // biome-ignore lint/a11y/useKeyWithClickEvents: same — the keyboard path is Escape on the scrim, which closes the viewer
         <img
           src={shown}
           alt=""
           className="max-h-[82vh] max-w-full rounded-lg object-contain"
           onError={() => setOriginalBroken(true)}
+          onClick={(event) => event.stopPropagation()}
         />
       )}
       {renderable && !originalBroken && !original.isError && (
@@ -285,7 +292,10 @@ function PhotoLightbox({
           type="button"
           className="flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
           disabled={downloading}
-          onClick={() => void downloadOriginal()}
+          onClick={(event) => {
+            event.stopPropagation()
+            void downloadOriginal()
+          }}
         >
           {downloading && <Spinner className="size-4" />}
           {t('journal.downloadOriginal')}

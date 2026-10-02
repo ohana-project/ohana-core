@@ -25,7 +25,8 @@ export interface Derivative {
 
 /**
  * An input the pipeline can decode: the original's bytes directly, or the
- * PNG a HEIC photo first became through `heif-dec` (sharp has no HEVC). A
+ * PNG a HEIC photo first became through the libheif CLI (sharp has no
+ * HEVC). A
  * decoder refusal falls back to sharp — the HEIC brands also carry the
  * occasional AVIF, which sharp decodes itself — and only a double failure
  * marks the photo undecodable.
