@@ -28,6 +28,7 @@ import { membersRoutes } from '../modules/members/routes.ts'
 import { spacesSyncContributor } from '../modules/spaces/index.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import { syncRoutes } from '../modules/sync/routes.ts'
+import { wishlistRoutes, wishlistSyncContributor } from '../modules/wishlist/index.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
@@ -132,17 +133,32 @@ export function buildApp(deps: AppDeps) {
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
   })
+  // The wishlist is a section module (ADR-0011) like the journal: its
+  // routes mount the access module's guard and the spaces module's section
+  // gate, and its writes recheck visibility inside their transactions. Its
+  // removals are true deletes, so their tombstones ride the same
+  // transactions (issue #18).
+  app.register(wishlistRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock },
+    access: accessDeps,
+  })
   // The sync module merges the contributors of every module with
-  // synchronised data; spaces, members, and journal contribute today, the
-  // remaining section modules join when their data lands (architecture.md,
-  // "Sync contributors"). The route plugin is imported directly, like the
-  // other routes here, so the sync module's public surface stays free of the
-  // response contract, and the response schema is composed from exactly
-  // the wired contributors.
+  // synchronised data; spaces, members, journal, and wishlist contribute
+  // today, the remaining section modules join when their data lands
+  // (architecture.md, "Sync contributors"). The route plugin is imported
+  // directly, like the other routes here, so the sync module's public
+  // surface stays free of the response contract, and the response schema is
+  // composed from exactly the wired contributors.
   app.register(syncRoutes, {
     prefix: '/api/v1',
     deps: accessDeps,
-    contributors: [spacesSyncContributor, membersSyncContributor, journalSyncContributor],
+    contributors: [
+      spacesSyncContributor,
+      membersSyncContributor,
+      journalSyncContributor,
+      wishlistSyncContributor,
+    ],
   })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
   if (deps.webDist !== undefined) {
