@@ -7,6 +7,7 @@ import {
   zoneDiffersFromDevice,
 } from '@/lib/calendar-dates.ts'
 import { eventDateKey, upcomingEvents } from './calendar-entries.ts'
+import { seriesTodayKey } from './recurrence.ts'
 
 /*
  * The calendar's date rules away from UTC (issue #20): the acceptance
@@ -97,5 +98,17 @@ describe('the occurrence windows away from UTC (issue #21)', () => {
     expect(upcoming.every((occurrence) => (eventDateKey(occurrence) ?? '') <= '2026-11-08')).toBe(
       true,
     )
+  })
+
+  test('an all-day series reads the device day (issue #21)', () => {
+    // 03:00Z on the 2nd is still the 1st in Los Angeles: the all-day
+    // frame is the device's day, unlike the timed series' own zone.
+    const allDay: StoredCalendarEvent = {
+      ...BIRTHDAY,
+      id: '01900000-0000-7000-8000-000000000414',
+      title: 'День рождения Люды',
+      recurrence: { frequency: 'weekly' },
+    }
+    expect(seriesTodayKey(allDay, new Date('2026-10-02T03:00:00.000Z'))).toBe('2026-10-01')
   })
 })

@@ -745,9 +745,4 @@ describe('seriesTodayKey (review round six)', () => {
     )
     expect(seriesTodayKey(auckland, new Date('2026-10-01T12:00:00.000Z'))).toBe('2026-10-02')
   })
-
-  test('an all-day series reads the device day', () => {
-    const allDay = storedEvent({ allDay: true, date: '2026-10-02' }, { frequency: 'weekly' })
-    expect(seriesTodayKey(allDay, new Date('2026-10-01T12:00:00.000Z'))).toBe('2026-10-01')
-  })
 })

@@ -4,9 +4,11 @@ import type {
   StoredEventRecurrence,
 } from '@/data/local-store.ts'
 import {
+  formatDateOnly,
   formatZonedTime,
   parseDateOnly,
   shiftDateKey,
+  todayDateOnly,
   wallTimeToInstant,
   zonedDateKey,
 } from '@/lib/calendar-dates.ts'
@@ -347,8 +349,10 @@ function isCancelled(event: StoredCalendarEvent, originalDate: string): boolean 
  * back to the first live one overall, then to the row's own first date.
  * The horizon runs from the search's own start to the rule's until,
  * capped by what the frequency can skip: a yearly February 29 series may
- * hold four years between neighbours, so the cap reaches past one
- * skipped cycle. The walk is over original dates: an occurrence an
+ * hold four years between neighbours, eight across a non-leap century
+ * year (2096 → 2104), so the cap spans nine. The walk is over original
+ * dates: an occurrence an override moved across today is still named by
+ * the date the series gives it.
  * override moved across today is still named by the date the series
  * gives it.
  */
@@ -387,19 +391,15 @@ function minDateKey(a: string, b: string): string {
 }
 
 /**
- * The today the landing's search starts from: an all-day series lives on
- * the zoneless calendar and a timed one in its own zone, so the day that
- * matters is the one that frame reads at this moment — a Tokyo device at
- * one in the morning is already on the 2nd there, and an occurrence the
- * zone still holds ahead must not be jumped over.
+ * The today the landing's search starts from: a timed series reads today
+ * in its own zone (noon UTC on the 1st is already the 2nd in Auckland),
+ * an all-day one reads the device's day.
  */
 export function seriesTodayKey(event: StoredCalendarEvent, now: Date): string {
   if (!event.allDay && event.timezone !== undefined) {
     return zonedDateKey(now.toISOString(), event.timezone)
   }
-  const at = new Date(now)
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
+  return formatDateOnly(todayDateOnly(now))
 }
 
 function buildOccurrence(event: StoredCalendarEvent, originalDate: string): EventOccurrence {
