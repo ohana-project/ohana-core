@@ -78,6 +78,13 @@
       "when": 1790897739811,
       "tag": "0010_striped_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790907142161,
+      "tag": "0011_spicy_warhawk",
+      "breakpoints": true
     }
   ]
 }

@@ -59,10 +59,25 @@ export interface StoredJournalEntryImage {
   originalType?: string
 }
 
+/** A wish as the sync response carries it (issue #18). The author names
+ *  the wishlist; the details, the link, and the received mark are optional
+ *  — a wish without `receivedAt` is open. */
+export interface StoredWish {
+  id: string
+  authorId: string
+  title: string
+  details?: string
+  link?: string
+  receivedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface MemberSnapshot {
   space: StoredSpace | undefined
   members: StoredMemberProfile[]
   entries: StoredJournalEntry[]
+  wishes: StoredWish[]
   /** The last revision the device has applied; undefined until the first sync lands. */
   revision: string | undefined
   /** When the last sync succeeded, in epoch milliseconds. */
@@ -88,10 +103,11 @@ function memberDbName(memberId: string): string {
 
 function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    // Version 2 added the journal entries store (issue #15). The upgrade
-    // runs for fresh databases and for the partitions of members who
-    // synced before it existed, so every store creation is guarded.
-    const request = indexedDB.open(memberDbName(memberId), 2)
+    // Version 2 added the journal entries store (issue #15); version 3 the
+    // wishlist's wishes (issue #18). The upgrade runs for fresh databases
+    // and for the partitions of members who synced before either existed,
+    // so every store creation is guarded.
+    const request = indexedDB.open(memberDbName(memberId), 3)
     request.onupgradeneeded = (event) => {
       // The versions travel on the version-change event, not the request.
       const oldVersion = event.oldVersion
@@ -112,33 +128,62 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('entries')) {
         db.createObjectStore('entries', { keyPath: 'id' })
       }
+      if (!db.objectStoreNames.contains('wishes')) {
+        db.createObjectStore('wishes', { keyPath: 'id' })
+      }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
       if (oldVersion >= 1 && oldVersion < 2) {
         // A version 1 device advanced its cursor while ignoring
         // journal_entry changes, so a delta would never deliver the
-        // entries past it. The reset makes the next sync replay from
-        // revision 0, the same move a re-shown section makes; the replay
-        // promise names the section, so the screens answer honestly until
-        // the replay lands. A partition whose first apply never committed
-        // holds no cursor, and stays honestly empty: resetting it would
-        // claim data it does not hold.
-        const meta = request.transaction?.objectStore('meta')
-        if (meta !== undefined) {
-          const read = meta.get('cursor')
-          read.onsuccess = () => {
-            if (read.result !== undefined) {
-              meta.put({ key: 'cursor', revision: '0' })
-              // v1 to v2 adds the journal; a later upgrade that adds a
-              // store must merge with a promise this write may find open.
-              meta.put({ key: 'pendingReplay', sections: ['journal'] })
-            }
-          }
-        }
+        // entries past it — and one upgrading straight to version 3 was
+        // ignoring wishlist_wish changes too. One reset covers both
+        // sections the upgrade passes on its way to version 3: the cursor
+        // goes to 0 and the replay promise names them, the same move a
+        // re-shown section makes (ADR-0014). A partition whose first apply
+        // never committed holds no cursor, and stays honestly empty:
+        // resetting it would claim data it does not hold.
+        upgradeReplay(request, ['journal', 'wishlist'])
+      }
+      if (oldVersion >= 2 && oldVersion < 3) {
+        // The same move for the wishlist (issue #18): a version 2 device
+        // advanced its cursor while ignoring wishlist_wish changes, so
+        // only a replay from 0 can deliver the wishes it was never sent.
+        upgradeReplay(request, ['wishlist'])
       }
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('Opening the local store failed'))
   })
+}
+
+/**
+ * The store upgrades' cursor reset (ADR-0014): the upgrade added the
+ * `added` sections' stores, so a device that had already advanced its
+ * cursor holds none of their rows and only a replay from revision 0 can
+ * deliver them. The cursor goes to 0 and the replay promise names the
+ * added sections merged with any promise already open (an upgrade can
+ * chain: v1 straight to v3 adds the journal and the wishlist in one
+ * step), so the screens answer honestly until the replay lands. A
+ * partition whose first apply never committed holds no cursor, and stays
+ * honestly empty: resetting it would claim data it does not hold.
+ */
+function upgradeReplay(request: IDBOpenDBRequest, added: SectionName[]): void {
+  const meta = request.transaction?.objectStore('meta')
+  if (meta === undefined) return
+  const read = meta.get('cursor')
+  read.onsuccess = () => {
+    if (read.result === undefined) return
+    const readPromise = meta.get('pendingReplay')
+    readPromise.onsuccess = () => {
+      meta.put({ key: 'cursor', revision: '0' })
+      const stored =
+        (readPromise.result?.sections as SectionName[] | undefined) ??
+        // No promise row at all means the last apply landed whole.
+        []
+      const merged = new Set<SectionName>([...stored, ...added])
+      meta.put({ key: 'pendingReplay', sections: [...merged] })
+    }
+  }
 }
 
 function requestAsPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -154,6 +199,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     space: undefined,
     members: [],
     entries: [],
+    wishes: [],
     revision: undefined,
     syncedAt: undefined,
     pendingReplay: [],
@@ -180,11 +226,12 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     return empty
   }
   try {
-    const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readonly')
-    const [spaces, members, entries, meta] = await Promise.all([
+    const tx = db.transaction(['space', 'members', 'entries', 'wishes', 'meta'], 'readonly')
+    const [spaces, members, entries, wishes, meta] = await Promise.all([
       requestAsPromise(tx.objectStore('space').getAll()),
       requestAsPromise(tx.objectStore('members').getAll()),
       requestAsPromise(tx.objectStore('entries').getAll()),
+      requestAsPromise(tx.objectStore('wishes').getAll()),
       requestAsPromise(tx.objectStore('meta').getAll()),
     ])
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
@@ -195,6 +242,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
       space: (spaces[0] as StoredSpace | undefined) ?? undefined,
       members: members as StoredMemberProfile[],
       entries: entries as StoredJournalEntry[],
+      wishes: wishes as StoredWish[],
       revision: cursor,
       syncedAt,
       pendingReplay,
@@ -251,10 +299,11 @@ export async function applySyncResult(
   try {
     // The stored cursor is only resolved once the transaction has committed.
     return await new Promise<AppliedSync>((resolve, reject) => {
-      const tx = db.transaction(['space', 'members', 'entries', 'meta'], 'readwrite')
+      const tx = db.transaction(['space', 'members', 'entries', 'wishes', 'meta'], 'readwrite')
       const spaceStore = tx.objectStore('space')
       const memberStore = tx.objectStore('members')
       const entryStore = tx.objectStore('entries')
+      const wishStore = tx.objectStore('wishes')
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
       let applied = true
@@ -287,17 +336,20 @@ export async function applySyncResult(
           for (const tombstone of result.tombstones) {
             if (tombstone.entity === 'member') memberStore.delete(tombstone.entityId)
             if (tombstone.entity === 'journal_entry') entryStore.delete(tombstone.entityId)
+            if (tombstone.entity === 'wishlist_wish') wishStore.delete(tombstone.entityId)
           }
           for (const change of result.changes) {
             if (change.entity === 'space') spaceStore.put(change.space)
             if (change.entity === 'member') memberStore.put(change.member)
             if (change.entity === 'journal_entry') entryStore.put(change.entry)
+            if (change.entity === 'wishlist_wish') wishStore.put(change.wish)
           }
 
           let revision = result.revision
           const nextSpace = result.changes.find((change) => change.entity === 'space')
           if (nextSpace !== undefined) {
             if (!nextSpace.space.sections.journal) entryStore.clear()
+            if (!nextSpace.space.sections.wishlist) wishStore.clear()
           }
           // A re-shown section writes the replay promise: the cursor goes
           // to 0 and the section's full data has to come again before the
