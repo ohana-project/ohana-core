@@ -729,7 +729,7 @@ describe('the landing anchor (nextLiveOccurrenceDate, review round five)', () =>
   })
 })
 
-describe('seriesTodayKey (review round six)', () => {
+describe('seriesTodayKey — a timed series reads its own zone', () => {
   test('a timed series reads today in its own zone', () => {
     // Noon UTC on the 1st is already one in the morning of the 2nd in
     // Auckland: the series' frame is a day ahead of the device's.

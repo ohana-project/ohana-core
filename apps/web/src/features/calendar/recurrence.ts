@@ -353,8 +353,6 @@ function isCancelled(event: StoredCalendarEvent, originalDate: string): boolean 
  * year (2096 → 2104), so the cap spans nine. The walk is over original
  * dates: an occurrence an override moved across today is still named by
  * the date the series gives it.
- * override moved across today is still named by the date the series
- * gives it.
  */
 export function nextLiveOccurrenceDate(
   event: StoredCalendarEvent,

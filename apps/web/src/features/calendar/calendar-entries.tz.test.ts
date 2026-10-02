@@ -106,7 +106,6 @@ describe('the occurrence windows away from UTC (issue #21)', () => {
     const allDay: StoredCalendarEvent = {
       ...BIRTHDAY,
       id: '01900000-0000-7000-8000-000000000414',
-      title: 'День рождения Люды',
       recurrence: { frequency: 'weekly' },
     }
     expect(seriesTodayKey(allDay, new Date('2026-10-02T03:00:00.000Z'))).toBe('2026-10-01')

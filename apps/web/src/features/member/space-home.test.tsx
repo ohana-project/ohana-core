@@ -22,13 +22,13 @@ import { memberSessionQueryKey } from './use-member-session.ts'
  * must never be readable here.
  */
 
-vi.mock('@/data/api.ts', () => ({
-  api: { GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() },
-}))
-
 // The home screen's answers are pinned to UTC, whatever zone the machine
 // that runs them sits in: the agenda's window runs from the device's day.
 process.env.TZ = 'UTC'
+
+vi.mock('@/data/api.ts', () => ({
+  api: { GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() },
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => async () => {},
