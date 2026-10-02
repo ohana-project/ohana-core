@@ -143,14 +143,15 @@ export function WishlistMineScreen() {
  * title-details-link triple, the received switch when editing, and the
  * removal with its confirm. Saving sends the triple's replace first and
  * the mark or its clearing second, so a refused triple changes nothing and
- * a refused mark leaves the switch honest. The fields hold what the member
- * typed at mount — a save is this sheet's last word on the triple, over
- * whatever a mid-edit sync delivered (last write wins; the sheet never
- * remounts under a re-delivered wish, so the typing survives). What the
- * sheet does read from the store on every render is the wish's identity
- * and its received mark, so the switch's move is decided against the row
- * as it is now, and a refusal's own sync corrects the row underneath
- * (use-wishlist.ts) without touching the open fields.
+ * a refused mark leaves the switch honest. The fields are seeded from the
+ * wish at mount and then hold the member's typing — a save is this
+ * sheet's last word on the triple, over whatever a mid-edit sync
+ * delivered (last write wins; the sheet never remounts under a
+ * re-delivered wish, so the typing survives). What the sheet does read
+ * from the store on every render is the wish's identity, its received
+ * mark, and the title the removal confirm names, so the switch's move is
+ * decided against the row as it is now, and a refusal's own sync corrects
+ * the row underneath (use-wishlist.ts) without touching the open fields.
  */
 function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onClose: () => void }) {
   const { t } = useTranslation()

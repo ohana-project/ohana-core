@@ -275,11 +275,19 @@ describe('the wishlist wishes (issue #18)', () => {
       expect(missing.status).toBe(400)
 
       // A NUL is not whitespace, but the database refuses it inside text —
-      // the contract refuses it first, so the write stays a 400.
+      // the contract refuses it first, so the write stays a 400. Padded,
+      // empty, and whitespace-only links refuse too: the pattern's
+      // whitespace ban is what lets the service store a link as it
+      // arrived, with no trim of its own.
       for (const link of [
         'ftp://example.com/gift',
         'javascript:alert(1)',
         'not a url',
+        '',
+        '   ',
+        ' https://example.com/a',
+        'https://example.com/a ',
+        'https://example.com/a\n',
         'https://example.com/\u0000',
       ]) {
         const refused = await createWish(app, anna, { title: 'Фонарь', link })
@@ -382,10 +390,11 @@ describe('the wishlist wishes (issue #18)', () => {
       expect(errorCode(crossClear.body)).toBe('wish_not_found')
 
       // Nothing of the refused writes landed: the stranger still reads
-      // their wish exactly as it was created.
+      // their wish exactly as it was created — the whole row, the mark
+      // and the revision stamps included.
       const unchanged = await getWish(app, stranger, foreignId)
       expect(unchanged.status).toBe(200)
-      expect(unchanged.body).toMatchObject({ title: 'Чужое желание' })
+      expect(unchanged.body).toEqual(foreign.body)
     })
   })
 

@@ -2,6 +2,7 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import type { StoredWish, SyncResult } from '@/data/local-store.ts'
@@ -133,7 +134,10 @@ function mockQuietSync() {
  * the two halves the screens react to.
  */
 function CaptureClient({ capture }: { capture: (client: QueryClient) => void }) {
-  capture(useQueryClient())
+  const client = useQueryClient()
+  useEffect(() => {
+    capture(client)
+  }, [client, capture])
   return null
 }
 
@@ -452,6 +456,10 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     })
 
     await waitFor(() => expect(screen.queryByText('Изменить желание')).not.toBeInTheDocument())
+    // The sheet must be gone, not fallen back to "new" — an editor that
+    // offered to re-create the removed wish would pass a title-only check.
+    expect(screen.queryByText('Новое желание')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByText('Налобный фонарь')).not.toBeInTheDocument()
   })
 
@@ -502,6 +510,9 @@ describe('WishlistMineScreen (the own wishlist)', () => {
 
     // The save that never touched the switch sends the triple only: the
     // mark another device landed is neither cleared nor re-marked.
+    // The row's pill proves the mid-edit sync reached the component —
+    // otherwise the save would pass on a stale wish for the wrong reason.
+    expect(await screen.findByText('Получено')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
     await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
     expect(apiPut).toHaveBeenCalledTimes(1)
@@ -550,7 +561,9 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     })
 
     // The untouched switch sends neither the clearing nor, against the row
-    // that is now open, the mark again.
+    // that is now open, the mark again. The pill's disappearance proves
+    // the mid-edit sync reached the component first.
+    await waitFor(() => expect(screen.queryByText('Получено')).not.toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
     await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
     expect(apiPut).toHaveBeenCalledTimes(1)

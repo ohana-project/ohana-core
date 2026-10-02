@@ -16,9 +16,9 @@ import { DomainError } from '../../platform/errors.ts'
  * for "what a member may see" exists and the reads go through it — a
  * future rule lands in this file and its SQL dialect beside it, and every
  * read and the sync contributor follow (architecture.md, "Sync
- * contributors") — issue #19 gives the rule its content, the favorites
- * and reservations this screen is to grow. The space scoping of the
- * queries is applied before this rule; it is not repeated here.
+ * contributors") — issue #19 adds gift favorites and gift reservations,
+ * whose own visibility rules land here beside this one. The space scoping
+ * of the queries is applied before this rule; it is not repeated here.
  */
 export function wishVisibleTo(_wish: { authorMemberId: string }, _memberId: string): boolean {
   return true
@@ -30,8 +30,9 @@ export function wishVisibleTo(_wish: { authorMemberId: string }, _memberId: stri
  * Kept next to `wishVisibleTo` so what a member may see is defined in
  * exactly one place. Today it narrows nothing: `undefined` in a drizzle
  * `and(...)` is no extra filter beyond the space scope the query already
- * carries — the `memberId` rides along for issue #19, whose favorites and
- * reservations narrow for real.
+ * carries — the `memberId` rides along because issue #19's favorites and
+ * reservations bring visibility rules of their own, which land here as
+ * real filters beside this one.
  */
 export function wishVisibleToSql(_memberId: string): undefined {
   return undefined

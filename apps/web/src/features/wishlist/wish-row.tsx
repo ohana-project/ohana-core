@@ -47,10 +47,12 @@ export function WishRow({
               href={wish.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex w-fit items-center gap-1.5 text-sm text-accent hover:underline"
+              className="inline-flex w-fit max-w-full items-center gap-1.5 text-sm text-accent hover:underline"
             >
-              <Icon name="globe" className="size-4" />
-              {linkDomain(wish.link)}
+              <Icon name="globe" className="size-4 shrink-0" />
+              {/* truncate: a hostname has no space in it, so a very long
+                  one must cut off instead of stretching the card. */}
+              <span className="truncate">{linkDomain(wish.link)}</span>
             </a>
           )}
         </div>

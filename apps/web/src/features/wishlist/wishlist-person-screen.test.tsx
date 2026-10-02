@@ -189,6 +189,10 @@ describe('WishlistPersonScreen (one member wishlist)', () => {
     renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
 
     expect(await screen.findByText('Список пока пуст')).toBeInTheDocument()
+    // The name stays nominative (Russian genitive is not something the
+    // copy can inflect), and the empty text stands without it.
+    expect(screen.getByText('Вишлист — Дима')).toBeInTheDocument()
+    expect(screen.getByText('Пока желаний нет — загляните позже.')).toBeInTheDocument()
   })
 
   it('says nothing is downloaded while the wishlist replay has not landed', async () => {
