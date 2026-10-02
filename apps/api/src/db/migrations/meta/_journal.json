@@ -99,6 +99,13 @@
       "when": 1790955323646,
       "tag": "0013_spotty_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790969346115,
+      "tag": "0014_shallow_loners",
+      "breakpoints": true
     }
   ]
 }

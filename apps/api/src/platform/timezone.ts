@@ -80,3 +80,23 @@ export function wallTimeToInstant(date: string, time: string, zone: string): Dat
   )
   return new Date(real.length > 0 ? Math.min(...real) : naive - before)
 }
+
+/**
+ * The wall time an instant reads in a zone: the composition's inverse, the
+ * reading a recurring event's frame is taken from — the series repeats at
+ * the wall time its first occurrence actually reads in the event's zone
+ * (issue #21). The date is `YYYY-MM-DD`, the time `HH:MM`.
+ */
+export function zoneWallTime(instant: Date, zone: string): { date: string; time: string } {
+  const parts = zoneFormatter(zone).formatToParts(instant)
+  const value = (type: Intl.DateTimeFormatPartTypes): string => {
+    const part = parts.find((candidate) => candidate.type === type)
+    if (part === undefined) throw new Error(`The zone lookup produced no ${type}`)
+    return part.value
+  }
+  const two = (raw: string): string => raw.padStart(2, '0')
+  return {
+    date: `${value('year')}-${two(value('month'))}-${two(value('day'))}`,
+    time: `${two(value('hour'))}:${two(value('minute'))}`,
+  }
+}

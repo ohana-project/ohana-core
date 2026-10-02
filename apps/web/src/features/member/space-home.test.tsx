@@ -22,6 +22,10 @@ import { memberSessionQueryKey } from './use-member-session.ts'
  * must never be readable here.
  */
 
+// The home screen's answers are pinned to UTC, whatever zone the machine
+// that runs them sits in: the agenda's window runs from the device's day.
+process.env.TZ = 'UTC'
+
 vi.mock('@/data/api.ts', () => ({
   api: { GET: vi.fn(), POST: vi.fn(), DELETE: vi.fn() },
 }))
@@ -31,6 +35,22 @@ vi.mock('@tanstack/react-router', () => ({
   // The gate redirects through Navigate; the tests decide the session
   // state, so it never renders.
   Navigate: () => null,
+  // The home columns link into the calendar; a stand-in href built from
+  // the params and the search, so the tests can assert where an
+  // occurrence leads (issue #21).
+  Link: ({
+    children,
+    params,
+    search,
+  }: {
+    children?: React.ReactNode
+    params?: { eventId?: string }
+    search?: { date?: string }
+  }) => (
+    <a href={`/calendar/${params?.eventId ?? ''}${search?.date ? `?date=${search.date}` : ''}`}>
+      {children}
+    </a>
+  ),
 }))
 
 const apiGet = vi.mocked(api.GET)
@@ -435,5 +455,59 @@ describe('SpaceHomeScreen', () => {
     ).toBeInTheDocument()
     // The failed sign-out keeps the registry entry for a retry.
     expect(window.localStorage.getItem('ohana.activeMember')).toBe(world.memberId)
+  })
+})
+
+describe('SpaceHomeScreen (a series occurrence in the events column, issue #21)', () => {
+  // The agenda's window runs from the device's today, so the clock is
+  // pinned and the expected occurrence computed from the pinned day.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('an occurrence links by its series and original date, not by its composite id', async () => {
+    const world = makeWorld()
+    seedRegistry(world)
+    const withSeries = syncResultFor(world)
+    withSeries.changes.push({
+      entity: 'calendar_event',
+      event: {
+        id: '01900000-0000-7000-8000-000000000431',
+        creatorId: world.memberId,
+        title: 'Утренняя зарядка',
+        allDay: true,
+        // A weekly Monday series whose first occurrence is the pinned
+        // today: the window always holds it.
+        date: '2026-10-05',
+        createdAt: '2026-10-01T09:00:00.000Z',
+        updatedAt: '2026-10-01T09:00:00.000Z',
+        recurrence: { frequency: 'weekly' },
+      },
+    } as never)
+    await applySyncResult(world.memberId, withSeries)
+    mockResponses(world, withSeries)
+
+    renderWithProviders(<HomeRoute />)
+
+    // The links carry the series' id and each occurrence's date: the
+    // occurrence's own id (`eventId:date`) is not an event address.
+    const links = await screen.findAllByRole('link', { name: /Утренняя зарядка/ })
+    expect(links.length).toBeGreaterThan(0)
+    expect(links[0]).toHaveAttribute(
+      'href',
+      '/calendar/01900000-0000-7000-8000-000000000431?date=2026-10-05',
+    )
+    for (const link of links) {
+      expect(link).toHaveAttribute(
+        'href',
+        expect.stringMatching(
+          /^\/calendar\/01900000-0000-7000-8000-000000000431\?date=\d{4}-\d{2}-\d{2}$/,
+        ),
+      )
+    }
   })
 })

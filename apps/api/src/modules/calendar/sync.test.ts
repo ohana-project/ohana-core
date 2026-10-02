@@ -106,6 +106,8 @@ interface SyncEvent {
   startsAt?: string
   endsAt?: string
   timezone?: string
+  recurrence?: { frequency: string; until?: string }
+  exceptions?: Array<Record<string, unknown>>
 }
 
 interface SyncResponse {
@@ -264,6 +266,54 @@ describe('the calendar sync contributor (issues #14 and #20)', () => {
       const fresh = await sync(app, dima, '0')
       expect(eventChanges(fresh)).toEqual([])
       expect(fresh.tombstones.map((tombstone) => tombstone.entityId)).toContain(event.id)
+    })
+  })
+
+  test('an occurrence’s exception rides inside its event’s delta (issue #21)', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+      const dima = await memberSession(app, adminCookie, space.id, 'Дима')
+
+      const create = await app.inject({
+        method: 'POST',
+        url: '/api/v1/calendar/events',
+        headers: memberHeaders(anna),
+        payload: {
+          title: 'Утренняя зарядка',
+          allDay: true,
+          date: '2026-10-05',
+          recurrence: { frequency: 'daily' },
+        },
+      })
+      expect(create.statusCode).toBe(201)
+      const series = create.json() as SyncEvent
+      const seen = await sync(app, dima, '0')
+      expect(eventChanges(seen)).toHaveLength(1)
+      expect(eventChanges(seen)[0]).toMatchObject({
+        id: series.id,
+        recurrence: { frequency: 'daily' },
+      })
+      const cursor = seen.revision
+
+      // The cancellation is not a change of its own: it stamps the event,
+      // and the event's delta carries the exception inside its DTO.
+      const cancel = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/calendar/events/${series.id}/occurrences/2026-10-07`,
+        headers: memberHeaders(anna),
+      })
+      expect(cancel.statusCode).toBe(204)
+
+      const delta = await sync(app, dima, cursor)
+      const events = eventChanges(delta)
+      expect(events).toHaveLength(1)
+      expect(events[0]).toMatchObject({
+        id: series.id,
+        exceptions: [{ originalDate: '2026-10-07', kind: 'cancelled' }],
+      })
+      expect(delta.tombstones).toEqual([])
     })
   })
 

@@ -98,9 +98,17 @@ _Avoid_: Deleted wish, fulfilled reservation.
 A planned activity or significant date shared in a space's calendar, occurring once or on a repeating schedule.
 _Avoid_: Reminder (the event exists independently of its notifications).
 
+**Series** (RU: серия):
+A calendar event that repeats on a rule — one of the daily, weekly, monthly, or yearly frequencies, optionally bounded by an end date. Editing the series replaces the rule for every occurrence that carries no exception of its own, and an exception whose original date the edited series no longer produces is deleted with the edit; "this and following" is not offered.
+_Avoid_: Repeating event as a separate entity (the series is the event), rule.
+
 **Event occurrence** (RU: отдельное событие серии):
 A particular instance of a repeating calendar event that can be changed independently of the rest of the series.
 _Avoid_: Entire series (when referring to a single instance).
+
+**Occurrence exception** (RU: исключение события серии):
+A change or cancellation anchored to one original occurrence date of a series. An override replaces that occurrence whole; a cancellation removes it. The rest of the series goes on untouched.
+_Avoid_: Exception to the rule (the rule itself never bends), deleted occurrence.
 
 **Reminder recipient** (RU: получатель напоминания):
 A member selected by an event's creator to receive its reminders. Being able to see an event does not automatically make a member a recipient.

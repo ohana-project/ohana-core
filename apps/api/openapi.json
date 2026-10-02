@@ -4175,6 +4175,156 @@
                             "minLength": 1,
                             "type": "string"
                           },
+                          "recurrence": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "frequency"
+                            ],
+                            "properties": {
+                              "frequency": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "daily"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "weekly"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "monthly"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "yearly"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "until": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "exceptions": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "originalDate",
+                                    "kind"
+                                  ],
+                                  "properties": {
+                                    "originalDate": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "cancelled"
+                                      ]
+                                    }
+                                  }
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "originalDate",
+                                    "kind",
+                                    "title",
+                                    "allDay",
+                                    "date"
+                                  ],
+                                  "properties": {
+                                    "originalDate": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "override"
+                                      ]
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "allDay": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        true
+                                      ]
+                                    },
+                                    "date": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "type": "object",
+                                  "required": [
+                                    "originalDate",
+                                    "kind",
+                                    "title",
+                                    "allDay",
+                                    "startsAt",
+                                    "endsAt",
+                                    "timezone"
+                                  ],
+                                  "properties": {
+                                    "originalDate": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "override"
+                                      ]
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "allDay": {
+                                      "type": "boolean",
+                                      "enum": [
+                                        false
+                                      ]
+                                    },
+                                    "startsAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "endsAt": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "timezone": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          },
                           "createdAt": {
                             "format": "date-time",
                             "type": "string"
@@ -4224,6 +4374,47 @@
                       "date": {
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
+                      },
+                      "recurrence": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "frequency"
+                        ],
+                        "properties": {
+                          "frequency": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "daily"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "weekly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "yearly"
+                                ]
+                              }
+                            ]
+                          },
+                          "until": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   },
@@ -4266,6 +4457,47 @@
                         "minLength": 1,
                         "maxLength": 64,
                         "type": "string"
+                      },
+                      "recurrence": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "frequency"
+                        ],
+                        "properties": {
+                          "frequency": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "daily"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "weekly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "yearly"
+                                ]
+                              }
+                            ]
+                          },
+                          "until": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   }
@@ -4331,6 +4563,156 @@
                     "timezone": {
                       "minLength": 1,
                       "type": "string"
+                    },
+                    "recurrence": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "frequency"
+                      ],
+                      "properties": {
+                        "frequency": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "daily"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "weekly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "monthly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "yearly"
+                              ]
+                            }
+                          ]
+                        },
+                        "until": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "exceptions": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cancelled"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "date"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  true
+                                ]
+                              },
+                              "date": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "startsAt",
+                              "endsAt",
+                              "timezone"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ]
+                              },
+                              "startsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "endsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "timezone": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      }
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -4417,6 +4799,156 @@
                       "minLength": 1,
                       "type": "string"
                     },
+                    "recurrence": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "frequency"
+                      ],
+                      "properties": {
+                        "frequency": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "daily"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "weekly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "monthly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "yearly"
+                              ]
+                            }
+                          ]
+                        },
+                        "until": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "exceptions": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cancelled"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "date"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  true
+                                ]
+                              },
+                              "date": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "startsAt",
+                              "endsAt",
+                              "timezone"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ]
+                              },
+                              "startsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "endsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "timezone": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string"
@@ -4432,6 +4964,430 @@
           }
         }
       },
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "allDay",
+                      "date"
+                    ],
+                    "properties": {
+                      "title": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
+                        "type": "string"
+                      },
+                      "allDay": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "date": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "recurrence": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "frequency"
+                        ],
+                        "properties": {
+                          "frequency": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "daily"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "weekly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "yearly"
+                                ]
+                              }
+                            ]
+                          },
+                          "until": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "allDay",
+                      "date",
+                      "startTime",
+                      "endTime"
+                    ],
+                    "properties": {
+                      "title": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
+                        "type": "string"
+                      },
+                      "allDay": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "date": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "startTime": {
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "type": "string"
+                      },
+                      "endTime": {
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "type": "string"
+                      },
+                      "recurrence": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "frequency"
+                        ],
+                        "properties": {
+                          "frequency": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "daily"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "weekly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "monthly"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "yearly"
+                                ]
+                              }
+                            ]
+                          },
+                          "until": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "eventId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "creatorId",
+                    "title",
+                    "allDay",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "creatorId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "startsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "recurrence": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "frequency"
+                      ],
+                      "properties": {
+                        "frequency": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "daily"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "weekly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "monthly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "yearly"
+                              ]
+                            }
+                          ]
+                        },
+                        "until": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "exceptions": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cancelled"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "date"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  true
+                                ]
+                              },
+                              "date": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "startsAt",
+                              "endsAt",
+                              "timezone"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ]
+                              },
+                              "startsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "endsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "timezone": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "eventId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/events/{eventId}/occurrences/{originalDate}": {
       "put": {
         "requestBody": {
           "required": true,
@@ -4525,6 +5481,15 @@
           },
           {
             "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "originalDate",
+            "required": true
+          },
+          {
+            "schema": {
               "format": "uuid",
               "type": "string"
             },
@@ -4580,6 +5545,156 @@
                       "minLength": 1,
                       "type": "string"
                     },
+                    "recurrence": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "frequency"
+                      ],
+                      "properties": {
+                        "frequency": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "daily"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "weekly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "monthly"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "yearly"
+                              ]
+                            }
+                          ]
+                        },
+                        "until": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "exceptions": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cancelled"
+                                ]
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "date"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  true
+                                ]
+                              },
+                              "date": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              }
+                            }
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "originalDate",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "startsAt",
+                              "endsAt",
+                              "timezone"
+                            ],
+                            "properties": {
+                              "originalDate": {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "override"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean",
+                                "enum": [
+                                  false
+                                ]
+                              },
+                              "startsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "endsAt": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "timezone": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string"
@@ -4604,6 +5719,15 @@
             },
             "in": "path",
             "name": "eventId",
+            "required": true
+          },
+          {
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "originalDate",
             "required": true
           },
           {
@@ -6058,6 +7182,156 @@
                                   "timezone": {
                                     "minLength": 1,
                                     "type": "string"
+                                  },
+                                  "recurrence": {
+                                    "additionalProperties": false,
+                                    "type": "object",
+                                    "required": [
+                                      "frequency"
+                                    ],
+                                    "properties": {
+                                      "frequency": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "daily"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "weekly"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "monthly"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "yearly"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      "until": {
+                                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "exceptions": {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "type": "object",
+                                          "required": [
+                                            "originalDate",
+                                            "kind"
+                                          ],
+                                          "properties": {
+                                            "originalDate": {
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "cancelled"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "type": "object",
+                                          "required": [
+                                            "originalDate",
+                                            "kind",
+                                            "title",
+                                            "allDay",
+                                            "date"
+                                          ],
+                                          "properties": {
+                                            "originalDate": {
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "override"
+                                              ]
+                                            },
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "allDay": {
+                                              "type": "boolean",
+                                              "enum": [
+                                                true
+                                              ]
+                                            },
+                                            "date": {
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                              "type": "string"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "type": "object",
+                                          "required": [
+                                            "originalDate",
+                                            "kind",
+                                            "title",
+                                            "allDay",
+                                            "startsAt",
+                                            "endsAt",
+                                            "timezone"
+                                          ],
+                                          "properties": {
+                                            "originalDate": {
+                                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                              "type": "string"
+                                            },
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "override"
+                                              ]
+                                            },
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "allDay": {
+                                              "type": "boolean",
+                                              "enum": [
+                                                false
+                                              ]
+                                            },
+                                            "startsAt": {
+                                              "format": "date-time",
+                                              "type": "string"
+                                            },
+                                            "endsAt": {
+                                              "format": "date-time",
+                                              "type": "string"
+                                            },
+                                            "timezone": {
+                                              "minLength": 1,
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      ]
+                                    }
                                   },
                                   "createdAt": {
                                     "format": "date-time",

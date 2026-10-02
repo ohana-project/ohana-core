@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
-import { upcomingEvents } from '@/features/calendar/calendar-entries.ts'
+import { occurrenceLink, upcomingEvents } from '@/features/calendar/calendar-entries.ts'
 import { EventTimeLine } from '@/features/calendar/event-time.tsx'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { ALL_SECTIONS_VISIBLE, useNavSections } from '@/features/member/use-nav-sections.ts'
@@ -157,7 +157,7 @@ export function SpaceHomeScreen() {
                         <li key={event.id}>
                           <Link
                             to="/calendar/$eventId"
-                            params={{ eventId: event.id }}
+                            {...occurrenceLink(event)}
                             className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
                           >
                             <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">

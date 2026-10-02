@@ -31,11 +31,11 @@ export const calendarSyncContributor = {
     if (!sectionVisibility(space).calendar) {
       return { upserts: [] }
     }
-    const rows = await listChangedEventsFor(tx, actor, since)
+    const changed = await listChangedEventsFor(tx, actor, since)
     return {
-      upserts: rows.map((event) => ({
+      upserts: changed.map(({ event, exceptions }) => ({
         entity: CALENDAR_EVENT_SYNC_ENTITY,
-        event: toEventDto(event),
+        event: toEventDto(event, exceptions),
       })),
     }
   },

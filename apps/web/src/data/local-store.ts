@@ -96,12 +96,50 @@ export interface StoredGiftReservation {
 }
 
 /**
- * A calendar event as the sync response carries it (issue #20). The two
- * kinds keep their own fields: an all-day event carries only `date` — a
- * zoneless `YYYY-MM-DD` that never shifts wherever it is viewed — and a
- * timed event its absolute moments plus the IANA zone it keeps, which the
- * screens render in the device's local time with that zone as the
- * indication.
+ * The recurrence a repeating event keeps (issue #21), the structured shape
+ * the wire carries — the frequency and the optional until date (the last
+ * day an occurrence may fall on). The stored RRULE text itself never
+ * travels; the server has composed it from this shape and answers it back.
+ */
+export interface StoredEventRecurrence {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  until?: string
+}
+
+/**
+ * One original occurrence date changed or cancelled on its own (issue
+ * #21). An override carries the replacement whole — an event of its own
+ * kind, the series' pattern not applied to it; a cancellation carries
+ * nothing: the series skips the date.
+ */
+export type StoredEventException =
+  | { originalDate: string; kind: 'cancelled' }
+  | {
+      originalDate: string
+      kind: 'override'
+      title: string
+      allDay: true
+      date: string
+    }
+  | {
+      originalDate: string
+      kind: 'override'
+      title: string
+      allDay: false
+      startsAt: string
+      endsAt: string
+      timezone: string
+    }
+
+/**
+ * A calendar event as the sync response carries it (issues #20 and #21).
+ * The two kinds keep their own fields: an all-day event carries only
+ * `date` — a zoneless `YYYY-MM-DD` that never shifts wherever it is
+ * viewed — and a timed event its absolute moments plus the IANA zone it
+ * keeps, which the screens render in the device's local time with that
+ * zone as the indication. A repeating event carries its recurrence and
+ * the exceptions it has accumulated; the device expands the occurrences
+ * from this one row, offline included.
  */
 export interface StoredCalendarEvent {
   id: string
@@ -112,6 +150,8 @@ export interface StoredCalendarEvent {
   startsAt?: string
   endsAt?: string
   timezone?: string
+  recurrence?: StoredEventRecurrence
+  exceptions?: StoredEventException[]
   createdAt: string
   updatedAt: string
 }

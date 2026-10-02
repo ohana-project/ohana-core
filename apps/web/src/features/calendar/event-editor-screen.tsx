@@ -23,23 +23,41 @@ import { Switch } from '@/ui/switch.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { canEditEvent, eventById } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
+import { occurrenceOf, type Recurrence } from './recurrence.ts'
 import {
   calendarErrorMessage,
   type EventInput,
   useCalendarData,
   useCreateEvent,
   useUpdateEvent,
+  useUpdateOccurrence,
 } from './use-calendar.ts'
 
 /*
  * The event editor (docs/design/screens/event-editor.html): the title, the
- * all-day switch, the date, the start and end times, and the zone — whose
- * default is the space's (issue #1, story 64). The repeating section of
- * the prototype and the reminder's belong to later tickets (#21, #22) and
- * are not here yet. The API composes the wall time into instants; the
- * editor's own guards only mirror the contract's bounds.
+ * all-day switch, the date, the start and end times, the zone — whose
+ * default is the space's (issue #1, story 64) — and, since issue #21, the
+ * repeating section: the frequency and the optional end date. The editor
+ * edits one thing at a time: a new event or the whole series (the series'
+ * replace), or — when the link named an occurrence's original date — that
+ * occurrence alone, which has no rule of its own. "This and following" is
+ * not offered, by the ticket's design. The reminder's section of the
+ * prototype belongs to #22 and is not here yet. The API composes the wall
+ * time into instants; the editor's own guards only mirror the contract's
+ * bounds.
  */
-export function EventEditorScreen({ eventId }: { eventId?: string }) {
+
+const REPEAT_CHOICES = ['none', 'daily', 'weekly', 'monthly', 'yearly'] as const
+
+type RepeatChoice = (typeof REPEAT_CHOICES)[number]
+
+export function EventEditorScreen({
+  eventId,
+  occurrenceDate,
+}: {
+  eventId?: string
+  occurrenceDate?: string
+}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language as Locale
   const navigate = useNavigate()
@@ -47,9 +65,22 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
 
   const createEvent = useCreateEvent()
   const updateEvent = useUpdateEvent()
+  const updateOccurrence = useUpdateOccurrence()
 
   const existing = eventId === undefined ? undefined : eventById(events, eventId)
-  const editable = existing === undefined || canEditEvent(existing, getActiveMemberId(), profiles)
+  const occurrence =
+    existing !== undefined && occurrenceDate !== undefined
+      ? occurrenceOf(existing, occurrenceDate)
+      : undefined
+  // The occurrence the link named may be gone (cancelled): the editor has
+  // nothing to seed and nothing to save.
+  const missingOccurrence = occurrenceDate !== undefined && occurrence === undefined
+  const editable =
+    (existing === undefined || canEditEvent(existing, getActiveMemberId(), profiles)) &&
+    !missingOccurrence
+  // What the fields start from: the occurrence's effective fields — an
+  // override's included — or the series row's own.
+  const source = occurrence?.event ?? existing
 
   // The fields start from the stored event once it is available; after the
   // first keystroke the member's input wins — the journal editor's shape.
@@ -59,6 +90,8 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
   const [startTime, setStartTime] = useState<string | undefined>(undefined)
   const [endTime, setEndTime] = useState<string | undefined>(undefined)
   const [timezone, setTimezone] = useState<string | undefined>(undefined)
+  const [repeat, setRepeat] = useState<RepeatChoice | undefined>(undefined)
+  const [until, setUntil] = useState<string | undefined>(undefined)
   // The zone the member actually chose: left alone, the field shows the
   // space's zone and the API applies that default itself, so a space-zone
   // change between opening the form and saving is honoured.
@@ -67,7 +100,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
 
   const spaceZone = space?.timezone ?? 'UTC'
   const effective = effectiveFields(
-    existing,
+    source,
     {
       title,
       allDay,
@@ -75,15 +108,18 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
       startTime,
       endTime,
       timezone,
+      repeat,
+      until,
     },
     spaceZone,
   )
+  const occurrenceMode = occurrenceDate !== undefined
 
   // The zone list is the runtime's, stable per locale; the event's own
   // spelling is prepended per render — the alias case is rare and cheap.
   const zoneOptions = useMemo(() => timezoneOptions(locale, new Date()), [locale])
   const zoneChoices = prependZone(zoneOptions, effective.timezone)
-  const pending = createEvent.isPending || updateEvent.isPending
+  const pending = createEvent.isPending || updateEvent.isPending || updateOccurrence.isPending
   const titleBlank = effective.title.trim().length === 0
   const dateBlank = effective.date.trim().length === 0
   const timesBlank = !effective.allDay && (effective.startTime === '' || effective.endTime === '')
@@ -92,16 +128,38 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
     effective.startTime !== '' &&
     effective.endTime !== '' &&
     effective.endTime <= effective.startTime
+  const untilBeforeStart =
+    effective.repeat !== 'none' && effective.until !== '' && effective.until < effective.date
+
+  const editorTitle =
+    eventId === undefined
+      ? t('calendar.editorNewTitle')
+      : occurrenceMode
+        ? t('calendar.editorOccurrenceTitle')
+        : t('calendar.editorEditTitle')
 
   const goBack = () => {
-    if (existing !== undefined)
-      void navigate({ to: '/calendar/$eventId', params: { eventId: existing.id } })
-    else void navigate({ to: '/calendar' })
+    if (existing !== undefined) {
+      void navigate({
+        to: '/calendar/$eventId',
+        params: { eventId: existing.id },
+        search: occurrenceMode && occurrenceDate !== undefined ? { date: occurrenceDate } : {},
+      })
+    } else {
+      void navigate({ to: '/calendar' })
+    }
   }
 
   const save = () => {
     setTouched(true)
-    if (titleBlank || dateBlank || timesBlank || endBeforeStart) return
+    if (titleBlank || dateBlank || timesBlank || endBeforeStart || untilBeforeStart) return
+    const recurrence: Recurrence | undefined =
+      !occurrenceMode && effective.repeat !== 'none'
+        ? {
+            frequency: effective.repeat,
+            ...(effective.until === '' ? {} : { until: effective.until }),
+          }
+        : undefined
     const input: EventInput = {
       title: effective.title.trim(),
       allDay: effective.allDay,
@@ -117,8 +175,9 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
             // all-day one becoming timed (no zone of its own yet), leave
             // the zone to the API's default.
             timezone:
-              timezoneTouched || existing?.timezone !== undefined ? effective.timezone : undefined,
+              timezoneTouched || source?.timezone !== undefined ? effective.timezone : undefined,
           }),
+      ...(recurrence === undefined ? {} : { recurrence }),
     }
     const onError = (error: unknown) => toast(calendarErrorMessage(error, t), 'danger')
     if (existing === undefined) {
@@ -129,6 +188,21 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
         },
         onError,
       })
+      return
+    }
+    if (occurrenceMode && occurrenceDate !== undefined) {
+      // The occurrence's replace: an override keyed by the original date,
+      // the series' rule untouched.
+      updateOccurrence.mutate(
+        { eventId: existing.id, originalDate: occurrenceDate, ...input },
+        {
+          onSuccess: () => {
+            toast(t('calendar.savedToast'))
+            goBack()
+          },
+          onError,
+        },
+      )
       return
     }
     updateEvent.mutate(
@@ -145,7 +219,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
 
   return (
     <CalendarShell
-      title={eventId === undefined ? t('calendar.editorNewTitle') : t('calendar.editorEditTitle')}
+      title={editorTitle}
       backTo={existing === undefined ? '/calendar' : `/calendar/${existing.id}`}
       width="narrow"
     >
@@ -178,6 +252,15 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
               </Empty>
             </Card>
           )
+        ) : missingOccurrence ? (
+          <Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="calendar" />
+              </EmptyMedia>
+              <EmptyTitle>{t('calendar.errors.occurrence_not_found')}</EmptyTitle>
+            </Empty>
+          </Card>
         ) : !editable ? (
           // Only the creator — or an owner — edits an event (issue #20);
           // everyone else is refused before typing into a form the API
@@ -194,9 +277,13 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
           <>
             {existing !== undefined && (
               <p className="px-1 text-sm text-muted-foreground">
-                {t('calendar.editingBy', {
-                  name: authorName(existing.creatorId, profiles, t('calendar.creatorUnknown')),
-                })}
+                {occurrenceMode
+                  ? t('calendar.editingOccurrence', {
+                      name: authorName(existing.creatorId, profiles, t('calendar.creatorUnknown')),
+                    })
+                  : t('calendar.editingBy', {
+                      name: authorName(existing.creatorId, profiles, t('calendar.creatorUnknown')),
+                    })}
               </p>
             )}
 
@@ -309,6 +396,44 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
                   <FieldDescription>{t('calendar.timezoneHint')}</FieldDescription>
                 </Field>
               )}
+
+              {!occurrenceMode && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="event-repeat">{t('calendar.repeatLabel')}</FieldLabel>
+                    <Select
+                      id="event-repeat"
+                      value={effective.repeat}
+                      onChange={(event) => setRepeat(event.target.value as RepeatChoice)}
+                    >
+                      {REPEAT_CHOICES.map((choice) => (
+                        <option key={choice} value={choice}>
+                          {t(repeatChoiceLabelKey(choice))}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  {effective.repeat !== 'none' && (
+                    <Field data-invalid={(touched && untilBeforeStart) || undefined}>
+                      <FieldLabel htmlFor="event-until">{t('calendar.repeatUntil')}</FieldLabel>
+                      <Input
+                        id="event-until"
+                        type="date"
+                        min="1900-01-01"
+                        max="2200-12-31"
+                        value={effective.until}
+                        onChange={(event) => setUntil(event.target.value)}
+                        aria-invalid={(touched && untilBeforeStart) || undefined}
+                      />
+                      <FieldDescription>{t('calendar.repeatUntilHint')}</FieldDescription>
+                      {touched && untilBeforeStart ? (
+                        <FieldError>{t('calendar.errors.invalid_recurrence_until')}</FieldError>
+                      ) : null}
+                    </Field>
+                  )}
+                </>
+              )}
             </FieldGroup>
 
             <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-4 backdrop-blur lg:sticky lg:bottom-auto lg:mt-2 lg:border-0 lg:bg-transparent lg:p-0">
@@ -327,6 +452,23 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
       </div>
     </CalendarShell>
   )
+}
+
+/** «Не повторять» … — the editor's repeat choices and the event screen's
+ *  series line share the vocabulary. */
+export function repeatChoiceLabelKey(choice: RepeatChoice) {
+  switch (choice) {
+    case 'none':
+      return 'calendar.repeatNone' as const
+    case 'daily':
+      return 'calendar.repeatDaily' as const
+    case 'weekly':
+      return 'calendar.repeatWeekly' as const
+    case 'monthly':
+      return 'calendar.repeatMonthly' as const
+    case 'yearly':
+      return 'calendar.repeatYearly' as const
+  }
 }
 
 /**
@@ -348,13 +490,15 @@ interface EditorFields {
   startTime: string
   endTime: string
   timezone: string
+  repeat: RepeatChoice
+  until: string
 }
 
 /**
  * The fields the form shows: the member's edits where they exist, the
  * stored event's values where they do not — a timed event's times read in
- * the zone the event keeps, the wall time it was created with — and the
- * sensible starts for a brand-new one.
+ * the zone the event keeps, the wall time it was created with, the
+ * series' rule beside them — and the sensible starts for a brand-new one.
  */
 function effectiveFields(
   existing: ReturnType<typeof eventById>,
@@ -365,6 +509,8 @@ function effectiveFields(
     startTime?: string
     endTime?: string
     timezone?: string
+    repeat?: RepeatChoice
+    until?: string
   },
   spaceZone: string,
 ): EditorFields {
@@ -377,6 +523,8 @@ function effectiveFields(
       startTime: edits.startTime ?? '18:00',
       endTime: edits.endTime ?? '21:00',
       timezone: edits.timezone ?? spaceZone,
+      repeat: edits.repeat ?? 'none',
+      until: edits.until ?? '',
     }
   }
   const zone = existing.timezone ?? spaceZone
@@ -399,5 +547,7 @@ function effectiveFields(
         ? ''
         : formatZonedTime(existing.endsAt, zone)),
     timezone: edits.timezone ?? zone,
+    repeat: edits.repeat ?? existing.recurrence?.frequency ?? 'none',
+    until: edits.until ?? existing.recurrence?.until ?? '',
   }
 }

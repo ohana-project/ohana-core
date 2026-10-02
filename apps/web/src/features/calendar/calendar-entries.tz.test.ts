@@ -6,7 +6,8 @@ import {
   localDateKey,
   zoneDiffersFromDevice,
 } from '@/lib/calendar-dates.ts'
-import { eventDateKey } from './calendar-entries.ts'
+import { eventDateKey, upcomingEvents } from './calendar-entries.ts'
+import { seriesTodayKey } from './recurrence.ts'
 
 /*
  * The calendar's date rules away from UTC (issue #20): the acceptance
@@ -64,5 +65,49 @@ describe('the calendar’s date derivations in America/Los_Angeles', () => {
     expect(zoneDiffersFromDevice('America/Los_Angeles')).toBe(false)
     expect(zoneDiffersFromDevice('Europe/Moscow', new Date('2026-10-19T12:00:00.000Z'))).toBe(true)
     expect(zoneDiffersFromDevice('UTC', new Date('2026-10-19T12:00:00.000Z'))).toBe(true)
+  })
+})
+
+describe('the occurrence windows away from UTC (issue #21)', () => {
+  // The device sits in Los Angeles; the series keeps Auckland time. A
+  // 09:00 Auckland wall time is the previous evening in California, so an
+  // occurrence whose wall date is one day past the agenda's far edge
+  // still lands on that edge in the device's day — the window's +1-day
+  // margin is what reaches it. The test drives `upcomingEvents`, the
+  // margin's real caller: removing the padding fails this test.
+  test('an occurrence lands on the agenda’s last day only through the margin', () => {
+    const aucklandMorning: StoredCalendarEvent = {
+      ...BIRTHDAY,
+      id: '01900000-0000-7000-8000-000000000413',
+      title: 'Утренняя зарядка',
+      allDay: false,
+      date: undefined,
+      startsAt: '2026-11-08T20:00:00.000Z', // 09:00 on 2026-11-09 in Auckland (NZDT, UTC+13)
+      endsAt: '2026-11-08T21:00:00.000Z',
+      timezone: 'Pacific/Auckland',
+      recurrence: { frequency: 'daily' },
+    }
+    // 2026-09-09 + the 60-day season ends on 2026-11-08 — the far edge.
+    const upcoming = upcomingEvents([aucklandMorning], new Date('2026-09-09T12:00:00.000Z'))
+    const landed = upcoming.find((occurrence) => occurrence.originalDate === '2026-11-09')
+    expect(landed).toBeDefined()
+    // The device-local day is the 8th — the season's last day.
+    expect(eventDateKey(landed as StoredCalendarEvent)).toBe('2026-11-08')
+    // This last assertion guards the season bound, not the margin: nothing
+    // the padded expansion reaches may land past the far edge.
+    expect(upcoming.every((occurrence) => (eventDateKey(occurrence) ?? '') <= '2026-11-08')).toBe(
+      true,
+    )
+  })
+
+  test('an all-day series reads the device day (issue #21)', () => {
+    // 03:00Z on the 2nd is still the 1st in Los Angeles: the all-day
+    // frame is the device's day, unlike the timed series' own zone.
+    const allDay: StoredCalendarEvent = {
+      ...BIRTHDAY,
+      id: '01900000-0000-7000-8000-000000000414',
+      recurrence: { frequency: 'weekly' },
+    }
+    expect(seriesTodayKey(allDay, new Date('2026-10-02T03:00:00.000Z'))).toBe('2026-10-01')
   })
 })

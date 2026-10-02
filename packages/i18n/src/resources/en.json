@@ -857,7 +857,30 @@
       "invalid_timezone": "Unknown time zone",
       "section_hidden": "Calendar is hidden",
       "validation_failed": "Check the form fields",
-      "unexpected": "Something went wrong. Please try again"
-    }
+      "unexpected": "Something went wrong. Please try again",
+      "occurrence_not_found": "The series has no event on this date",
+      "event_not_recurring": "This event does not repeat",
+      "invalid_recurrence_until": "The end date cannot be before the first event"
+    },
+    "repeatLabel": "Repeat",
+    "repeatNone": "Don't repeat",
+    "repeatDaily": "Every day",
+    "repeatWeekly": "Every week",
+    "repeatMonthly": "Every month",
+    "repeatYearly": "Every year",
+    "repeatUntil": "End date",
+    "repeatUntilHint": "Optional — the series will end after this date",
+    "repeatUntilLine": "until {date}",
+    "editScopeTitle": "What should change?",
+    "editScopeOccurrence": "Only this event",
+    "editScopeSeries": "The whole series",
+    "deleteScopeTitle": "Cancel this event, or delete the whole series?",
+    "deleteScopeOccurrence": "Cancel this event only",
+    "deleteScopeSeries": "Delete the whole series",
+    "editorOccurrenceTitle": "Edit this event",
+    "editingOccurrence": "Created by {name} · this event only",
+    "occurrenceCancelledToast": "Event cancelled",
+    "occurrenceCancelledTitle": "This event is cancelled",
+    "occurrenceCancelledText": "The series goes on without this date."
   }
 }

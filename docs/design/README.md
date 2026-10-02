@@ -209,7 +209,7 @@ Each screen is implemented in the ticket that delivers its behaviour, as its own
 | [`trash`](screens/trash.html) | #16 Journal trash |
 | [`wishlists`](screens/wishlists.html), [`wishlist-mine`](screens/wishlist-mine.html), [`wishlist-person`](screens/wishlist-person.html) | #18 Wishlist: wishes |
 | [`wishlist-favorites`](screens/wishlist-favorites.html) | #19 Gift favorites and gift reservations |
-| [`calendar`](screens/calendar.html), [`event`](screens/event.html), [`event-editor`](screens/event-editor.html) | #20 One-time events (repeats: #21) |
+| [`calendar`](screens/calendar.html), [`event`](screens/event.html), [`event-editor`](screens/event-editor.html) | #20 One-time events; #21 repeating events and occurrence exceptions |
 | [`settings`](screens/settings.html) | #22 Calendar reminders (notification settings) |
 | [`home`](screens/home.html) | #9 Access codes and member sign-in (the home shell with section navigation; the journal and events columns fill in with #15 and #20) |
 | [`profile`](screens/profile.html) | not yet assigned |
