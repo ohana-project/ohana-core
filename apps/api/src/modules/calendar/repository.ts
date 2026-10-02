@@ -269,6 +269,25 @@ export async function deleteEventExceptions(
     )
 }
 
+/** One original date's exception — the series edit's pruning of the
+ *  exceptions the replaced rule no longer honours (issue #21). */
+export async function deleteEventException(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+  originalDate: string,
+): Promise<void> {
+  await tx
+    .delete(calendarEventExceptions)
+    .where(
+      and(
+        eq(calendarEventExceptions.spaceId, spaceId),
+        eq(calendarEventExceptions.eventId, eventId),
+        eq(calendarEventExceptions.originalDate, originalDate),
+      ),
+    )
+}
+
 /** One event's exceptions, original-date order — the single read's embed. */
 export async function listExceptionsForEvent(
   executor: Executor,

@@ -1,4 +1,8 @@
-import type { StoredCalendarEvent, StoredEventRecurrence } from '@/data/local-store.ts'
+import type {
+  StoredCalendarEvent,
+  StoredEventException,
+  StoredEventRecurrence,
+} from '@/data/local-store.ts'
 import {
   formatZonedTime,
   parseDateOnly,
@@ -261,7 +265,11 @@ export function occurrenceOf(
 /**
  * The series' occurrences within the wall-date window, its own frame
  * (the event's zone for a timed event, the zoneless calendar for an
- * all-day one), each with its exceptions applied.
+ * all-day one), each with its exceptions applied. An override's own date
+ * decides which window shows it — the screens bucket by that date, so a
+ * move out of and a move into a drawn window must both land (issue #21):
+ * an override anchored inside the window but moved outside it is not
+ * here, and one anchored outside but moved inside stands.
  */
 export function expandEvent(
   event: StoredCalendarEvent,
@@ -270,9 +278,52 @@ export function expandEvent(
 ): EventOccurrence[] {
   const firstDate = seriesStartDate(event)
   if (firstDate === undefined) return []
-  return expandOccurrenceDates(firstDate, seriesRecurrence(event), fromKey, toKey)
-    .filter((date) => !isCancelled(event, date))
-    .map((date) => buildOccurrence(event, date))
+  const occurrences = new Map<string, EventOccurrence>()
+  for (const date of expandOccurrenceDates(firstDate, seriesRecurrence(event), fromKey, toKey)) {
+    if (isCancelled(event, date)) continue
+    const exception = exceptionOn(event, date)
+    if (exception !== undefined && outsideWindow(exception, fromKey, toKey)) continue
+    occurrences.set(date, buildOccurrence(event, date))
+  }
+  for (const exception of event.exceptions ?? []) {
+    if (exception.kind !== 'override') continue
+    if (occurrences.has(exception.originalDate)) continue
+    // The original date must still be one of the series': an override
+    // anchored to a date the pattern no longer produces is inert.
+    const stillThere = expandOccurrenceDates(
+      firstDate,
+      seriesRecurrence(event),
+      exception.originalDate,
+      exception.originalDate,
+    )
+    if (!stillThere.includes(exception.originalDate)) continue
+    if (outsideWindow(exception, fromKey, toKey)) continue
+    occurrences.set(exception.originalDate, buildOccurrence(event, exception.originalDate))
+  }
+  return [...occurrences.values()].sort((a, b) =>
+    a.originalDate < b.originalDate ? -1 : a.originalDate > b.originalDate ? 1 : 0,
+  )
+}
+
+/** The wall date an override's replacement falls on, its own frame. */
+function overrideDate(exception: Extract<StoredEventException, { kind: 'override' }>): string {
+  if (exception.allDay) return exception.date
+  return zonedDateKey(exception.startsAt, exception.timezone)
+}
+
+/** Whether the override's replacement falls outside the wall-date window. */
+function outsideWindow(exception: StoredEventException, fromKey: string, toKey: string): boolean {
+  if (exception.kind !== 'override') return false
+  const ownDate = overrideDate(exception)
+  return ownDate < fromKey || ownDate > toKey
+}
+
+/** The exception anchored to the original date, if there is one. */
+function exceptionOn(
+  event: StoredCalendarEvent,
+  originalDate: string,
+): StoredEventException | undefined {
+  return event.exceptions?.find((candidate) => candidate.originalDate === originalDate)
 }
 
 /** Whether the series skips the date: an exception cancelled it. */
@@ -309,45 +360,48 @@ function buildOccurrence(event: StoredCalendarEvent, originalDate: string): Even
   return { key, eventId: event.id, originalDate, event: effective }
 }
 
-/** The series' own answer for the date: the same wall time, that day. */
+/** The series' own answer for the date: the same wall time, that day. The
+ *  series' first occurrence is the row itself — the stored instants are
+ *  the exact truth about it, so it is never recomposed (a first start a
+ *  spring-forward gap shifted, or a first date the clocks fell back over,
+ *  would read differently recomposed than stored). Later occurrences
+ *  compose the frame per date, the DST rules applying to each. */
 function occurrenceOfSeries(
   event: StoredCalendarEvent,
   originalDate: string,
   key: string,
 ): StoredCalendarEvent {
-  if (event.allDay || event.startsAt === undefined) {
-    return {
-      id: key,
-      creatorId: event.creatorId,
-      title: event.title,
-      allDay: true,
-      date: originalDate,
-      createdAt: event.createdAt,
-      updatedAt: event.updatedAt,
-    }
-  }
-  const frame = seriesTimedFrame(event)
-  if (frame === undefined) {
-    return {
-      id: key,
-      creatorId: event.creatorId,
-      title: event.title,
-      allDay: true,
-      date: originalDate,
-      createdAt: event.createdAt,
-      updatedAt: event.updatedAt,
-    }
-  }
-  const { startsAt, endsAt } = occurrenceInstants(frame, originalDate)
-  return {
+  const base = {
     id: key,
     creatorId: event.creatorId,
     title: event.title,
+    createdAt: event.createdAt,
+    updatedAt: event.updatedAt,
+  }
+  if (originalDate === seriesStartDate(event)) {
+    return event.allDay || event.startsAt === undefined
+      ? { ...base, allDay: true, date: event.date ?? originalDate }
+      : {
+          ...base,
+          allDay: false,
+          startsAt: event.startsAt,
+          endsAt: event.endsAt,
+          timezone: event.timezone,
+        }
+  }
+  if (event.allDay || event.startsAt === undefined) {
+    return { ...base, allDay: true, date: originalDate }
+  }
+  const frame = seriesTimedFrame(event)
+  if (frame === undefined) {
+    return { ...base, allDay: true, date: originalDate }
+  }
+  const { startsAt, endsAt } = occurrenceInstants(frame, originalDate)
+  return {
+    ...base,
     allDay: false,
     startsAt,
     endsAt,
     timezone: event.timezone,
-    createdAt: event.createdAt,
-    updatedAt: event.updatedAt,
   }
 }

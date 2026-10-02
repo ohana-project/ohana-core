@@ -21,6 +21,7 @@ import {
 } from './recurrence.ts'
 import {
   deleteEvent,
+  deleteEventException,
   deleteEventExceptions,
   getEventInSpace,
   insertEvent,
@@ -130,15 +131,29 @@ export async function listEvents(
   actor: CalendarActor,
 ): Promise<CalendarEventWithExceptions[]> {
   const events = await listEventsInSpace(deps.db, actor.spaceId)
-  const exceptions = await listExceptionsForEvents(
-    deps.db,
-    actor.spaceId,
-    events.map((event) => event.id),
+  return groupExceptions(
+    events,
+    await listExceptionsForEvents(
+      deps.db,
+      actor.spaceId,
+      events.map((event) => event.id),
+    ),
   )
-  return events.map((event) => ({
-    event,
-    exceptions: exceptions.filter((exception) => exception.eventId === event.id),
-  }))
+}
+
+/** The events and their exceptions, grouped once — the reads' and the
+ *  sync contributor's shared shape. */
+function groupExceptions(
+  events: CalendarEvent[],
+  exceptions: readonly CalendarEventException[],
+): CalendarEventWithExceptions[] {
+  const byEvent = new Map<string, CalendarEventException[]>()
+  for (const exception of exceptions) {
+    const group = byEvent.get(exception.eventId)
+    if (group === undefined) byEvent.set(exception.eventId, [exception])
+    else group.push(exception)
+  }
+  return events.map((event) => ({ event, exceptions: byEvent.get(event.id) ?? [] }))
 }
 
 /**
@@ -148,9 +163,11 @@ export async function listEvents(
  * the recurrence named or dropped. Dropping it makes the event one-time —
  * a whole replace, never "keep the old rule" — and its exceptions then
  * cancel or replace occurrences that no longer exist, so they go with it.
- * A series that stays a series keeps its exceptions: they are keyed by
- * original date, and the expansion applies an exception only to a date
- * the series still produces. The event is read after the space lock, so
+ * A series that stays a series keeps only the exceptions it can still
+ * honour: an exception is keyed by an original occurrence date, and one
+ * the new rule no longer produces is deleted with the replace — it would
+ * otherwise sit inert and could resurrect if a later edit moved the
+ * pattern back over it. The event is read after the space lock, so
  * the permission decision is never made from a half-done change; the wall
  * time composes against the requested zone, or the space's current one
  * when none is named — the same default the creation applies.
@@ -162,7 +179,7 @@ export async function editEvent(
   input: CreateEventBody,
 ): Promise<CalendarEventWithExceptions> {
   const now = deps.clock.now()
-  let updated: CalendarEvent | undefined
+  let result: CalendarEventWithExceptions | undefined
   await deps.db.transaction(async (tx) => {
     const space = await requireVisibleSectionInTx(tx, actor.spaceId, 'calendar')
     const existing = await requireEventInSpace(tx, actor, eventId)
@@ -188,22 +205,38 @@ export async function editEvent(
             // refusal here spends no revision.
             throw notFound('event_not_found', `Calendar event ${eventId} does not exist`)
           }
+          const exceptions = await listExceptionsForEvent(writeTx, actor.spaceId, eventId)
           if (columns.rrule === null) {
             // The series stopped being one: its exceptions have no
             // occurrences left to describe.
             await deleteEventExceptions(writeTx, actor.spaceId, eventId)
+          } else {
+            // The series still is one: the exceptions it can no longer
+            // honour — original dates the new rule never produces — go
+            // with the replace; the rest keep their anchoring dates.
+            const recurrence = seriesRecurrence(row)
+            const firstDate = seriesStartDate(row)
+            for (const exception of exceptions) {
+              if (
+                firstDate !== undefined &&
+                recurrence !== undefined &&
+                !isOccurrenceDate(firstDate, recurrence, exception.originalDate)
+              ) {
+                await deleteEventException(writeTx, actor.spaceId, eventId, exception.originalDate)
+              }
+            }
           }
-          updated = row
+          result = {
+            event: row,
+            exceptions: await listExceptionsForEvent(writeTx, actor.spaceId, eventId),
+          }
         },
       },
       now,
     )
   })
-  if (updated === undefined) throw new Error('Editing a calendar event produced no row')
-  return {
-    event: updated,
-    exceptions: await listExceptionsForEvent(deps.db, actor.spaceId, eventId),
-  }
+  if (result === undefined) throw new Error('Editing a calendar event produced no row')
+  return result
 }
 
 /**
@@ -348,15 +381,14 @@ export async function listChangedEventsFor(
   since: bigint,
 ): Promise<CalendarEventWithExceptions[]> {
   const events = await listChangedEvents(tx, actor.spaceId, since)
-  const exceptions = await listExceptionsForEvents(
-    tx,
-    actor.spaceId,
-    events.map((event) => event.id),
+  return groupExceptions(
+    events,
+    await listExceptionsForEvents(
+      tx,
+      actor.spaceId,
+      events.map((event) => event.id),
+    ),
   )
-  return events.map((event) => ({
-    event,
-    exceptions: exceptions.filter((exception) => exception.eventId === event.id),
-  }))
 }
 
 async function requireEventInSpace(
@@ -387,6 +419,10 @@ function requireSeriesOccurrence(event: CalendarEvent, originalDate: string): Re
       400,
     )
   }
+  // The original date is a date like any other the service stores: a
+  // malformed or out-of-range one is a validation answer (an unbounded
+  // daily series would otherwise take exceptions in any year at all).
+  assertRealDate(originalDate)
   const firstDate = seriesStartDate(event)
   if (firstDate === undefined || !isOccurrenceDate(firstDate, recurrence, originalDate)) {
     throw notFound(

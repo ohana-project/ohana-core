@@ -1,5 +1,5 @@
 {
-  "id": "b354bf31-bd81-4974-affa-b29ec76574d6",
+  "id": "9eb92d1e-7b54-4b9d-8b0a-7e8d584c0dc4",
   "prevId": "7f9cb5fe-9b0f-4392-97ec-ecfb4c55e98b",
   "version": "7",
   "dialect": "postgresql",
@@ -873,7 +873,7 @@
         },
         "calendar_events_rrule_shape": {
           "name": "calendar_events_rrule_shape",
-          "value": "(\"calendar_events\".\"rrule\" is null or \"calendar_events\".\"rrule\" ~ ('^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)$|^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(' || chr(59) || 'UNTIL=[0-9]+(T[0-9]+Z)?)?$'))"
+          "value": "(\"calendar_events\".\"rrule\" is null or \"calendar_events\".\"rrule\" ~ ('^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)((' || chr(59) || ')UNTIL=[0-9]+(T[0-9]+Z)?)?$'))"
         }
       },
       "isRLSEnabled": false

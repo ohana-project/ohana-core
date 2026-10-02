@@ -176,7 +176,10 @@ export function expandOccurrenceDates(
 function compare(a: DateParts | string, b: DateParts | string): number {
   const keyOf = (value: DateParts | string): string =>
     typeof value === 'string' ? value : formatDateKey(value)
-  return keyOf(a).localeCompare(keyOf(b))
+  const left = keyOf(a)
+  const right = keyOf(b)
+  // Plain codepoint order: the keys are their own fixed-width sort, `YYYY-MM-DD`.
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function maxDate(a: DateParts, b: DateParts): DateParts {
@@ -252,16 +255,16 @@ export function composeRrule(
   return rrule
 }
 
-const RRULE_PATTERN = /^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;UNTIL=(\d{8}(T\d{6}Z)?)?)?$/
+const RRULE_PATTERN = /^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;UNTIL=(\d{8}(T\d{6}Z)?))?$/
 
 /**
  * The strict read of the stored subset: anything RFC 5545 allows beyond
  * the four frequencies and the optional UNTIL — an INTERVAL, a BYDAY, a
- * COUNT, another frequency — throws here, so a rule the engine cannot
- * expand can never enter the reads (the acceptance criteria's "any other
- * RRULE feature is rejected"). Rows are written only through
- * `composeRrule`, so a throw on this path is a corrupted row, not a
- * member's mistake.
+ * COUNT, another frequency, an empty UNTIL — throws here, so a rule the
+ * engine cannot expand can never enter the reads (the acceptance
+ * criteria's "any other RRULE feature is rejected"). Rows are written only
+ * through `composeRrule`, so a throw on this path is a corrupted row, not
+ * a member's mistake.
  */
 export function parseRrule(
   rrule: string,

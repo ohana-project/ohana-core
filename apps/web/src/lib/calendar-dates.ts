@@ -63,6 +63,23 @@ export function localDateKey(instant: string): string {
   })
 }
 
+/**
+ * The date key `days` away from `key` — the one-day margins the
+ * occurrence windows are padded with, so a timed occurrence a zone shift
+ * lands on the drawn edge is not lost to the wall-date bounds (issue #21).
+ * A malformed key answers itself.
+ */
+export function shiftDateKey(key: string, days: number): string {
+  const at = Date.parse(`${key}T00:00:00Z`)
+  if (
+    Number.isNaN(at) ||
+    formatDateOnly(parseDateOnly(key) ?? { year: 0, month: 1, day: 1 }) !== key
+  ) {
+    return key
+  }
+  return new Date(at + days * 86_400_000).toISOString().slice(0, 10)
+}
+
 /** The device-local day-of-week of a calendar date: 0 = Monday … 6 = Sunday. */
 export function dayOfWeek(date: DateOnly): number {
   // The UTC reading of the date's own midnight is the date itself; the
@@ -136,6 +153,16 @@ function utcFormatter(locale: Locale, options: Intl.DateTimeFormatOptions): Intl
 /** «5 октября» — the day's label in the locale. */
 export function formatDayLong(date: DateOnly, locale: Locale): string {
   return utcFormatter(locale, { day: 'numeric', month: 'long' }).format(
+    new Date(Date.UTC(date.year, date.month - 1, date.day)),
+  )
+}
+
+/** «31 января 2027 г.» — the day's label with its year: the year is part
+ *  of a series' end date, where «до 31 января» alone could be any of them
+ *  (issue #21). Anchored at the UTC midnight like the zoneless labels, so
+ *  it reads the date itself in every device zone. */
+export function formatDayOfYear(date: DateOnly, locale: Locale): string {
+  return utcFormatter(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(
     new Date(Date.UTC(date.year, date.month - 1, date.day)),
   )
 }

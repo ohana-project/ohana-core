@@ -89,10 +89,11 @@ export const calendarEvents = pgTable(
     // runs are spelled loosely here — the data guard's business is the
     // shape, the strict parse in recurrence.ts counts the digits. The
     // rule's own separator is spelled chr(59): a literal semicolon inside
-    // a check would end the migration's statement.)
+    // a check would end the migration's statement, and brace quantifiers
+    // never survive the migration generator.)
     check(
       'calendar_events_rrule_shape',
-      sql`(${table.rrule} is null or ${table.rrule} ~ ('^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)$|^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(' || chr(59) || 'UNTIL=[0-9]+(T[0-9]+Z)?)?$'))`,
+      sql`(${table.rrule} is null or ${table.rrule} ~ ('^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)((' || chr(59) || ')UNTIL=[0-9]+(T[0-9]+Z)?)?$'))`,
     ),
     // The month and agenda screens read the whole space's events in one
     // listing; this index is also the sync contributor's delta scan.

@@ -11,6 +11,7 @@ import {
   monthGrid,
   nextMonth,
   previousMonth,
+  shiftDateKey,
   todayDateOnly,
   weekdayHeaders,
   zoneLabel,
@@ -58,9 +59,15 @@ export function CalendarScreen() {
   const grid = monthGrid(view.year, view.month)
   // The grid's own window, the series' frame the expansion walks: every
   // occurrence the drawn weeks hold, cancelled ones skipped (issue #21).
+  // The window reaches a day past each drawn bound — a timed occurrence a
+  // zone shift lands on the first or last cell is still expanded — and
+  // the day buckets keep only what a drawn cell reads.
   const { from: windowFrom, to: windowTo } = gridWindow(grid)
   const byDate = useMemo(
-    () => eventsByDate(calendarOccurrences(events, windowFrom, windowTo)),
+    () =>
+      eventsByDate(
+        calendarOccurrences(events, shiftDateKey(windowFrom, -1), shiftDateKey(windowTo, 1)),
+      ),
     [events, windowFrom, windowTo],
   )
   const upcoming = upcomingEvents(events, new Date())

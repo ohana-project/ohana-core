@@ -1,21 +1,27 @@
 import { expect, type Page, test } from '@playwright/test'
 
 /*
- * The calendar's interface flows (issue #20): the section navigation leads
- * to the month with the agenda beside it; a day's sheet opens from the
- * grid; an event is created through the editor with the space's zone as
- * the timed default, edited, and removed behind its confirm; a timed event
- * shows the device-local time with the zone it keeps, and an all-day event
- * keeps its plain date. The member endpoints are intercepted at the
- * network level over a small stateful calendar — the real HTTP rules for
- * permissions and time zones are covered by the API's tests, while this
- * spec pins the UI flow and its reads through the synchronised partition.
+ * The calendar's interface flows (issues #20 and #21): the section
+ * navigation leads to the month with the agenda beside it; a day's sheet
+ * opens from the grid; an event is created through the editor with the
+ * space's zone as the timed default, edited, and removed behind its
+ * confirm; a repeating series is created with its rule, one of its
+ * occurrences cancelled through the occurrence route, and the whole series
+ * edited through the scope dialog; a timed event shows the device-local
+ * time with the zone it keeps, and an all-day event keeps its plain date.
+ * The member endpoints are intercepted at the network level over a small
+ * stateful calendar — the real HTTP rules for permissions and time zones
+ * are covered by the API's tests, while this spec pins the UI flow and its
+ * reads through the synchronised partition.
  */
 
 const ME = '**/api/v1/me'
 const REDEEM = '**/api/v1/access-codes/redeem'
 const EVENTS = '**/api/v1/calendar/events'
 const EVENT = '**/api/v1/calendar/events/*'
+// The occurrence routes carry the original date in the path, so this glob
+// must be registered after EVENT to take them (issue #21).
+const OCCURRENCE = '**/api/v1/calendar/events/*/occurrences/*'
 // The sync request carries ?since=…, so the glob spans the query too.
 const SYNC = '**/api/v1/sync*'
 
@@ -142,7 +148,7 @@ async function mockCalendarApi(page: Page) {
     const memberId = route.request().headers()['x-ohana-member']
     if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
     const body = route.request().postDataJSON() as Record<string, unknown>
-    const created = {
+    const created: Record<string, unknown> = {
       id: `01900000-0000-7000-8000-${String(nextId++).padStart(12, '0')}`,
       creatorId: ANYA_ID,
       ...(body.allDay === true
@@ -157,6 +163,7 @@ async function mockCalendarApi(page: Page) {
       createdAt: '2026-10-01T09:00:00.000Z',
       updatedAt: '2026-10-01T09:00:00.000Z',
     }
+    if (body.recurrence !== undefined) created.recurrence = body.recurrence
     events.push(created)
     revision += 1
     return route.fulfill(json(201, created))
@@ -178,6 +185,7 @@ async function mockCalendarApi(page: Page) {
       delete event.startsAt
       delete event.endsAt
       delete event.timezone
+      delete event.recurrence
       event.title = body.title
       if (body.allDay === true) {
         event.allDay = true
@@ -188,6 +196,9 @@ async function mockCalendarApi(page: Page) {
         event.endsAt = '2026-10-02T17:00:00.000Z'
         event.timezone = body.timezone ?? 'Europe/Moscow'
       }
+      // The whole-series replace: the rule named stands, the rule dropped
+      // is gone (issue #21).
+      if (body.recurrence !== undefined) event.recurrence = body.recurrence
       event.updatedAt = '2026-10-01T10:00:00.000Z'
       revision += 1
       return route.fulfill(json(200, event))
@@ -197,6 +208,57 @@ async function mockCalendarApi(page: Page) {
     removed.push(event.id as string)
     revision += 1
     return route.fulfill(json(204, undefined))
+  })
+
+  // The occurrence routes (issue #21): an override or a cancellation is
+  // upserted per original date and re-delivered inside its event's DTO.
+  await page.route(OCCURRENCE, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const parts = route.request().url().split('/')
+    const eventId = parts.at(-3) as string
+    const originalDate = parts.at(-1) as string
+    const event = events.find((row) => row.id === eventId)
+    if (event === undefined) {
+      return route.fulfill(
+        json(404, { error: { code: 'event_not_found', message: 'No such event' } }),
+      )
+    }
+    const exceptions = (event.exceptions as Array<Record<string, unknown>> | undefined) ?? []
+    const existing = exceptions.findIndex((row) => row.originalDate === originalDate)
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      const override =
+        body.allDay === true
+          ? {
+              originalDate,
+              kind: 'override',
+              title: body.title,
+              allDay: true,
+              date: body.date,
+            }
+          : {
+              originalDate,
+              kind: 'override',
+              title: body.title,
+              allDay: false,
+              startsAt: '2026-10-05T15:00:00.000Z',
+              endsAt: '2026-10-05T18:00:00.000Z',
+              timezone: body.timezone ?? 'Europe/Moscow',
+            }
+      if (existing >= 0) exceptions[existing] = override
+      else exceptions.push(override)
+    } else {
+      const cancelled = { originalDate, kind: 'cancelled' }
+      if (existing >= 0) exceptions[existing] = cancelled
+      else exceptions.push(cancelled)
+    }
+    event.exceptions = exceptions
+    event.updatedAt = '2026-10-01T10:00:00.000Z'
+    revision += 1
+    return route.fulfill(
+      route.request().method() === 'PUT' ? json(200, event) : json(204, undefined),
+    )
   })
 }
 
@@ -303,5 +365,92 @@ test.describe('the calendar away from UTC', () => {
     // 08:00 against its 18:00 Moscow origin.
     await expect(page.getByText('весь день · 19 октября')).toBeVisible()
     await expect(page.getByText('08:00 – 11:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
+  })
+})
+
+// The repeating series (issue #21): created with its rule, one occurrence
+// cancelled through the occurrence route, the whole series edited through
+// the scope dialog — the flows the ticket names, over the stateful mock.
+test.describe('a repeating series', () => {
+  test('a series is created, one occurrence cancelled, and the series edited', async ({ page }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // The editor's repeating section: weekly, bounded by an end date.
+    await page.getByRole('link', { name: 'Событие' }).click()
+    await page.getByLabel('Название').fill('Утренняя зарядка')
+    await page.getByLabel('Дата').fill('2026-10-05')
+    await page.getByLabel('Повтор').selectOption('weekly')
+    await page.getByLabel('Дата окончания').fill('2027-01-31')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByText('Событие создано')).toBeVisible()
+
+    // The event screen names the series and its end.
+    await expect(page.getByText('Каждую неделю')).toBeVisible()
+    await expect(page.getByText(/до 31 января 2027/)).toBeVisible()
+
+    // The delete asks what to cancel; the occurrence route takes the
+    // series' first date.
+    await page.getByRole('button', { name: /Удалить/ }).click()
+    await expect(page.getByText('Отменить это событие или удалить всю серию?')).toBeVisible()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Отменить только это событие' })
+      .click()
+    await expect(page.getByText('Событие отменено')).toBeVisible()
+    await expect(page).toHaveURL(/\/calendar$/)
+
+    // The cancelled Monday is off the calendar: the day's sheet is empty,
+    // the next Monday still carries the series.
+    await page.getByRole('button', { name: '5 октября, 0 событий', exact: true }).click()
+    const sheet = page.getByRole('dialog', { name: '5 октября' })
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByText('В этот день событий нет')).toBeVisible()
+    await sheet.getByRole('button', { name: 'Закрыть' }).click()
+    await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
+    await expect(
+      page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка'),
+    ).toBeVisible()
+
+    // The edit asks what to change; the whole series is replaced.
+    await page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка').click()
+    await expect(page).toHaveURL(/\/calendar\/[\w-]+\?date=2026-10-12$/)
+    await page.getByRole('button', { name: /Изменить/ }).click()
+    await expect(page.getByText('Что изменить?')).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Всю серию' }).click()
+    await expect(page).toHaveURL(/\/edit$/)
+    await expect(page.getByLabel('Повтор')).toHaveValue('weekly')
+    await page.getByLabel('Название').fill('Утренняя зарядка — с разминкой')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByText('Изменения сохранены')).toBeVisible()
+    await expect(page.getByText('Утренняя зарядка — с разминкой')).toBeVisible()
+  })
+
+  test('the editor offers the repeat choices and refuses an until before the event', async ({
+    page,
+  }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+    await page.getByRole('link', { name: 'Событие' }).click()
+
+    // The choices the ticket keeps: none and the four frequencies.
+    const repeat = page.getByLabel('Повтор')
+    await expect(repeat).toHaveValue('none')
+    await repeat.selectOption('daily')
+    await page.getByLabel('Дата окончания').fill('2020-01-01')
+    await page.getByLabel('Название').fill('Зарядка')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(
+      page.getByText('Дата окончания не может быть раньше первого события'),
+    ).toBeVisible()
+    await expect(page.getByText('Событие создано')).toHaveCount(0)
   })
 })

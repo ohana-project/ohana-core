@@ -1,5 +1,5 @@
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
-import { formatDateOnly, localDateKey } from '@/lib/calendar-dates.ts'
+import { formatDateOnly, localDateKey, shiftDateKey } from '@/lib/calendar-dates.ts'
 import { expandEvent, isRecurring } from './recurrence.ts'
 
 /*
@@ -127,7 +127,7 @@ export function upcomingEvents(events: StoredCalendarEvent[], now: Date): Calend
   // The expansion window reaches a day past each end in the series' frame,
   // so an occurrence a zone shift lands on the device's today is not lost
   // to the wall-date bounds — the local keys below decide.
-  const expanded = calendarOccurrences(events, dayBefore(todayKey), dayAfter(toKey))
+  const expanded = calendarOccurrences(events, shiftDateKey(todayKey, -1), shiftDateKey(toKey, 1))
   return expanded
     .filter((occurrence) => {
       const key = eventDateKey(occurrence)
@@ -139,26 +139,13 @@ export function upcomingEvents(events: StoredCalendarEvent[], now: Date): Calend
         return Date.parse(occurrence.endsAt) >= now.getTime()
       }
       // A one-time event beyond the season's window is still the agenda's:
-      // only the repeating series needed a bound.
-      return !isRecurring(occurrence) && key >= todayKey
+      // only the repeating series needed a bound — and only the series'
+      // rows count, an occurrence's own fields carry no rule.
+      return occurrence.seriesId === undefined && key >= todayKey
     })
     .sort(
       (a, b) => (eventDateKey(a) ?? '').localeCompare(eventDateKey(b) ?? '') || byDayOrder(a, b),
     )
-}
-
-function dayBefore(key: string): string {
-  const parsed = new Date(`${key}T00:00:00Z`)
-  return parsed.toISOString().slice(0, 10) === key
-    ? new Date(parsed.getTime() - 86_400_000).toISOString().slice(0, 10)
-    : key
-}
-
-function dayAfter(key: string): string {
-  const parsed = new Date(`${key}T00:00:00Z`)
-  return parsed.toISOString().slice(0, 10) === key
-    ? new Date(parsed.getTime() + 86_400_000).toISOString().slice(0, 10)
-    : key
 }
 
 /**

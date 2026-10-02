@@ -717,3 +717,35 @@ describe('EventScreen (a series, issue #21)', () => {
     expect(screen.getByText('суббота, 10 октября 2026 г.')).toBeInTheDocument()
   })
 })
+
+describe('EventScreen (a series opened without a date, issue #21)', () => {
+  it('the occurrence actions anchor on the series’ first date', async () => {
+    seedRegistry()
+    // The series starts on the 2nd (a Friday); the screen is the default
+    // landing after creation, no ?date= in the URL.
+    const series = timedEvent({ recurrence: { frequency: 'weekly' } })
+    await applySyncResult(ME, syncResult([series]))
+    apiDelete.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}/occurrences/{originalDate}') {
+        return { data: undefined, error: undefined, response: new Response(null, { status: 204 }) }
+      }
+      throw new Error(`Unexpected DELETE ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventScreen eventId={series.id} />)
+
+    await screen.findByText('Миша — зубной врач')
+    await user.click(screen.getByRole('button', { name: /Удалить/ }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Отменить только это событие' }))
+
+    // The cancel names the first occurrence's date, not an empty one.
+    await waitFor(() => expect(apiDelete).toHaveBeenCalled())
+    const [path, options] = apiDelete.mock.calls.at(-1) as unknown as [
+      string,
+      { params: { path: { eventId: string; originalDate: string } } },
+    ]
+    expect(path).toBe('/api/v1/calendar/events/{eventId}/occurrences/{originalDate}')
+    expect(options.params.path).toEqual({ eventId: series.id, originalDate: '2026-10-02' })
+  })
+})

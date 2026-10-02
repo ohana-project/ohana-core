@@ -5,7 +5,12 @@ import { useTranslation } from 'react-i18next'
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { authorName } from '@/features/wishlist/wishlist-entries.ts'
-import { formatDayFull, formatDayLong, localDateKey, parseDateOnly } from '@/lib/calendar-dates.ts'
+import {
+  formatDayFull,
+  formatDayOfYear,
+  localDateKey,
+  parseDateOnly,
+} from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import {
@@ -23,7 +28,7 @@ import { toast } from '@/ui/toast.tsx'
 import { canEditEvent } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { eventDuration, eventTimeParts } from './event-time.tsx'
-import { isRecurring, occurrenceOf, type Recurrence } from './recurrence.ts'
+import { isRecurring, occurrenceOf, type Recurrence, seriesStartDate } from './recurrence.ts'
 import {
   calendarErrorMessage,
   useCalendarData,
@@ -63,20 +68,24 @@ export function EventScreen({
   const event = snapshot.isPending ? undefined : eventOf(events, eventId)
   const editable = event !== undefined && canEditEvent(event, getActiveMemberId(), profiles)
   const recurring = event !== undefined && isRecurring(event)
+  // The date the occurrence actions act on: the one the link named, or —
+  // a series opened without a date, as after its creation — the series'
+  // first. Without the anchor, "this occurrence" on the default landing
+  // would quietly reach for nothing (issue #21).
+  const anchorDate =
+    occurrenceDate ?? (recurring && event !== undefined ? seriesStartDate(event) : undefined)
   const occurrence =
-    event !== undefined && occurrenceDate !== undefined
-      ? occurrenceOf(event, occurrenceDate)
-      : undefined
-  // What the screen shows: the occurrence the link named — its effective
+    event !== undefined && anchorDate !== undefined ? occurrenceOf(event, anchorDate) : undefined
+  // What the screen shows: the occurrence the anchor names — its effective
   // fields, an override's included — or the series' own first occurrence.
   const shown: StoredCalendarEvent | undefined =
     occurrence?.event ?? (occurrenceDate === undefined ? event : undefined)
   const cancelledHere =
     event !== undefined &&
-    occurrenceDate !== undefined &&
+    anchorDate !== undefined &&
     occurrence === undefined &&
     (event.exceptions?.some(
-      (candidate) => candidate.originalDate === occurrenceDate && candidate.kind === 'cancelled',
+      (candidate) => candidate.originalDate === anchorDate && candidate.kind === 'cancelled',
     ) ??
       false)
 
@@ -96,9 +105,9 @@ export function EventScreen({
   }
 
   const onCancelOccurrence = () => {
-    if (occurrenceDate === undefined) return
+    if (anchorDate === undefined) return
     cancelOccurrence.mutate(
-      { eventId, originalDate: occurrenceDate },
+      { eventId, originalDate: anchorDate },
       {
         onSuccess: () => {
           toast(t('calendar.occurrenceCancelledToast'))
@@ -203,7 +212,7 @@ export function EventScreen({
           void navigate({
             to: '/calendar/$eventId/edit',
             params: { eventId },
-            search: occurrenceDate === undefined ? {} : { date: occurrenceDate },
+            search: anchorDate === undefined ? {} : { date: anchorDate },
           })
         }}
         onSeries={() => {
@@ -347,7 +356,9 @@ function EventDetails({
                 {recurrence.until !== undefined && (
                   <span className="text-sm text-muted-foreground">
                     {t('calendar.repeatUntilLine', {
-                      date: formatDayLong(
+                      // The year is part of the bound: a series ends in its
+                      // year, and «до 31 января» alone could be any of them.
+                      date: formatDayOfYear(
                         parseDateOnly(recurrence.until) ?? { year: 0, month: 1, day: 1 },
                         locale,
                       ),

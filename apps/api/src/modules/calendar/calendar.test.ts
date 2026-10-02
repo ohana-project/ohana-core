@@ -764,12 +764,16 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
       expect(created.status).toBe(201)
       const series = (created.body as EventDto).id
 
-      // An exception exists first, so the edit's effect on it is visible.
-      const cancel = await cancelOccurrence(app, anna, series, '2026-10-07')
-      expect(cancel.status).toBe(204)
+      // Exceptions exist first, so the edits' effect on them is visible:
+      // the 7th is a Wednesday, the 12th the next Monday.
+      expect((await cancelOccurrence(app, anna, series, '2026-10-07')).status).toBe(204)
+      expect((await cancelOccurrence(app, anna, series, '2026-10-12')).status).toBe(204)
 
       // The whole-series edit keeps the series a series: the rule is
-      // replaced, the exception survives — it is keyed by original date.
+      // replaced, and the exceptions it can still honour survive — while
+      // one anchored to a date the new rule no longer produces goes with
+      // the replace (a weekly series from Monday the 5th has no Wednesday
+      // the 7th to skip any more).
       const replaced = await editEvent(app, anna, series, {
         title: 'Утренняя зарядка',
         allDay: false,
@@ -784,7 +788,21 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
         until: '2027-10-05',
       })
       expect((replaced.body as EventDto).exceptions).toEqual([
-        { originalDate: '2026-10-07', kind: 'cancelled' },
+        { originalDate: '2026-10-12', kind: 'cancelled' },
+      ])
+
+      // A replace that keeps the pattern keeps every exception.
+      const same = await editEvent(app, anna, series, {
+        title: 'Утренняя зарядка — теперь с разминкой',
+        allDay: false,
+        date: '2026-10-05',
+        startTime: '06:30',
+        endTime: '07:30',
+        recurrence: { frequency: 'weekly', until: '2027-10-05' },
+      })
+      expect(same.status).toBe(200)
+      expect((same.body as EventDto).exceptions).toEqual([
+        { originalDate: '2026-10-12', kind: 'cancelled' },
       ])
 
       // The absent recurrence is a whole replace: the event becomes
@@ -1007,6 +1025,13 @@ describe('repeating events and occurrence exceptions (issue #21)', () => {
       const notRecurring = await cancelOccurrence(app, anna, singleId, '2026-10-05')
       expect(notRecurring.status).toBe(400)
       expect(notRecurring.body).toMatchObject({ error: { code: 'event_not_recurring' } })
+
+      // An unbounded daily series would otherwise take an exception in any
+      // year at all: a date outside the plan horizon is a validation
+      // answer, not an occurrence.
+      const farFuture = await cancelOccurrence(app, anna, boundedId, '9999-12-31')
+      expect(farFuture.status).toBe(400)
+      expect(farFuture.body).toMatchObject({ error: { code: 'invalid_event_date' } })
 
       // A date that is not a date is the contract's answer.
       const malformed = await app.inject({

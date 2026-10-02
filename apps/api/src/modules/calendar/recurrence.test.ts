@@ -7,6 +7,9 @@ import {
   occurrenceInstants,
   parseRrule,
   type Recurrence,
+  seriesRecurrence,
+  seriesStartDate,
+  seriesTimedFrame,
   type TimedFrame,
 } from './recurrence.ts'
 
@@ -371,8 +374,27 @@ const SHARED_CASES: SharedCase[] = [
   },
 ]
 
-/** The timed frame a case's series stands for: the wall start and the wall length. */
-function timedFrame(series: SharedCase['series']): TimedFrame {
+/**
+ * The stored row a case's series stands for: the first occurrence's
+ * instants composed with the platform's wall-time composition — exactly
+ * what the service stores on creation — and the rule composed into the
+ * RRULE column. The table then reads the series back out of the row (the
+ * `seriesStartDate` / `seriesTimedFrame` / `seriesRecurrence` path the
+ * stored rows take in production), so the table proves the stored row
+ * expands the way the client's copy of it does, not merely that two
+ * expanders agree.
+ */
+function storedRow(series: SharedCase['series'], recurrence: Recurrence | undefined) {
+  if (series.allDay) {
+    return {
+      allDay: true as const,
+      date: series.date,
+      startsAt: null,
+      endsAt: null,
+      timezone: null,
+      rrule: recurrence === undefined ? null : composeRrule(recurrence, { allDay: true }),
+    }
+  }
   if (
     series.timezone === undefined ||
     series.startTime === undefined ||
@@ -380,30 +402,37 @@ function timedFrame(series: SharedCase['series']): TimedFrame {
   ) {
     throw new Error('A timed case names its zone and its wall pair')
   }
-  const startMinutes =
-    Number(series.startTime.slice(0, 2)) * 60 + Number(series.startTime.slice(3, 5))
-  const endMinutes = Number(series.endTime.slice(0, 2)) * 60 + Number(series.endTime.slice(3, 5))
+  const timezone = series.timezone
   return {
-    timezone: series.timezone,
-    startTime: series.startTime,
-    durationMinutes: endMinutes - startMinutes,
+    allDay: false as const,
+    date: null,
+    startsAt: wallTimeToInstant(series.date, series.startTime, timezone),
+    endsAt: wallTimeToInstant(series.date, series.endTime, timezone),
+    timezone,
+    rrule: recurrence === undefined ? null : composeRrule(recurrence, { allDay: false, timezone }),
   }
 }
 
 describe('occurrence expansion (the shared table)', () => {
   for (const shared of SHARED_CASES) {
     test(shared.name, () => {
+      const row = storedRow(shared.series, shared.recurrence)
+      // The series reads back out of the stored row: its first date, its
+      // rule, and — timed — the frame the instants compose from.
+      const firstDate = seriesStartDate(row)
+      expect(firstDate).toBe(shared.series.date)
       const dates = expandOccurrenceDates(
-        shared.series.date,
-        shared.recurrence,
+        firstDate as string,
+        seriesRecurrence(row),
         shared.window.from,
         shared.window.to,
       )
       expect(dates).toEqual(shared.dates)
       if (shared.series.allDay || shared.starts === undefined) return
-      const frame = timedFrame(shared.series)
+      const frame = seriesTimedFrame(row)
+      expect(frame).not.toBeUndefined()
       for (const date of dates) {
-        const instants = occurrenceInstants(frame, date)
+        const instants = occurrenceInstants(frame as TimedFrame, date)
         expect(instants.startsAt.toISOString()).toBe(shared.starts[date])
         if (shared.ends !== undefined) {
           expect(instants.endsAt.toISOString()).toBe(shared.ends[date])
@@ -455,6 +484,7 @@ describe('rrule composition and parsing', () => {
       'FREQ=WEEKLY;BYDAY=MO',
       'FREQ=DAILY;COUNT=5',
       'FREQ=DAILY;UNTIL=20270630;BYMONTHDAY=1',
+      'FREQ=DAILY;UNTIL=',
       'daily',
       'FREQ=WEEKLY;UNTIL=not-a-date',
       '',

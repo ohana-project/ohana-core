@@ -577,3 +577,91 @@ describe('the instants the client composes', () => {
     })
   })
 })
+
+describe('the stored first occurrence and moved overrides (review round one)', () => {
+  test('the series’ first date is the row itself, never recomposed', () => {
+    // A first start the clocks fell back over: the stored instants are the
+    // exact truth about that date, and recomposing the frame would give a
+    // different end (01:30 EDT + the wall length lands on 01:30 EST).
+    const fallBackFirst = storedEvent(
+      {
+        allDay: false,
+        date: '2026-10-31',
+        startTime: '01:30',
+        endTime: '03:00',
+        timezone: 'America/New_York',
+      },
+      { frequency: 'daily' },
+    )
+    const first = occurrenceOf(fallBackFirst, '2026-10-31')
+    // Exactly what the service stored: 01:30 EDT through 03:00 EDT.
+    expect(first?.event.startsAt).toBe('2026-10-31T05:30:00.000Z')
+    expect(first?.event.endsAt).toBe('2026-10-31T07:00:00.000Z')
+    // The next day recomposes: the same wall time, one instant later in UTC.
+    const second = occurrenceOf(fallBackFirst, '2026-11-01')
+    expect(second?.event.startsAt).toBe('2026-11-01T05:30:00.000Z')
+    expect(second?.event.endsAt).toBe('2026-11-01T07:00:00.000Z')
+  })
+
+  test('an override moved into the window from a date outside it still stands', () => {
+    const series = storedEvent({ allDay: true, date: '2026-10-05' }, { frequency: 'weekly' })
+    // The 5th moved to the 28th: a November window never expands the 5th,
+    // yet the moved occurrence is November's to show.
+    const moved: StoredCalendarEvent = {
+      ...series,
+      exceptions: [
+        {
+          originalDate: '2026-10-05',
+          kind: 'override',
+          title: 'Перенесли',
+          allDay: true,
+          date: '2026-11-02',
+        },
+      ],
+    }
+    const november = expandEvent(moved, '2026-11-01', '2026-11-30')
+    expect(november.map((occurrence) => occurrence.originalDate)).toEqual([
+      '2026-10-05',
+      '2026-11-02',
+      '2026-11-09',
+      '2026-11-16',
+      '2026-11-23',
+      '2026-11-30',
+    ])
+    const movedIn = november.find((occurrence) => occurrence.originalDate === '2026-10-05')
+    expect(movedIn?.event).toMatchObject({ title: 'Перенесли', date: '2026-11-02' })
+
+    // And a move out of the drawn window is gone from it, its original
+    // date silently skipped.
+    const october = expandEvent(moved, '2026-10-01', '2026-10-31')
+    expect(october.map((occurrence) => occurrence.originalDate)).toEqual([
+      '2026-10-12',
+      '2026-10-19',
+      '2026-10-26',
+    ])
+  })
+
+  test('an override anchored to a date the series no longer produces is inert', () => {
+    const series = storedEvent({ allDay: true, date: '2026-10-05' }, { frequency: 'weekly' })
+    // The 6th (a Tuesday) was never a Monday series' occurrence: whatever
+    // the override says, no screen shows it.
+    const inert: StoredCalendarEvent = {
+      ...series,
+      exceptions: [
+        {
+          originalDate: '2026-10-06',
+          kind: 'override',
+          title: 'Призрак',
+          allDay: true,
+          date: '2026-10-06',
+        },
+      ],
+    }
+    expect(expandEvent(inert, '2026-10-01', '2026-10-31').map((o) => o.originalDate)).toEqual([
+      '2026-10-05',
+      '2026-10-12',
+      '2026-10-19',
+      '2026-10-26',
+    ])
+  })
+})
