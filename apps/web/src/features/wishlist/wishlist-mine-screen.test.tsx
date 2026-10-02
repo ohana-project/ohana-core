@@ -199,6 +199,26 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(screen.getByText('wildberries.ru')).toBeInTheDocument()
   })
 
+  it('elides an overlong hostname at the head, keeping the identifying tail', async () => {
+    const long = wish({
+      id: '01900000-0000-7000-8000-000000000304',
+      title: 'Сертификат',
+      details: undefined,
+      link: 'https://ozon.ru.account-check.example.net/gift',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([long]))
+    mockQuietSync()
+    renderWithProviders(<WishlistMineScreen />)
+
+    expect(await screen.findByText('Сертификат')).toBeInTheDocument()
+    // The 33-character hostname yields its head: the tail is what says
+    // where the link resolves.
+    const chip = screen.getByText('….ru.account-check.example.net')
+    // The full target stays reachable through the chip.
+    expect(chip.closest('a')).toHaveAttribute('href', long.link)
+  })
+
   it('offers the first wish when the list is empty', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([]))
@@ -444,6 +464,9 @@ describe('WishlistMineScreen (the own wishlist)', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Изменить' }))
     await screen.findByText('Изменить желание')
+    // The sheet answers to the dialog role — the absence assertions below
+    // would pass vacuously if it never did.
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     // The removal arrives as the sync's tombstone: the sheet closes
     // instead of editing (or, falling back to "new", re-creating) a wish
@@ -564,6 +587,61 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     // that is now open, the mark again. The pill's disappearance proves
     // the mid-edit sync reached the component first.
     await waitFor(() => expect(screen.queryByText('Получено')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
+    expect(apiPut).toHaveBeenCalledTimes(1)
+    expect(apiPost).not.toHaveBeenCalled()
+    expect(apiDelete).not.toHaveBeenCalled()
+  })
+
+  it('a moved switch reads the mark that landed mid-edit, and sends no mark again', async () => {
+    const lamp = wish()
+    let client: QueryClient | undefined
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: { ...lamp, receivedAt: '2026-10-01T09:30:00.000Z' },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <>
+        <CaptureClient capture={(c) => (client = c)} />
+        <WishlistMineScreen />
+      </>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // Another device marks the wish received mid-edit; the member, seeing
+    // the row change, moves the switch to received all the same.
+    if (client === undefined) throw new Error('The query client never arrived')
+    await landSync(client, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'wishlist_wish',
+          wish: {
+            ...lamp,
+            receivedAt: '2026-10-01T09:30:00.000Z',
+            updatedAt: '2026-10-01T09:30:00.000Z',
+          },
+        },
+      ],
+      tombstones: [],
+    })
+    await user.click(screen.getByRole('switch', { name: 'Уже получено' }))
+
+    // The save sends the triple only: the mark already sits on the row the
+    // sheet reads live, so the moved switch does not send it a second time.
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
     await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
     expect(apiPut).toHaveBeenCalledTimes(1)

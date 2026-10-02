@@ -4,7 +4,7 @@ import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Icon } from '@/ui/icon.tsx'
-import { linkDomain } from './wishlist-entries.ts'
+import { chipDomain } from './wishlist-entries.ts'
 
 /**
  * One wish row (the prototypes' wish card, issue #18): the received mark
@@ -47,12 +47,15 @@ export function WishRow({
               href={wish.link}
               target="_blank"
               rel="noopener noreferrer"
+              // The full target stays reachable: the chip's text may be
+              // elided, the tooltip never is.
+              title={wish.link}
               className="inline-flex w-fit max-w-full items-center gap-1.5 text-sm text-accent hover:underline"
             >
               <Icon name="globe" className="size-4 shrink-0" />
-              {/* truncate: a hostname has no space in it, so a very long
-                  one must cut off instead of stretching the card. */}
-              <span className="truncate">{linkDomain(wish.link)}</span>
+              {/* truncate: at a narrow width the elided-at-the-head text
+                  still yields, the tail going under the ellipsis last. */}
+              <span className="truncate">{chipDomain(wish.link)}</span>
             </a>
           )}
         </div>

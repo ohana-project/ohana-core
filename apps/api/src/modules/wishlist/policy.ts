@@ -30,9 +30,10 @@ export function wishVisibleTo(_wish: { authorMemberId: string }, _memberId: stri
  * Kept next to `wishVisibleTo` so what a member may see is defined in
  * exactly one place. Today it narrows nothing: `undefined` in a drizzle
  * `and(...)` is no extra filter beyond the space scope the query already
- * carries — the `memberId` rides along because issue #19's favorites and
- * reservations bring visibility rules of their own, which land here as
- * real filters beside this one.
+ * carries — the `memberId` keeps the signature level with `wishVisibleTo`,
+ * so a rule that does narrow per member changes no call site; issue #19's
+ * gift favorites and gift reservations bring filters of their own beside
+ * this one.
  */
 export function wishVisibleToSql(_memberId: string): undefined {
   return undefined

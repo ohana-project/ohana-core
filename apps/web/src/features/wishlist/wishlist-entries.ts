@@ -52,6 +52,21 @@ export function linkDomain(link: string): string {
   }
 }
 
+/**
+ * The domain chip's text: a hostname has no space in it, so an overlong
+ * one cannot wrap — it is elided at the head, where the characters say
+ * the least. The tail is what identifies where the link resolves, so
+ * `ozon.ru.account-check.example.net` keeps its `…example.net` end and
+ * loses its left edge instead.
+ */
+const CHIP_DOMAIN_MAX = 30
+
+export function chipDomain(link: string): string {
+  const domain = linkDomain(link)
+  if (domain.length <= CHIP_DOMAIN_MAX) return domain
+  return `…${domain.slice(-(CHIP_DOMAIN_MAX - 1))}`
+}
+
 /** The wish list's meta line, for the person screen: "обновлено вчера в 21:04". */
 export function wishlistUpdatedAt(wishes: StoredWish[]): string | undefined {
   if (wishes.length === 0) return undefined
