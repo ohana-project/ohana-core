@@ -222,14 +222,14 @@ function PhotoLightbox({
     try {
       // The download bypasses the memo: one explicit save, and the blob is
       // revoked on a delay — WebKit resolves a blob download after the
-      // click, so revoking in the same tick fails the save.
+      // click, so revoking in the same tick fails the save. The minute is
+      // the save's lifetime, an explicit act apart from the viewed-photo
+      // cache the sign-out clears.
       const response = await fetch(entryImageUrl(entryId, image.id, 'original'), {
         credentials: 'same-origin',
         headers: memberHeader(),
       })
       if (!response.ok) {
-        // eslint-disable-next-line no-console
-        console.log('DOWNLOAD NOT OK', response.status)
         throw new ApiError(extractErrorCode(await response.json().catch(() => null)))
       }
       const blob = await response.blob()

@@ -351,8 +351,13 @@ describe('JournalEntryScreen', () => {
       expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(true)
     })
     expect(URL.createObjectURL).toHaveBeenCalled()
+    // The blob outlives the click on purpose: revoking it in the same tick
+    // fails the save on WebKit, which resolves the download afterwards.
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
 
     // A refused download names the API's answer instead of doing nothing.
+    // Base UI's toasts do not paint in jsdom; the manager's queue is what
+    // the assertion can honestly pin.
     fetchMock.mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({ error: { code: 'image_not_found' } }), {
@@ -361,14 +366,10 @@ describe('JournalEntryScreen', () => {
         }),
       ),
     )
-    await screen.getByText('Скачать оригинал').click()
+    // The pending download disables the button; only its end re-enables it.
     await vi.waitFor(() => {
       expect(screen.getByRole('button', { name: 'Скачать оригинал' })).toBeEnabled()
     })
-
-    // A refused download names the API's answer instead of doing nothing.
-    // Base UI's toasts do not paint in jsdom; the manager's queue is what
-    // the assertion can honestly pin.
     const addToast = vi.spyOn(toastManager, 'add')
     fireEvent.click(screen.getByRole('button', { name: 'Скачать оригинал' }))
     await vi.waitFor(() => {
@@ -376,6 +377,7 @@ describe('JournalEntryScreen', () => {
         expect.objectContaining({ title: 'Фотография не найдена.' }),
       )
     })
+    addToast.mockRestore()
   })
 
   it('shows the processing placeholder of a photo the worker has not finished', async () => {

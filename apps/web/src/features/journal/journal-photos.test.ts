@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/data/api-error.ts'
+import { forgetFetchedImages, peekFetchedImage } from '@/lib/photo-cache.ts'
 import {
   deleteEntryImage,
   entryImageUrl,
@@ -58,6 +59,27 @@ describe('fetchEntryImage', () => {
     expect(url).toBe(entryImageUrl('entry-1', 'image-1', 'feed'))
     expect((init.headers as Record<string, string>)['x-ohana-member']).toBe(ME)
     expect(init.credentials).toBe('same-origin')
+  })
+
+  it('refuses and revokes a blob whose session ended before the fetch landed', async () => {
+    let resolveFetch: (response: Response) => void = () => {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve
+          }),
+      ),
+    )
+    const pending = fetchEntryImage('entry-1', 'late', 'feed')
+    // The sign-out lands while the fetch is in flight.
+    forgetFetchedImages()
+    resolveFetch(new Response(new Blob(['bytes']), { status: 200 }))
+
+    await expect(pending).rejects.toThrow('the session ended')
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(expect.stringMatching(/^blob:/))
+    expect(peekFetchedImage(entryImageUrl('entry-1', 'late', 'feed'))).toBeUndefined()
   })
 
   it('maps a refusal to the API error code it carries', async () => {
