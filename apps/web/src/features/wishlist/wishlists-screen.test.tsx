@@ -10,7 +10,7 @@ import { WishlistsScreen } from './wishlists-screen.tsx'
 /*
  * The wishlists overview (issue #18): the member's own list beside the
  * other members' lists, counted by open wishes — a received wish has left
- * the open count (issue #84). Everything reads the local store, so the
+ * the open count (issue #18). Everything reads the local store, so the
  * same render answers offline.
  */
 

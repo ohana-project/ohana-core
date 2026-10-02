@@ -257,6 +257,124 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(await screen.findByText('Сохранено')).toBeInTheDocument()
   })
 
+  it('refuses a save without a real link, and never sends the received mark beside it', async () => {
+    const lamp = wish()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // The mark rides this save, but the link is not a link: nothing is
+    // sent, and the field says so.
+    await user.click(screen.getByRole('switch', { name: 'Уже получено' }))
+    await user.clear(screen.getByLabelText('Ссылка'))
+    await user.type(screen.getByLabelText('Ссылка'), 'ozon.ru/thermos')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(await screen.findByText('Начинается с http:// или https://')).toBeInTheDocument()
+    expect(apiPut).not.toHaveBeenCalled()
+    expect(apiPost).not.toHaveBeenCalled()
+
+    // The corrected save goes through: the triple first, the mark second.
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: { ...lamp, title: lamp.title, link: 'https://ozon.ru/thermos' },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}/received') {
+        return {
+          data: { ...lamp, receivedAt: '2026-10-01T09:30:00.000Z' },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    await user.clear(screen.getByLabelText('Ссылка'))
+    await user.type(screen.getByLabelText('Ссылка'), 'https://ozon.ru/thermos')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith('/api/v1/wishlist/wishes/{wishId}/received', {
+        params: { path: { wishId: lamp.id } },
+      }),
+    )
+    expect(await screen.findByText('Сохранено')).toBeInTheDocument()
+  })
+
+  it('a refused save changes nothing, and the retry marks the wish exactly once', async () => {
+    const lamp = wish()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // The replace goes first and is refused: the mark is not sent either —
+    // a refused save changes nothing, and the sheet stays open.
+    let marks = 0
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}/received') {
+        marks += 1
+        return {
+          data: { ...lamp, receivedAt: '2026-10-01T09:30:00.000Z' },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: undefined,
+          error: { error: { code: 'validation_failed', message: 'Check the fields' } },
+          response: new Response(null, { status: 400 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    await user.click(screen.getByRole('switch', { name: 'Уже получено' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(screen.getByText(/Проверьте поля/)).toBeInTheDocument())
+    expect(marks).toBe(0)
+    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument()
+
+    // The retried save succeeds: the replace lands, then the mark rides
+    // once — a later save cannot send it again, the wish the store holds
+    // being received already.
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: { ...lamp, receivedAt: '2026-10-01T09:30:00.000Z', link: 'https://ozon.ru/x' },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => {
+      expect(marks).toBe(1)
+      expect(screen.getByText('Сохранено')).toBeInTheDocument()
+    })
+  })
+
   it('removes a wish behind its confirm, a true delete with no way back', async () => {
     const lamp = wish()
     seedRegistry()

@@ -31,14 +31,15 @@ const detailsSchema = Type.Optional(
 
 /**
  * The optional link must be an http(s) URL (issue #18): the pattern admits
- * only `http://` and `https://` followed by at least one non-whitespace
- * character, so `javascript:` and friends are a validation answer, never a
- * stored value.
+ * only `http://` and `https://` followed by at least one character that is
+ * neither whitespace nor NUL — `javascript:` and friends are a validation
+ * answer, never a stored value, and the NUL the database refuses inside
+ * text turns into a 500 when it slips through.
  */
 const linkSchema = Type.Optional(
   Type.String({
     maxLength: WISH_LINK_MAX_LENGTH,
-    pattern: '^https?://[^\\s]+$',
+    pattern: '^https?://[^\\s\\u0000]+$',
   }),
 )
 

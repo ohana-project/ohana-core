@@ -267,7 +267,14 @@ describe('the wishlist wishes (issue #18)', () => {
       const missing = await createWish(app, anna, { title: '' })
       expect(missing.status).toBe(400)
 
-      for (const link of ['ftp://example.com/gift', 'javascript:alert(1)', 'not a url']) {
+      // A NUL is not whitespace, but the database refuses it inside text —
+      // the contract refuses it first, so the write stays a 400.
+      for (const link of [
+        'ftp://example.com/gift',
+        'javascript:alert(1)',
+        'not a url',
+        'https://example.com/\u0000',
+      ]) {
         const refused = await createWish(app, anna, { title: 'Фонарь', link })
         expect(refused.status).toBe(400)
         expect(errorCode(refused.body)).toBe('validation_failed')
@@ -434,6 +441,8 @@ describe('the wishlist wishes (issue #18)', () => {
 
       const created = await createWish(app, dima, { title: 'До скрытия' })
       const wishId = (created.body as WishDto).id
+      const marked = await markReceived(app, dima, wishId)
+      expect(marked.status).toBe(200)
 
       await hideWishlist(app, owner, false)
 
@@ -451,19 +460,26 @@ describe('the wishlist wishes (issue #18)', () => {
 
       const edit = await editWish(app, dima, wishId, { title: 'Правка при скрытом' })
       expect(edit.status).toBe(404)
+      expect(errorCode(edit.body)).toBe('section_hidden')
 
       const remove = await removeWish(app, dima, wishId)
       expect(remove.status).toBe(404)
 
       const mark = await markReceived(app, dima, wishId)
       expect(mark.status).toBe(404)
+      expect(errorCode(mark.body)).toBe('section_hidden')
+
+      const clear = await clearReceived(app, dima, wishId)
+      expect(clear.status).toBe(404)
+      expect(errorCode(clear.body)).toBe('section_hidden')
 
       // Hiding never touches the sections' data (ADR-0011): the wish comes
-      // back with the section.
+      // back with the section, its received mark intact.
       await hideWishlist(app, owner, true)
       const restored = await getWish(app, dima, wishId)
       expect(restored.status).toBe(200)
       expect(restored.body).toMatchObject({ title: 'До скрытия' })
+      expect((restored.body as WishDto).receivedAt).toEqual(expect.any(String))
     })
   })
 })

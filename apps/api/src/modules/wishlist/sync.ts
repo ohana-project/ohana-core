@@ -28,7 +28,7 @@ export const wishlistSyncContributor = {
     if (!sectionVisibility(space).wishlist) {
       return { upserts: [] }
     }
-    const rows = await listChangedWishes(tx, actor.spaceId, since)
+    const rows = await listChangedWishes(tx, actor, since)
     return {
       upserts: rows.map((wish) => ({
         entity: WISHLIST_WISH_SYNC_ENTITY,

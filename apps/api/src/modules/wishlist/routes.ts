@@ -49,7 +49,7 @@ export const wishlistRoutes: FastifyPluginAsyncTypebox<WishlistRoutesOptions> = 
     scoped.addHook('onRequest', memberSessionGuard(opts.access))
     scoped.addHook('onRequest', sectionGate({ db: opts.deps.db }, 'wishlist'))
 
-    // The space's browse (issue #78): every member's wishes, creation
+    // The space's browse (issue #18): every member's wishes, creation
     // order — or one member's wishlist when the query names them. The
     // synchronised partition is the screens' read; this route is the
     // contract the tests and the OpenAPI document speak.
@@ -119,7 +119,7 @@ export const wishlistRoutes: FastifyPluginAsyncTypebox<WishlistRoutesOptions> = 
       },
     )
 
-    // The removal (issue #77): a wish leaves for good, the tombstone
+    // The removal (issue #18): a wish leaves for good, the tombstone
     // carrying it out of every device's copy.
     scoped.delete(
       '/wishlist/wishes/:wishId',
@@ -137,7 +137,7 @@ export const wishlistRoutes: FastifyPluginAsyncTypebox<WishlistRoutesOptions> = 
       },
     )
 
-    // The author's mark (issue #84): the wish stops being open.
+    // The author's mark (issue #18): the wish stops being open.
     scoped.post(
       '/wishlist/wishes/:wishId/received',
       {

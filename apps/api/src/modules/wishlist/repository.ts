@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, isNotNull, isNull } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
+import { wishVisibleToSql } from './policy.ts'
 import { type Wish, wishes } from './tables.ts'
 
 export interface NewWish {
@@ -77,9 +78,12 @@ export async function updateWish(
 }
 
 /**
- * The one-way mark into received (CONTEXT.md, received wish): the moment
- * is stamped once, and a wish already received returns no row — the use
- * case refuses, mirroring the journal's one-way publish guard.
+ * The mark into received (issue #18, CONTEXT.md, received wish): the
+ * moment is stamped once, and a wish already received returns no row — the
+ * use case refuses, mirroring the journal's publish guard. The mark is
+ * not one-way: the author can return the wish to open from the edit
+ * sheet's switch (clearWishReceived below), a decision recorded in
+ * CONTEXT.md.
  */
 export async function markWishReceived(
   tx: Tx,
@@ -138,11 +142,14 @@ export async function deleteWish(
 /**
  * One wishlist's rows, or the whole space's browse: creation order is the
  * wishlist's order, oldest first, with the id breaking creation-in-one-
- * moment ties.
+ * moment ties. The visibility filter is the ordinary read's rule
+ * (policy.ts, in its SQL dialect) beside the space scope and the optional
+ * author narrowing.
  */
 export async function listWishesInSpace(
   executor: Executor,
   spaceId: string,
+  memberId: string,
   authorMemberId: string | undefined,
 ): Promise<Wish[]> {
   return executor
@@ -152,6 +159,7 @@ export async function listWishesInSpace(
       and(
         eq(wishes.spaceId, spaceId),
         authorMemberId === undefined ? undefined : eq(wishes.authorMemberId, authorMemberId),
+        wishVisibleToSql(memberId),
       ),
     )
     .orderBy(asc(wishes.createdAt), asc(wishes.id))
@@ -159,17 +167,19 @@ export async function listWishesInSpace(
 
 /**
  * The rows changed after `since` that the requesting member may see — the
- * sync contributor's delta (issue #14). Every wish of the space travels to
- * every member (policy.ts), so the filter is the space scope alone.
+ * sync contributor's delta (issue #14). The visibility filter is the
+ * ordinary read's rule (policy.ts); today it narrows nothing beyond the
+ * space scope, every wish of the space travelling to every member.
  */
 export async function listChangedWishesVisibleTo(
   tx: Tx,
   spaceId: string,
+  memberId: string,
   since: bigint,
 ): Promise<Wish[]> {
   return tx
     .select()
     .from(wishes)
-    .where(and(eq(wishes.spaceId, spaceId), gt(wishes.revision, since)))
+    .where(and(eq(wishes.spaceId, spaceId), gt(wishes.revision, since), wishVisibleToSql(memberId)))
     .orderBy(desc(wishes.revision), desc(wishes.id))
 }

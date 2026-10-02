@@ -9,14 +9,14 @@ import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { useWishlistData } from './use-wishlist.ts'
+import { WishRow } from './wish-row.tsx'
 import { authorName, openWishesOf, wishlistUpdatedAt } from './wishlist-entries.ts'
-import { WishRow } from './wishlist-mine-screen.tsx'
 import { WishlistShell } from './wishlist-shell.tsx'
 
 /*
  * One member's wishlist (docs/design/screens/wishlist-person.html): the
  * open wishes they are hoping for, creation order — a received wish has
- * left the open wishes (issue #84), and the favorites and reservations
+ * left the open wishes (issue #18), and the favorites and reservations
  * that share this prototype screen join with issue #19. The wishes read
  * from the synchronised partition, so the screen answers offline like the
  * rest of the section (ADR-0002).
@@ -43,6 +43,20 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
         <div className="grid place-items-center py-10">
           <Spinner className="size-6" />
         </div>
+      ) : !downloaded ? (
+        // Before anything else: a device with nothing downloaded — or a
+        // fraction left by an owed replay — says so, instead of reading the
+        // absent profile as a missing member or counting the rows it
+        // happens to hold (ADR-0014, architecture.md web rules).
+        <Card className="mt-6">
+          <Empty>
+            <EmptyMedia>
+              <Icon name="cloud-off" />
+            </EmptyMedia>
+            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+          </Empty>
+        </Card>
       ) : profile === undefined ? (
         <Card className="mt-6">
           <Empty>
@@ -71,17 +85,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
             </div>
           </div>
 
-          {!downloaded ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="cloud-off" />
-                </EmptyMedia>
-                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-                <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-              </Empty>
-            </Card>
-          ) : open.length === 0 ? (
+          {open.length === 0 ? (
             <Card>
               <Empty>
                 <EmptyMedia>

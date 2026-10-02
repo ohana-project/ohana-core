@@ -206,6 +206,46 @@ describe('the wishes in the local store', () => {
     expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist'])
   })
 
+  test('a version 1 partition upgrading straight to version 3 replays both sections', async () => {
+    // A device that synced before the journal entries store existed and
+    // skipped version 2 entirely: the one upgrade adds both stores, so the
+    // replay promise names the journal and the wishlist together.
+    const openVersionOne = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${ANYA}`, 1)
+      request.onupgradeneeded = () => {
+        const upgrading = request.result
+        upgrading.createObjectStore('space', { keyPath: 'id' })
+        upgrading.createObjectStore('members', { keyPath: 'id' })
+        upgrading.createObjectStore('meta', { keyPath: 'key' })
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Seeding version 1 failed'))
+    })
+    const seed = async (db: IDBDatabase): Promise<void> =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(['space', 'meta'], 'readwrite')
+        tx.objectStore('space').put({
+          id: SPACE_ID,
+          name: 'Наша семья',
+          timezone: 'Europe/Moscow',
+          sections: { journal: true, calendar: true, wishlist: true },
+        })
+        tx.objectStore('meta').put({ key: 'cursor', revision: '5' })
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('Seeding version 1 failed'))
+      })
+    const one = await openVersionOne
+    try {
+      await seed(one)
+    } finally {
+      one.close()
+    }
+
+    const upgraded = await readMemberSnapshot(ANYA)
+    expect(upgraded.revision).toBe('0')
+    expect(upgraded.pendingReplay).toEqual(['journal', 'wishlist'])
+  })
+
   test('each member reads only their own wishes, and sign-out deletes them whole', async () => {
     const row = wish()
     await applySyncResult(ANYA, syncResult([{ entity: 'wishlist_wish', wish: row }]))

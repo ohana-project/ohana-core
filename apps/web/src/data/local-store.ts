@@ -135,19 +135,20 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
       if (oldVersion >= 1 && oldVersion < 2) {
         // A version 1 device advanced its cursor while ignoring
         // journal_entry changes, so a delta would never deliver the
-        // entries past it. The reset makes the next sync replay from
-        // revision 0, the same move a re-shown section makes; the replay
-        // promise names the section, so the screens answer honestly until
-        // the replay lands. A partition whose first apply never committed
-        // holds no cursor, and stays honestly empty: resetting it would
-        // claim data it does not hold.
-        upgradeReplayJournal(request)
+        // entries past it — and one upgrading straight to version 3 was
+        // ignoring wishlist_wish changes too. One reset covers both
+        // sections the upgrade passes on its way to version 3: the cursor
+        // goes to 0 and the replay promise names them, the same move a
+        // re-shown section makes (ADR-0014). A partition whose first apply
+        // never committed holds no cursor, and stays honestly empty:
+        // resetting it would claim data it does not hold.
+        upgradeReplay(request, ['journal', 'wishlist'])
       }
       if (oldVersion >= 2 && oldVersion < 3) {
         // The same move for the wishlist (issue #18): a version 2 device
         // advanced its cursor while ignoring wishlist_wish changes, so
         // only a replay from 0 can deliver the wishes it was never sent.
-        upgradeReplayWishlist(request)
+        upgradeReplay(request, ['wishlist'])
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -156,48 +157,31 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
 }
 
 /**
- * The v1 → v2 upgrade's cursor reset towards the journal (ADR-0014). A
+ * The store upgrades' cursor reset (ADR-0014): the upgrade added the
+ * `added` sections' stores, so a device that had already advanced its
+ * cursor holds none of their rows and only a replay from revision 0 can
+ * deliver them. The cursor goes to 0 and the replay promise names the
+ * added sections merged with any promise already open (an upgrade can
+ * chain: v1 straight to v3 adds the journal and the wishlist in one
+ * step), so the screens answer honestly until the replay lands. A
  * partition whose first apply never committed holds no cursor, and stays
  * honestly empty: resetting it would claim data it does not hold.
  */
-function upgradeReplayJournal(request: IDBOpenDBRequest): void {
+function upgradeReplay(request: IDBOpenDBRequest, added: SectionName[]): void {
   const meta = request.transaction?.objectStore('meta')
   if (meta === undefined) return
   const read = meta.get('cursor')
   read.onsuccess = () => {
-    if (read.result !== undefined) {
+    if (read.result === undefined) return
+    const readPromise = meta.get('pendingReplay')
+    readPromise.onsuccess = () => {
       meta.put({ key: 'cursor', revision: '0' })
-      // v1 to v2 adds the journal; a later upgrade that adds a store must
-      // merge with a promise this write may find open.
-      meta.put({ key: 'pendingReplay', sections: ['journal'] })
-    }
-  }
-}
-
-/**
- * The v2 → v3 upgrade's cursor reset towards the wishlist (issue #18). The
- * upgrade runs only for databases that are exactly at version 2 — the
- * v1 → v2 upgrade above runs first and writes its own promise — so the
- * stored sections read here are the settled truth, and any promise it
- * finds is the journal's own, kept beside this write.
- */
-function upgradeReplayWishlist(request: IDBOpenDBRequest): void {
-  const meta = request.transaction?.objectStore('meta')
-  if (meta === undefined) return
-  const read = meta.get('pendingReplay')
-  read.onsuccess = () => {
-    const stored =
-      (read.result?.sections as SectionName[] | undefined) ??
-      // No promise row at all means the last apply landed whole; a cursor
-      // then exists unless the first apply never committed.
-      []
-    const readCursor = meta.get('cursor')
-    readCursor.onsuccess = () => {
-      if (readCursor.result !== undefined) {
-        meta.put({ key: 'cursor', revision: '0' })
-        const merged = new Set<SectionName>([...stored, 'wishlist'])
-        meta.put({ key: 'pendingReplay', sections: [...merged] })
-      }
+      const stored =
+        (readPromise.result?.sections as SectionName[] | undefined) ??
+        // No promise row at all means the last apply landed whole.
+        []
+      const merged = new Set<SectionName>([...stored, ...added])
+      meta.put({ key: 'pendingReplay', sections: [...merged] })
     }
   }
 }

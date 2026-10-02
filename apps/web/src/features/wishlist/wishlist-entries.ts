@@ -19,7 +19,7 @@ export function wishesOf(wishes: StoredWish[], authorId: string): StoredWish[] {
   return wishes.filter((wish) => wish.authorId === authorId).sort(byCreation)
 }
 
-/** The open wishes of one member — what the space browses (issue #84). */
+/** The open wishes of one member — what the space browses (issue #18). */
 export function openWishesOf(wishes: StoredWish[], authorId: string): StoredWish[] {
   return wishesOf(wishes, authorId).filter((wish) => wish.receivedAt === undefined)
 }

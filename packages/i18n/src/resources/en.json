@@ -332,6 +332,7 @@
     "linkField": "Link",
     "linkPlaceholder": "Optional",
     "linkHint": "A link to an online shop, starting with http:// or https://",
+    "linkRequired": "Starts with http:// or https://",
     "receivedSwitch": "Already received",
     "receivedHint": "The list will show a «received» mark",
     "add": "Add",

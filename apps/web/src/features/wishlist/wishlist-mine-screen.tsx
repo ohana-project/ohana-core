@@ -4,7 +4,6 @@ import type { StoredWish } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
-import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import {
@@ -37,7 +36,8 @@ import {
   WISH_TITLE_MAX_LENGTH,
   wishlistErrorMessage,
 } from './use-wishlist.ts'
-import { authorName, linkDomain, wishesOf } from './wishlist-entries.ts'
+import { WishRow } from './wish-row.tsx'
+import { authorName, wishById, wishesOf } from './wishlist-entries.ts'
 import { WishlistShell } from './wishlist-shell.tsx'
 
 /*
@@ -51,13 +51,16 @@ export function WishlistMineScreen() {
   const { t } = useTranslation()
   const { snapshot, wishes, profiles, downloaded } = useWishlistData()
   const meId = getActiveMemberId()
-  const [editing, setEditing] = useState<StoredWish | 'new' | undefined>(undefined)
+  // The id, not the row: while the sheet is open a sync may re-deliver the
+  // wish, and the editor must edit the wish as it is now, not a snapshot
+  // frozen when the edit began.
+  const [editingId, setEditingId] = useState<string | 'new' | undefined>(undefined)
 
   const mine = meId === undefined ? [] : wishesOf(wishes, meId)
   const author = meId === undefined ? undefined : authorName(meId, profiles, t('wishlist.me'))
 
   const addWish = (
-    <Button size="sm" onClick={() => setEditing('new')}>
+    <Button size="sm" onClick={() => setEditingId('new')}>
       <Icon name="plus" />
       {t('wishlist.addWish')}
     </Button>
@@ -98,7 +101,7 @@ export function WishlistMineScreen() {
               <EmptyTitle>{t('wishlist.mineEmptyTitle')}</EmptyTitle>
               <EmptyDescription>{t('wishlist.mineEmptyText')}</EmptyDescription>
               <EmptyMedia className="mt-3">
-                <Button onClick={() => setEditing('new')}>
+                <Button onClick={() => setEditingId('new')}>
                   <Icon name="plus" />
                   {t('wishlist.addWish')}
                 </Button>
@@ -108,80 +111,33 @@ export function WishlistMineScreen() {
         ) : (
           <div className="flex flex-col gap-3">
             {mine.map((wish) => (
-              <WishRow key={wish.id} wish={wish} editable onEdit={() => setEditing(wish)} />
+              <WishRow key={wish.id} wish={wish} editable onEdit={() => setEditingId(wish.id)} />
             ))}
           </div>
         )}
       </div>
 
-      <Fab aria-label={t('wishlist.addWish')} onClick={() => setEditing('new')} />
+      <Fab aria-label={t('wishlist.addWish')} onClick={() => setEditingId('new')} />
 
-      {editing !== undefined && (
+      {editingId !== undefined && (
         <WishEditorSheet
-          wish={editing === 'new' ? undefined : editing}
-          onClose={() => setEditing(undefined)}
+          wish={editingId === 'new' ? undefined : wishById(wishes, editingId)}
+          onClose={() => setEditingId(undefined)}
         />
       )}
     </WishlistShell>
   )
 }
 
-/** One wish row: the received mark strikes the title out; the author's
- *  rows carry the edit button (only the author can change a wish). */
-export function WishRow({
-  wish,
-  editable = false,
-  onEdit,
-}: {
-  wish: StoredWish
-  editable?: boolean
-  onEdit?: () => void
-}) {
-  const { t } = useTranslation()
-  const received = wish.receivedAt !== undefined
-  return (
-    <Card className="gap-0 py-0">
-      <div className="flex items-start gap-3 px-5 py-4">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {received && (
-            <span className="w-fit">
-              <Badge variant="ok">{t('wishlist.receivedPill')}</Badge>
-            </span>
-          )}
-          <span className={`text-h3 ${received ? 'text-muted-foreground line-through' : ''}`}>
-            {wish.title}
-          </span>
-          {wish.details !== undefined && (
-            <span className="text-sm text-muted-foreground">{wish.details}</span>
-          )}
-          {wish.link !== undefined && (
-            <a
-              href={wish.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-fit items-center gap-1.5 text-sm text-accent hover:underline"
-            >
-              <Icon name="globe" className="size-4" />
-              {linkDomain(wish.link)}
-            </a>
-          )}
-        </div>
-        {editable && (
-          <Button variant="ghost" size="icon" aria-label={t('wishlist.edit')} onClick={onEdit}>
-            <Icon name="edit" />
-          </Button>
-        )}
-      </div>
-    </Card>
-  )
-}
-
 /**
  * The add-or-edit sheet (the prototype's wish sheet): the whole
  * title-details-link triple, the received switch when editing, and the
- * removal with its confirm. Saving sends the mutations; the sync they
- * trigger re-reads the partition, so the sheet closes on the request's own
- * answer and a refusal leaves the sheet open with the translated error.
+ * removal with its confirm. Saving sends the triple's replace first and
+ * the mark or its clearing second, so a refused triple changes nothing and
+ * a refused mark leaves the switch honest; the wish the sheet edits is
+ * read from the store on every render, so a sync that lands mid-edit —
+ * including the refusal's own sync — cannot leave the sheet driving a
+ * stale row.
  */
 function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onClose: () => void }) {
   const { t } = useTranslation()
@@ -195,16 +151,29 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
   const [link, setLink] = useState(wish?.link ?? '')
   const [received, setReceived] = useState(wish?.receivedAt !== undefined)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  // The field errors wait for the first save attempt: a sheet the member
+  // has just opened is not yet wrong (docs/design/README.md, "Field").
+  const [attempted, setAttempted] = useState(false)
 
   const titleBlank = title.trim().length === 0
-  const pending = create.isPending || update.isPending || remove.isPending || markReceived.isPending
+  // The client-side guard the field hint names, mirroring the API
+  // contract's link rule (issue #18).
+  const linkInvalid = link.trim().length > 0 && !/^https?:\/\/\S+$/.test(link.trim())
+  const invalid = titleBlank || linkInvalid
+  const pending =
+    create.isPending ||
+    update.isPending ||
+    remove.isPending ||
+    markReceived.isPending ||
+    clearReceived.isPending
 
   const save = () => {
-    if (titleBlank) return
+    setAttempted(true)
+    if (invalid) return
     const input = {
       title: title.trim(),
       details: details.trim().length > 0 ? details.trim() : undefined,
-      link: link.trim().length > 0 ? link.trim() : undefined,
+      link: normaliseLinkScheme(link),
     }
     if (wish === undefined) {
       create.mutate(input, {
@@ -216,19 +185,20 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
       })
       return
     }
-    // The received switch rides its own use cases and the triple the
-    // replace; any refusal surfaces through the toast and the sheet stays
-    // open, while the refusal's sync corrects the stale row underneath
+    // The triple's replace goes first, the mark or its clearing second: a
+    // validation refusal changes nothing, and the switch's outcome rides
+    // the same save. Any refusal surfaces through the toast, the sheet
+    // stays open, and the refusal's sync corrects the stale row underneath
     // (use-wishlist.ts).
     void (async () => {
       try {
+        await update.mutateAsync({ wishId: wish.id, ...input })
         if (received && wish.receivedAt === undefined) {
           await markReceived.mutateAsync({ wishId: wish.id })
         }
         if (!received && wish.receivedAt !== undefined) {
           await clearReceived.mutateAsync({ wishId: wish.id })
         }
-        await update.mutateAsync({ wishId: wish.id, ...input })
         toast(t('wishlist.savedToast'))
         onClose()
       } catch (error) {
@@ -269,7 +239,7 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
           <SheetDescription>{t('wishlist.editorSubtitle')}</SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-4">
-          <Field data-invalid={titleBlank || undefined}>
+          <Field data-invalid={(attempted && titleBlank) || undefined}>
             <FieldLabel htmlFor="wish-title">{t('wishlist.titleField')}</FieldLabel>
             <Input
               id="wish-title"
@@ -277,10 +247,10 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
               maxLength={WISH_TITLE_MAX_LENGTH}
               onChange={(event) => setTitle(event.target.value)}
               placeholder={t('wishlist.titlePlaceholder')}
-              aria-invalid={titleBlank || undefined}
-              aria-describedby={titleBlank ? 'wish-title-error' : undefined}
+              aria-invalid={(attempted && titleBlank) || undefined}
+              aria-describedby={attempted && titleBlank ? 'wish-title-error' : undefined}
             />
-            {titleBlank && (
+            {attempted && titleBlank && (
               <FieldError id="wish-title-error">{t('wishlist.titleRequired')}</FieldError>
             )}
           </Field>
@@ -295,7 +265,7 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
             />
             <FieldDescription>{t('wishlist.detailsHint')}</FieldDescription>
           </Field>
-          <Field>
+          <Field data-invalid={(attempted && linkInvalid) || undefined}>
             <FieldLabel htmlFor="wish-link">{t('wishlist.linkField')}</FieldLabel>
             <Input
               id="wish-link"
@@ -305,8 +275,14 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
               maxLength={WISH_LINK_MAX_LENGTH}
               onChange={(event) => setLink(event.target.value)}
               placeholder={t('wishlist.linkPlaceholder')}
+              aria-invalid={(attempted && linkInvalid) || undefined}
+              aria-describedby={attempted && linkInvalid ? 'wish-link-error' : undefined}
             />
-            <FieldDescription>{t('wishlist.linkHint')}</FieldDescription>
+            {attempted && linkInvalid ? (
+              <FieldError id="wish-link-error">{t('wishlist.linkRequired')}</FieldError>
+            ) : (
+              <FieldDescription>{t('wishlist.linkHint')}</FieldDescription>
+            )}
           </Field>
           {wish !== undefined && (
             <div className="flex items-center justify-between gap-3 rounded-md border border-border px-4 py-3">
@@ -371,4 +347,18 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
       )}
     </Sheet>
   )
+}
+
+/**
+ * Mobile keyboards capitalise the first letter of a link, and the URL
+ * scheme is case-insensitive by RFC 3986: the scheme is lowercased before
+ * the wish is sent, so `Https://…` is a link, not a validation refusal.
+ * The rest of the URL keeps its case — paths and queries can be
+ * case-sensitive.
+ */
+function normaliseLinkScheme(link: string): string | undefined {
+  const trimmed = link.trim()
+  if (trimmed.length === 0) return undefined
+  // The match already carries the `://`.
+  return trimmed.replace(/^(https?):\/\//i, (match) => match.toLowerCase())
 }

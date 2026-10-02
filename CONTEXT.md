@@ -89,7 +89,7 @@ A member's claim that they intend to give a particular wish, visible to every me
 _Avoid_: Gift favorite, purchase.
 
 **Received wish** (RU: полученное пожелание):
-A wish its author has marked as received. It is no longer an open wish.
+A wish its author has marked as received. It is no longer an open wish, and the author can return it to open.
 _Avoid_: Deleted wish, fulfilled reservation.
 
 ### Calendar

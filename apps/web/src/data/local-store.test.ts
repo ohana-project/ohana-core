@@ -463,13 +463,14 @@ describe('the per-member local store', () => {
     // The read upgrades the partition instead of answering empty: the
     // space and members still read offline (ADR-0002), the entries store
     // appears empty, and the cursor has been reset so the next sync
-    // replays the journal from revision 0.
+    // replays the sections the upgrade added — the journal, and the
+    // wishlist the same upgrade passes on its way to version 3.
     const snapshot = await readMemberSnapshot(ANYA)
     expect(snapshot.space?.id).toBe(SPACE_ID)
     expect(snapshot.members.map((member) => member.name)).toEqual(['Миша'])
     expect(snapshot.entries).toEqual([])
     expect(snapshot.revision).toBe('0')
-    expect(snapshot.pendingReplay).toEqual(['journal'])
+    expect(snapshot.pendingReplay).toEqual(['journal', 'wishlist'])
 
     // The replay lands the journal entries and moves the cursor forward.
     await applySyncResult(ANYA, {

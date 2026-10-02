@@ -5,7 +5,7 @@ import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import type { WriteWishBody } from './contracts.ts'
 import { WISHLIST_WISH_SYNC_ENTITY } from './contracts.ts'
-import { assertWishAuthoredBy } from './policy.ts'
+import { assertWishAuthoredBy, wishVisibleTo } from './policy.ts'
 import {
   clearWishReceived,
   deleteWish,
@@ -36,7 +36,7 @@ export interface WishlistActor {
 }
 
 /**
- * Adds a wish to the member's own wishlist (issue #76): visible to the
+ * Adds a wish to the member's own wishlist (issue #18): visible to the
  * whole space from the moment it lands. The use case takes the space row
  * lock through the section recheck, so a hide that commits alongside the
  * write is still honoured, and the revision advances with the row in one
@@ -89,7 +89,7 @@ export async function editWish(
   let updated: Wish | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'wishlist')
-    const wish = await requireWishInSpace(tx, actor.spaceId, wishId)
+    const wish = await requireWishInSpace(tx, actor, wishId)
     assertWishAuthoredBy(wish, actor)
     await recordChanges(
       tx,
@@ -125,7 +125,7 @@ export async function editWish(
 }
 
 /**
- * The removal (issue #77): the author's wish leaves for good — the
+ * The removal (issue #18): the author's wish leaves for good — the
  * wishlist has no trash, so the delete writes the tombstone that carries
  * it out of every device's copy, audience everyone: the wish was visible
  * to the whole space, and every member that saw it must see it go.
@@ -138,7 +138,7 @@ export async function removeWish(
   const now = deps.clock.now()
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'wishlist')
-    const wish = await requireWishInSpace(tx, actor.spaceId, wishId)
+    const wish = await requireWishInSpace(tx, actor, wishId)
     assertWishAuthoredBy(wish, actor)
     const tombstone: TombstoneInput = {
       entity: WISHLIST_WISH_SYNC_ENTITY,
@@ -166,7 +166,7 @@ export async function removeWish(
 }
 
 /**
- * The author marks their wish received (issue #84, CONTEXT.md, received
+ * The author marks their wish received (issue #18, CONTEXT.md, received
  * wish): the moment is stamped once, and the stamp rides the revision to
  * every device. The mark is refused before anything is written — the wish
  * was read under the space row lock, so the decision is never made from a
@@ -181,7 +181,7 @@ export async function markReceived(
   let marked: Wish | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'wishlist')
-    const wish = await requireWishInSpace(tx, actor.spaceId, wishId)
+    const wish = await requireWishInSpace(tx, actor, wishId)
     assertWishAuthoredBy(wish, actor)
     if (wish.receivedAt !== null) {
       throw new DomainError(
@@ -229,7 +229,7 @@ export async function clearReceived(
   let cleared: Wish | undefined
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'wishlist')
-    const wish = await requireWishInSpace(tx, actor.spaceId, wishId)
+    const wish = await requireWishInSpace(tx, actor, wishId)
     assertWishAuthoredBy(wish, actor)
     if (wish.receivedAt === null) {
       throw new DomainError('wish_not_received', `Wish ${wishId} is not marked received`, 409)
@@ -266,11 +266,11 @@ export async function getWish(
   actor: WishlistActor,
   wishId: string,
 ): Promise<Wish> {
-  return requireWishInSpace(deps.db, actor.spaceId, wishId)
+  return requireWishInSpace(deps.db, actor, wishId)
 }
 
 /**
- * The space's browse (issue #78): every member's wishes, creation order —
+ * The space's browse (issue #18): every member's wishes, creation order —
  * or one member's wishlist when the query names them. The rows go back
  * raw; the route maps them onto the wire shape.
  */
@@ -279,25 +279,25 @@ export async function listWishes(
   actor: WishlistActor,
   authorMemberId: string | undefined,
 ): Promise<Wish[]> {
-  return listWishesInSpace(deps.db, actor.spaceId, authorMemberId)
+  return listWishesInSpace(deps.db, actor.spaceId, actor.memberId, authorMemberId)
 }
 
 /** The sync contributor's delta: the wishes changed since the cursor. */
 export async function listChangedWishes(
   tx: Parameters<typeof listChangedWishesVisibleTo>[0],
-  spaceId: string,
+  actor: { memberId: string; spaceId: string },
   since: bigint,
 ): Promise<Wish[]> {
-  return listChangedWishesVisibleTo(tx, spaceId, since)
+  return listChangedWishesVisibleTo(tx, actor.spaceId, actor.memberId, since)
 }
 
 async function requireWishInSpace(
   executor: Parameters<typeof getWishInSpace>[0],
-  spaceId: string,
+  actor: WishlistActor,
   wishId: string,
 ): Promise<Wish> {
-  const wish = await getWishInSpace(executor, spaceId, wishId)
-  if (wish === undefined) {
+  const wish = await getWishInSpace(executor, actor.spaceId, wishId)
+  if (wish === undefined || !wishVisibleTo(wish, actor.memberId)) {
     throw notFound('wish_not_found', `Wish ${wishId} does not exist`)
   }
   return wish

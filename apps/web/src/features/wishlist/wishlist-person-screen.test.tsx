@@ -9,7 +9,7 @@ import { WishlistPersonScreen } from './wishlist-person-screen.tsx'
 
 /*
  * One member's wishlist (issue #18): the open wishes they are hoping for —
- * a received wish has left the open wishes (issue #84). Everything reads
+ * a received wish has left the open wishes (issue #18). Everything reads
  * the local store, so the same render answers offline.
  */
 

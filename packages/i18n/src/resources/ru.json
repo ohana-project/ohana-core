@@ -332,6 +332,7 @@
     "linkField": "Ссылка",
     "linkPlaceholder": "Необязательно",
     "linkHint": "Ссылка на интернет-магазин, начинается с http:// или https://",
+    "linkRequired": "Начинается с http:// или https://",
     "receivedSwitch": "Уже получено",
     "receivedHint": "В списке появится отметка «получено»",
     "add": "Добавить",
