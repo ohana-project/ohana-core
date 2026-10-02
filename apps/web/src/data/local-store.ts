@@ -95,6 +95,27 @@ export interface StoredGiftReservation {
   updatedAt: string
 }
 
+/**
+ * A calendar event as the sync response carries it (issue #20). The two
+ * kinds keep their own fields: an all-day event carries only `date` — a
+ * zoneless `YYYY-MM-DD` that never shifts wherever it is viewed — and a
+ * timed event its absolute moments plus the IANA zone it keeps, which the
+ * screens render in the device's local time with that zone as the
+ * indication.
+ */
+export interface StoredCalendarEvent {
+  id: string
+  creatorId: string
+  title: string
+  allDay: boolean
+  date?: string
+  startsAt?: string
+  endsAt?: string
+  timezone?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface MemberSnapshot {
   space: StoredSpace | undefined
   members: StoredMemberProfile[]
@@ -102,6 +123,7 @@ export interface MemberSnapshot {
   wishes: StoredWish[]
   favorites: StoredGiftFavorite[]
   reservations: StoredGiftReservation[]
+  events: StoredCalendarEvent[]
   /** The last revision the device has applied; undefined until the first sync lands. */
   revision: string | undefined
   /** When the last sync succeeded, in epoch milliseconds. */
@@ -129,10 +151,11 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     // Version 2 added the journal entries store (issue #15); version 3 the
     // wishlist's wishes (issue #18); version 4 the gift favorites and the
-    // gift reservations (issue #19). The upgrade runs for fresh databases
-    // and for the partitions of members who synced before any existed,
-    // so every store creation is guarded.
-    const request = indexedDB.open(memberDbName(memberId), 4)
+    // gift reservations (issue #19); version 5 the calendar's events
+    // (issue #20). The upgrade runs for fresh databases and for the
+    // partitions of members who synced before any existed, so every store
+    // creation is guarded.
+    const request = indexedDB.open(memberDbName(memberId), 5)
     request.onupgradeneeded = (event) => {
       // The versions travel on the version-change event, not the request.
       const oldVersion = event.oldVersion
@@ -162,30 +185,24 @@ function openMemberDb(memberId: string, create = true): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('giftReservations')) {
         db.createObjectStore('giftReservations', { keyPath: 'id' })
       }
+      if (!db.objectStoreNames.contains('events')) {
+        db.createObjectStore('events', { keyPath: 'id' })
+      }
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' })
-      if (oldVersion >= 1 && oldVersion < 2) {
-        // A version 1 device advanced its cursor while ignoring
-        // journal_entry changes, so a delta would never deliver the
-        // entries past it — and one upgrading straight to version 4 was
-        // ignoring wishlist_wish changes too. One reset covers both
-        // sections the upgrade passes on its way to version 4: the cursor
-        // goes to 0 and the replay promise names them, the same move a
-        // re-shown section makes (ADR-0014). A partition whose first apply
-        // never committed holds no cursor, and stays honestly empty:
-        // resetting it would claim data it does not hold.
-        upgradeReplay(request, ['journal', 'wishlist'])
-      }
-      if (oldVersion >= 2 && oldVersion < 3) {
-        // The same move for the wishlist (issue #18): a version 2 device
-        // advanced its cursor while ignoring wishlist_wish changes, so
-        // only a replay from 0 can deliver the wishes it was never sent.
-        upgradeReplay(request, ['wishlist'])
-      }
-      if (oldVersion >= 3 && oldVersion < 4) {
-        // And for the gift favorites and reservations (issue #19): a
-        // version 3 device advanced its cursor while ignoring their
-        // changes, so only a replay from 0 can deliver them.
-        upgradeReplay(request, ['wishlist'])
+      if (oldVersion >= 1 && oldVersion < 5) {
+        // The sections whose stores the upgrade passes on its way to
+        // version 5: a device that synced before a store existed advanced
+        // its cursor while ignoring its changes, so only a replay from 0
+        // can deliver them. The journal arrived with version 2, the
+        // wishlist's stores with versions 3 and 4 (wishes, then the gift
+        // favorites and reservations — one section), and the calendar's
+        // events with version 5. Every upgrade — chained jumps included —
+        // replays exactly what it never received (ADR-0014).
+        const added: SectionName[] = []
+        if (oldVersion < 2) added.push('journal')
+        if (oldVersion < 4) added.push('wishlist')
+        added.push('calendar')
+        upgradeReplay(request, added)
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -239,6 +256,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
     wishes: [],
     favorites: [],
     reservations: [],
+    events: [],
     revision: undefined,
     syncedAt: undefined,
     pendingReplay: [],
@@ -266,18 +284,29 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
   }
   try {
     const tx = db.transaction(
-      ['space', 'members', 'entries', 'wishes', 'giftFavorites', 'giftReservations', 'meta'],
+      [
+        'space',
+        'members',
+        'entries',
+        'wishes',
+        'giftFavorites',
+        'giftReservations',
+        'events',
+        'meta',
+      ],
       'readonly',
     )
-    const [spaces, members, entries, wishes, favorites, reservations, meta] = await Promise.all([
-      requestAsPromise(tx.objectStore('space').getAll()),
-      requestAsPromise(tx.objectStore('members').getAll()),
-      requestAsPromise(tx.objectStore('entries').getAll()),
-      requestAsPromise(tx.objectStore('wishes').getAll()),
-      requestAsPromise(tx.objectStore('giftFavorites').getAll()),
-      requestAsPromise(tx.objectStore('giftReservations').getAll()),
-      requestAsPromise(tx.objectStore('meta').getAll()),
-    ])
+    const [spaces, members, entries, wishes, favorites, reservations, events, meta] =
+      await Promise.all([
+        requestAsPromise(tx.objectStore('space').getAll()),
+        requestAsPromise(tx.objectStore('members').getAll()),
+        requestAsPromise(tx.objectStore('entries').getAll()),
+        requestAsPromise(tx.objectStore('wishes').getAll()),
+        requestAsPromise(tx.objectStore('giftFavorites').getAll()),
+        requestAsPromise(tx.objectStore('giftReservations').getAll()),
+        requestAsPromise(tx.objectStore('events').getAll()),
+        requestAsPromise(tx.objectStore('meta').getAll()),
+      ])
     const cursor = meta.find((row) => row.key === 'cursor')?.revision as string | undefined
     const syncedAt = meta.find((row) => row.key === 'syncedAt')?.at as number | undefined
     const pendingReplay =
@@ -289,6 +318,7 @@ export async function readMemberSnapshot(memberId: string): Promise<MemberSnapsh
       wishes: wishes as StoredWish[],
       favorites: favorites as StoredGiftFavorite[],
       reservations: reservations as StoredGiftReservation[],
+      events: events as StoredCalendarEvent[],
       revision: cursor,
       syncedAt,
       pendingReplay,
@@ -346,7 +376,16 @@ export async function applySyncResult(
     // The stored cursor is only resolved once the transaction has committed.
     return await new Promise<AppliedSync>((resolve, reject) => {
       const tx = db.transaction(
-        ['space', 'members', 'entries', 'wishes', 'giftFavorites', 'giftReservations', 'meta'],
+        [
+          'space',
+          'members',
+          'entries',
+          'wishes',
+          'giftFavorites',
+          'giftReservations',
+          'events',
+          'meta',
+        ],
         'readwrite',
       )
       const spaceStore = tx.objectStore('space')
@@ -355,6 +394,7 @@ export async function applySyncResult(
       const wishStore = tx.objectStore('wishes')
       const favoriteStore = tx.objectStore('giftFavorites')
       const reservationStore = tx.objectStore('giftReservations')
+      const eventStore = tx.objectStore('events')
       const metaStore = tx.objectStore('meta')
       let storedRevision = result.revision
       let applied = true
@@ -394,6 +434,7 @@ export async function applySyncResult(
             if (tombstone.entity === 'wishlist_gift_reservation') {
               reservationStore.delete(tombstone.entityId)
             }
+            if (tombstone.entity === 'calendar_event') eventStore.delete(tombstone.entityId)
           }
           for (const change of result.changes) {
             if (change.entity === 'space') spaceStore.put(change.space)
@@ -404,6 +445,7 @@ export async function applySyncResult(
             if (change.entity === 'wishlist_gift_reservation') {
               reservationStore.put(change.reservation)
             }
+            if (change.entity === 'calendar_event') eventStore.put(change.event)
           }
 
           let revision = result.revision
@@ -415,6 +457,7 @@ export async function applySyncResult(
               favoriteStore.clear()
               reservationStore.clear()
             }
+            if (!nextSpace.space.sections.calendar) eventStore.clear()
           }
           // A re-shown section writes the replay promise: the cursor goes
           // to 0 and the section's full data has to come again before the

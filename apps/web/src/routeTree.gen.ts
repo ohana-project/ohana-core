@@ -19,6 +19,9 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminPasswordRouteImport } from './routes/admin/password'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as CalendarIndexRouteImport } from './routes/calendar/index'
+import { Route as CalendarEventIdRouteImport } from './routes/calendar/$eventId'
+import { Route as CalendarNewRouteImport } from './routes/calendar/new'
 import { Route as JournalIndexRouteImport } from './routes/journal/index'
 import { Route as JournalEntryIdRouteImport } from './routes/journal/$entryId'
 import { Route as JournalDraftsRouteImport } from './routes/journal/drafts'
@@ -32,6 +35,7 @@ import { Route as WishlistMemberIdRouteImport } from './routes/wishlist/$memberI
 import { Route as WishlistFavoritesRouteImport } from './routes/wishlist/favorites'
 import { Route as WishlistMineRouteImport } from './routes/wishlist/mine'
 import { Route as AdminSpacesSpaceIdRouteImport } from './routes/admin/spaces/$spaceId'
+import { Route as CalendarEventIdEditRouteImport } from './routes/calendar/$eventId_.edit'
 import { Route as JournalEntryIdEditRouteImport } from './routes/journal/$entryId_.edit'
 
 const IndexRoute = IndexRouteImport.update({
@@ -82,6 +86,21 @@ const AdminPasswordRoute = AdminPasswordRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/admin/settings',
   path: '/admin/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarIndexRoute = CalendarIndexRouteImport.update({
+  id: '/calendar/',
+  path: '/calendar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarEventIdRoute = CalendarEventIdRouteImport.update({
+  id: '/calendar/$eventId',
+  path: '/calendar/$eventId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarNewRoute = CalendarNewRouteImport.update({
+  id: '/calendar/new',
+  path: '/calendar/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JournalIndexRoute = JournalIndexRouteImport.update({
@@ -149,6 +168,11 @@ const AdminSpacesSpaceIdRoute = AdminSpacesSpaceIdRouteImport.update({
   path: '/admin/spaces/$spaceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CalendarEventIdEditRoute = CalendarEventIdEditRouteImport.update({
+  id: '/calendar/$eventId_/edit',
+  path: '/calendar/$eventId/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JournalEntryIdEditRoute = JournalEntryIdEditRouteImport.update({
   id: '/journal/$entryId_/edit',
   path: '/journal/$entryId/edit',
@@ -165,6 +189,8 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/calendar/$eventId': typeof CalendarEventIdRoute
+  '/calendar/new': typeof CalendarNewRoute
   '/journal/$entryId': typeof JournalEntryIdRoute
   '/journal/drafts': typeof JournalDraftsRoute
   '/journal/new': typeof JournalNewRoute
@@ -175,10 +201,12 @@ export interface FileRoutesByFullPath {
   '/wishlist/favorites': typeof WishlistFavoritesRoute
   '/wishlist/mine': typeof WishlistMineRoute
   '/admin/': typeof AdminIndexRoute
+  '/calendar/': typeof CalendarIndexRoute
   '/journal/': typeof JournalIndexRoute
   '/members/': typeof MembersIndexRoute
   '/wishlist/': typeof WishlistIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
+  '/calendar/$eventId/edit': typeof CalendarEventIdEditRoute
   '/journal/$entryId/edit': typeof JournalEntryIdEditRoute
 }
 export interface FileRoutesByTo {
@@ -191,6 +219,8 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/calendar/$eventId': typeof CalendarEventIdRoute
+  '/calendar/new': typeof CalendarNewRoute
   '/journal/$entryId': typeof JournalEntryIdRoute
   '/journal/drafts': typeof JournalDraftsRoute
   '/journal/new': typeof JournalNewRoute
@@ -201,10 +231,12 @@ export interface FileRoutesByTo {
   '/wishlist/favorites': typeof WishlistFavoritesRoute
   '/wishlist/mine': typeof WishlistMineRoute
   '/admin': typeof AdminIndexRoute
+  '/calendar': typeof CalendarIndexRoute
   '/journal': typeof JournalIndexRoute
   '/members': typeof MembersIndexRoute
   '/wishlist': typeof WishlistIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
+  '/calendar/$eventId/edit': typeof CalendarEventIdEditRoute
   '/journal/$entryId/edit': typeof JournalEntryIdEditRoute
 }
 export interface FileRoutesById {
@@ -218,6 +250,8 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/password': typeof AdminPasswordRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/calendar/$eventId': typeof CalendarEventIdRoute
+  '/calendar/new': typeof CalendarNewRoute
   '/journal/$entryId': typeof JournalEntryIdRoute
   '/journal/drafts': typeof JournalDraftsRoute
   '/journal/new': typeof JournalNewRoute
@@ -228,10 +262,12 @@ export interface FileRoutesById {
   '/wishlist/favorites': typeof WishlistFavoritesRoute
   '/wishlist/mine': typeof WishlistMineRoute
   '/admin/': typeof AdminIndexRoute
+  '/calendar/': typeof CalendarIndexRoute
   '/journal/': typeof JournalIndexRoute
   '/members/': typeof MembersIndexRoute
   '/wishlist/': typeof WishlistIndexRoute
   '/admin/spaces/$spaceId': typeof AdminSpacesSpaceIdRoute
+  '/calendar/$eventId_/edit': typeof CalendarEventIdEditRoute
   '/journal/$entryId_/edit': typeof JournalEntryIdEditRoute
 }
 export interface FileRouteTypes {
@@ -246,6 +282,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/calendar/$eventId'
+    | '/calendar/new'
     | '/journal/$entryId'
     | '/journal/drafts'
     | '/journal/new'
@@ -256,10 +294,12 @@ export interface FileRouteTypes {
     | '/wishlist/favorites'
     | '/wishlist/mine'
     | '/admin/'
+    | '/calendar/'
     | '/journal/'
     | '/members/'
     | '/wishlist/'
     | '/admin/spaces/$spaceId'
+    | '/calendar/$eventId/edit'
     | '/journal/$entryId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -272,6 +312,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/calendar/$eventId'
+    | '/calendar/new'
     | '/journal/$entryId'
     | '/journal/drafts'
     | '/journal/new'
@@ -282,10 +324,12 @@ export interface FileRouteTypes {
     | '/wishlist/favorites'
     | '/wishlist/mine'
     | '/admin'
+    | '/calendar'
     | '/journal'
     | '/members'
     | '/wishlist'
     | '/admin/spaces/$spaceId'
+    | '/calendar/$eventId/edit'
     | '/journal/$entryId/edit'
   id:
     | '__root__'
@@ -298,6 +342,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/password'
     | '/admin/settings'
+    | '/calendar/$eventId'
+    | '/calendar/new'
     | '/journal/$entryId'
     | '/journal/drafts'
     | '/journal/new'
@@ -308,10 +354,12 @@ export interface FileRouteTypes {
     | '/wishlist/favorites'
     | '/wishlist/mine'
     | '/admin/'
+    | '/calendar/'
     | '/journal/'
     | '/members/'
     | '/wishlist/'
     | '/admin/spaces/$spaceId'
+    | '/calendar/$eventId_/edit'
     | '/journal/$entryId_/edit'
   fileRoutesById: FileRoutesById
 }
@@ -325,6 +373,8 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminPasswordRoute: typeof AdminPasswordRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  CalendarEventIdRoute: typeof CalendarEventIdRoute
+  CalendarNewRoute: typeof CalendarNewRoute
   JournalEntryIdRoute: typeof JournalEntryIdRoute
   JournalDraftsRoute: typeof JournalDraftsRoute
   JournalNewRoute: typeof JournalNewRoute
@@ -335,10 +385,12 @@ export interface RootRouteChildren {
   WishlistFavoritesRoute: typeof WishlistFavoritesRoute
   WishlistMineRoute: typeof WishlistMineRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  CalendarIndexRoute: typeof CalendarIndexRoute
   JournalIndexRoute: typeof JournalIndexRoute
   MembersIndexRoute: typeof MembersIndexRoute
   WishlistIndexRoute: typeof WishlistIndexRoute
   AdminSpacesSpaceIdRoute: typeof AdminSpacesSpaceIdRoute
+  CalendarEventIdEditRoute: typeof CalendarEventIdEditRoute
   JournalEntryIdEditRoute: typeof JournalEntryIdEditRoute
 }
 
@@ -412,6 +464,27 @@ declare module '@tanstack/react-router' {
       path: '/admin/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar/': {
+      id: '/calendar/'
+      path: '/calendar'
+      fullPath: '/calendar/'
+      preLoaderRoute: typeof CalendarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar/$eventId': {
+      id: '/calendar/$eventId'
+      path: '/calendar/$eventId'
+      fullPath: '/calendar/$eventId'
+      preLoaderRoute: typeof CalendarEventIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar/new': {
+      id: '/calendar/new'
+      path: '/calendar/new'
+      fullPath: '/calendar/new'
+      preLoaderRoute: typeof CalendarNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/journal/': {
@@ -505,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSpacesSpaceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/calendar/$eventId_/edit': {
+      id: '/calendar/$eventId_/edit'
+      path: '/calendar/$eventId/edit'
+      fullPath: '/calendar/$eventId/edit'
+      preLoaderRoute: typeof CalendarEventIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/journal/$entryId_/edit': {
       id: '/journal/$entryId_/edit'
       path: '/journal/$entryId/edit'
@@ -525,6 +605,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminPasswordRoute: AdminPasswordRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  CalendarEventIdRoute: CalendarEventIdRoute,
+  CalendarNewRoute: CalendarNewRoute,
   JournalEntryIdRoute: JournalEntryIdRoute,
   JournalDraftsRoute: JournalDraftsRoute,
   JournalNewRoute: JournalNewRoute,
@@ -535,10 +617,12 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistFavoritesRoute: WishlistFavoritesRoute,
   WishlistMineRoute: WishlistMineRoute,
   AdminIndexRoute: AdminIndexRoute,
+  CalendarIndexRoute: CalendarIndexRoute,
   JournalIndexRoute: JournalIndexRoute,
   MembersIndexRoute: MembersIndexRoute,
   WishlistIndexRoute: WishlistIndexRoute,
   AdminSpacesSpaceIdRoute: AdminSpacesSpaceIdRoute,
+  CalendarEventIdEditRoute: CalendarEventIdEditRoute,
   JournalEntryIdEditRoute: JournalEntryIdEditRoute,
 }
 export const routeTree = rootRouteImport

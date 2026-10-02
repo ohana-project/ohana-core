@@ -13,6 +13,7 @@ export {
 export { sectionGate } from './routes.ts'
 export {
   advanceSpaceRevision,
+  assertTimezone,
   createSpace,
   getSpace,
   getSpaceInTx,

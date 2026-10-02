@@ -1,0 +1,307 @@
+import { expect, type Page, test } from '@playwright/test'
+
+/*
+ * The calendar's interface flows (issue #20): the section navigation leads
+ * to the month with the agenda beside it; a day's sheet opens from the
+ * grid; an event is created through the editor with the space's zone as
+ * the timed default, edited, and removed behind its confirm; a timed event
+ * shows the device-local time with the zone it keeps, and an all-day event
+ * keeps its plain date. The member endpoints are intercepted at the
+ * network level over a small stateful calendar — the real HTTP rules for
+ * permissions and time zones are covered by the API's tests, while this
+ * spec pins the UI flow and its reads through the synchronised partition.
+ */
+
+const ME = '**/api/v1/me'
+const REDEEM = '**/api/v1/access-codes/redeem'
+const EVENTS = '**/api/v1/calendar/events'
+const EVENT = '**/api/v1/calendar/events/*'
+// The sync request carries ?since=…, so the glob spans the query too.
+const SYNC = '**/api/v1/sync*'
+
+const ANYA_ID = '01900000-0000-7000-8000-000000000001'
+const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
+const CODE = 'QWEE-4455'
+
+const ANYA_ME = {
+  member: {
+    id: ANYA_ID,
+    name: 'Аня',
+    displayName: 'Аня Смирнова',
+    role: 'owner',
+    createdAt: '2026-08-12T10:00:00.000Z',
+  },
+  space: { id: SPACE_ID, name: 'Наша семья' },
+  needsOnboarding: false,
+}
+
+const PROFILES = [
+  {
+    id: ANYA_ID,
+    name: 'Аня',
+    displayName: 'Аня Смирнова',
+    role: 'owner',
+    createdAt: '2026-08-12T10:00:00.000Z',
+  },
+]
+
+const SPACE = {
+  id: SPACE_ID,
+  name: 'Наша семья',
+  timezone: 'Europe/Moscow',
+  sections: { journal: true, calendar: true, wishlist: true },
+}
+
+// A timed event at 18:00 Moscow is 15:00 UTC — the e2e browser runs in
+// UTC, so that is the local time the screen shows.
+const SEEDED_DINNER = {
+  id: '01900000-0000-7000-8000-000000000401',
+  creatorId: ANYA_ID,
+  title: 'Ужин у бабушки',
+  allDay: false,
+  startsAt: '2026-10-02T15:00:00.000Z',
+  endsAt: '2026-10-02T18:00:00.000Z',
+  timezone: 'Europe/Moscow',
+  createdAt: '2026-09-28T10:00:00.000Z',
+  updatedAt: '2026-09-28T10:00:00.000Z',
+}
+
+const SEEDED_BIRTHDAY = {
+  id: '01900000-0000-7000-8000-000000000402',
+  creatorId: ANYA_ID,
+  title: 'День рождения Люды',
+  allDay: true,
+  date: '2026-10-19',
+  createdAt: '2026-09-28T10:00:00.000Z',
+  updatedAt: '2026-09-28T10:00:00.000Z',
+}
+
+function json(status: number, body: unknown) {
+  return {
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(body),
+  }
+}
+
+/**
+ * The mocked member API over a small stateful calendar: the mutations the
+ * screens send change what the next sync answers, the way the server's
+ * revision would deliver them. A removal drops the row from the sync's
+ * upserts and answers the delete as a tombstone for everyone, the way the
+ * server does (issue #20).
+ */
+async function mockCalendarApi(page: Page) {
+  const signedIn = new Set<string>([ANYA_ID])
+  const events: Array<Record<string, unknown>> = [SEEDED_DINNER, SEEDED_BIRTHDAY]
+  const removed: string[] = []
+  let nextId = 0x500
+  let revision = 7
+
+  await page.route(REDEEM, (route) =>
+    route.fulfill({
+      ...json(200, ANYA_ME),
+      headers: {
+        'set-cookie': `ohana_member_session_${ANYA_ID}=e2e-token; Path=/api; HttpOnly; Secure; SameSite=Lax`,
+      },
+    }),
+  )
+
+  await page.route(ME, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId === undefined || !signedIn.has(memberId)) {
+      return route.fulfill(
+        json(401, { error: { code: 'unauthorized', message: 'A member session is required' } }),
+      )
+    }
+    return route.fulfill(json(200, ANYA_ME))
+  })
+
+  await page.route(SYNC, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId === undefined || !signedIn.has(memberId)) return route.fulfill(json(401, {}))
+    return route.fulfill(
+      json(200, {
+        revision: String(revision),
+        changes: [
+          { entity: 'space', space: SPACE },
+          ...PROFILES.map((profile) => ({ entity: 'member', member: profile })),
+          ...events.map((event) => ({ entity: 'calendar_event', event })),
+        ],
+        tombstones: removed.map((entityId) => ({
+          entity: 'calendar_event',
+          entityId,
+          audience: 'all',
+        })),
+      }),
+    )
+  })
+
+  await page.route(EVENTS, (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    const created = {
+      id: `01900000-0000-7000-8000-${String(nextId++).padStart(12, '0')}`,
+      creatorId: ANYA_ID,
+      ...(body.allDay === true
+        ? { allDay: true, date: body.date }
+        : {
+            allDay: false,
+            startsAt: '2026-10-05T15:00:00.000Z',
+            endsAt: '2026-10-05T18:00:00.000Z',
+            timezone: body.timezone ?? 'Europe/Moscow',
+          }),
+      title: body.title,
+      createdAt: '2026-10-01T09:00:00.000Z',
+      updatedAt: '2026-10-01T09:00:00.000Z',
+    }
+    events.push(created)
+    revision += 1
+    return route.fulfill(json(201, created))
+  })
+
+  await page.route(EVENT, (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== ANYA_ID) return route.fulfill(json(403, {}))
+    const eventId = route.request().url().split('/').at(-1) as string
+    const event = events.find((row) => row.id === eventId)
+    if (event === undefined) {
+      return route.fulfill(
+        json(404, { error: { code: 'event_not_found', message: 'No such event' } }),
+      )
+    }
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      delete event.date
+      delete event.startsAt
+      delete event.endsAt
+      delete event.timezone
+      event.title = body.title
+      if (body.allDay === true) {
+        event.allDay = true
+        event.date = body.date
+      } else {
+        event.allDay = false
+        event.startsAt = '2026-10-02T14:00:00.000Z'
+        event.endsAt = '2026-10-02T17:00:00.000Z'
+        event.timezone = body.timezone ?? 'Europe/Moscow'
+      }
+      event.updatedAt = '2026-10-01T10:00:00.000Z'
+      revision += 1
+      return route.fulfill(json(200, event))
+    }
+    // DELETE: the event leaves for good, the tombstone telling every device.
+    events.splice(events.indexOf(event), 1)
+    removed.push(event.id as string)
+    revision += 1
+    return route.fulfill(json(204, undefined))
+  })
+}
+
+// The device sits in UTC, so the seeded 15:00Z start reads 15:00 local
+// against the event's 18:00 Moscow — the zone indication the screen shows.
+test.use({ timezoneId: 'UTC' })
+
+test.describe('the calendar', () => {
+  test('the month and the agenda show the space events, and a day opens its sheet', async ({
+    page,
+  }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    // The section navigation leads to the calendar.
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+    await expect(page).toHaveURL(/\/calendar$/)
+    await expect(page.getByText('Часовой пояс пространства: Moscow (UTC+3)')).toBeVisible()
+
+    // The agenda carries the timed event in the device-local time with the
+    // zone it keeps, and the all-day one with its plain date.
+    await expect(page.getByText('Ужин у бабушки')).toBeVisible()
+    await expect(page.getByText('15:00 – 18:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
+    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+
+    // The 2nd of October holds the dinner; the day's sheet opens from the
+    // grid and lists it.
+    await page.getByRole('button', { name: '2 октября, 1 событие' }).click()
+    const sheet = page.getByRole('dialog', { name: '2 октября' })
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByText('Ужин у бабушки')).toBeVisible()
+  })
+
+  test('an event is created through the editor with the space zone as the default', async ({
+    page,
+  }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    await page.getByRole('link', { name: 'Событие' }).click()
+    await expect(page).toHaveURL(/\/calendar\/new$/)
+    await page.getByLabel('Название').fill('Прогулка по парку')
+    // The zone field defaults to the space's; the times to the evening.
+    await expect(page.getByLabel('Часовой пояс')).toHaveValue('Europe/Moscow')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+
+    await expect(page.getByText('Событие создано')).toBeVisible()
+    await expect(page.getByText('Прогулка по парку')).toBeVisible()
+  })
+
+  test('an event is edited and deleted behind its confirm', async ({ page }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // The event screen opens from the agenda; the edit replaces the whole
+    // event — the title here — and the saved toast follows.
+    await page.getByText('День рождения Люды').click()
+    await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_BIRTHDAY.id}$`))
+    await page.getByRole('link', { name: /Изменить/ }).click()
+    await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_BIRTHDAY.id}/edit$`))
+    const title = page.getByLabel('Название')
+    await expect(title).toHaveValue('День рождения Люды')
+    await title.fill('День рождения Люды — тортик')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByText('Изменения сохранены')).toBeVisible()
+    await expect(page.getByText('День рождения Люды — тортик')).toBeVisible()
+
+    // The removal stands behind its confirm.
+    await page.getByRole('button', { name: /Удалить/ }).click()
+    await expect(page.getByText('Удалить «День рождения Люды — тортик»?')).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Удалить', exact: true }).click()
+    await expect(page.getByText('Событие удалено')).toBeVisible()
+    await expect(page).toHaveURL(/\/calendar$/)
+    await expect(page.getByText('День рождения Люды — тортик')).toHaveCount(0)
+  })
+})
+
+// The same reads away from UTC (issue #20): the all-day date stays where
+// it was created, and the timed event's local time follows the device.
+test.describe('the calendar away from UTC', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' })
+
+  test('the all-day date stays put and the local time follows the device', async ({ page }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // The birthday is still the 19th; the dinner reads in Pacific time —
+    // 08:00 against its 18:00 Moscow origin.
+    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+    await expect(page.getByText('08:00 – 11:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
+  })
+})

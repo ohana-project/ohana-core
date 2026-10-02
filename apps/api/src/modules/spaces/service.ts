@@ -50,7 +50,13 @@ export function canonicalTimezone(zone: string): string | undefined {
   }
 }
 
-function assertTimezone(timezone: string): string {
+/**
+ * Validates an IANA zone name against the runtime's zone database and
+ * returns its canonical spelling; the calendar's timed events validate the
+ * zone their creator picks the same way (issue #20) — the shared rule
+ * lives in the lower module (architecture.md, "Dependency rules").
+ */
+export function assertTimezone(timezone: string): string {
   const canonical = canonicalTimezone(timezone)
   if (canonical === undefined) {
     throw new DomainError('invalid_timezone', `“${timezone}” is not an IANA time zone`, 400)

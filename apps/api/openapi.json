@@ -4106,6 +4106,523 @@
         }
       }
     },
+    "/api/v1/calendar/events": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "events"
+                  ],
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "creatorId",
+                          "title",
+                          "allDay",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "creatorId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "allDay": {
+                            "type": "boolean"
+                          },
+                          "date": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "startsAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "endsAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "timezone": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "allDay",
+                      "date"
+                    ],
+                    "properties": {
+                      "title": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
+                        "type": "string"
+                      },
+                      "allDay": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "date": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "allDay",
+                      "date",
+                      "startTime",
+                      "endTime"
+                    ],
+                    "properties": {
+                      "title": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
+                        "type": "string"
+                      },
+                      "allDay": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "date": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "startTime": {
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "type": "string"
+                      },
+                      "endTime": {
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "creatorId",
+                    "title",
+                    "allDay",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "creatorId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "startsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/events/{eventId}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "eventId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "creatorId",
+                    "title",
+                    "allDay",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "creatorId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "startsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "allDay",
+                      "date"
+                    ],
+                    "properties": {
+                      "title": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
+                        "type": "string"
+                      },
+                      "allDay": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "date": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "allDay",
+                      "date",
+                      "startTime",
+                      "endTime"
+                    ],
+                    "properties": {
+                      "title": {
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
+                        "type": "string"
+                      },
+                      "allDay": {
+                        "type": "boolean",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "date": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "startTime": {
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "type": "string"
+                      },
+                      "endTime": {
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "type": "string"
+                      },
+                      "timezone": {
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "eventId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "creatorId",
+                    "title",
+                    "allDay",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "creatorId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "allDay": {
+                      "type": "boolean"
+                    },
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "startsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "endsAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "eventId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/v1/wishlist/wishes": {
       "get": {
         "parameters": [
@@ -5485,6 +6002,74 @@
                                 }
                               }
                             ]
+                          },
+                          {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "entity",
+                              "event"
+                            ],
+                            "properties": {
+                              "entity": {
+                                "type": "string",
+                                "enum": [
+                                  "calendar_event"
+                                ]
+                              },
+                              "event": {
+                                "additionalProperties": false,
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "creatorId",
+                                  "title",
+                                  "allDay",
+                                  "createdAt",
+                                  "updatedAt"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "creatorId": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "allDay": {
+                                    "type": "boolean"
+                                  },
+                                  "date": {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  "startsAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "endsAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "timezone": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "createdAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "updatedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
                           }
                         ]
                       }

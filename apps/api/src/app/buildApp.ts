@@ -10,6 +10,7 @@ import {
   requireOwnerActor,
 } from '../modules/access/index.ts'
 import { adminRoutes } from '../modules/admin/routes.ts'
+import { calendarRoutes, calendarSyncContributor } from '../modules/calendar/index.ts'
 import {
   assertEntryImageEditable,
   assertEntryImageEditableInTx,
@@ -133,6 +134,16 @@ export function buildApp(deps: AppDeps) {
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
   })
+  // The calendar is a section module (ADR-0011) like the journal and the
+  // wishlist: its routes mount the access module's guard and the spaces
+  // module's section gate, and its writes recheck visibility inside their
+  // transactions (issue #20). Its removals are true deletes, so their
+  // tombstones ride the same transactions.
+  app.register(calendarRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock },
+    access: accessDeps,
+  })
   // The wishlist is a section module (ADR-0011) like the journal: its
   // routes mount the access module's guard and the spaces module's section
   // gate, and its writes recheck visibility inside their transactions. Its
@@ -144,12 +155,12 @@ export function buildApp(deps: AppDeps) {
     access: accessDeps,
   })
   // The sync module merges the contributors of every module with
-  // synchronised data; spaces, members, journal, and wishlist contribute
-  // today, the remaining section modules join when their data lands
-  // (architecture.md, "Sync contributors"). The route plugin is imported
-  // directly, like the other routes here, so the sync module's public
-  // surface stays free of the response contract, and the response schema is
-  // composed from exactly the wired contributors.
+  // synchronised data; spaces, members, journal, wishlist, and calendar
+  // contribute today, the remaining section modules join when their data
+  // lands (architecture.md, "Sync contributors"). The route plugin is
+  // imported directly, like the other routes here, so the sync module's
+  // public surface stays free of the response contract, and the response
+  // schema is composed from exactly the wired contributors.
   app.register(syncRoutes, {
     prefix: '/api/v1',
     deps: accessDeps,
@@ -158,6 +169,7 @@ export function buildApp(deps: AppDeps) {
       membersSyncContributor,
       journalSyncContributor,
       wishlistSyncContributor,
+      calendarSyncContributor,
     ],
   })
   app.register(adminRoutes, { prefix: '/api/v1/admin', deps: { db: deps.db, clock: deps.clock } })
