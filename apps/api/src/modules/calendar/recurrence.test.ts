@@ -28,6 +28,13 @@ import {
  * the gap's far side (the composition's documented convention), and the
  * occurrence's length is the series' wall length, not whatever the day's
  * offsets do to it.
+ *
+ * The table's cases keep every series' first occurrence off the transition
+ * days — deliberately: a first occurrence that sits on one is the one
+ * place the two sides read differently. The client shows the stored row
+ * for that date (its copy of this file pins the fall-back case), while the
+ * composition here answers from the frame; #22's reminder scheduling must
+ * take the stored instants for a series' first occurrence the same way.
  */
 
 interface SharedCase {
@@ -485,6 +492,8 @@ describe('rrule composition and parsing', () => {
       'FREQ=DAILY;COUNT=5',
       'FREQ=DAILY;UNTIL=20270630;BYMONTHDAY=1',
       'FREQ=DAILY;UNTIL=',
+      'FREQ=DAILY;UNTIL=20261399',
+      'FREQ=DAILY;UNTIL=20260230',
       'daily',
       'FREQ=WEEKLY;UNTIL=not-a-date',
       '',

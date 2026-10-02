@@ -269,21 +269,22 @@ export async function deleteEventExceptions(
     )
 }
 
-/** One original date's exception — the series edit's pruning of the
- *  exceptions the replaced rule no longer honours (issue #21). */
-export async function deleteEventException(
+/** The given original dates' exceptions — the series edit's pruning of
+ *  the exceptions the replaced rule no longer honours (issue #21). */
+export async function deleteEventExceptionsFor(
   tx: Tx,
   spaceId: string,
   eventId: string,
-  originalDate: string,
+  originalDates: readonly string[],
 ): Promise<void> {
+  if (originalDates.length === 0) return
   await tx
     .delete(calendarEventExceptions)
     .where(
       and(
         eq(calendarEventExceptions.spaceId, spaceId),
         eq(calendarEventExceptions.eventId, eventId),
-        eq(calendarEventExceptions.originalDate, originalDate),
+        inArray(calendarEventExceptions.originalDate, [...originalDates]),
       ),
     )
 }

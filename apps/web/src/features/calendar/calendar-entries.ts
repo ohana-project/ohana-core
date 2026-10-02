@@ -74,7 +74,8 @@ function byDayOrder(a: StoredCalendarEvent, b: StoredCalendarEvent): number {
   if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
   const aStart = a.startsAt ?? ''
   const bStart = b.startsAt ?? ''
-  return aStart.localeCompare(bStart) || a.id.localeCompare(b.id)
+  // Plain codepoint order: fixed-width ISO strings and ids sort themselves.
+  return aStart < bStart ? -1 : aStart > bStart ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 /**
@@ -134,18 +135,29 @@ export function upcomingEvents(events: StoredCalendarEvent[], now: Date): Calend
       if (key === undefined) return false
       if (key >= todayKey && key <= toKey) return true
       // Started before today but possibly still running: a timed event
-      // stays until its end has passed.
-      if (!occurrence.allDay && occurrence.endsAt !== undefined) {
-        return Date.parse(occurrence.endsAt) >= now.getTime()
+      // stays until its end has passed. The still-running rule reaches one
+      // day into the past, never past the season's far edge — that bound
+      // is the repeating series' alone.
+      if (key < todayKey) {
+        return (
+          !occurrence.allDay &&
+          occurrence.endsAt !== undefined &&
+          Date.parse(occurrence.endsAt) >= now.getTime()
+        )
       }
-      // A one-time event beyond the season's window is still the agenda's:
-      // only the repeating series needed a bound — and only the series'
-      // rows count, an occurrence's own fields carry no rule.
-      return occurrence.seriesId === undefined && key >= todayKey
+      // Beyond the window's far edge only a one-time event is still the
+      // agenda's — and only the series' rows carry the bound: an
+      // occurrence's own fields name no rule.
+      return occurrence.seriesId === undefined
     })
-    .sort(
-      (a, b) => (eventDateKey(a) ?? '').localeCompare(eventDateKey(b) ?? '') || byDayOrder(a, b),
-    )
+    .sort((a, b) => byKeyOrder(a, b) || byDayOrder(a, b))
+}
+
+/** The agenda's order: the device-local day first, the day's own order under it. */
+function byKeyOrder(a: StoredCalendarEvent, b: StoredCalendarEvent): number {
+  const aKey = eventDateKey(a) ?? ''
+  const bKey = eventDateKey(b) ?? ''
+  return aKey < bKey ? -1 : aKey > bKey ? 1 : 0
 }
 
 /**

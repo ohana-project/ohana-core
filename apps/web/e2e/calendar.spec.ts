@@ -19,8 +19,8 @@ const ME = '**/api/v1/me'
 const REDEEM = '**/api/v1/access-codes/redeem'
 const EVENTS = '**/api/v1/calendar/events'
 const EVENT = '**/api/v1/calendar/events/*'
-// The occurrence routes carry the original date in the path, so this glob
-// must be registered after EVENT to take them (issue #21).
+// The occurrence routes carry the original date in the path; a single `*`
+// does not cross a `/`, so EVENT never matches an occurrence URL (issue #21).
 const OCCURRENCE = '**/api/v1/calendar/events/*/occurrences/*'
 // The sync request carries ?since=…, so the glob spans the query too.
 const SYNC = '**/api/v1/sync*'
@@ -242,8 +242,10 @@ async function mockCalendarApi(page: Page) {
               kind: 'override',
               title: body.title,
               allDay: false,
-              startsAt: '2026-10-05T15:00:00.000Z',
-              endsAt: '2026-10-05T18:00:00.000Z',
+              // Moscow is a fixed UTC+3: the wall pair composes from the
+              // replacement's own date.
+              startsAt: `${String(body.date)}T15:00:00.000Z`,
+              endsAt: `${String(body.date)}T18:00:00.000Z`,
               timezone: body.timezone ?? 'Europe/Moscow',
             }
       if (existing >= 0) exceptions[existing] = override
@@ -452,5 +454,60 @@ test.describe('a repeating series', () => {
       page.getByText('Дата окончания не может быть раньше первого события'),
     ).toBeVisible()
     await expect(page.getByText('Событие создано')).toHaveCount(0)
+  })
+})
+
+test.describe('a repeating series, one occurrence edited', () => {
+  test('the occurrence is replaced on its own and the series goes on', async ({ page }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // A weekly Monday series without an end.
+    await page.getByRole('link', { name: 'Событие' }).click()
+    await page.getByLabel('Название').fill('Утренняя зарядка')
+    await page.getByLabel('Дата').fill('2026-10-05')
+    await page.getByLabel('Повтор').selectOption('weekly')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByText('Событие создано')).toBeVisible()
+
+    // Back to the month, where the series' occurrences now stand.
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+    await expect(page).toHaveURL(/\/calendar$/)
+
+    // The 12th's occurrence opens from its day sheet (the 19th also holds
+    // the seeded birthday); the edit asks what to change, and "this
+    // occurrence" carries the original date.
+    await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
+    await page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка').click()
+    await expect(page).toHaveURL(/date=2026-10-12$/)
+    await page.getByRole('button', { name: /Изменить/ }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Только это событие' }).click()
+    await expect(page).toHaveURL(/\/edit\?date=2026-10-12$/)
+    // A single occurrence has no rule of its own.
+    await expect(page.getByLabel('Повтор')).toHaveCount(0)
+    await page.getByLabel('Название').fill('Зарядка у Димы')
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    await expect(page.getByText('Изменения сохранены')).toBeVisible()
+    await expect(page.getByText('Зарядка у Димы')).toBeVisible()
+
+    // The override travels with the series: the 19th keeps the series'
+    // title, the 12th's row is the replacement.
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+    await page.getByRole('button', { name: '19 октября, 2 события', exact: true }).click()
+    await expect(
+      page.getByRole('dialog', { name: '19 октября' }).getByText('Утренняя зарядка'),
+    ).toBeVisible()
+    await page
+      .getByRole('dialog', { name: '19 октября' })
+      .getByRole('button', { name: 'Закрыть' })
+      .click()
+    await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
+    await expect(
+      page.getByRole('dialog', { name: '12 октября' }).getByText('Зарядка у Димы'),
+    ).toBeVisible()
   })
 })

@@ -26,6 +26,13 @@ import {
  * the gap's far side (the composition's documented convention), and the
  * occurrence's length is the series' wall length, not whatever the day's
  * offsets do to it.
+ *
+ * The table's cases keep every series' first occurrence off the transition
+ * days — deliberately: a first occurrence that sits on one is the one
+ * place the two sides read differently. The client shows the stored row
+ * for that date (its copy of this file pins the fall-back case), while the
+ * composition here answers from the frame; #22's reminder scheduling must
+ * take the stored instants for a series' first occurrence the same way.
  */
 
 interface SharedCase {
@@ -580,27 +587,29 @@ describe('the instants the client composes', () => {
 
 describe('the stored first occurrence and moved overrides (review round one)', () => {
   test('the series’ first date is the row itself, never recomposed', () => {
-    // A first start the clocks fell back over: the stored instants are the
-    // exact truth about that date, and recomposing the frame would give a
-    // different end (01:30 EDT + the wall length lands on 01:30 EST).
+    // The first start sits on the fall-back day itself (2026-11-01, US
+    // clocks 02:00 EDT → 01:00 EST): the stored instants are the exact
+    // truth about that date, and recomposing the frame would give a
+    // different end — 01:30 EDT plus the wall length lands on 01:30 EST
+    // (07:00Z), while the stored end composes 03:00 EST (08:00Z).
     const fallBackFirst = storedEvent(
       {
         allDay: false,
-        date: '2026-10-31',
+        date: '2026-11-01',
         startTime: '01:30',
         endTime: '03:00',
         timezone: 'America/New_York',
       },
       { frequency: 'daily' },
     )
-    const first = occurrenceOf(fallBackFirst, '2026-10-31')
-    // Exactly what the service stored: 01:30 EDT through 03:00 EDT.
-    expect(first?.event.startsAt).toBe('2026-10-31T05:30:00.000Z')
-    expect(first?.event.endsAt).toBe('2026-10-31T07:00:00.000Z')
-    // The next day recomposes: the same wall time, one instant later in UTC.
-    const second = occurrenceOf(fallBackFirst, '2026-11-01')
-    expect(second?.event.startsAt).toBe('2026-11-01T05:30:00.000Z')
-    expect(second?.event.endsAt).toBe('2026-11-01T07:00:00.000Z')
+    const first = occurrenceOf(fallBackFirst, '2026-11-01')
+    // Exactly what the service stored: 01:30 EDT through 03:00 EST.
+    expect(first?.event.startsAt).toBe('2026-11-01T05:30:00.000Z')
+    expect(first?.event.endsAt).toBe('2026-11-01T08:00:00.000Z')
+    // The next day recomposes: the same wall time, both EST.
+    const second = occurrenceOf(fallBackFirst, '2026-11-02')
+    expect(second?.event.startsAt).toBe('2026-11-02T06:30:00.000Z')
+    expect(second?.event.endsAt).toBe('2026-11-02T08:00:00.000Z')
   })
 
   test('an override moved into the window from a date outside it still stands', () => {

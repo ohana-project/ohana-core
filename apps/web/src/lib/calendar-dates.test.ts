@@ -10,6 +10,7 @@ import {
   nextMonth,
   parseDateOnly,
   previousMonth,
+  shiftDateKey,
   todayDateOnly,
   zoneDiffersFromDevice,
   zoneLabel,
@@ -107,5 +108,18 @@ describe('formatting', () => {
     // The device runs in UTC; Moscow differs, UTC does not.
     expect(zoneDiffersFromDevice('Europe/Moscow', new Date('2026-10-03T15:00:00Z'))).toBe(true)
     expect(zoneDiffersFromDevice('UTC', new Date('2026-10-03T15:00:00Z'))).toBe(false)
+  })
+})
+
+describe('shiftDateKey', () => {
+  test('steps a day at a time, across month bounds and leap days', () => {
+    expect(shiftDateKey('2026-10-31', 1)).toBe('2026-11-01')
+    expect(shiftDateKey('2026-11-01', -1)).toBe('2026-10-31')
+    expect(shiftDateKey('2028-02-28', 1)).toBe('2028-02-29')
+    expect(shiftDateKey('2026-02-28', 1)).toBe('2026-03-01')
+  })
+
+  test('a malformed key answers itself — the callers pad with it harmlessly', () => {
+    expect(shiftDateKey('not-a-date', 1)).toBe('not-a-date')
   })
 })

@@ -281,6 +281,9 @@ export function parseRrule(
   if (untilEncoded.length === 8) {
     if (!kind.allDay) throw new Error(`“${rrule}” bounds a timed series with a date-form UNTIL`)
     until = `${untilEncoded.slice(0, 4)}-${untilEncoded.slice(4, 6)}-${untilEncoded.slice(6, 8)}`
+    if (parseDateKey(until) === undefined) {
+      throw new Error(`“${rrule}” bounds a series with a date that does not exist`)
+    }
   } else {
     if (kind.allDay) throw new Error(`“${rrule}” bounds an all-day series with a date-time UNTIL`)
     if (kind.timezone === undefined) throw new Error('A timed series parses UNTIL in its zone')

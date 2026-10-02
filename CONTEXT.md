@@ -99,7 +99,7 @@ A planned activity or significant date shared in a space's calendar, occurring o
 _Avoid_: Reminder (the event exists independently of its notifications).
 
 **Series** (RU: серия):
-A calendar event that repeats on a rule — one of the daily, weekly, monthly, or yearly frequencies, optionally bounded by an end date. Editing the series replaces the rule for every occurrence that carries no exception of its own; "this and following" is not offered.
+A calendar event that repeats on a rule — one of the daily, weekly, monthly, or yearly frequencies, optionally bounded by an end date. Editing the series replaces the rule for every occurrence that carries no exception of its own, and an exception whose original date the replaced rule no longer produces is deleted with the edit; "this and following" is not offered.
 _Avoid_: Repeating event as a separate entity (the series is the event), rule.
 
 **Event occurrence** (RU: отдельное событие серии):

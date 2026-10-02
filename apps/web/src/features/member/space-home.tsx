@@ -155,9 +155,15 @@ export function SpaceHomeScreen() {
                     <ul className="divide-y divide-border">
                       {upcoming.map((event) => (
                         <li key={event.id}>
+                          {/* An occurrence of a series links by its series
+                              and original date (issue #21): its own id is
+                              the occurrence key, not an event's. */}
                           <Link
                             to="/calendar/$eventId"
-                            params={{ eventId: event.id }}
+                            params={{ eventId: event.seriesId ?? event.id }}
+                            search={
+                              event.originalDate === undefined ? {} : { date: event.originalDate }
+                            }
                             className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
                           >
                             <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">

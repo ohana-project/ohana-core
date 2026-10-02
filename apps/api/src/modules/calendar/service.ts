@@ -21,8 +21,8 @@ import {
 } from './recurrence.ts'
 import {
   deleteEvent,
-  deleteEventException,
   deleteEventExceptions,
+  deleteEventExceptionsFor,
   getEventInSpace,
   insertEvent,
   listChangedEvents,
@@ -205,30 +205,26 @@ export async function editEvent(
             // refusal here spends no revision.
             throw notFound('event_not_found', `Calendar event ${eventId} does not exist`)
           }
-          const exceptions = await listExceptionsForEvent(writeTx, actor.spaceId, eventId)
-          if (columns.rrule === null) {
-            // The series stopped being one: its exceptions have no
-            // occurrences left to describe.
-            await deleteEventExceptions(writeTx, actor.spaceId, eventId)
-          } else {
-            // The series still is one: the exceptions it can no longer
-            // honour — original dates the new rule never produces — go
-            // with the replace; the rest keep their anchoring dates.
-            const recurrence = seriesRecurrence(row)
-            const firstDate = seriesStartDate(row)
-            for (const exception of exceptions) {
-              if (
-                firstDate !== undefined &&
-                recurrence !== undefined &&
-                !isOccurrenceDate(firstDate, recurrence, exception.originalDate)
-              ) {
-                await deleteEventException(writeTx, actor.spaceId, eventId, exception.originalDate)
-              }
-            }
+          // The exceptions as the lock-handed read holds them: no writer
+          // can have slipped in beside this transaction.
+          const exceptions = existing.exceptions
+          // The series stopped being one: its exceptions have no
+          // occurrences left to describe. It stayed one: the exceptions it
+          // can no longer honour — original dates the new rule never
+          // produces — go with the replace, the rest keep their anchors.
+          const stale = columns.rrule === null ? exceptions : staleExceptions(row, exceptions)
+          if (stale.length > 0) {
+            await deleteEventExceptionsFor(
+              writeTx,
+              actor.spaceId,
+              eventId,
+              stale.map((exception) => exception.originalDate),
+            )
           }
+          const staleDates = new Set(stale.map((exception) => exception.originalDate))
           result = {
             event: row,
-            exceptions: await listExceptionsForEvent(writeTx, actor.spaceId, eventId),
+            exceptions: exceptions.filter((exception) => !staleDates.has(exception.originalDate)),
           }
         },
       },
@@ -237,6 +233,20 @@ export async function editEvent(
   })
   if (result === undefined) throw new Error('Editing a calendar event produced no row')
   return result
+}
+
+/** The exceptions a replaced rule can no longer honour: the ones whose
+ *  original date the new series never produces. */
+function staleExceptions(
+  row: CalendarEvent,
+  exceptions: readonly CalendarEventException[],
+): CalendarEventException[] {
+  const recurrence = seriesRecurrence(row)
+  const firstDate = seriesStartDate(row)
+  if (firstDate === undefined || recurrence === undefined) return [...exceptions]
+  return exceptions.filter(
+    (exception) => !isOccurrenceDate(firstDate, recurrence, exception.originalDate),
+  )
 }
 
 /**

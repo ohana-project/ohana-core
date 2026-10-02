@@ -4,9 +4,10 @@ import {
   formatDayLong,
   formatMonthTitle,
   localDateKey,
+  shiftDateKey,
   zoneDiffersFromDevice,
 } from '@/lib/calendar-dates.ts'
-import { eventDateKey } from './calendar-entries.ts'
+import { calendarOccurrences, eventDateKey } from './calendar-entries.ts'
 
 /*
  * The calendar's date rules away from UTC (issue #20): the acceptance
@@ -64,5 +65,36 @@ describe('the calendar’s date derivations in America/Los_Angeles', () => {
     expect(zoneDiffersFromDevice('America/Los_Angeles')).toBe(false)
     expect(zoneDiffersFromDevice('Europe/Moscow', new Date('2026-10-19T12:00:00.000Z'))).toBe(true)
     expect(zoneDiffersFromDevice('UTC', new Date('2026-10-19T12:00:00.000Z'))).toBe(true)
+  })
+})
+
+describe('the occurrence windows away from UTC (issue #21)', () => {
+  // The device sits in Los Angeles; the series keeps Auckland time. A
+  // 09:00 Auckland wall time is the previous evening in California, so the
+  // occurrence a grid's last Sunday cell shows is anchored to a wall date
+  // one day past the window — the margin is what reaches it.
+  test('a timed occurrence lands on the drawn edge only through the margin', () => {
+    const aucklandMorning: StoredCalendarEvent = {
+      ...BIRTHDAY,
+      id: '01900000-0000-7000-8000-000000000413',
+      title: 'Утренняя зарядка',
+      allDay: false,
+      date: undefined,
+      startsAt: '2026-11-08T20:00:00.000Z', // 09:00 on 2026-11-09 in Auckland (NZDT, UTC+13)
+      endsAt: '2026-11-08T21:00:00.000Z',
+      timezone: 'Pacific/Auckland',
+      recurrence: { frequency: 'daily' },
+    }
+    // A November 2026 grid's drawn cells run 2026-10-26 … 2026-12-06; the
+    // series starts on the 9th (NZ wall), outside the un-padded window.
+    const window = calendarOccurrences(
+      [aucklandMorning],
+      shiftDateKey('2026-11-08', -1),
+      shiftDateKey('2026-11-08', 1),
+    )
+    const landed = window.find((occurrence) => occurrence.originalDate === '2026-11-09')
+    expect(landed).toBeDefined()
+    // The device-local day is the 8th — the drawn cell the grid reads.
+    expect(eventDateKey(landed as StoredCalendarEvent)).toBe('2026-11-08')
   })
 })

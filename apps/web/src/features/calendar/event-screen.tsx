@@ -80,14 +80,22 @@ export function EventScreen({
   // fields, an override's included — or the series' own first occurrence.
   const shown: StoredCalendarEvent | undefined =
     occurrence?.event ?? (occurrenceDate === undefined ? event : undefined)
+  // "Cancelled" is the answer only to a link that named its date: on the
+  // default landing the series row stands in, and its actions stay — a
+  // first occurrence's cancellation must not dead-end the screen the
+  // series edits return to (issue #21).
   const cancelledHere =
     event !== undefined &&
-    anchorDate !== undefined &&
+    occurrenceDate !== undefined &&
     occurrence === undefined &&
     (event.exceptions?.some(
       (candidate) => candidate.originalDate === anchorDate && candidate.kind === 'cancelled',
     ) ??
       false)
+  // The occurrence-scoped choices exist when the anchor names a live
+  // occurrence; a series whose first occurrence is cancelled still offers
+  // its series actions on the landing.
+  const hasOccurrence = occurrence !== undefined
 
   const backToCalendar = () => void navigate({ to: '/calendar' })
 
@@ -200,13 +208,15 @@ export function EventScreen({
       </Dialog>
 
       {/* The scope choices (issue #21): change this occurrence or the whole
-          series — one dialog each for the edit and the delete. */}
+          series — one dialog each for the edit and the delete. The
+          occurrence choice only where the anchor names a live occurrence. */}
       <ScopeDialog
         open={choosingEdit}
         onClose={() => setChoosingEdit(false)}
         title={t('calendar.editScopeTitle')}
         occurrenceLabel={t('calendar.editScopeOccurrence')}
         seriesLabel={t('calendar.editScopeSeries')}
+        showOccurrence={hasOccurrence}
         onOccurrence={() => {
           setChoosingEdit(false)
           void navigate({
@@ -226,6 +236,7 @@ export function EventScreen({
         title={t('calendar.deleteScopeTitle')}
         occurrenceLabel={t('calendar.deleteScopeOccurrence')}
         seriesLabel={t('calendar.deleteScopeSeries')}
+        showOccurrence={hasOccurrence}
         onOccurrence={() => {
           setChoosingDelete(false)
           onCancelOccurrence()
@@ -245,6 +256,7 @@ function ScopeDialog({
   title,
   occurrenceLabel,
   seriesLabel,
+  showOccurrence,
   onOccurrence,
   onSeries,
 }: {
@@ -253,6 +265,7 @@ function ScopeDialog({
   title: string
   occurrenceLabel: string
   seriesLabel: string
+  showOccurrence: boolean
   onOccurrence: () => void
   onSeries: () => void
 }) {
@@ -264,10 +277,12 @@ function ScopeDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-2">
-          <Button variant="secondary" className="justify-start" onClick={onOccurrence}>
-            <Icon name="clock" />
-            {occurrenceLabel}
-          </Button>
+          {showOccurrence && (
+            <Button variant="secondary" className="justify-start" onClick={onOccurrence}>
+              <Icon name="clock" />
+              {occurrenceLabel}
+            </Button>
+          )}
           <Button variant="secondary" className="justify-start" onClick={onSeries}>
             <Icon name="repeat" />
             {seriesLabel}

@@ -68,7 +68,10 @@ function addDays(parts: DateParts, days: number): DateParts {
 function compare(a: DateParts | string, b: DateParts | string): number {
   const keyOf = (value: DateParts | string): string =>
     typeof value === 'string' ? value : formatDateKey(value)
-  return keyOf(a).localeCompare(keyOf(b))
+  const left = keyOf(a)
+  const right = keyOf(b)
+  // Plain codepoint order: the keys are their own fixed-width sort, `YYYY-MM-DD`.
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function maxDate(a: DateParts, b: DateParts): DateParts {
