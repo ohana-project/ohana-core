@@ -4217,7 +4217,7 @@
                   },
                   "link": {
                     "maxLength": 2048,
-                    "pattern": "^https?://[^\\s]+$",
+                    "pattern": "^https?://[^\\s\\u0000]+$",
                     "type": "string"
                   }
                 }
@@ -4388,7 +4388,7 @@
                   },
                   "link": {
                     "maxLength": 2048,
-                    "pattern": "^https?://[^\\s]+$",
+                    "pattern": "^https?://[^\\s\\u0000]+$",
                     "type": "string"
                   }
                 }
