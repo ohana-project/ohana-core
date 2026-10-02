@@ -1,4 +1,5 @@
 import type { Locale } from '@ohana/i18n'
+import { zoneCity, currentOffset as zoneOffset } from '@/lib/timezones.ts'
 
 /*
  * The calendar's date and time rules (issue #20): the one place the two
@@ -122,16 +123,26 @@ export function nextMonth(year: number, month: number): { year: number; month: n
   return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 }
 }
 
+/**
+ * The zoneless kinds are formatted at their own UTC midnight, so the label
+ * is the date itself in every device zone: without the named zone a
+ * UTC− device would read the anchor as its previous evening and shift
+ * every all-day label a day back.
+ */
+function utcFormatter(locale: Locale, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' })
+}
+
 /** «5 октября» — the day's label in the locale. */
 export function formatDayLong(date: DateOnly, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(
+  return utcFormatter(locale, { day: 'numeric', month: 'long' }).format(
     new Date(Date.UTC(date.year, date.month - 1, date.day)),
   )
 }
 
 /** «СУББОТА, 3 ОКТЯБРЯ 2026» — the event screen's date line. */
 export function formatDayFull(date: DateOnly, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale, {
+  return utcFormatter(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -142,7 +153,7 @@ export function formatDayFull(date: DateOnly, locale: Locale): string {
 /** «Октябрь 2026» — the month heading: the standalone month name and the
  *  year, the capital the prototype's heading carries. */
 export function formatMonthTitle(year: number, month: number, locale: Locale): string {
-  const name = new Intl.DateTimeFormat(locale, { month: 'long' }).format(
+  const name = utcFormatter(locale, { month: 'long' }).format(
     new Date(Date.UTC(year, month - 1, 1)),
   )
   const capitalised = name.charAt(0).toLocaleUpperCase(locale) + name.slice(1)
@@ -151,7 +162,7 @@ export function formatMonthTitle(year: number, month: number, locale: Locale): s
 
 /** «Пн» … «Вс» — the grid's day-of-week headers, Monday first. */
 export function weekdayHeaders(locale: Locale): string[] {
-  const format = new Intl.DateTimeFormat(locale, { weekday: 'short' })
+  const format = utcFormatter(locale, { weekday: 'short' })
   // 2023-01-02 was a Monday.
   return Array.from({ length: 7 }, (_, index) =>
     format.format(new Date(Date.UTC(2023, 0, 2 + index))),
@@ -191,32 +202,35 @@ export function zonedDateKey(instant: string, zone: string): string {
   return `${value('year')}-${value('month')}-${value('day')}`
 }
 
-/** The zone's label like the prototypes: «Москва (UTC+3)». */
+/** The zone's label like the prototypes: «Москва (UTC+3)» — the city the
+ *  zone's tail spells and the offset the picker sorts by, the same
+ *  vocabulary `lib/timezones.ts` labels its options with. */
 export function zoneLabel(zone: string, at: Date = new Date()): string {
-  const city = zone.split('/').at(-1)?.replaceAll('_', ' ') ?? zone
-  const parts = new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'shortOffset' })
-    .formatToParts(at)
-    .find((part) => part.type === 'timeZoneName')?.value
-  const offset = parts?.replace('GMT', 'UTC') ?? 'UTC'
-  return `${city} (${offset})`
+  return `${zoneCity(zone)} (${zoneOffset(zone, at)})`
 }
 
 /**
  * Whether the event's zone is worth an indication beside the device's
  * local time: when the device is in another zone, the converted time needs
- * its origin named (issue #63 of the spec).
+ * its origin named (issue #1, story 63). The comparison reads each side's
+ * offset at the moment — abbreviations repeat across zones with different
+ * offsets, offsets do not.
  */
 export function zoneDiffersFromDevice(zone: string, at: Date = new Date()): boolean {
-  try {
-    return (
-      new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'short' })
-        .formatToParts(at)
-        .find((part) => part.type === 'timeZoneName')?.value !==
-      new Intl.DateTimeFormat('en', { timeZoneName: 'short' })
+  const offsetOf = (target: string | undefined): string | undefined => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        ...(target === undefined ? {} : { timeZone: target }),
+        timeZoneName: 'shortOffset',
+      })
         .formatToParts(at)
         .find((part) => part.type === 'timeZoneName')?.value
-    )
-  } catch {
-    return true
+    } catch {
+      return undefined
+    }
   }
+  const eventOffset = offsetOf(zone)
+  const deviceOffset = offsetOf(undefined)
+  if (eventOffset === undefined || deviceOffset === undefined) return true
+  return eventOffset !== deviceOffset
 }

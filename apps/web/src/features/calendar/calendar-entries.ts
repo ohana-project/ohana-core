@@ -12,7 +12,7 @@ import { type DateOnly, formatDateOnly, localDateKey } from '@/lib/calendar-date
 
 /** The device-local day an event sits on: an all-day event its own
  *  zoneless date, a timed event the local day its start falls on
- *  (issue #62 and #63 of the spec). */
+ *  (issue #1, stories 62–63). */
 export function eventDateKey(event: StoredCalendarEvent): string | undefined {
   if (event.allDay) return event.date
   return event.startsAt === undefined ? undefined : localDateKey(event.startsAt)
@@ -33,6 +33,24 @@ export function eventsOnDate(events: StoredCalendarEvent[], date: DateOnly): Sto
   return events.filter((event) => eventDateKey(event) === key).sort(byDayOrder)
 }
 
+/**
+ * One pass over the partition: the events bucketed by their device-local
+ * day, each bucket in the day's order — the month grid's 42 lookups are
+ * reads from this map, not 42 filters.
+ */
+export function eventsByDate(events: StoredCalendarEvent[]): Map<string, StoredCalendarEvent[]> {
+  const buckets = new Map<string, StoredCalendarEvent[]>()
+  for (const event of events) {
+    const key = eventDateKey(event)
+    if (key === undefined) continue
+    const bucket = buckets.get(key)
+    if (bucket === undefined) buckets.set(key, [event])
+    else bucket.push(event)
+  }
+  for (const bucket of buckets.values()) bucket.sort(byDayOrder)
+  return buckets
+}
+
 /** The event by its id, or undefined when the partition does not hold it. */
 export function eventById(
   events: StoredCalendarEvent[],
@@ -41,17 +59,12 @@ export function eventById(
   return events.find((event) => event.id === eventId)
 }
 
-/** The agenda's order: the start instant, all-day events at the front of
- *  their day, the id breaking ties — the same order a day's list reads in. */
-function byStart(event: StoredCalendarEvent): string {
-  return event.allDay ? `0-${event.date ?? ''}-${event.id}` : `1-${event.startsAt}-${event.id}`
-}
-
 /**
- * The upcoming events from `now`, agenda order: today's, tomorrow's, then
- * the rest by day. The past is not the agenda's business — an event stays
- * while its day has not begun to pass, and a timed one still shows while
- * it is running, even if it started yesterday evening.
+ * The upcoming events from `now`, agenda order: day by day, and within a
+ * day the day's own order (the all-day events at its front, then the timed
+ * ones by their start). The past is not the agenda's business — an event
+ * stays while its day has not begun to pass, and a timed one still shows
+ * while it is running, even if it started yesterday evening.
  */
 export function upcomingEvents(events: StoredCalendarEvent[], now: Date): StoredCalendarEvent[] {
   const todayKey = formatDateOnly({
@@ -71,7 +84,9 @@ export function upcomingEvents(events: StoredCalendarEvent[], now: Date): Stored
       }
       return false
     })
-    .sort((a, b) => byStart(a).localeCompare(byStart(b)))
+    .sort(
+      (a, b) => (eventDateKey(a) ?? '').localeCompare(eventDateKey(b) ?? '') || byDayOrder(a, b),
+    )
 }
 
 /**

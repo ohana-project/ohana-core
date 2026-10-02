@@ -39,10 +39,10 @@ export interface CalendarActor {
 }
 
 /**
- * Adds an event to the space's calendar (issue #61 of the spec): visible
+ * Adds an event to the space's calendar (issue #1, story 61): visible
  * to every member from the moment it lands. The timed kind's wall time is
  * composed into absolute instants against the zone the creator picked —
- * or the space's zone when they named none (issue #64) — inside the
+ * or the space's zone when they named none (issue #1, story 64) — inside the
  * transaction, after the section recheck has taken the space row lock and
  * handed back the space row that names that default zone. A hide that
  * commits alongside the write is still honoured, and the revision advances
@@ -57,7 +57,7 @@ export async function createEvent(
   let created: CalendarEvent | undefined
   await deps.db.transaction(async (tx) => {
     const space = await requireVisibleSectionInTx(tx, actor.spaceId, 'calendar')
-    const columns = await eventColumns(input, space.timezone)
+    const columns = eventColumns(input, space.timezone)
     await recordChanges(
       tx,
       actor.spaceId,
@@ -65,7 +65,7 @@ export async function createEvent(
         writes: async (writeTx, revision) => {
           created = await insertEvent(writeTx, actor.spaceId, {
             creatorMemberId: actor.memberId,
-            title: input.title,
+            title: input.title.trim(),
             ...columns,
             revision,
             now,
@@ -122,7 +122,7 @@ export async function editEvent(
     const space = await requireVisibleSectionInTx(tx, actor.spaceId, 'calendar')
     const event = await requireEventInSpace(tx, actor, eventId)
     assertEventEditableBy(event, actor)
-    const columns = await eventColumns(input, space.timezone)
+    const columns = eventColumns(input, space.timezone)
     await recordChanges(
       tx,
       actor.spaceId,
@@ -215,16 +215,16 @@ async function requireEventInSpace(
 }
 
 /** The row columns a create-or-edit body stands for. */
-async function eventColumns(
+function eventColumns(
   input: CreateEventBody,
   spaceTimezone: string,
-): Promise<{
+): {
   allDay: boolean
   date: string | null
   startsAt: Date | null
   endsAt: Date | null
   timezone: string | null
-}> {
+} {
   if (input.allDay) {
     assertRealDate(input.date)
     return { allDay: true, date: input.date, startsAt: null, endsAt: null, timezone: null }
@@ -232,18 +232,18 @@ async function eventColumns(
   return timedEventColumns(input, spaceTimezone)
 }
 
-async function timedEventColumns(
+function timedEventColumns(
   input: TimedEventBody,
   spaceTimezone: string,
-): Promise<{
+): {
   allDay: false
   date: null
   startsAt: Date
   endsAt: Date
   timezone: string
-}> {
+} {
   assertRealDate(input.date)
-  // The space's zone is the default (issue #64); a named zone must be one
+  // The space's zone is the default (issue #1, story 64); a named zone must be one
   // the runtime knows, spelled canonically like the space's own.
   const timezone = input.timezone === undefined ? spaceTimezone : assertTimezone(input.timezone)
   const startsAt = wallTimeToInstant(input.date, input.startTime, timezone)
@@ -267,11 +267,23 @@ async function timedEventColumns(
  * validation answer instead of a database error (the `date` column would
  * refuse it with a 500). The round-trip is the test: the runtime rolls an
  * over-range day forward instead of refusing it, so the parsed moment must
- * read back as the very date it was given.
+ * read back as the very date it was given. The year is bounded to what a
+ * family plans in — outside it the runtime's two-digit year readings turn
+ * `0026` into `1926`, and a half-typed year is a refusal, not a garbage
+ * instant two millennia from the intended day.
  */
+const MIN_EVENT_YEAR = 1900
+const MAX_EVENT_YEAR = 2200
+
 function assertRealDate(date: string): void {
   const parsed = Date.parse(`${date}T00:00:00Z`)
-  if (Number.isNaN(parsed) || new Date(parsed).toISOString().slice(0, 10) !== date) {
+  const year = Number(date.slice(0, 4))
+  if (
+    Number.isNaN(parsed) ||
+    new Date(parsed).toISOString().slice(0, 10) !== date ||
+    year < MIN_EVENT_YEAR ||
+    year > MAX_EVENT_YEAR
+  ) {
     throw new DomainError('invalid_event_date', `“${date}” is not a calendar date`, 400)
   }
 }

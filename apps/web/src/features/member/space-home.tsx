@@ -7,7 +7,7 @@ import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { ALL_SECTIONS_VISIBLE, useNavSections } from '@/features/member/use-nav-sections.ts'
 import { useSectionNav } from '@/features/member/use-section-nav.ts'
 import { useSyncStatus } from '@/features/member/use-sync-status.ts'
-import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
+import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-space.ts'
 import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -66,6 +66,9 @@ export function SpaceHomeScreen() {
   // it says that nothing is available offline yet (ADR-0002).
   const hasData = snapshot.data?.revision !== undefined
   const visibility = snapshot.data?.space?.sections ?? ALL_SECTIONS_VISIBLE
+  // One reading of now for the whole column: the same moments the calendar
+  // screen's agenda would name.
+  const upcoming = upcomingEvents(snapshot.data?.events ?? [], new Date()).slice(0, 3)
 
   return (
     <MemberLayout
@@ -125,8 +128,20 @@ export function SpaceHomeScreen() {
             {visibility.calendar && (
               <section>
                 <SectionHeader title={t('member.home.eventsSection')} />
-                {upcomingEvents(snapshot.data?.events ?? [], new Date()).slice(0, 3).length ===
-                0 ? (
+                {/* While the calendar is the section a replay promise names,
+                    the rows held are a fraction of it — the column says
+                    nothing is downloaded rather than showing them
+                    (ADR-0014). */}
+                {!sectionDownloaded(snapshot.data, 'calendar') ? (
+                  <Card>
+                    <Empty>
+                      <EmptyMedia>
+                        <Icon name="cloud-off" />
+                      </EmptyMedia>
+                      <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+                    </Empty>
+                  </Card>
+                ) : upcoming.length === 0 ? (
                   <Card>
                     <Empty>
                       <EmptyMedia>
@@ -138,31 +153,27 @@ export function SpaceHomeScreen() {
                 ) : (
                   <Card className="py-0">
                     <ul className="divide-y divide-border">
-                      {upcomingEvents(snapshot.data?.events ?? [], new Date())
-                        .slice(0, 3)
-                        .map((event) => (
-                          <li key={event.id}>
-                            <Link
-                              to="/calendar/$eventId"
-                              params={{ eventId: event.id }}
-                              className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
-                            >
-                              <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
-                                <Icon name={event.allDay ? 'sun' : 'clock'} className="size-5" />
-                              </span>
-                              <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate text-sm font-semibold">
-                                  {event.title}
-                                </span>
-                                <EventTimeLine
-                                  event={event}
-                                  className="truncate text-sm text-muted-foreground"
-                                />
-                              </span>
-                              <Icon name="chevron-right" className="text-muted-foreground" />
-                            </Link>
-                          </li>
-                        ))}
+                      {upcoming.map((event) => (
+                        <li key={event.id}>
+                          <Link
+                            to="/calendar/$eventId"
+                            params={{ eventId: event.id }}
+                            className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
+                          >
+                            <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
+                              <Icon name={event.allDay ? 'sun' : 'clock'} className="size-5" />
+                            </span>
+                            <span className="flex min-w-0 flex-1 flex-col">
+                              <span className="truncate text-sm font-semibold">{event.title}</span>
+                              <EventTimeLine
+                                event={event}
+                                className="truncate text-sm text-muted-foreground"
+                              />
+                            </span>
+                            <Icon name="chevron-right" className="text-muted-foreground" />
+                          </Link>
+                        </li>
+                      ))}
                     </ul>
                   </Card>
                 )}

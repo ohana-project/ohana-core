@@ -840,6 +840,8 @@
     "titleField": "Title",
     "titlePlaceholder": "For example, dinner at grandma's",
     "titleRequired": "Give the event a title",
+    "timesRequired": "Give the start and end times",
+    "dateRequired": "Pick a date",
     "startTimeField": "Start",
     "endTimeField": "End",
     "dateField": "Date",

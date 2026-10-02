@@ -285,3 +285,23 @@ test.describe('the calendar', () => {
     await expect(page.getByText('День рождения Люды — тортик')).toHaveCount(0)
   })
 })
+
+// The same reads away from UTC (issue #20): the all-day date stays where
+// it was created, and the timed event's local time follows the device.
+test.describe('the calendar away from UTC', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' })
+
+  test('the all-day date stays put and the local time follows the device', async ({ page }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // The birthday is still the 19th; the dinner reads in Pacific time —
+    // 08:00 against its 18:00 Moscow origin.
+    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+    await expect(page.getByText('08:00 – 11:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
+  })
+})

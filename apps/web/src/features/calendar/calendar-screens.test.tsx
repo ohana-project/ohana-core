@@ -214,7 +214,12 @@ describe('CalendarScreen (the month and the agenda)', () => {
     // The all-day event keeps its plain date and never shows a time.
     expect(screen.getByText('День рождения Люды')).toBeInTheDocument()
     expect(screen.getByText('весь день · 19 октября')).toBeInTheDocument()
+    // The agenda reads day by day: tomorrow's group first, the birthday's
+    // own day after it — the all-day kind never jumps the queue.
     expect(screen.getByText('Завтра')).toBeInTheDocument()
+    const groups = screen.getAllByText(/^(Завтра|19 октября)$/)
+    expect(groups[0]).toHaveTextContent('Завтра')
+    expect(groups[1]).toHaveTextContent('19 октября')
   })
 
   it("opens a day sheet with that day's events from the month grid", async () => {
@@ -255,7 +260,7 @@ describe('CalendarScreen (the month and the agenda)', () => {
 })
 
 describe('EventEditorScreen (a new event)', () => {
-  it('posts the wall time with the space’s zone as the default', async () => {
+  it('posts the wall time and lets the API apply the space’s zone', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([]))
     apiPost.mockImplementation(async (path: never) => {
@@ -280,16 +285,45 @@ describe('EventEditorScreen (a new event)', () => {
       { body: Record<string, unknown> },
     ]
     expect(path).toBe('/api/v1/calendar/events')
-    // The date defaults to today, the times to the evening, and the zone
-    // to the space's — the editor never asks for what the space knows.
+    // The date defaults to today and the times to the evening. The zone
+    // field shows the space's but was never touched, so it is not sent —
+    // the API applies the space's zone itself, and a zone the space
+    // changes between opening the form and saving still wins.
     expect(options.body).toEqual({
       title: 'Ужин у бабушки',
       allDay: false,
       date: '2026-10-01',
       startTime: '18:00',
       endTime: '21:00',
-      timezone: 'Europe/Moscow',
     })
+  })
+
+  it('a zone the member picked is sent; the space’s stays for the API', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events') {
+        return {
+          data: timedEvent(),
+          error: undefined,
+          response: new Response(null, { status: 201 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    await user.type(await screen.findByLabelText('Название'), 'Созвон со школой')
+    await user.selectOptions(screen.getByLabelText('Часовой пояс'), 'Asia/Novosibirsk')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalled())
+    const [, options] = apiPost.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({ timezone: 'Asia/Novosibirsk' })
   })
 
   it('an all-day event sends its date and no time at all', async () => {

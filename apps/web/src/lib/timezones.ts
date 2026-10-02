@@ -11,7 +11,9 @@ export interface TimezoneOption {
   label: string
 }
 
-function currentOffset(zone: string, now: Date): string {
+/** The zone's current UTC offset, «UTC+5» — the picker's sort key and a
+ *  label's tail (the calendar's zoneLabel shares it). */
+export function currentOffset(zone: string, now: Date): string {
   const parts = new Intl.DateTimeFormat('en', {
     timeZone: zone,
     timeZoneName: 'shortOffset',
@@ -20,7 +22,8 @@ function currentOffset(zone: string, now: Date): string {
   return name.replace('GMT', 'UTC')
 }
 
-function cityOf(zone: string): string {
+/** The city a zone's tail spells, «Новосибирск» — the picker's label head. */
+export function zoneCity(zone: string): string {
   const tail = zone.split('/').at(-1) ?? zone
   return tail.replaceAll('_', ' ')
 }
@@ -32,7 +35,7 @@ export function timezoneOptions(locale: Locale, now: Date): TimezoneOption[] {
   return zones
     .map((zone) => {
       const offset = currentOffset(zone, now)
-      return { value: zone, offset, label: `${cityOf(zone)} (${offset})` }
+      return { value: zone, offset, label: `${zoneCity(zone)} (${offset})` }
     })
     .sort(
       (a, b) =>

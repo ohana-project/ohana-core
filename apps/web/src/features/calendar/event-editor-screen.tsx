@@ -54,6 +54,10 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
   const [startTime, setStartTime] = useState<string | undefined>(undefined)
   const [endTime, setEndTime] = useState<string | undefined>(undefined)
   const [timezone, setTimezone] = useState<string | undefined>(undefined)
+  // The zone the member actually chose: left alone, the field shows the
+  // space's zone and the API applies that default itself, so a space-zone
+  // change between opening the form and saving is honoured.
+  const [timezoneTouched, setTimezoneTouched] = useState(false)
   const [touched, setTouched] = useState(false)
 
   const spaceZone = space?.timezone ?? 'UTC'
@@ -72,6 +76,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
 
   const pending = createEvent.isPending || updateEvent.isPending
   const titleBlank = effective.title.trim().length === 0
+  const dateBlank = effective.date.trim().length === 0
   const timesBlank = !effective.allDay && (effective.startTime === '' || effective.endTime === '')
   const endBeforeStart =
     !effective.allDay &&
@@ -87,7 +92,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
 
   const save = () => {
     setTouched(true)
-    if (titleBlank || timesBlank || endBeforeStart) return
+    if (titleBlank || dateBlank || timesBlank || endBeforeStart) return
     const input: EventInput = {
       title: effective.title.trim(),
       allDay: effective.allDay,
@@ -97,7 +102,7 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
         : {
             startTime: effective.startTime,
             endTime: effective.endTime,
-            timezone: effective.timezone || undefined,
+            timezone: timezoneTouched ? effective.timezone : undefined,
           }),
     }
     const onError = (error: unknown) => toast(calendarErrorMessage(error, t), 'danger')
@@ -130,7 +135,9 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
       width="narrow"
     >
       <div className="flex flex-col gap-5 pt-6 pb-32">
-        {eventId !== undefined && snapshot.isPending ? (
+        {snapshot.isPending ? (
+          // Both kinds wait for the partition read: the edit needs its row,
+          // the new event the space's zone to show as the default.
           <div className="grid place-items-center py-10">
             <Spinner className="size-6" />
           </div>
@@ -205,46 +212,66 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
                   <Switch
                     aria-label={t('calendar.allDay')}
                     checked={effective.allDay}
-                    onCheckedChange={(checked) => setAllDay(checked === true)}
+                    onCheckedChange={(checked) => {
+                      const next = checked === true
+                      setAllDay(next)
+                      // An event that becomes timed needs a wall pair to
+                      // compose; the evening default the new-event form
+                      // carries is seeded rather than blocking Save on
+                      // fields the member never saw.
+                      if (!next && (startTime ?? '') === '') {
+                        setStartTime('18:00')
+                        setEndTime('21:00')
+                      }
+                    }}
                   />
                 </div>
               </Card>
 
-              <div className="flex gap-3">
-                <Field className="flex-1">
-                  <FieldLabel htmlFor="event-start">{t('calendar.startTimeField')}</FieldLabel>
-                  <Input
-                    id="event-start"
-                    type="time"
-                    value={effective.startTime}
-                    disabled={effective.allDay}
-                    onChange={(event) => setStartTime(event.target.value)}
-                  />
-                </Field>
-                <Field className="flex-1">
-                  <FieldLabel htmlFor="event-end">{t('calendar.endTimeField')}</FieldLabel>
-                  <Input
-                    id="event-end"
-                    type="time"
-                    value={effective.endTime}
-                    disabled={effective.allDay}
-                    onChange={(event) => setEndTime(event.target.value)}
-                    aria-invalid={(touched && endBeforeStart) || undefined}
-                  />
-                  {touched && endBeforeStart ? (
-                    <FieldError>{t('calendar.errors.event_end_before_start')}</FieldError>
-                  ) : null}
-                </Field>
-              </div>
+              {!effective.allDay && (
+                <div className="flex gap-3">
+                  <Field className="flex-1">
+                    <FieldLabel htmlFor="event-start">{t('calendar.startTimeField')}</FieldLabel>
+                    <Input
+                      id="event-start"
+                      type="time"
+                      value={effective.startTime}
+                      onChange={(event) => setStartTime(event.target.value)}
+                      aria-invalid={(touched && timesBlank) || undefined}
+                    />
+                  </Field>
+                  <Field className="flex-1">
+                    <FieldLabel htmlFor="event-end">{t('calendar.endTimeField')}</FieldLabel>
+                    <Input
+                      id="event-end"
+                      type="time"
+                      value={effective.endTime}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      aria-invalid={(touched && (endBeforeStart || timesBlank)) || undefined}
+                    />
+                    {touched && timesBlank ? (
+                      <FieldError>{t('calendar.timesRequired')}</FieldError>
+                    ) : touched && endBeforeStart ? (
+                      <FieldError>{t('calendar.errors.event_end_before_start')}</FieldError>
+                    ) : null}
+                  </Field>
+                </div>
+              )}
 
-              <Field>
+              <Field data-invalid={(touched && dateBlank) || undefined}>
                 <FieldLabel htmlFor="event-date">{t('calendar.dateField')}</FieldLabel>
                 <Input
                   id="event-date"
                   type="date"
+                  min="1900-01-01"
+                  max="2200-12-31"
                   value={effective.date}
                   onChange={(event) => setDate(event.target.value)}
+                  aria-invalid={(touched && dateBlank) || undefined}
                 />
+                {touched && dateBlank ? (
+                  <FieldError>{t('calendar.dateRequired')}</FieldError>
+                ) : null}
               </Field>
 
               {!effective.allDay && (
@@ -253,9 +280,12 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
                   <Select
                     id="event-tz"
                     value={effective.timezone}
-                    onChange={(event) => setTimezone(event.target.value)}
+                    onChange={(event) => {
+                      setTimezone(event.target.value)
+                      setTimezoneTouched(true)
+                    }}
                   >
-                    {timezoneOptions(locale, new Date()).map((option) => (
+                    {zoneChoices(locale, effective.timezone).map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -282,6 +312,19 @@ export function EventEditorScreen({ eventId }: { eventId?: string }) {
       </div>
     </CalendarShell>
   )
+}
+
+/**
+ * The picker's options: every zone the runtime knows, plus the event's own
+ * when the runtime does not list its spelling (a link alias an older
+ * client stored) — a select whose value has no option shows the wrong one.
+ */
+function zoneChoices(locale: Locale, current: string) {
+  const options = timezoneOptions(locale, new Date())
+  if (current !== '' && !options.some((option) => option.value === current)) {
+    return [{ value: current, label: current }, ...options]
+  }
+  return options
 }
 
 interface EditorFields {

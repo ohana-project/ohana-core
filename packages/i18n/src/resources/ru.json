@@ -840,6 +840,8 @@
     "titleField": "Название",
     "titlePlaceholder": "Например, ужин у бабушки",
     "titleRequired": "Дайте событию название",
+    "timesRequired": "Укажите время начала и конца",
+    "dateRequired": "Выберите дату",
     "startTimeField": "Начало",
     "endTimeField": "Конец",
     "dateField": "Дата",

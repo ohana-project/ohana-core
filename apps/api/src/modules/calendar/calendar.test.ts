@@ -432,6 +432,16 @@ describe('calendar events (issue #20)', () => {
       expect(impossibleDate.status).toBe(400)
       expect(impossibleDate.body).toMatchObject({ error: { code: 'invalid_event_date' } })
 
+      // A half-typed year would compose through the runtime's two-digit
+      // readings into another millennium; the plan horizon refuses it.
+      const strayYear = await createEvent(app, anna, {
+        title: 'Чыше',
+        allDay: true,
+        date: '0026-10-03',
+      })
+      expect(strayYear.status).toBe(400)
+      expect(strayYear.body).toMatchObject({ error: { code: 'invalid_event_date' } })
+
       // A timed event whose end does not follow its start.
       const backwards = await createEvent(app, anna, {
         title: 'Вечеринка',

@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { StoredCalendarEvent } from '@/data/local-store.ts'
 import {
@@ -21,7 +21,7 @@ import { Fab } from '@/ui/fab.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
-import { eventDateKey, eventsOnDate, upcomingEvents } from './calendar-entries.ts'
+import { eventDateKey, eventsByDate, eventsOnDate, upcomingEvents } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { EventTimeLine } from './event-time.tsx'
 import { useCalendarData } from './use-calendar.ts'
@@ -47,6 +47,7 @@ export function CalendarScreen() {
   const [openDay, setOpenDay] = useState<DateOnly | undefined>(undefined)
 
   const grid = monthGrid(view.year, view.month)
+  const byDate = useMemo(() => eventsByDate(events), [events])
   const upcoming = upcomingEvents(events, new Date())
 
   return (
@@ -119,8 +120,8 @@ export function CalendarScreen() {
               </div>
               <div className="grid grid-cols-7 gap-y-1 px-2">
                 {grid.map(({ date, inMonth }) => {
-                  const dayEvents = eventsOnDate(events, date)
                   const key = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
+                  const dayEvents = byDate.get(key) ?? []
                   const isToday =
                     date.year === today.year && date.month === today.month && date.day === today.day
                   return (
