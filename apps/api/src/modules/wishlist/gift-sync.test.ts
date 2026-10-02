@@ -97,9 +97,24 @@ function memberHeaders(session: MemberSession) {
   return { 'x-ohana-member': session.memberId, cookie: session.cookie }
 }
 
+interface SyncFavoriteRow {
+  id: string
+  wishId: string
+}
+
+interface SyncReservationRow {
+  id: string
+  wishId: string
+  memberId: string
+}
+
 interface SyncResponse {
   revision: string
-  changes: Array<{ entity: string }>
+  changes: Array<{
+    entity: string
+    favorite?: SyncFavoriteRow
+    reservation?: SyncReservationRow
+  }>
   tombstones: Array<{ entity: string; entityId: string; audience: string; memberId?: string }>
 }
 
@@ -113,19 +128,24 @@ async function sync(app: TestApp, session: MemberSession, since: string): Promis
   return response.json()
 }
 
-function favoritesOf(result: SyncResponse): Array<{ id: string; wishId: string }> {
-  return result.changes
-    .filter((change) => change.entity === 'wishlist_gift_favorite')
-    .map((change) => (change as { favorite: { id: string; wishId: string } }).favorite)
+function favoritesOf(result: SyncResponse): SyncFavoriteRow[] {
+  return result.changes.filter((change) => change.entity === 'wishlist_gift_favorite').map(
+    (change) => {
+      const row = change.favorite
+      if (row === undefined) throw new Error('A favorite change carried no favorite')
+      return row
+    },
+  )
 }
 
-function reservationsOf(
-  result: SyncResponse,
-): Array<{ id: string; wishId: string; memberId: string }> {
-  return result.changes
-    .filter((change) => change.entity === 'wishlist_gift_reservation')
-    .map((change) => (change as { reservation: { id: string; wishId: string; memberId: string } })
-      .reservation)
+function reservationsOf(result: SyncResponse): SyncReservationRow[] {
+  return result.changes.filter((change) => change.entity === 'wishlist_gift_reservation').map(
+    (change) => {
+      const row = change.reservation
+      if (row === undefined) throw new Error('A reservation change carried no reservation')
+      return row
+    },
+  )
 }
 
 async function createWish(
