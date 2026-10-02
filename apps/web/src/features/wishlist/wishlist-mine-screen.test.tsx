@@ -1,3 +1,4 @@
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
@@ -5,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import type { StoredWish, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult } from '@/data/local-store.ts'
+import { syncedSnapshotKey } from '@/features/member/use-synced-space.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { WishlistMineScreen } from './wishlist-mine-screen.tsx'
 
@@ -122,6 +124,23 @@ function mockQuietSync() {
     }
     throw new Error(`Unexpected GET ${String(path)}`)
   })
+}
+
+/**
+ * A handle on the providers' query client, so a test can land a sync
+ * response mid-render and refresh the snapshot the way the sync engine's
+ * notification does: the store's apply and the cache's invalidation are
+ * the two halves the screens react to.
+ */
+function CaptureClient({ capture }: { capture: (client: QueryClient) => void }) {
+  capture(useQueryClient())
+  return null
+}
+
+/** Applies a response and refreshes the screens' snapshot query after it. */
+async function landSync(client: QueryClient, result: SyncResult) {
+  await applySyncResult(ME, result)
+  await client.invalidateQueries({ queryKey: syncedSnapshotKey(ME) })
 }
 
 function mockWishCreated(created: StoredWish) {
@@ -403,6 +422,177 @@ describe('WishlistMineScreen (the own wishlist)', () => {
       }),
     )
     expect(await screen.findByText('Желание удалено')).toBeInTheDocument()
+  })
+
+  it('closes the sheet when a sync removes the wish under it', async () => {
+    const lamp = wish()
+    let client: QueryClient | undefined
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <>
+        <CaptureClient capture={(c) => (client = c)} />
+        <WishlistMineScreen />
+      </>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // The removal arrives as the sync's tombstone: the sheet closes
+    // instead of editing (or, falling back to "new", re-creating) a wish
+    // that no longer exists.
+    if (client === undefined) throw new Error('The query client never arrived')
+    await landSync(client, {
+      revision: '8',
+      changes: [],
+      tombstones: [{ entity: 'wishlist_wish', entityId: lamp.id, audience: 'all' }],
+    })
+
+    await waitFor(() => expect(screen.queryByText('Изменить желание')).not.toBeInTheDocument())
+    expect(screen.queryByText('Налобный фонарь')).not.toBeInTheDocument()
+  })
+
+  it('an untouched switch does not clear the mark another device landed mid-edit', async () => {
+    const lamp = wish()
+    let client: QueryClient | undefined
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: { ...lamp, receivedAt: '2026-10-01T09:30:00.000Z' },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <>
+        <CaptureClient capture={(c) => (client = c)} />
+        <WishlistMineScreen />
+      </>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // Another device marks the wish received while the sheet is open: the
+    // row under the sheet changes, the switch does not move on its own.
+    if (client === undefined) throw new Error('The query client never arrived')
+    await landSync(client, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'wishlist_wish',
+          wish: {
+            ...lamp,
+            receivedAt: '2026-10-01T09:30:00.000Z',
+            updatedAt: '2026-10-01T09:30:00.000Z',
+          },
+        },
+      ],
+      tombstones: [],
+    })
+
+    // The save that never touched the switch sends the triple only: the
+    // mark another device landed is neither cleared nor re-marked.
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
+    expect(apiPut).toHaveBeenCalledTimes(1)
+    expect(apiPost).not.toHaveBeenCalled()
+    expect(apiDelete).not.toHaveBeenCalled()
+  })
+
+  it('an untouched switch does not re-mark a wish another device returned to open', async () => {
+    const lamp = wish({ receivedAt: '2026-09-30T10:00:00.000Z' })
+    let client: QueryClient | undefined
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: { ...lamp, receivedAt: undefined },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <>
+        <CaptureClient capture={(c) => (client = c)} />
+        <WishlistMineScreen />
+      </>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // Another device clears the mark while the sheet is open.
+    if (client === undefined) throw new Error('The query client never arrived')
+    await landSync(client, {
+      revision: '8',
+      changes: [
+        {
+          entity: 'wishlist_wish',
+          wish: { ...lamp, receivedAt: undefined, updatedAt: '2026-10-01T09:30:00.000Z' },
+        },
+      ],
+      tombstones: [],
+    })
+
+    // The untouched switch sends neither the clearing nor, against the row
+    // that is now open, the mark again.
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
+    expect(apiPut).toHaveBeenCalledTimes(1)
+    expect(apiPost).not.toHaveBeenCalled()
+    expect(apiDelete).not.toHaveBeenCalled()
+  })
+
+  it('sends an auto-capitalised link with its scheme lowercased', async () => {
+    const lamp = wish()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/wishlist/wishes/{wishId}') {
+        return {
+          data: lamp,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // A mobile keyboard's capital first letter is a link all the same: the
+    // guard reads the scheme case-insensitively, and the scheme leaves
+    // lowercased while the rest of the URL keeps its case.
+    await user.clear(screen.getByLabelText('Ссылка'))
+    await user.type(screen.getByLabelText('Ссылка'), 'Https://Ozon.ru/X')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    await waitFor(() =>
+      expect(apiPut).toHaveBeenCalledWith('/api/v1/wishlist/wishes/{wishId}', {
+        params: { path: { wishId: lamp.id } },
+        body: { title: lamp.title, details: lamp.details, link: 'https://Ozon.ru/X' },
+      }),
+    )
+    expect(await screen.findByText('Сохранено')).toBeInTheDocument()
   })
 
   it('says nothing is downloaded while the wishlist replay has not landed', async () => {

@@ -313,7 +313,12 @@ function normaliseDetails(details: string | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
+/**
+ * Unlike the details, the link needs no trim here: its contract pattern
+ * (`^https?://` and not a whitespace in sight) already refuses padded,
+ * empty, and whitespace-only values, so a link that arrives is stored as
+ * sent — only its absence becomes null.
+ */
 function normaliseLink(link: string | undefined): string | null {
-  const trimmed = link?.trim() ?? ''
-  return trimmed.length > 0 ? trimmed : null
+  return link ?? null
 }

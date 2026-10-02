@@ -32,11 +32,15 @@ export function WishRow({
               <Badge variant="ok">{t('wishlist.receivedPill')}</Badge>
             </span>
           )}
-          <span className={`text-h3 ${received ? 'text-muted-foreground line-through' : ''}`}>
+          {/* break-words: a title of the contract's 200 characters, or a
+              detail with no space in it, must wrap instead of overflowing. */}
+          <span
+            className={`break-words text-h3 ${received ? 'text-muted-foreground line-through' : ''}`}
+          >
             {wish.title}
           </span>
           {wish.details !== undefined && (
-            <span className="text-sm text-muted-foreground">{wish.details}</span>
+            <span className="text-sm break-words text-muted-foreground">{wish.details}</span>
           )}
           {wish.link !== undefined && (
             <a

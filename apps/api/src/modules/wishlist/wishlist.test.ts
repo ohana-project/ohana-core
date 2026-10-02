@@ -352,14 +352,40 @@ describe('the wishlist wishes (issue #18)', () => {
       expect(read.status).toBe(200)
       expect(read.body).toMatchObject({ title: 'Налобный фонарь' })
 
-      // Another space's wish does not exist for Аня.
+      // Another space's wish does not exist for Аня — the read and every
+      // write alike (pairs of members, pairs of spaces): the space scope
+      // answers 404 before the authorship rule could answer 403.
       const otherSpace = await harness.createSpace({ name: 'Другое пространство' })
       const stranger = await memberSession(app, adminCookie, otherSpace.id, 'Чужак')
       const foreign = await createWish(app, stranger, { title: 'Чужое желание' })
       expect(foreign.status).toBe(201)
-      const cross = await getWish(app, anna, (foreign.body as WishDto).id)
+      const foreignId = (foreign.body as WishDto).id
+
+      const cross = await getWish(app, anna, foreignId)
       expect(cross.status).toBe(404)
       expect(errorCode(cross.body)).toBe('wish_not_found')
+
+      const crossEdit = await editWish(app, anna, foreignId, { title: 'Моё теперь' })
+      expect(crossEdit.status).toBe(404)
+      expect(errorCode(crossEdit.body)).toBe('wish_not_found')
+
+      const crossRemove = await removeWish(app, anna, foreignId)
+      expect(crossRemove.status).toBe(404)
+      expect(errorCode(crossRemove.body)).toBe('wish_not_found')
+
+      const crossMark = await markReceived(app, anna, foreignId)
+      expect(crossMark.status).toBe(404)
+      expect(errorCode(crossMark.body)).toBe('wish_not_found')
+
+      const crossClear = await clearReceived(app, anna, foreignId)
+      expect(crossClear.status).toBe(404)
+      expect(errorCode(crossClear.body)).toBe('wish_not_found')
+
+      // Nothing of the refused writes landed: the stranger still reads
+      // their wish exactly as it was created.
+      const unchanged = await getWish(app, stranger, foreignId)
+      expect(unchanged.status).toBe(200)
+      expect(unchanged.body).toMatchObject({ title: 'Чужое желание' })
     })
   })
 
