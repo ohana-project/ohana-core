@@ -220,6 +220,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(chip).toHaveClass('break-all')
     expect(chip).not.toHaveClass('truncate')
     const anchor = chip.closest('a')
+    expect(anchor).not.toHaveClass('truncate')
     expect(anchor).toHaveAttribute('href', long.link)
     expect(anchor).toHaveAttribute('title', long.link)
   })
@@ -243,7 +244,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
 
   it('shows a link without a parseable hostname as it is', async () => {
     // The contract admits a percent in the host, the browser refuses it:
-    // the fallback's one real case.
+    // one of the cases the fallback really sees.
     const link = 'https://exa%mple.com/a/b'
     const odd = wish({
       id: '01900000-0000-7000-8000-000000000305',
