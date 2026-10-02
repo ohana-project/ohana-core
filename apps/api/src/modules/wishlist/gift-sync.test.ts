@@ -333,45 +333,73 @@ describe('the gift favorites and reservations in sync (issue #19)', () => {
       const space = await harness.createSpace()
       const anna = await memberSession(app, adminCookie, space.id, 'Аня')
       const dima = await memberSession(app, adminCookie, space.id, 'Дима')
+      const lyuda = await memberSession(app, adminCookie, space.id, 'Люда')
 
       const lamp = await createWish(app, dima, 'Налобный фонарь')
       const held = await reserve(app, anna, lamp.id)
       const annaCursor = (await sync(app, anna, '0')).revision
       const dimaCursor = (await sync(app, dima, '0')).revision
+      const lyudaCursor = (await sync(app, lyuda, '0')).revision
 
       await markReceived(app, dima, lamp.id)
 
       // The wish's received mark travels to everyone, the reservation's
-      // ending to every member but the author.
-      const annaDelta = await sync(app, anna, annaCursor)
-      expect(reservationsOf(annaDelta)).toEqual([])
-      expect(annaDelta.tombstones).toEqual([
-        {
-          entity: 'wishlist_gift_reservation',
-          entityId: held,
-          audience: 'member',
-          memberId: anna.memberId,
-        },
-      ])
+      // ending to every member but the author: reserver and bystander each
+      // receive the member-scoped tombstone naming them.
+      let annaDelta: SyncResponse | undefined
+      let lyudaDelta: SyncResponse | undefined
+      for (const [member, cursor] of [
+        [anna, annaCursor],
+        [lyuda, lyudaCursor],
+      ] as const) {
+        const delta = await sync(app, member, cursor)
+        if (member === anna) annaDelta = delta
+        if (member === lyuda) lyudaDelta = delta
+        expect(reservationsOf(delta)).toEqual([])
+        expect(delta.tombstones).toEqual([
+          {
+            entity: 'wishlist_gift_reservation',
+            entityId: held,
+            audience: 'member',
+            memberId: member.memberId,
+          },
+        ])
+      }
+      if (annaDelta === undefined || lyudaDelta === undefined) {
+        throw new Error('The bystander deltas were not read')
+      }
+      // The author's delta carries the wish's received mark and no
+      // reservation tombstone at all.
       const dimaDelta = await sync(app, dima, dimaCursor)
       expect(reservationsOf(dimaDelta)).toEqual([])
       expect(
         dimaDelta.tombstones.filter((row) => row.entity === 'wishlist_gift_reservation'),
       ).toEqual([])
 
-      // The removal takes the wish's favorites with it, tombstoned to the
-      // member who made each (issue #19).
+      // The removal ends the wish's favorite and its reservation: the
+      // tombstones fan out per member — the favoriter her favorite, the
+      // reserver and the bystander the reservation — while the author's
+      // delta carries the wish's tombstone alone (issue #19).
       const scarf = await createWish(app, dima, 'Шёлковый платок')
       const bookmark = await favorite(app, anna, scarf.id)
+      const heldScarf = await reserve(app, lyuda, scarf.id)
       const annaCursor2 = (await sync(app, anna, annaDelta.revision)).revision
       const dimaCursor2 = (await sync(app, dima, dimaDelta.revision)).revision
+      const lyudaCursor2 = (await sync(app, lyuda, lyudaDelta.revision)).revision
 
       await removeWish(app, dima, scarf.id)
 
       const annaDelta2 = await sync(app, anna, annaCursor2)
       expect(favoritesOf(annaDelta2)).toEqual([])
+      expect(reservationsOf(annaDelta2)).toEqual([])
       expect(annaDelta2.tombstones).toEqual([
         { entity: 'wishlist_wish', entityId: scarf.id, audience: 'all' },
+        {
+          entity: 'wishlist_gift_reservation',
+          entityId: heldScarf,
+          audience: 'member',
+          memberId: anna.memberId,
+        },
         {
           entity: 'wishlist_gift_favorite',
           entityId: bookmark,
@@ -379,8 +407,20 @@ describe('the gift favorites and reservations in sync (issue #19)', () => {
           memberId: anna.memberId,
         },
       ])
+      // Люда's delta: the wish's tombstone and her reservation's ending.
+      const lyudaDelta2 = await sync(app, lyuda, lyudaCursor2)
+      expect(lyudaDelta2.tombstones).toEqual([
+        { entity: 'wishlist_wish', entityId: scarf.id, audience: 'all' },
+        {
+          entity: 'wishlist_gift_reservation',
+          entityId: heldScarf,
+          audience: 'member',
+          memberId: lyuda.memberId,
+        },
+      ])
       // Дима's delta carries the wish's tombstone alone: he never had a
-      // favorite or a reservation to be told about.
+      // favorite or a reservation to be told about — and must never learn
+      // either existed on his wish.
       const dimaDelta2 = await sync(app, dima, dimaCursor2)
       expect(favoritesOf(dimaDelta2)).toEqual([])
       expect(reservationsOf(dimaDelta2)).toEqual([])

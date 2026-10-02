@@ -1,5 +1,5 @@
 {
-  "id": "a1dacd75-db83-4252-a8f9-bd6935ccb818",
+  "id": "62e5f5dc-0e92-4ae3-8df5-2405c29a6578",
   "prevId": "2f5e5917-ad7c-4a7a-ab52-8500f9c85f8d",
   "version": "7",
   "dialect": "postgresql",
@@ -1547,27 +1547,6 @@
             },
             {
               "expression": "revision",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "gift_reservations_wish_idx": {
-          "name": "gift_reservations_wish_idx",
-          "columns": [
-            {
-              "expression": "space_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "wish_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

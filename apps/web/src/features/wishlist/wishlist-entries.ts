@@ -93,10 +93,12 @@ function byFavoriteCreation(a: StoredGiftFavorite, b: StoredGiftFavorite): numbe
 }
 
 /**
- * The member's favorites with the wishes they name, favorite creation
- * order. A favorite whose wish is absent is skipped: after an applied sync
- * the two live and die in one transaction, so the pair is only ever
- * sighted mid-replay, and a bookmark without its wish has nothing to show.
+ * The member's favorites still worth giving, favorite creation order: the
+ * bookmark of an open wish that is present in the partition. A favorite
+ * whose wish is absent is skipped — after an applied sync the two live and
+ * die in one transaction, so the pair is only ever sighted mid-replay —
+ * and a received wish is skipped with its bookmark: the idea was given, it
+ * is no longer something to shortlist (issue #19).
  */
 export function favoritesWithWishes(
   favorites: StoredGiftFavorite[],
@@ -105,7 +107,9 @@ export function favoritesWithWishes(
   const joined: Array<{ favorite: StoredGiftFavorite; wish: StoredWish }> = []
   for (const favorite of [...favorites].sort(byFavoriteCreation)) {
     const wish = wishById(wishes, favorite.wishId)
-    if (wish !== undefined) joined.push({ favorite, wish })
+    if (wish !== undefined && wish.receivedAt === undefined) {
+      joined.push({ favorite, wish })
+    }
   }
   return joined
 }

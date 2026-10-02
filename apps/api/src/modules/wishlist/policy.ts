@@ -76,19 +76,11 @@ export function assertWishNotAuthoredBy(
 /**
  * A gift favorite is visible to the member who made it alone (issue #19,
  * CONTEXT.md, gift favorite): other members never see it, and its
- * tombstones name that one member as their audience. The rule reads
- * backwards on purpose — `favoriteVisibleTo` is asked by every read whose
- * candidate rows are someone's favorites, and only the owner's own pass.
- */
-export function favoriteVisibleTo(favorite: { memberId: string }, memberId: string): boolean {
-  return favorite.memberId === memberId
-}
-
-/**
- * The favorite rule in its SQL dialect (architecture.md, "Sync
- * contributors"): the queries that must decide visibility inside SQL —
- * the own-favorites listing and the sync contributor's delta — carry the
- * same narrowing beside their space scope.
+ * tombstones name that one member as their audience. The rule lives here
+ * in its SQL dialect (architecture.md, "Sync contributors") because every
+ * read of favorites — the own listing and the sync contributor's delta —
+ * decides it inside SQL; a favorite row the member does not own never
+ * reaches a service hand to compare.
  */
 export function favoriteVisibleToSql(memberId: string): SQL {
   return eq(giftFavorites.memberId, memberId)

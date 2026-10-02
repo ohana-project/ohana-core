@@ -9,6 +9,7 @@ import {
   countOwnersInSpace,
   getMemberInSpace,
   insertMember,
+  listMemberIdsInSpace,
   listMembersInSpace,
   updateMemberProfile,
   updateMemberRole,
@@ -174,14 +175,14 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
 }
 
 /**
- * The members of the space, read inside a caller's transaction: a section
+ * The space's member ids, read inside a caller's transaction: a section
  * module whose deletion concerns more members than its actor — the
  * wishlist's reservation leaves every member's view except the wish's
  * author's (issue #19) — writes one tombstone per member, and the audience
  * must be read under the same space row lock the deletion runs behind.
  */
-export async function listMembersInTx(tx: Tx, spaceId: string): Promise<Member[]> {
-  return listMembersInSpace(tx, spaceId)
+export async function listMemberIdsInTx(tx: Tx, spaceId: string): Promise<string[]> {
+  return listMemberIdsInSpace(tx, spaceId)
 }
 
 /**

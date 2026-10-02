@@ -233,7 +233,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {t('wishlist.reserveConfirmTitle', { name: confirmReserveWish.title })}
+                {t('wishlist.reserveConfirmTitle', { title: confirmReserveWish.title })}
               </DialogTitle>
               <DialogDescription>{t('wishlist.reserveConfirmText', { name })}</DialogDescription>
             </DialogHeader>

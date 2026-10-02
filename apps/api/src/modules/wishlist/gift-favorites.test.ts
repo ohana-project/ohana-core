@@ -273,6 +273,32 @@ describe('the gift favorites (issue #19)', () => {
     })
   })
 
+  test('a raced double favorite still leaves one bookmark', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+      const dima = await memberSession(app, adminCookie, space.id, 'Дима')
+
+      const lamp = await createWish(app, dima, 'Налобный фонарь')
+
+      // The member's two presses race: the space row lock serialises them,
+      // and the unique index stands behind it — exactly one bookmark is
+      // born, and the loser is refused, never a 500.
+      const [first, second] = await Promise.all([
+        favorite(app, anna, lamp.id),
+        favorite(app, anna, lamp.id),
+      ])
+      const statuses = [first.status, second.status].sort((a, b) => a - b)
+      expect(statuses).toEqual([201, 409])
+      const refused = first.status === 409 ? first.body : second.body
+      expect(errorCode(refused)).toBe('wish_already_favorited')
+
+      const listing = await listFavorites(app, anna)
+      expect((listing.body as { favorites: GiftFavoriteDto[] }).favorites).toHaveLength(1)
+    })
+  })
+
   test('a stranger’s wish in another space answers 404, hidden section answers section_hidden', async () => {
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)

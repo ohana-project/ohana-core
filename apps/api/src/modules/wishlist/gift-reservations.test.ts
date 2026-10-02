@@ -395,6 +395,37 @@ describe('the gift reservations (issue #19)', () => {
     })
   })
 
+  test('two members reaching for the same free wish leave exactly one reservation', async () => {
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const space = await harness.createSpace()
+      const anna = await memberSession(app, adminCookie, space.id, 'Аня')
+      const dima = await memberSession(app, adminCookie, space.id, 'Дима')
+      const lyuda = await memberSession(app, adminCookie, space.id, 'Люда')
+
+      const lamp = await createWish(app, lyuda, 'Налобный фонарь')
+
+      // The two writes race: the space row lock serialises them, and the
+      // unique index on the wish stands behind it — either way exactly one
+      // reservation is born, and the loser is refused, never a 500.
+      const [first, second] = await Promise.all([
+        reserve(app, anna, lamp.id),
+        reserve(app, dima, lamp.id),
+      ])
+      const outcomes = [
+        { status: first.status, code: first.status === 201 ? undefined : errorCode(first.body) },
+        { status: second.status, code: second.status === 201 ? undefined : errorCode(second.body) },
+      ].sort((a, b) => a.status - b.status)
+      expect(outcomes[0]).toEqual({ status: 201, code: undefined })
+      expect(outcomes[1]).toEqual({ status: 409, code: 'wish_already_reserved' })
+
+      // The winner is on record, once — readable by any member but the
+      // wish's author.
+      const listing = await listReservations(app, anna)
+      expect((listing.body as { reservations: GiftReservationDto[] }).reservations).toHaveLength(1)
+    })
+  })
+
   test('a stranger’s wish in another space answers 404, hidden section answers section_hidden', async () => {
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)

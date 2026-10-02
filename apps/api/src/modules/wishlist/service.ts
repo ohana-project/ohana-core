@@ -1,7 +1,7 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
-import { listMembersInTx } from '../members/index.ts'
+import { listMemberIdsInTx } from '../members/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import type { WriteWishBody } from './contracts.ts'
@@ -10,7 +10,12 @@ import {
   WISHLIST_GIFT_RESERVATION_SYNC_ENTITY,
   WISHLIST_WISH_SYNC_ENTITY,
 } from './contracts.ts'
-import { assertWishAuthoredBy, assertWishNotAuthoredBy, wishVisibleTo } from './policy.ts'
+import {
+  assertWishAuthoredBy,
+  assertWishNotAuthoredBy,
+  reservationVisibleTo,
+  wishVisibleTo,
+} from './policy.ts'
 import {
   clearWishReceived,
   deleteGiftFavorite,
@@ -519,7 +524,9 @@ export async function cancelReservation(
   await deps.db.transaction(async (tx) => {
     await requireVisibleSectionInTx(tx, actor.spaceId, 'wishlist')
     const wish = await requireWishInSpace(tx, actor, wishId)
-    if (wish.authorMemberId === actor.memberId) {
+    if (!reservationVisibleTo({ wishAuthorMemberId: wish.authorMemberId }, actor.memberId)) {
+      // The author's probe answers what an unreserved wish answers: the
+      // same refusal whether or not a reservation is held.
       throw new DomainError('wish_not_reserved', `Wish ${wishId} is not reserved`, 409)
     }
     const reservation = await getGiftReservationInSpace(tx, actor.spaceId, wishId)
@@ -565,7 +572,9 @@ export async function getWishReservation(
   wishId: string,
 ): Promise<GiftReservation> {
   const wish = await requireWishInSpace(deps.db, actor, wishId)
-  if (wish.authorMemberId === actor.memberId) {
+  if (!reservationVisibleTo({ wishAuthorMemberId: wish.authorMemberId }, actor.memberId)) {
+    // The author's probe answers what an unreserved wish answers, whether
+    // or not a reservation is held.
     throw notFound('reservation_not_found', `Wish ${wishId} has no active reservation`)
   }
   const reservation = await getGiftReservationInSpace(deps.db, actor.spaceId, wishId)
@@ -609,19 +618,19 @@ export async function listChangedGiftReservations(
  * a reservation existed, not even that one ended.
  */
 async function tombstonesForReservationEnding(
-  tx: Parameters<typeof listMembersInTx>[0],
+  tx: Parameters<typeof listMemberIdsInTx>[0],
   spaceId: string,
   reservationId: string,
   authorMemberId: string,
 ): Promise<TombstoneInput[]> {
-  const members = await listMembersInTx(tx, spaceId)
-  return members
-    .filter((member) => member.id !== authorMemberId)
+  const memberIds = await listMemberIdsInTx(tx, spaceId)
+  return memberIds
+    .filter((memberId) => memberId !== authorMemberId)
     .map(
-      (member): TombstoneInput => ({
+      (memberId): TombstoneInput => ({
         entity: WISHLIST_GIFT_RESERVATION_SYNC_ENTITY,
         entityId: reservationId,
-        audience: { kind: 'member', memberId: member.id },
+        audience: { kind: 'member', memberId },
       }),
     )
 }

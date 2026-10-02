@@ -31,5 +31,4 @@ ALTER TABLE "gift_reservations" ADD CONSTRAINT "gift_reservations_space_id_wish_
 CREATE INDEX "gift_favorites_member_idx" ON "gift_favorites" USING btree ("space_id","member_id","created_at");--> statement-breakpoint
 CREATE INDEX "gift_favorites_wish_idx" ON "gift_favorites" USING btree ("space_id","wish_id");--> statement-breakpoint
 CREATE INDEX "gift_favorites_sync_idx" ON "gift_favorites" USING btree ("space_id","revision");--> statement-breakpoint
-CREATE INDEX "gift_reservations_sync_idx" ON "gift_reservations" USING btree ("space_id","revision");--> statement-breakpoint
-CREATE INDEX "gift_reservations_wish_idx" ON "gift_reservations" USING btree ("space_id","wish_id");
+CREATE INDEX "gift_reservations_sync_idx" ON "gift_reservations" USING btree ("space_id","revision");

@@ -11,7 +11,7 @@ import { Icon } from '@/ui/icon.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { useWishlistData } from './use-wishlist.ts'
-import { authorName, openWishesOf, wishesOf } from './wishlist-entries.ts'
+import { authorName, favoritesWithWishes, openWishesOf, wishesOf } from './wishlist-entries.ts'
 import { WishlistShell } from './wishlist-shell.tsx'
 
 /*
@@ -29,6 +29,9 @@ export function WishlistsScreen() {
   const mine = meId === undefined ? [] : wishesOf(wishes, meId)
   const mineOpen = openWishesOf(wishes, meId ?? '')
   const mineReceived = mine.length - mineOpen.length
+  // The same derivation the favorites screen counts, so the two numbers
+  // cannot disagree: absent wishes and received ones are left out.
+  const savedIdeas = favoritesWithWishes(favorites, wishes)
   const others = profiles.filter((profile) => profile.id !== meId)
 
   return (
@@ -99,7 +102,7 @@ export function WishlistsScreen() {
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="text-sm font-semibold">{t('wishlist.favoritesTitle')}</span>
                       <span className="text-sm text-muted-foreground">
-                        {t('wishlist.favoritesCount', { count: favorites.length })} ·{' '}
+                        {t('wishlist.favoritesCount', { count: savedIdeas.length })} ·{' '}
                         {t('wishlist.favoritesPrivate')}
                       </span>
                     </div>
