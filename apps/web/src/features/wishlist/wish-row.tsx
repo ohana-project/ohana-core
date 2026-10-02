@@ -4,7 +4,7 @@ import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Icon } from '@/ui/icon.tsx'
-import { chipDomainParts } from './wishlist-entries.ts'
+import { chipDomain } from './wishlist-entries.ts'
 
 /**
  * One wish row (the prototypes' wish card, issue #18): the received mark
@@ -23,7 +23,6 @@ export function WishRow({
 }) {
   const { t } = useTranslation()
   const received = wish.receivedAt !== undefined
-  const chip = wish.link !== undefined ? chipDomainParts(wish.link) : undefined
   return (
     <Card className="gap-0 py-0">
       <div className="flex items-start gap-3 px-5 py-4">
@@ -48,18 +47,15 @@ export function WishRow({
               href={wish.link}
               target="_blank"
               rel="noopener noreferrer"
-              // The full target stays reachable: the chip's text may be
-              // cut, the tooltip never is.
+              // The full target on hover, beside whatever the chip shows.
               title={wish.link}
-              className="inline-flex w-fit max-w-full items-center gap-1.5 text-sm text-accent hover:underline"
+              className="inline-flex w-fit max-w-full items-start gap-1.5 text-sm text-accent hover:underline"
             >
               <Icon name="globe" className="size-4 shrink-0" />
-              <span className="flex min-w-0 items-baseline">
-                {/* The head yields first; the tail, the hostname's last
-                    two labels, never does. */}
-                <span className="min-w-0 truncate">{chip?.head}</span>
-                <span className="shrink-0">{chip?.tail}</span>
-              </span>
+              {/* break-all: a hostname has no space in it, so the whole
+                  of it wraps instead of ever being cut — nothing of
+                  where the link resolves is hidden, on any width. */}
+              <span className="break-all">{chipDomain(wish.link)}</span>
             </a>
           )}
         </div>

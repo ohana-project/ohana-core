@@ -45,9 +45,9 @@ export function authorName(
 /**
  * The hostname of a wish's link, or undefined when the browser cannot
  * parse it (the API's contract already refuses most): such a link has no
- * hostname, so the chip has no tail to protect.
+ * hostname, and the chip falls back to the raw link.
  */
-export function linkDomain(link: string): string | undefined {
+function linkDomain(link: string): string | undefined {
   try {
     return new URL(link).hostname.replace(/^www\./, '')
   } catch {
@@ -56,20 +56,15 @@ export function linkDomain(link: string): string | undefined {
 }
 
 /**
- * The domain chip's two spans: the head yields under a narrow row, and
- * the tail — the hostname's last two labels, what says where the link
- * resolves — never does, so a lookalike host cannot hide its resolving
- * end. A link without a parseable hostname has no identifying tail: the
- * whole of it sits in the head, where the cut may land on either side —
- * and CSS cuts no surrogate pair in half.
+ * The domain chip's text: the whole hostname, however long — the row
+ * wraps it rather than hiding where the link resolves (a cut-off
+ * lookalike host is a hazard no truncation direction can fix) — or the
+ * raw link when the browser cannot parse one. `URL` already strips a
+ * userinfo lookalike: `https://ozon.ru@evil.net/` resolves to
+ * `evil.net`, and that is what the chip says.
  */
-export function chipDomainParts(link: string): { head: string; tail: string } {
-  const domain = linkDomain(link)
-  if (domain === undefined) return { head: link, tail: '' }
-  const labels = domain.split('.')
-  if (labels.length < 3) return { head: '', tail: domain }
-  const tail = labels.slice(-2).join('.')
-  return { head: domain.slice(0, domain.length - tail.length), tail }
+export function chipDomain(link: string): string {
+  return linkDomain(link) ?? link
 }
 
 /** The wish list's meta line, for the person screen: "обновлено вчера в 21:04". */

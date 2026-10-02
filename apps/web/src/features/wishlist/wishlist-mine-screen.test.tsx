@@ -199,7 +199,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(screen.getByText('wildberries.ru')).toBeInTheDocument()
   })
 
-  it('yields the domain chip at its head, keeping the resolving tail', async () => {
+  it('shows the whole hostname, however long, wrapping instead of hiding its end', async () => {
     const long = wish({
       id: '01900000-0000-7000-8000-000000000304',
       title: 'Сертификат',
@@ -212,18 +212,34 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     renderWithProviders(<WishlistMineScreen />)
 
     expect(await screen.findByText('Сертификат')).toBeInTheDocument()
-    // The head span yields under a narrow row; the tail — the last two
-    // labels, what says where the link resolves — never does.
-    const tail = screen.getByText('example.net')
-    expect(screen.getByText('ozon.ru.account-check.')).toBeInTheDocument()
-    // The full target stays on the chip, tooltip and href alike.
-    const anchor = tail.closest('a')
+    // The chip never truncates: every label of the hostname stays on the
+    // card, the row wrapping it instead — no cut can hide where the link
+    // resolves.
+    const chip = screen.getByText('ozon.ru.account-check.example.net')
+    const anchor = chip.closest('a')
     expect(anchor).toHaveAttribute('href', long.link)
     expect(anchor).toHaveAttribute('title', long.link)
   })
 
+  it('resolves a userinfo lookalike to the host that answers, not the prefix', async () => {
+    const lookalike = wish({
+      id: '01900000-0000-7000-8000-000000000306',
+      title: 'Подарок',
+      details: undefined,
+      link: 'https://ozon.ru@evil.net/x',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lookalike]))
+    mockQuietSync()
+    renderWithProviders(<WishlistMineScreen />)
+
+    expect(await screen.findByText('Подарок')).toBeInTheDocument()
+    expect(screen.getByText('evil.net')).toBeInTheDocument()
+    expect(screen.queryByText('ozon.ru@evil.net')).not.toBeInTheDocument()
+  })
+
   it('shows a link without a parseable hostname as it is', async () => {
-    const link = 'https://exa%mple.com/a/b'
+    const link = 'https://exa mple.com/a/b'
     const odd = wish({
       id: '01900000-0000-7000-8000-000000000305',
       title: 'Открытка',
@@ -236,8 +252,8 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     renderWithProviders(<WishlistMineScreen />)
 
     expect(await screen.findByText('Открытка')).toBeInTheDocument()
-    // No hostname to protect: the raw link is the chip, cut where the
-    // row must cut it.
+    // No hostname to show: the raw link is the chip, wrapping like any
+    // other.
     expect(screen.getByText(link)).toBeInTheDocument()
   })
 
