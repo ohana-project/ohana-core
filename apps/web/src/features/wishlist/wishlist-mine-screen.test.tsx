@@ -214,8 +214,11 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(await screen.findByText('Сертификат')).toBeInTheDocument()
     // The chip never truncates: every label of the hostname stays on the
     // card, the row wrapping it instead — no cut can hide where the link
-    // resolves.
+    // resolves. The classes pin the wrapping: a span that truncated or
+    // shrank would keep the text in the DOM and pass this test green.
     const chip = screen.getByText('ozon.ru.account-check.example.net')
+    expect(chip).toHaveClass('break-all')
+    expect(chip).not.toHaveClass('truncate')
     const anchor = chip.closest('a')
     expect(anchor).toHaveAttribute('href', long.link)
     expect(anchor).toHaveAttribute('title', long.link)
@@ -239,7 +242,9 @@ describe('WishlistMineScreen (the own wishlist)', () => {
   })
 
   it('shows a link without a parseable hostname as it is', async () => {
-    const link = 'https://exa mple.com/a/b'
+    // The contract admits a percent in the host, the browser refuses it:
+    // the fallback's one real case.
+    const link = 'https://exa%mple.com/a/b'
     const odd = wish({
       id: '01900000-0000-7000-8000-000000000305',
       title: 'Открытка',
@@ -255,6 +260,24 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     // No hostname to show: the raw link is the chip, wrapping like any
     // other.
     expect(screen.getByText(link)).toBeInTheDocument()
+  })
+
+  it('falls back to the raw link when the hostname strips to nothing', async () => {
+    const bare = wish({
+      id: '01900000-0000-7000-8000-000000000307',
+      title: 'Шарф',
+      details: undefined,
+      link: 'https://www./x',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([bare]))
+    mockQuietSync()
+    renderWithProviders(<WishlistMineScreen />)
+
+    expect(await screen.findByText('Шарф')).toBeInTheDocument()
+    // `www.` strips to an empty hostname: a lone globe with an
+    // unlabelled target is not the answer, the raw link is.
+    expect(screen.getByText(bare.link as string)).toBeInTheDocument()
   })
 
   it('offers the first wish when the list is empty', async () => {

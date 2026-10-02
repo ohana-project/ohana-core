@@ -59,12 +59,13 @@ function linkDomain(link: string): string | undefined {
  * The domain chip's text: the whole hostname, however long — the row
  * wraps it rather than hiding where the link resolves (a cut-off
  * lookalike host is a hazard no truncation direction can fix) — or the
- * raw link when the browser cannot parse one. `URL` already strips a
- * userinfo lookalike: `https://ozon.ru@evil.net/` resolves to
- * `evil.net`, and that is what the chip says.
+ * raw link when the browser cannot parse one, or parses one with no
+ * hostname left. `URL` already strips a userinfo lookalike:
+ * `https://ozon.ru@evil.net/` resolves to `evil.net`, and that is what
+ * the chip says.
  */
 export function chipDomain(link: string): string {
-  return linkDomain(link) ?? link
+  return linkDomain(link) || link
 }
 
 /** The wish list's meta line, for the person screen: "обновлено вчера в 21:04". */

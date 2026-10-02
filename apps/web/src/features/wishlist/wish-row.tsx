@@ -47,11 +47,12 @@ export function WishRow({
               href={wish.link}
               target="_blank"
               rel="noopener noreferrer"
-              // The full target on hover, beside whatever the chip shows.
+              // The full target on hover: the chip shows only the
+              // hostname, or the raw link when there is none.
               title={wish.link}
               className="inline-flex w-fit max-w-full items-start gap-1.5 text-sm text-accent hover:underline"
             >
-              <Icon name="globe" className="size-4 shrink-0" />
+              <Icon name="globe" className="mt-0.5 size-4 shrink-0" />
               {/* break-all: a hostname has no space in it, so the whole
                   of it wraps instead of ever being cut — nothing of
                   where the link resolves is hidden, on any width. */}
