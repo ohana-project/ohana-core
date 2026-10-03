@@ -359,10 +359,12 @@ fi
 # with. There is no override short of erasing the data, so this comes
 # before the overwrite refusal below. The project name from the .env is
 # normalised for the label lookup only: surrounding whitespace, quotes as
-# a matched pair, and comments after whitespace are valid to Compose but
+# a matched pair, and comments after a space are valid to Compose but
 # never appear in a label. A value Compose itself would reject is refused
 # here — it would only fail later, after the files have been rewritten.
-old_project_lookup=$(printf '%s' "$old_compose_project_name" | sed 's/^[[:space:]]*//; s/[[:space:]]\{1,\}#.*//; s/[[:space:]]*$//; s/^"\(.*\)"$/\1/; s/^'\''\(.*\)'\''$/\1/')
+# (A name glued to its comment, install"#pinned, is refused although
+# Compose accepts it; the safe side of the two.)
+old_project_lookup=$(printf '%s' "$old_compose_project_name" | sed 's/^[[:space:]]*//; s/[[:space:]]* #.*//; s/[[:space:]]*$//; s/^"\(.*\)"$/\1/; s/^'\''\(.*\)'\''$/\1/')
 case "$old_project_lookup" in
 '') ;;
 [!a-z0-9]* | *[!a-z0-9_-]*)
@@ -401,7 +403,9 @@ if [ -n "$locked_volume" ]; then
 $(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)
 EOF
 	if [ "$has_foreign" -eq 1 ]; then
-		if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+		if [ -n "$COMPOSE_PROJECT_NAME" ] && [ "$COMPOSE_PROJECT_NAME" = "$old_project_lookup" ]; then
+			remedy='change the COMPOSE_PROJECT_NAME line in .env and the COMPOSE_PROJECT_NAME in the environment'
+		elif [ -n "$COMPOSE_PROJECT_NAME" ]; then
 			remedy='choose a different COMPOSE_PROJECT_NAME (or unset it)'
 		elif [ -n "$old_project_lookup" ]; then
 			remedy='change the COMPOSE_PROJECT_NAME line in .env'

@@ -296,11 +296,16 @@ jobs:
         with:
           base-url: http://localhost:3210
 
-      - name: Reinstalling without the volume's secrets refuses, --force too
+      - name: The data-volume guard refuses without the volume's secrets
         working-directory: deploy/install
         run: |
           # Every refusal here is asserted on what it says, not just on a
-          # non-zero exit, and on the files it leaves behind.
+          # non-zero exit, and on the files it leaves behind. The guard
+          # runs before any download and before the overwrite refusal, so
+          # no shim is needed. The .env is the only file removed: a
+          # realistic operator deletes exactly the file that holds the
+          # secrets. The stack of the --force step above is still up, so
+          # its data volumes exist.
           expect() {
             if ! printf '%s\n' "$out" | grep -q "$1"; then
               echo "::error::expected the refusal to mention: $1"
@@ -313,19 +318,34 @@ jobs:
               exit 1
             fi
           }
-          # The guard runs before any download and before the overwrite
-          # refusal, so no shim is needed. The .env is the only file
-          # removed: a realistic operator deletes exactly the file that
-          # holds the secrets. The stack of the --force step above is
-          # still up, so its data volumes exist.
+          same() {
+            if ! cmp "$1" "$2"; then
+              echo "::error::$3"
+              exit 1
+            fi
+          }
+          checked_absent() {
+            if [ -e "$1" ]; then
+              echo "::error::$1 should not exist"
+              exit 1
+            fi
+          }
+          checked_present() {
+            if [ ! -f "$1" ]; then
+              echo "::error::$1 should still exist"
+              exit 1
+            fi
+          }
           mv .env "$RUNNER_TEMP/kept-env"
           ls -A > "$RUNNER_TEMP/ls-before-guard"
+
+          # Ours: the volume belongs to this directory, so the refusal
+          # prints the erase remedy (while the containers are up).
           if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
             echo '::error::reinstalling over a data volume without its secrets succeeded'
             exit 1
           fi
           expect 'data volume'
-          # The "ours" arm of the guard prints the erase remedy.
           expect 'down --volumes'
           # --force must not bypass the guard either: without the secrets
           # there is no way past it. A bypass would fall through to the
@@ -336,12 +356,13 @@ jobs:
           fi
           expect 'data volume'
           ls -A > "$RUNNER_TEMP/ls-after-guard"
-          cmp "$RUNNER_TEMP/ls-before-guard" "$RUNNER_TEMP/ls-after-guard"
-          [ ! -e .env ]
-          [ -f compose.yaml ]
-          # A project living in another directory must not be erasable
-          # from here: the refusal names no erase command, and its advice
-          # matches where the clashing name came from (the environment).
+          same "$RUNNER_TEMP/ls-before-guard" "$RUNNER_TEMP/ls-after-guard" "the refused run changed the directory"
+          checked_absent .env
+          checked_present compose.yaml
+
+          # Foreign: the same project name is claimed by another
+          # directory, so nothing may be erased from here. The advice
+          # matches where the clashing name came from: the environment.
           mkdir -p "$RUNNER_TEMP/other-install"
           if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
             echo '::error::a foreign directory could reinstall over the project'
@@ -350,20 +371,66 @@ jobs:
           expect 'must not be erased from here'
           expect 'choose a different COMPOSE_PROJECT_NAME'
           forbid 'down --volumes'
-          # With the containers gone but the volumes kept, ownership is
-          # unknown: the message may name the volume for manual inspection
-          # but must not run an erase itself.
+          # ... from a pin in the foreign directory's own .env ...
+          printf 'COMPOSE_PROJECT_NAME=install\n' > "$RUNNER_TEMP/other-install/.env"
+          if out=$(cd "$RUNNER_TEMP/other-install" && sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'must not be erased from here'
+          expect 'change the COMPOSE_PROJECT_NAME line in .env'
+          forbid 'down --volumes'
+          rm "$RUNNER_TEMP/other-install/.env"
+          # ... and from the directory name alone.
+          mkdir -p "$RUNNER_TEMP/elsewhere/install"
+          if out=$(cd "$RUNNER_TEMP/elsewhere/install" && sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'must not be erased from here'
+          expect 'install into a differently named directory'
+          forbid 'down --volumes'
+
+          # The ours-remedy, executed exactly as the message prints it —
+          # with the containers still up, as the operator would run it: it
+          # stops them and takes the data volumes with it.
+          docker compose -p install down --volumes
+          [ -z "$(docker ps -aq --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the guard remedy left containers behind'; exit 1; }
+          [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the guard remedy left data volumes behind'; exit 1; }
+
+          # Unknown: with the containers gone but volumes kept, nothing
+          # attributes the volume to this directory. The message names the
+          # volume for manual inspection, and its own erase instructions
+          # work in the state it describes.
+          POSTGRES_PASSWORD=dummy STORAGE_ACCESS_KEY=dummy STORAGE_SECRET_KEY=dummy \
+            docker compose -p install up -d postgres rustfs
           docker compose -p install down
+          [ -n "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the unknown-ownership setup created no volumes'; exit 1; }
           if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
             echo '::error::reinstalling over an unattributable volume succeeded'
             exit 1
           fi
           expect 'cannot tell whether that volume is this directory'
-          expect 'docker volume rm'
           forbid 'docker compose -p install down --volumes'
+          volume=$(printf '%s\n' "$out" | sed -n 's/.*docker volume rm \([^ ,]*\).*/\1/p')
+          docker volume inspect "$volume" > /dev/null ||
+            { echo '::error::the printed volume does not exist'; exit 1; }
+          docker volume rm "$volume" > /dev/null
+          # With that volume erased, the guard names the remaining one.
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling succeeded with a data volume left'
+            exit 1
+          fi
+          expect 'rustfs-data'
+          forbid "$volume"
           # A .env that kept the database password and only one storage
           # key must hit the media-volume branch: the missing secret key
-          # is what the second arm of the guard's condition catches.
+          # is what the second arm of the guard's condition catches. With
+          # the containers down this flows through the unknown arm, whose
+          # message names the media volume all the same.
           printf 'POSTGRES_PASSWORD=x\nSTORAGE_ACCESS_KEY=x\n' > .env
           if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
             echo '::error::the media-volume branch did not refuse'
@@ -371,23 +438,10 @@ jobs:
           fi
           expect 'rustfs-data'
           rm .env
-          # The ours-remedy, executed exactly as the message prints it —
-          # with the containers still up, as the operator would run it: it
-          # stops them and takes the data volumes with it.
-          docker compose -p install down --volumes
-          [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
-            { echo '::error::the guard remedy left data volumes behind'; exit 1; }
-          # Recreate the volumes, then take the containers away: the
-          # unknown-ownership state. Its own erase instructions must work
-          # there, and the earlier down --volumes must not be relied on.
-          POSTGRES_PASSWORD=dummy STORAGE_ACCESS_KEY=dummy STORAGE_SECRET_KEY=dummy \
-            docker compose -p install up -d postgres
-          docker compose -p install down
-          [ -n "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
-            { echo '::error::the unknown-ownership setup created no volumes'; exit 1; }
+          # Nothing was left behind for the next step.
           docker volume rm $(docker volume ls -q --filter label=com.docker.compose.project=install) > /dev/null
           [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
-            { echo '::error::the manual volume erase left data volumes behind'; exit 1; }
+            { echo '::error::data volumes were left behind'; exit 1; }
           mv "$RUNNER_TEMP/kept-env" .env
 
       - name: Install through the script onto an external proxy network
