@@ -69,18 +69,25 @@ export function endpointHost(endpoint: string): string {
  */
 export function pushLogError(error: unknown): {
   name?: string
-  statusCode?: unknown
-  code?: unknown
+  statusCode?: number
+  code?: string | number
 } {
   const candidate = error as {
-    name?: string
+    name?: unknown
     statusCode?: unknown
     code?: unknown
     cause?: { code?: unknown }
   }
   return {
-    name: candidate?.name,
-    statusCode: candidate?.statusCode,
-    code: candidate?.code ?? candidate?.cause?.code,
+    // Only scalars travel: a field an error object stuffed a payload into
+    // stays behind with the object.
+    name: typeof candidate?.name === 'string' ? candidate.name : undefined,
+    statusCode: typeof candidate?.statusCode === 'number' ? candidate.statusCode : undefined,
+    code:
+      typeof candidate?.code === 'string' || typeof candidate?.code === 'number'
+        ? candidate.code
+        : typeof candidate?.cause?.code === 'string' || typeof candidate?.cause?.code === 'number'
+          ? candidate.cause.code
+          : undefined,
   }
 }

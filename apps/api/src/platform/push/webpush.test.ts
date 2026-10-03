@@ -89,9 +89,24 @@ describe('web push sender', () => {
       logger,
       SUBJECT,
     )
-    sendNotification.mockRejectedValueOnce(Object.assign(new Error('busy'), { statusCode: 429 }))
+    sendNotification.mockRejectedValueOnce(
+      Object.assign(new Error('busy'), {
+        name: 'WebPushError',
+        statusCode: 429,
+        // The library's own error carries the capability URL as fields.
+        endpoint: CREDENTIALS.endpoint,
+        body: CREDENTIALS.endpoint,
+      }),
+    )
     await sender.send(CREDENTIALS, { title: 't', body: 'b' })
     expect(warn).toHaveBeenCalledTimes(1)
+    // The log carries the narrowed error and the host — never the raw
+    // error object whose fields hold the endpoint.
+    expect(warn.mock.calls[0]?.[0]).toEqual({
+      err: { name: 'WebPushError', statusCode: 429, code: undefined },
+      endpointHost: 'push.example',
+    })
+    expect(JSON.stringify(warn.mock.calls[0])).not.toContain(CREDENTIALS.endpoint)
     sendNotification.mockResolvedValueOnce(undefined)
     await sender.send(CREDENTIALS, { title: 't', body: 'b' })
     expect(warn).toHaveBeenCalledTimes(1)

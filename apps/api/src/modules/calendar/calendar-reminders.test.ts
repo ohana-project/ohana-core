@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { afterAll, afterEach, describe, expect, test } from 'vitest'
+import { afterAll, afterEach, describe, expect, test, vi } from 'vitest'
 import { type FixedClock, fixedClock } from '../../platform/clock.ts'
 import { createSilentLogger } from '../../platform/logging.ts'
 import {
@@ -1292,7 +1292,13 @@ describe("the delivery run's failure ordering", () => {
       credentials.endpoint.includes('anya') ? 'expired' : 'delivered',
     )
     const failing = dbFailingOnNthTransaction(harness.db, 3)
-    const deps = { ...reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z'))), db: failing }
+    const logger = createSilentLogger()
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    const deps = {
+      ...reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z'))),
+      db: failing,
+      logger,
+    }
 
     // The run resolves: the receipt is already written, the cleanup's
     // failure is the logged loss, not the job's.
@@ -1303,6 +1309,8 @@ describe("the delivery run's failure ordering", () => {
         originalDate: '2026-01-10',
       }),
     ).resolves.toBeUndefined()
+    // The log tells the narrowed story — never the capability URL.
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('fcm/send/anya-phone')
     const receipted = await harness.db
       .select()
       .from(calendarRemindersSent)
@@ -1358,13 +1366,15 @@ describe("the delivery run's failure ordering", () => {
       .from(calendarRemindersSent)
       .where(eq(calendarRemindersSent.eventId, event.id))
     expect(claims).toHaveLength(0)
-    // Both rows stand: the cleanup is the failing transaction here, and
+    // Anya's row stands: the cleanup is the failing transaction here, and
     // best-effort means its failure costs the removal, never the release.
-    const rows = await harness.db
+    // (Boris was never a removal candidate — his send failed, it did not
+    // answer expired — so his row is untouched either way.)
+    const anyaRows = await harness.db
       .select()
       .from(pushSubscriptions)
       .where(eq(pushSubscriptions.memberId, anya.id))
-    expect(rows).toHaveLength(1)
+    expect(anyaRows).toHaveLength(1)
     const borisRows = await harness.db
       .select()
       .from(pushSubscriptions)
@@ -1430,19 +1440,32 @@ describe("the delivery run's failure ordering", () => {
 
 describe("the sweep's failures ride the aggregate", () => {
   test("a failing claims prune does not mask the spaces' failures", async () => {
-    // Every transaction from the sweep's second one fails: whichever
-    // spaces the shared database holds, the first space's work passes and
-    // the prune always fails — its entry rides the aggregate beside them.
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await createEventWithReminder(space, anya, {
+      title: 'Зарядка',
+      allDay: false,
+      date: '2026-01-01',
+      startTime: '07:00',
+      endTime: '07:30',
+      recurrence: { frequency: 'daily' },
+      reminder: { leadMinutes: 10, recipients: { everyone: true } },
+    })
+    // Every transaction fails: the space's work and the prune's alike —
+    // and the aggregate must carry both, the space's failure under its
+    // own name beside the prune's.
     const deps = {
       ...reminderDeps(fixedClock(new Date('2026-02-01T00:00:00.000Z'))),
-      db: dbFailingOnNthTransaction(harness.db, 2, 'from'),
+      db: dbFailingOnNthTransaction(harness.db, 1, 'from'),
     }
-    resetJobLog()
-    // Whichever spaces the shared database holds, and in whichever order
-    // they are visited, the prune's own entry rides the aggregate beside
-    // theirs: the assertion is order-independent because the prune always
-    // runs — and always fails here — after the first space's work.
-    await expect(extendReminderHorizons(deps as never)).rejects.toThrow(/claim prune/)
+    const error: unknown = await extendReminderHorizons(deps).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    )
+    expect(error).toBeInstanceOf(AggregateError)
+    const message = (error as AggregateError).message
+    expect(message).toContain(space.id)
+    expect(message).toContain('(claim prune)')
   })
 })
 
