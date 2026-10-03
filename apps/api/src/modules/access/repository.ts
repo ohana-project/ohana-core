@@ -242,6 +242,32 @@ export async function revokeLiveAccessCodeForMember(
   return updated[0]
 }
 
+/**
+ * Revokes every unused code of the member (issue #23): the archiving takes
+ * all of them at once — unlike the single-code revocation above, there is
+ * no caller-facing answer per code, so the expiry narrowing is absent and
+ * an issued-past-expiry code is revoked like any other unused one.
+ */
+export async function revokeIssuedAccessCodesForMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  now: Date,
+): Promise<number> {
+  const updated = await tx
+    .update(accessCodes)
+    .set({ status: 'revoked', statusChangedAt: now })
+    .where(
+      and(
+        eq(accessCodes.spaceId, spaceId),
+        eq(accessCodes.memberId, memberId),
+        eq(accessCodes.status, 'issued'),
+      ),
+    )
+    .returning({ id: accessCodes.id })
+  return updated.length
+}
+
 export interface NewMemberSession {
   spaceId: string
   memberId: string

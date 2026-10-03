@@ -23,6 +23,10 @@ export const MemberDtoSchema = Type.Object(
     phone: Type.Optional(Type.String()),
     interfaceLanguage: Type.Optional(InterfaceLanguageSchema),
     role: MemberRoleSchema,
+    // The archiving stamps (issue #23): the lists show archived members
+    // separately, and the owner's card offers the restore until the purge.
+    archivedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    privateStatePurgedAt: Type.Optional(Type.String({ format: 'date-time' })),
     revision: Type.String({ pattern: '^[0-9]+$' }),
     createdAt: Type.String({ format: 'date-time' }),
     updatedAt: Type.String({ format: 'date-time' }),
@@ -73,6 +77,11 @@ export const MemberProfileDtoSchema = Type.Object(
     phone: Type.Optional(Type.String()),
     interfaceLanguage: Type.Optional(InterfaceLanguageSchema),
     role: MemberRoleSchema,
+    // The archiving stamps (issue #23), visible to the whole space: the
+    // member lists show archived members separately, and the owner's card
+    // offers the restore until the purge.
+    archivedAt: Type.Optional(Type.String({ format: 'date-time' })),
+    privateStatePurgedAt: Type.Optional(Type.String({ format: 'date-time' })),
     createdAt: Type.String({ format: 'date-time' }),
   },
   { additionalProperties: false },
@@ -90,6 +99,8 @@ export function toMemberProfileDto(member: Member): MemberProfileDto {
     phone: member.phone ?? undefined,
     interfaceLanguage: member.interfaceLanguage ?? undefined,
     role: member.role,
+    archivedAt: member.archivedAt?.toISOString(),
+    privateStatePurgedAt: member.privateStatePurgedAt?.toISOString(),
     createdAt: member.createdAt.toISOString(),
   }
 }

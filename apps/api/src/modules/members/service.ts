@@ -1,17 +1,24 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
+import {
+  revokeIssuedAccessCodesForMemberInTx,
+  revokeMemberSessionsInTx,
+} from '../access/index.ts'
 import { getSpace, lockSpace, type SpacesDeps } from '../spaces/index.ts'
-import { recordChanges } from '../sync/index.ts'
+import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
 import { CONTACT_MIN_LENGTH } from './contracts.ts'
 import {
-  countOwnersInSpace,
+  countActiveOwnersInSpace,
   getMemberInSpace,
   insertMember,
+  listArchivedMemberIdsInSpace,
   listMemberIdsInSpace,
   listMembersInSpace,
+  updateMemberArchived,
   updateMemberProfile,
+  updateMemberRestored,
   updateMemberRole,
 } from './repository.ts'
 import type { Member, memberRoles } from './tables.ts'
@@ -22,6 +29,32 @@ export interface MembersDeps {
 }
 
 export type MemberRole = (typeof memberRoles)[number]
+
+/**
+ * The wishlist's part of the member lifecycle (issue #23): the members
+ * module sits below the wishlist, so the archive, restore, and purge
+ * effects arrive through this port, which the composition root wires to
+ * the wishlist's public surface (architecture.md, "Composition").
+ */
+export interface MemberWishlistPort {
+  /**
+   * Ends the member's reservations and collects the tombstones the
+   * archiving delivers — one per wish to everyone, one per ended
+   * reservation to every member but the wish's author. Runs inside the
+   * caller's transaction, behind the space row lock the caller took.
+   */
+  archiveInTx(tx: Tx, spaceId: string, memberId: string): Promise<TombstoneInput[]>
+  /** Stamps the member's wishes with the restore's revision, so they ride the delta again. */
+  restampWishesInTx(
+    tx: Tx,
+    spaceId: string,
+    memberId: string,
+    revision: bigint,
+    now: Date,
+  ): Promise<void>
+  /** Deletes the member's gift favorites and collects their member-scoped tombstones. */
+  purgeFavoritesInTx(tx: Tx, spaceId: string, memberId: string): Promise<TombstoneInput[]>
+}
 
 export interface MemberInput {
   name: string
@@ -187,11 +220,13 @@ export async function listMemberIdsInTx(tx: Tx, spaceId: string): Promise<string
 
 /**
  * Moves a member between the owner and regular roles. The space must keep at
- * least one owner (CONTEXT.md: a space is never left without one). The
- * space row lock is taken before the member is read, per the lock-order
- * rule in architecture.md ("Revision bookkeeping"): an unchanged role is
- * answered without spending a revision, and the last-owner count runs
- * serialised against concurrent role changes.
+ * least one owner (CONTEXT.md: a space is never left without one) — counted
+ * among the active members, since an archived member keeps their role but
+ * holds no standing while archived (issue #23). The space row lock is taken
+ * before the member is read, per the lock-order rule in architecture.md
+ * ("Revision bookkeeping"): an unchanged role is answered without spending a
+ * revision, and the last-owner count runs serialised against concurrent role
+ * changes.
  */
 export async function changeMemberRole(
   deps: MembersDeps,
@@ -205,6 +240,15 @@ export async function changeMemberRole(
     if (member === undefined) {
       throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
     }
+    if (member.archivedAt !== null) {
+      // An archived member's role is frozen while they are out of the
+      // space (issue #23): the restore brings them back with it intact.
+      throw new DomainError(
+        'member_archived',
+        `Member ${memberId} is archived and cannot change role`,
+        409,
+      )
+    }
     if (member.role === role) return member
     let updated: Member | undefined
     await recordChanges(
@@ -213,7 +257,7 @@ export async function changeMemberRole(
       {
         writes: async (writeTx, revision) => {
           if (member.role === 'owner') {
-            const owners = await countOwnersInSpace(writeTx, spaceId)
+            const owners = await countActiveOwnersInSpace(writeTx, spaceId)
             if (owners === 1) {
               throw new DomainError('last_owner', 'The space must keep at least one owner', 409)
             }
@@ -233,6 +277,114 @@ export async function changeMemberRole(
     if (updated === undefined) throw new Error('Changing a member role produced no row')
     return updated
   })
+}
+
+/**
+ * Archives a member (issue #23, ADR-0005): an owner or the instance
+ * administrator removes a person from the space. The member can no longer
+ * sign in — their sessions are deleted and their unused access codes are
+ * revoked in the same transaction — but their published history keeps its
+ * attribution, and their wishes leave the space's view (tombstoned through
+ * the wishlist port) while staying on the server. Their reservations end.
+ * The last active owner cannot be archived: a space is never left without
+ * one. The space row lock is taken before the member is read, per the
+ * lock-order rule in architecture.md ("Revision bookkeeping").
+ */
+export async function archiveMember(
+  deps: MembersDeps,
+  wishlist: MemberWishlistPort,
+  spaceId: string,
+  memberId: string,
+): Promise<Member> {
+  const now = deps.clock.now()
+  let archived: Member | undefined
+  await deps.db.transaction(async (tx) => {
+    await lockSpace(tx, spaceId)
+    const member = await getMemberInSpace(tx, spaceId, memberId)
+    if (member === undefined) {
+      throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
+    }
+    if (member.archivedAt !== null) {
+      throw new DomainError(
+        'member_already_archived',
+        `Member ${memberId} is already archived`,
+        409,
+      )
+    }
+    if (member.role === 'owner') {
+      const owners = await countActiveOwnersInSpace(tx, spaceId)
+      if (owners === 1) {
+        throw new DomainError('last_owner', 'The space must keep at least one owner', 409)
+      }
+    }
+    // The wishlist's part runs behind the same lock: the tombstones and the
+    // released reservations are decided from a half-done change never.
+    const tombstones = await wishlist.archiveInTx(tx, spaceId, memberId)
+    await recordChanges(
+      tx,
+      spaceId,
+      {
+        writes: async (writeTx, revision) => {
+          archived = await updateMemberArchived(writeTx, spaceId, memberId, revision, now)
+          // The sign-in credentials go with the archiving, in this
+          // transaction: sessions are not synchronised data, so no
+          // revision is spent on them; the codes' revocation rides the
+          // same one.
+          await revokeMemberSessionsInTx(writeTx, spaceId, memberId)
+          await revokeIssuedAccessCodesForMemberInTx(writeTx, spaceId, memberId, now)
+        },
+        tombstones,
+      },
+      now,
+    )
+  })
+  if (archived === undefined) throw new Error('Archiving a member produced no row')
+  return archived
+}
+
+/**
+ * The restore inside a caller's transaction (issue #23, ADR-0005): the
+ * member's row loses its archiving stamp and their wishes are re-stamped
+ * with the restore's revision, so the sync delta delivers both as upserts
+ * and every device shows the member and their wishlist whole. The caller —
+ * the access module's issuance, through the composition root's port — has
+ * already taken the space row lock, refused a purged member, and read the
+ * member under the same lock.
+ */
+export async function restoreArchivedMemberInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  now: Date,
+  wishlist: MemberWishlistPort,
+): Promise<Member> {
+  let restored: Member | undefined
+  await recordChanges(
+    tx,
+    spaceId,
+    {
+      writes: async (writeTx, revision) => {
+        restored = await updateMemberRestored(writeTx, spaceId, memberId, revision, now)
+        await wishlist.restampWishesInTx(writeTx, spaceId, memberId, revision, now)
+      },
+    },
+    now,
+  )
+  if (restored === undefined) throw new Error('Restoring a member produced no row')
+  return restored
+}
+
+/**
+ * The archived member ids the visibility filters read (issue #23): the
+ * wishlist's policy hides an archived author's wishes from the space, and
+ * the set comes from the members module's own repository through its
+ * public surface.
+ */
+export function listArchivedMemberIds(
+  executor: Executor,
+  spaceId: string,
+): Promise<string[]> {
+  return listArchivedMemberIdsInSpace(executor, spaceId)
 }
 
 /** Counts members per space across the installation, for administrative listings. */

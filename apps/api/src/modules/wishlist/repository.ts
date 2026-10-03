@@ -151,13 +151,15 @@ export async function deleteWish(
  * wishlist's order, oldest first, with the id breaking creation-in-one-
  * moment ties. The visibility filter is the ordinary read's rule
  * (policy.ts, in its SQL dialect) beside the space scope and the optional
- * author narrowing.
+ * author narrowing; the archived authors' wishes are hidden from the space
+ * (issue #23) but kept on the server.
  */
 export async function listWishesInSpace(
   executor: Executor,
   spaceId: string,
   memberId: string,
   authorMemberId: string | undefined,
+  archivedMemberIds: readonly string[],
 ): Promise<Wish[]> {
   return executor
     .select()
@@ -166,7 +168,7 @@ export async function listWishesInSpace(
       and(
         eq(wishes.spaceId, spaceId),
         authorMemberId === undefined ? undefined : eq(wishes.authorMemberId, authorMemberId),
-        wishVisibleToSql(memberId),
+        wishVisibleToSql(memberId, archivedMemberIds),
       ),
     )
     .orderBy(asc(wishes.createdAt), asc(wishes.id))
@@ -175,20 +177,68 @@ export async function listWishesInSpace(
 /**
  * The rows changed after `since` that the requesting member may see — the
  * sync contributor's delta (issue #14). The visibility filter is the
- * ordinary read's rule (policy.ts); today it narrows nothing beyond the
- * space scope, every wish of the space travelling to every member.
+ * ordinary read's rule (policy.ts), the archived authors' wishes included
+ * (issue #23).
  */
 export async function listChangedWishesVisibleTo(
   tx: Tx,
   spaceId: string,
   memberId: string,
   since: bigint,
+  archivedMemberIds: readonly string[],
 ): Promise<Wish[]> {
   return tx
     .select()
     .from(wishes)
-    .where(and(eq(wishes.spaceId, spaceId), gt(wishes.revision, since), wishVisibleToSql(memberId)))
+    .where(
+      and(
+        eq(wishes.spaceId, spaceId),
+        gt(wishes.revision, since),
+        wishVisibleToSql(memberId, archivedMemberIds),
+      ),
+    )
     .orderBy(desc(wishes.revision), desc(wishes.id))
+}
+
+/*
+ * The member lifecycle's reads and writes (issue #23): the members module
+ * runs its archive, restore, and purge use cases through the module's
+ * public surface, and these are the rows each touches. Every query is
+ * space-scoped like the rest of the file.
+ */
+
+/** The member's own wishes, creation order — the archive's tombstone audience and the restore's restamp target. */
+export async function listWishesOfMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<Wish[]> {
+  return tx
+    .select()
+    .from(wishes)
+    .where(and(eq(wishes.spaceId, spaceId), eq(wishes.authorMemberId, memberId)))
+    .orderBy(asc(wishes.createdAt), asc(wishes.id))
+}
+
+/**
+ * Re-delivers the member's wishes after a restore (issue #23): the rows
+ * are stamped with the restore's revision, so the sync delta carries them
+ * as upserts again — the archive's tombstones are older and an upsert
+ * outranks a tombstone of the same row.
+ */
+export async function restampWishesOfMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  revision: bigint,
+  now: Date,
+): Promise<number> {
+  const updated = await tx
+    .update(wishes)
+    .set({ revision, updatedAt: now })
+    .where(and(eq(wishes.spaceId, spaceId), eq(wishes.authorMemberId, memberId)))
+    .returning({ id: wishes.id })
+  return updated.length
 }
 
 /*
@@ -319,6 +369,22 @@ export async function deleteGiftFavoritesOfWish(
     .where(and(eq(giftFavorites.spaceId, spaceId), eq(giftFavorites.wishId, wishId)))
 }
 
+/**
+ * The member's favorites, whoever wished for them (issue #23): the private
+ * purge deletes them whole, and the rows come back so the caller writes
+ * the tombstones that match.
+ */
+export async function deleteGiftFavoritesOfMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<GiftFavorite[]> {
+  return tx
+    .delete(giftFavorites)
+    .where(and(eq(giftFavorites.spaceId, spaceId), eq(giftFavorites.memberId, memberId)))
+    .returning()
+}
+
 /*
  * The gift reservations (issue #19): a wish has at most one active
  * reservation — the row exists exactly while it is held — visible to every
@@ -442,4 +508,37 @@ export async function deleteGiftReservation(
     .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.id, reservationId)))
     .returning()
   return deleted[0]
+}
+
+/**
+ * The member's held reservations with each wish's author (issue #23): the
+ * archive releases them, and the ending's tombstones name every member but
+ * the author, exactly like the reserving member's own cancel.
+ */
+export async function listGiftReservationsHeldByMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<GiftReservationWithWishAuthor[]> {
+  return tx
+    .select({ reservation: giftReservations, wishAuthorMemberId: wishes.authorMemberId })
+    .from(giftReservations)
+    .innerJoin(
+      wishes,
+      and(eq(wishes.spaceId, giftReservations.spaceId), eq(wishes.id, giftReservations.wishId)),
+    )
+    .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.memberId, memberId)))
+    .orderBy(asc(giftReservations.createdAt), asc(giftReservations.id))
+}
+
+/** The delete beside the read above: the rows come back so the caller knows what it released. */
+export async function deleteGiftReservationsHeldByMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<GiftReservation[]> {
+  return tx
+    .delete(giftReservations)
+    .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.memberId, memberId)))
+    .returning()
 }

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { notFound } from '../../platform/errors.ts'
 import { type interfaceLanguages, type Member, type memberRoles, members } from './tables.ts'
@@ -92,6 +92,61 @@ export async function countOwnersInSpace(executor: Executor, spaceId: string): P
   return rows[0]?.count ?? 0
 }
 
+/**
+ * The active owners (issue #23): an archived member keeps their role — the
+ * restore returns them with everything intact — but holds no standing in
+ * the space while archived, so the last-owner checks count the rows that
+ * are not archived.
+ */
+export async function countActiveOwnersInSpace(
+  executor: Executor,
+  spaceId: string,
+): Promise<number> {
+  const rows = await executor
+    .select({ count: sql<number>`count(*)::int` })
+    .from(members)
+    .where(
+      and(
+        eq(members.spaceId, spaceId),
+        eq(members.role, 'owner'),
+        isNull(members.archivedAt),
+      ),
+    )
+  return rows[0]?.count ?? 0
+}
+
+/**
+ * The archived members whose private-state retention has run out (issue
+ * #23) — the purge sweep's discovery query. It names no space: it only
+ * discovers the members to visit, like the journal's purge sweep (the
+ * *AcrossSpaces precedent, architecture.md, "Space scoping"); each purge
+ * re-reads its member under the space row lock.
+ */
+export async function listMembersDueForPrivateStatePurgeAcrossSpaces(
+  executor: Executor,
+  cutoff: Date,
+): Promise<Member[]> {
+  return executor
+    .select()
+    .from(members)
+    .where(
+      and(isNotNull(members.archivedAt), isNull(members.privateStatePurgedAt), lte(members.archivedAt, cutoff)),
+    )
+    .orderBy(asc(members.archivedAt), asc(members.id))
+}
+
+/** The space's archived member ids — the audience the wishlist's policy hides wishes from. */
+export async function listArchivedMemberIdsInSpace(
+  executor: Executor,
+  spaceId: string,
+): Promise<string[]> {
+  const rows = await executor
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.spaceId, spaceId), isNotNull(members.archivedAt)))
+  return rows.map((row) => row.id)
+}
+
 export async function updateMemberRole(
   tx: Tx,
   spaceId: string,
@@ -140,6 +195,78 @@ export async function updateMemberProfile(
       revision,
       updatedAt: now,
     })
+    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .returning()
+  const row = updated[0]
+  if (!row) {
+    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+  }
+  return row
+}
+
+/**
+ * The archiving stamp (issue #23, ADR-0005): the member leaves the space's
+ * active membership. The row stays — the published history keeps its
+ * attribution, and the member lists show archived members separately.
+ */
+export async function updateMemberArchived(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  revision: bigint,
+  now: Date,
+): Promise<Member> {
+  const updated = await tx
+    .update(members)
+    .set({ archivedAt: now, revision, updatedAt: now })
+    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .returning()
+  const row = updated[0]
+  if (!row) {
+    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+  }
+  return row
+}
+
+/**
+ * The restore (issue #23, ADR-0005): a new access code brings the member
+ * back with everything intact. The role was never touched — only the
+ * archiving stamp clears.
+ */
+export async function updateMemberRestored(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  revision: bigint,
+  now: Date,
+): Promise<Member> {
+  const updated = await tx
+    .update(members)
+    .set({ archivedAt: null, revision, updatedAt: now })
+    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .returning()
+  const row = updated[0]
+  if (!row) {
+    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+  }
+  return row
+}
+
+/**
+ * The purge's stamp (issue #23): the member's drafts and gift favorites are
+ * gone, and restoration is no longer offered. The stamp rides the revision
+ * like every other change to a synchronised row.
+ */
+export async function markMemberPrivateStatePurged(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  revision: bigint,
+  now: Date,
+): Promise<Member> {
+  const updated = await tx
+    .update(members)
+    .set({ privateStatePurgedAt: now, revision, updatedAt: now })
     .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
     .returning()
   const row = updated[0]

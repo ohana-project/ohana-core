@@ -27,9 +27,11 @@ import {
   changeMemberRole,
   completeOnboarding,
   describeMember,
+  type MemberWishlistPort,
   listMembers,
   type MembersDeps,
   provisionMember,
+  archiveMember,
 } from './service.ts'
 import type { Member } from './tables.ts'
 
@@ -43,6 +45,8 @@ function toMemberDto(member: Member): MemberDto {
     phone: member.phone ?? undefined,
     interfaceLanguage: member.interfaceLanguage ?? undefined,
     role: member.role,
+    archivedAt: member.archivedAt?.toISOString(),
+    privateStatePurgedAt: member.privateStatePurgedAt?.toISOString(),
     revision: member.revision.toString(),
     createdAt: member.createdAt.toISOString(),
     updatedAt: member.updatedAt.toISOString(),
@@ -62,6 +66,12 @@ export interface MembersRoutesOptions {
   deps: MembersDeps
   /** The access module's deps, for the member session guard it publishes. */
   access: AccessDeps
+  /**
+   * The wishlist's part of the member lifecycle (issue #23): the members
+   * module sits below the wishlist, so the archiving's effects arrive
+   * through this port, wired by the composition root.
+   */
+  wishlist: MemberWishlistPort
 }
 
 export const membersRoutes: FastifyPluginAsyncTypebox<MembersRoutesOptions> = async (app, opts) => {
@@ -115,6 +125,25 @@ export const membersRoutes: FastifyPluginAsyncTypebox<MembersRoutesOptions> = as
       async (request) => {
         const { spaceId, memberId } = request.params
         const member = await changeMemberRole(opts.deps, spaceId, memberId, request.body.role)
+        return toMemberDto(member)
+      },
+    )
+
+    // Archiving (issue #23, ADR-0005): the instance administrator removes a
+    // person from any space. The route names the space explicitly, like
+    // every administrative route.
+    scoped.post(
+      '/spaces/:spaceId/members/:memberId/archive',
+      {
+        schema: {
+          params: MemberParamsSchema,
+          headers: AdminMarkerHeadersSchema,
+          response: { 200: MemberDtoSchema },
+        },
+      },
+      async (request) => {
+        const { spaceId, memberId } = request.params
+        const member = await archiveMember(opts.deps, opts.wishlist, spaceId, memberId)
         return toMemberDto(member)
       },
     )
@@ -209,6 +238,30 @@ export const membersRoutes: FastifyPluginAsyncTypebox<MembersRoutesOptions> = as
           actor.spaceId,
           request.params.memberId,
           request.body.role,
+        )
+        return toMemberProfileDto(member)
+      },
+    )
+
+    // Archiving (issue #23, ADR-0005): the owner removes a person from
+    // their space. The target space is the actor's own — an owner's
+    // authority ends at their space.
+    scoped.post(
+      '/members/:memberId/archive',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          params: MemberIdParamsSchema,
+          response: { 200: MemberProfileDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor = requireOwnerActor(request)
+        const member = await archiveMember(
+          opts.deps,
+          opts.wishlist,
+          actor.spaceId,
+          request.params.memberId,
         )
         return toMemberProfileDto(member)
       },

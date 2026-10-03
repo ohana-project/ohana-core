@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Clock } from '../../platform/clock.ts'
-import type { Db, Executor } from '../../platform/db/index.ts'
+import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import { getSpace, getSpaceInTx, lockSpace } from '../spaces/index.ts'
 import type { AccessCodeStatus } from './contracts.ts'
@@ -21,6 +21,7 @@ import {
   listLiveMemberSessionsForMember,
   redeemAccessCodeByHashAcrossSpaces,
   revokeAccessCodeRow,
+  revokeIssuedAccessCodesForMember,
   revokeLiveAccessCodeForMember,
   sweepMemberCodesForIssue,
   touchMemberSessionByTokenHashAcrossSpaces,
@@ -40,6 +41,13 @@ export interface AccessDeps {
     spaceId: string,
     memberId: string,
   ): Promise<MemberAccount | undefined>
+  /**
+   * The restore of an archived member (issue #23, ADR-0005): issuing a new
+   * access code is the way back in, so the issuance calls this port inside
+   * its own transaction — the composition root wires it to the members
+   * module's restore, whose wish effects ride the same revision.
+   */
+  restoreArchivedMember(tx: Tx, spaceId: string, memberId: string, now: Date): Promise<void>
 }
 
 /** The member data access needs, kept structural so members satisfies it. */
@@ -50,6 +58,14 @@ export interface MemberAccount {
   name: string
   displayName: string | null
   onboardedAt: Date | null
+  /**
+   * The archiving stamp (issue #23): a member with a stamp can no longer
+   * sign in — authentication and redemption refuse them — and issuing a
+   * new code restores them while their private state exists.
+   */
+  archivedAt: Date | null
+  /** The purge's stamp (issue #23): set, restoration is no longer offered. */
+  privateStatePurgedAt: Date | null
 }
 
 /** The actor attached to authenticated member requests. */
@@ -189,8 +205,13 @@ export interface IssuedAccessCode {
 /**
  * Issues a fresh code for the member. Issuing is replacing (ADR-0005):
  * older unused codes become replaced and expired ones materialise their
- * status, so a member never holds two live codes at once. The change
- * touches no synchronised rows, so the space revision is not spent.
+ * status, so a member never holds two live codes at once. Issuing for an
+ * archived member is the restore (issue #23, ADR-0005): the member comes
+ * back with everything intact — unless their private state has been
+ * purged, when restoration is no longer offered. The change touches no
+ * synchronised rows for an active member, so the space revision is not
+ * spent; a restore stamps the member and their wishes, and rides the
+ * revision the way any other change does.
  */
 export async function issueAccessCode(
   deps: AccessDeps,
@@ -201,11 +222,26 @@ export async function issueAccessCode(
   const now = deps.clock.now()
   return deps.db.transaction(async (tx) => {
     // The space row lock serialises concurrent issuances for the space, so
-    // two racing "issue" requests cannot both leave a live code behind.
+    // two racing "issue" requests cannot both leave a live code behind —
+    // and a restore cannot race a private-state purge, which takes the
+    // same lock before it deletes (issue #23).
     await lockSpace(tx, spaceId)
     const member = await deps.findMemberInSpace(tx, spaceId, memberId)
     if (member === undefined) {
       throw new DomainError('member_not_found', `Member ${memberId} does not exist`, 404)
+    }
+    if (member.privateStatePurgedAt !== null) {
+      throw new DomainError(
+        'member_purged',
+        `Member ${memberId} has been purged; restoration is no longer offered`,
+        409,
+      )
+    }
+    if (member.archivedAt !== null) {
+      // The restore (issue #23): the code about to be issued is the way
+      // back in. The member row and their wishes are re-stamped inside the
+      // port's own recordChanges, in this transaction.
+      await deps.restoreArchivedMember(tx, spaceId, memberId, now)
     }
     await sweepMemberCodesForIssue(tx, spaceId, memberId, now)
     const code = generateAccessCode()
@@ -394,6 +430,13 @@ export async function redeemAccessCode(
       // refusal — is what rolls the spent status back with the transaction.
       throw new DomainError('access_code_invalid', 'The code names no live member', 401)
     }
+    if (member.archivedAt !== null) {
+      // An archived member cannot sign in (issue #23): their codes were
+      // revoked when they were archived, so a redemption that reaches a
+      // live archived member is a racing straggler — refused, and the
+      // throw rolls the spent status back with the transaction.
+      throw new DomainError('member_archived', 'The member has been archived', 403)
+    }
     const space = await getSpaceInTx(tx, row.spaceId)
     const token = randomBytes(32).toString('base64url')
     const expiresAt = new Date(now.getTime() + MEMBER_SESSION_TTL_MS)
@@ -462,6 +505,12 @@ export async function authenticateMember(
   }
   const member = await deps.findMemberInSpace(deps.db, session.spaceId, session.memberId)
   if (member === undefined) return undefined
+  if (member.archivedAt !== null) {
+    // An archived member can no longer sign in (issue #23): the archiving
+    // revoked their sessions, and a session that raced the archiving dies
+    // here instead — the guard answers the missing authentication with 401.
+    return undefined
+  }
   return {
     kind: 'member',
     memberId: member.id,
@@ -650,4 +699,33 @@ export async function revokeMemberSessions(
 ): Promise<number> {
   await requireMemberInSpace(deps, spaceId, memberId)
   return deps.db.transaction((tx) => deleteMemberSessionsForMember(tx, spaceId, memberId))
+}
+
+/**
+ * The session deletion inside a caller's transaction (issue #23): the
+ * archiving revokes the member's sessions in the same transaction that
+ * stamps the member row, so an archived member never keeps a live session.
+ * The members module — which sits above access and may import its surface —
+ * calls this from its archive use case.
+ */
+export async function revokeMemberSessionsInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<number> {
+  return deleteMemberSessionsForMember(tx, spaceId, memberId)
+}
+
+/**
+ * The revocation of every unused code inside a caller's transaction (issue
+ * #23): the archiving takes them in the same transaction that stamps the
+ * member row, so an archived member never keeps a redeemable code.
+ */
+export async function revokeIssuedAccessCodesForMemberInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  now: Date,
+): Promise<number> {
+  return revokeIssuedAccessCodesForMember(tx, spaceId, memberId, now)
 }

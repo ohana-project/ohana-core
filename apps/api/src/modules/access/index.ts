@@ -40,9 +40,11 @@ export {
   type RedeemResult,
   redeemAccessCode,
   revokeAccessCode,
+  revokeIssuedAccessCodesForMemberInTx,
   revokeMemberAccessCode,
   revokeMemberSession,
   revokeMemberSessions,
+  revokeMemberSessionsInTx,
   signOutMember,
 } from './service.ts'
 export type { AccessCode } from './tables.ts'
