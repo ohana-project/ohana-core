@@ -318,10 +318,11 @@ function spaceForReminder(
 
 /**
  * The recipients at send time (the acceptance criteria): "everyone" is the
- * space's membership as it stands now — a member added after the event is
- * in, one the space has since lost is out. A named list keeps only the
- * members that still exist. (When member archiving lands — issue #23 —
- * this read is the one place its exclusion hangs from.)
+ * space's active membership as it stands now — a member added after the
+ * event is in, one the space has since lost is out, and an archived member
+ * is out too (issue #23): they are no longer part of the space's life, so
+ * this read is where their exclusion hangs from. A named list keeps only
+ * the members that still exist and are still active.
  */
 async function resolveReminderRecipients(
   deps: CalendarReminderJobsDeps,
@@ -329,9 +330,10 @@ async function resolveReminderRecipients(
   stored: { reminder: CalendarEventReminder; memberIds: string[] },
 ): Promise<Member[]> {
   const members = await listMembers({ db: deps.db, clock: deps.clock }, spaceId)
-  if (stored.reminder.everyone) return members
+  const active = members.filter((member) => member.archivedAt === null)
+  if (stored.reminder.everyone) return active
   const named = new Set(stored.memberIds)
-  return members.filter((member) => named.has(member.id))
+  return active.filter((member) => named.has(member.id))
 }
 
 /** The recipient's stored language (ADR-0006); the unset one falls back to

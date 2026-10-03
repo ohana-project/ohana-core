@@ -30,6 +30,12 @@ import { REMINDER_HORIZON_DAYS } from './reminders.ts'
 import * as repository from './repository.ts'
 import { REMINDER_CLAIM_TAKEOVER_MS } from './repository.ts'
 import { calendarRemindersSent } from './tables.ts'
+import {
+  archiveWishlistOfMemberInTx,
+  purgeGiftFavoritesOfMemberInTx,
+  restampWishesOfMemberInTx,
+} from '../wishlist/service.ts'
+import type { MemberWishlistPort } from '../members/index.ts'
 
 /*
  * The calendar reminders (issue #22): the event's one reminder with its
@@ -1626,3 +1632,81 @@ async function overrideOccurrence(
     body as never,
   )
 }
+
+/*
+ * The archived members are out of the reminders (issue #23): "everyone" is
+ * resolved at send time from the space's active membership, and a named
+ * list keeps only the recipients still active.
+ */
+
+/** The real wishlist port, wired exactly as the composition roots wire it. */
+function archiveWishlistPort(): MemberWishlistPort {
+  return {
+    archiveInTx: archiveWishlistOfMemberInTx,
+    restampWishesInTx: restampWishesOfMemberInTx,
+    purgeFavoritesInTx: purgeGiftFavoritesOfMemberInTx,
+  }
+}
+
+describe('archived members receive no reminders (issue #23)', () => {
+  test('everyone resolves to the active membership; an archived member is out', async () => {
+    const { archiveMember } = await import('../members/service.ts')
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const boris = await harness.createMember(space.id, { name: 'Борис' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Кино',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '20:00',
+      endTime: '22:00',
+      reminder: { leadMinutes: 60, recipients: { everyone: true } },
+    })
+
+    await archiveMember({ db: harness.db, clock: harness.clock }, archiveWishlistPort(), space.id, boris.id)
+
+    push.sends.length = 0
+    await runHandler(fixedClock(new Date('2026-01-10T19:01:00.000Z')), {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    expect(push.sends.map((send) => send.credentials.endpoint)).toEqual([
+      'https://fcm.googleapis.com/fcm/send/anya-phone',
+    ])
+  })
+
+  test('a named list keeps only the active recipients', async () => {
+    const { archiveMember } = await import('../members/service.ts')
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const boris = await harness.createMember(space.id, { name: 'Борис' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Сюрприз',
+      allDay: false,
+      date: '2026-02-01',
+      startTime: '12:00',
+      endTime: '13:00',
+      reminder: {
+        leadMinutes: 30,
+        recipients: { memberIds: [anya.id, boris.id] },
+      },
+    })
+
+    await archiveMember({ db: harness.db, clock: harness.clock }, archiveWishlistPort(), space.id, boris.id)
+
+    push.sends.length = 0
+    await runHandler(fixedClock(new Date('2026-02-01T11:31:00.000Z')), {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-02-01',
+    })
+    expect(push.sends.map((send) => send.credentials.endpoint)).toEqual([
+      'https://fcm.googleapis.com/fcm/send/anya-phone',
+    ])
+  })
+})
