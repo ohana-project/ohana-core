@@ -152,10 +152,40 @@ jobs:
         working-directory: deploy/install
         run: |
           # The refusal happens before any download, so no shim is needed.
-          if sh ../../deploy/install.sh --port 3210; then
+          # Assert the reason, not just the non-zero exit, and that the
+          # directory is untouched.
+          cp .env /tmp/env-before-refusal
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
             echo '::error::the installer overwrote an existing installation without --force'
             exit 1
           fi
+          printf '%s\n' "$out" | grep -q 'refusing to overwrite'
+          cmp .env /tmp/env-before-refusal
+
+      - name: --force keeps an installation's secrets
+        working-directory: deploy/install
+        run: |
+          # Assembled the messy way operators do it: an empty assignment
+          # first (like the example has), the real value appended after.
+          # The last occurrence is what Compose reads, so that is what a
+          # --force rewrite must keep — and up --wait below only passes if
+          # migrate and the api still authenticate with it.
+          real_pw=$(grep '^POSTGRES_PASSWORD=' .env | tail -n 1)
+          real_admin=$(grep '^ADMIN_INITIAL_PASSWORD=' .env | tail -n 1)
+          sed -i '1i POSTGRES_PASSWORD=' .env
+          export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
+          sh ../../deploy/install.sh --force --port 3210
+          [ "$(grep '^POSTGRES_PASSWORD=' .env | tail -n 1)" = "$real_pw" ] ||
+            { echo '::error::--force regenerated POSTGRES_PASSWORD'; exit 1; }
+          [ "$(grep '^ADMIN_INITIAL_PASSWORD=' .env | tail -n 1)" = "$real_admin" ] ||
+            { echo '::error::--force regenerated ADMIN_INITIAL_PASSWORD'; exit 1; }
+          [ -f .env.bak ] || { echo '::error::--force left no .env.bak'; exit 1; }
+          [ "$(stat -c %a .env)" = "600" ] || { echo '::error::.env is not owner-only'; exit 1; }
+          [ "$(stat -c %a .env.bak)" = "600" ] || { echo '::error::.env.bak is not owner-only'; exit 1; }
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://localhost:3210
 
       - name: Install through the script onto an external proxy network
         working-directory: deploy
@@ -175,7 +205,7 @@ jobs:
 
       - name: A proxy on the shared network reaches the api as ohana
         run: |
-          docker run --rm --network ci-proxy busybox \
+          docker run --rm --network ci-proxy busybox:1.37.0 \
             wget -qO- http://ohana:3000/api/health | grep '"status":"ok"'
 
       - name: Stop the stacks the script installed

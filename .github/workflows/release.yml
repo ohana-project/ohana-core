@@ -390,6 +390,14 @@ jobs:
             exit 1
           fi
 
+      - name: A client on the network reaches the api as ohana
+        if: matrix.install_script == true
+        run: |
+          # The alias the printed proxy configuration points at must
+          # resolve on the shipped stack, on both architectures.
+          docker run --rm --network ohana-proxy busybox:1.37.0 \
+            wget -qO- http://ohana:3000/api/health | grep '"status":"ok"'
+
       - name: Stop the stack
         if: matrix.install_script != true
         working-directory: release

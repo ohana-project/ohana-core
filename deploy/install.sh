@@ -14,10 +14,11 @@
 #                            it, through a generated compose.override.yaml
 #                            — the release's compose.yaml is never edited.
 #
-# The release workflow rewrites OHANA_INSTALL_VERSION below to the release's
-# tag and attaches this script to the release, so the downloaded copy
-# installs exactly its own release's files. Run straight from a repository
-# checkout the version is empty and the latest release is installed instead.
+# The release workflow rewrites OHANA_INSTALL_VERSION and
+# OHANA_INSTALL_REPO below to the release's tag and repository and attaches
+# this script to the release, so the downloaded copy installs exactly its
+# own release's files. Run straight from a repository checkout the version
+# is empty and the latest release is installed instead.
 
 set -eu
 
@@ -69,7 +70,9 @@ Options:
                   --external-network mode it is bound to 127.0.0.1, because
                   the proxy reaches the api over the shared network
   --force         overwrite an existing .env, compose.yaml, or
-                  compose.override.yaml
+                  compose.override.yaml; keeps the previous database and
+                  storage secrets (the data volumes are keyed by them) and
+                  leaves the previous .env as .env.bak
 
 Without a mode flag and run on a terminal, the script asks which mode to
 use. Without a terminal — piping this script to sh, for example — it uses
@@ -140,8 +143,8 @@ check_port() {
 
 check_network_name() {
 	case "$1" in
-	'' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]*)
-		die "'$1' does not look like a Docker network name (example: caddy_proxy)"
+	'' | bridge | host | none | default | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]*)
+		die "'$1' does not look like a usable Docker network name (example: caddy_proxy)"
 		;;
 	esac
 }
@@ -222,9 +225,6 @@ fi
 if [ "$domain_set" -eq 1 ] && [ "$network_set" -eq 1 ]; then
 	die '--caddy-domain and --external-network cannot be combined'
 fi
-if [ "$domain_set" -eq 1 ] && [ "$port" != 3000 ]; then
-	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
-fi
 
 # The deployment shape. Interactive only when a terminal is on stdin:
 # piped (curl | sh) or redirected runs take the default without asking,
@@ -237,7 +237,7 @@ if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ -t 0 ]; then
 	ask 'Choose 1, 2, or 3 [1]: '
 	case "$ask_reply" in
 	1 | '')
-		ask 'Port to publish Ohana on [3000]: '
+		ask "Port to publish Ohana on [${port}]: "
 		if [ -n "$ask_reply" ]; then
 			port=$ask_reply
 			check_port "$port"
@@ -259,6 +259,12 @@ if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ -t 0 ]; then
 		die 'please answer 1, 2, or 3 (or run again with --caddy-domain <domain> or --external-network <network>)'
 		;;
 	esac
+fi
+
+# Checked after the prompt, so --port given with a chosen Caddy mode is
+# rejected instead of silently discarded.
+if [ "$domain_set" -eq 1 ] && [ "$port" != 3000 ]; then
+	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
 fi
 
 if [ "$domain_set" -eq 1 ]; then
@@ -291,6 +297,13 @@ for file in .env compose.yaml compose.override.yaml; do
 		die "$file already exists here; refusing to overwrite it (run with --force to overwrite, or install elsewhere)"
 	fi
 done
+
+# Reinstalling in a directory whose data volume survives — the .env was
+# deleted rather than --force-rewritten — would generate fresh secrets and
+# lock the existing data away behind them.
+if [ "$force" -ne 1 ] && docker volume inspect "$(basename "$(pwd)")_postgres-data" > /dev/null 2>&1; then
+	die "the postgres-data volume of an installation in this directory still exists; installing with fresh secrets would lock its data away (restore the old .env, remove the volume with docker volume rm $(basename "$(pwd)")_postgres-data, or run with --force to accept this)"
+fi
 
 if [ -z "$OHANA_INSTALL_VERSION" ]; then
 	assets_base="https://github.com/${OHANA_INSTALL_REPO}/releases/latest/download"
@@ -335,23 +348,30 @@ fi
 # A --force rewrite of an existing installation keeps its secrets: the
 # postgres and rustfs volumes still hold data keyed by them, and fresh
 # ones would lock the stack out of its own data. The previous .env stays
-# alongside as a backup, so operator-written settings survive the rewrite
-# too.
+# behind as .env.bak — only the secrets are carried over; other
+# operator-written settings must be copied back from there by hand.
+had_env=0
 old_postgres_password=
 old_storage_access_key=
 old_storage_secret_key=
+old_admin_password=
 if [ -e .env ]; then
-	old_postgres_password=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | sed -n '1p')
-	old_storage_access_key=$(sed -n 's/^STORAGE_ACCESS_KEY=//p' .env | sed -n '1p')
-	old_storage_secret_key=$(sed -n 's/^STORAGE_SECRET_KEY=//p' .env | sed -n '1p')
-	cp .env ".env.bak.$$"
-	say "The previous .env is kept as .env.bak.$$"
+	had_env=1
+	# The last occurrence wins, the way Compose reads an env file — a
+	# file assembled by appending real values to the example starts with
+	# an empty assignment of the same name.
+	old_postgres_password=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | sed -n '$p')
+	old_storage_access_key=$(sed -n 's/^STORAGE_ACCESS_KEY=//p' .env | sed -n '$p')
+	old_storage_secret_key=$(sed -n 's/^STORAGE_SECRET_KEY=//p' .env | sed -n '$p')
+	old_admin_password=$(sed -n 's/^ADMIN_INITIAL_PASSWORD=//p' .env | sed -n '$p')
+	cp .env .env.bak
+	say 'Only the secrets are carried over from the previous .env; its unmodified copy is kept as .env.bak — copy any other settings you had back from there.'
 fi
 
 postgres_password=${old_postgres_password:-$(random_secret)}
 storage_access_key=${old_storage_access_key:-$(random_secret)}
 storage_secret_key=${old_storage_secret_key:-$(random_secret)}
-admin_password=$(random_secret)
+admin_password=${old_admin_password:-$(random_secret)}
 
 up_command='docker compose up -d --wait'
 
@@ -483,12 +503,19 @@ fi
 if [ "$shape" = bare ]; then
 	say ''
 	say 'Two things to know about this mode:'
-	say '  - Signing in sets Secure cookies, so a browser on another machine'
-	say '    drops them over plain HTTP. Reach Ohana from this machine (for'
-	say '    example through an SSH tunnel), or serve HTTPS with'
-	say '    --caddy-domain or your own reverse proxy (--external-network).'
+	say '  - Signing in sets Secure cookies, which browsers keep off plain'
+	say '    HTTP. Reach Ohana through an SSH tunnel from your machine —'
+	say '    some browsers refuse even that on localhost — or serve HTTPS'
+	say '    with --caddy-domain or your own reverse proxy'
+	say '    (--external-network).'
 	say '  - The port is published on all interfaces, and Docker publishes'
 	say '    ports past common firewall rules (ufw, firewalld).'
+fi
+
+if [ "$had_env" -eq 1 ]; then
+	say ''
+	say 'The api uses ADMIN_INITIAL_PASSWORD only while no administrator'
+	say 'exists yet; if one already exists, your previous password stands.'
 fi
 
 say ''
