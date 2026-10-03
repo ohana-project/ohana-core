@@ -355,3 +355,26 @@ export async function deleteTrashedEntriesInSpace(
     )
     .returning()
 }
+
+/**
+ * Deletes the named draft entries (issue #23's private-state purge): the
+ * state narrowing keeps a stale id from taking a published row with it.
+ * The rows come back so the caller knows what it removed.
+ */
+export async function deleteDraftEntriesInSpace(
+  tx: Tx,
+  spaceId: string,
+  entryIds: readonly string[],
+): Promise<JournalEntry[]> {
+  if (entryIds.length === 0) return []
+  return tx
+    .delete(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.spaceId, spaceId),
+        inArray(journalEntries.id, [...entryIds]),
+        eq(journalEntries.state, 'draft'),
+      ),
+    )
+    .returning()
+}
