@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import { favoriteVisibleToSql, reservationVisibleToSql, wishVisibleToSql } from './policy.ts'
 import {
@@ -450,12 +450,14 @@ export async function getGiftReservationInSpace(
  * The reservations the requesting member may see — on every member's
  * wishes but their own (policy.ts), creation order. The author's own
  * wishes' reservations never enter the answer, so the author probing the
- * listing learns nothing.
+ * listing learns nothing; a wish hidden with its archived author (issue
+ * #23) hides its reservation with it.
  */
 export async function listGiftReservationsVisibleTo(
   executor: Executor,
   spaceId: string,
   memberId: string,
+  archivedMemberIds: readonly string[],
 ): Promise<GiftReservationWithWishAuthor[]> {
   return executor
     .select({
@@ -467,16 +469,27 @@ export async function listGiftReservationsVisibleTo(
       wishes,
       and(eq(wishes.spaceId, giftReservations.spaceId), eq(wishes.id, giftReservations.wishId)),
     )
-    .where(and(eq(giftReservations.spaceId, spaceId), reservationVisibleToSql(memberId)))
+    .where(
+      and(
+        eq(giftReservations.spaceId, spaceId),
+        reservationVisibleToSql(memberId),
+        wishVisibleToSql(memberId, archivedMemberIds),
+      ),
+    )
     .orderBy(asc(giftReservations.createdAt), asc(giftReservations.id))
 }
 
-/** The reservations changed after `since` that the requesting member may see. */
+/**
+ * The reservations changed after `since` that the requesting member may
+ * see — the archived authors' wishes' reservations included in the hiding
+ * (issue #23).
+ */
 export async function listChangedGiftReservationsVisibleTo(
   tx: Tx,
   spaceId: string,
   memberId: string,
   since: bigint,
+  archivedMemberIds: readonly string[],
 ): Promise<GiftReservationWithWishAuthor[]> {
   return tx
     .select({
@@ -493,6 +506,7 @@ export async function listChangedGiftReservationsVisibleTo(
         eq(giftReservations.spaceId, spaceId),
         gt(giftReservations.revision, since),
         reservationVisibleToSql(memberId),
+        wishVisibleToSql(memberId, archivedMemberIds),
       ),
     )
     .orderBy(desc(giftReservations.revision), desc(giftReservations.id))
@@ -541,4 +555,52 @@ export async function deleteGiftReservationsHeldByMember(
     .delete(giftReservations)
     .where(and(eq(giftReservations.spaceId, spaceId), eq(giftReservations.memberId, memberId)))
     .returning()
+}
+
+/**
+ * The reservations held on the member's own wishes (issue #23): they stay
+ * on the server while the wishes are hidden, and come back with the
+ * restore. The rows come back with each wish's author for the tombstone
+ * fan-out.
+ */
+export async function listGiftReservationsOnMembersWishes(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<GiftReservationWithWishAuthor[]> {
+  return tx
+    .select({ reservation: giftReservations, wishAuthorMemberId: wishes.authorMemberId })
+    .from(giftReservations)
+    .innerJoin(
+      wishes,
+      and(eq(wishes.spaceId, giftReservations.spaceId), eq(wishes.id, giftReservations.wishId)),
+    )
+    .where(and(eq(giftReservations.spaceId, spaceId), eq(wishes.authorMemberId, memberId)))
+    .orderBy(asc(giftReservations.createdAt), asc(giftReservations.id))
+}
+
+/** The re-stamp beside the read above: the rows ride the restore's revision again. */
+export async function restampGiftReservationsOnMembersWishes(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  revision: bigint,
+  now: Date,
+): Promise<number> {
+  const held = await listGiftReservationsOnMembersWishes(tx, spaceId, memberId)
+  if (held.length === 0) return 0
+  const updated = await tx
+    .update(giftReservations)
+    .set({ revision, updatedAt: now })
+    .where(
+      and(
+        eq(giftReservations.spaceId, spaceId),
+        inArray(
+          giftReservations.id,
+          held.map((entry) => entry.reservation.id),
+        ),
+      ),
+    )
+    .returning({ id: giftReservations.id })
+  return updated.length
 }

@@ -14,6 +14,7 @@ import {
   adminSpaceErrorMessage,
   CONTACT_MIN_LENGTH,
   useAdminSpace,
+  useArchiveMember,
   useChangeMemberRole,
   useProvisionMember,
   useSpaceMembers,
@@ -173,27 +174,13 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
                 <Card className="py-0">
                   <ItemGroup>
                     {archived.map((member) => (
-                      <Item key={member.id} size="lg" className="opacity-70">
-                        <Avatar size="sm" hue={hueFromId(member.id)}>
-                          <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
-                        </Avatar>
-                        <ItemContent>
-                          <ItemTitle>{member.name}</ItemTitle>
-                          <ItemDescription>
-                            {member.archivedAt === undefined
-                              ? null
-                              : t('space.members.archivedSince', {
-                                  date: dateFormatter.format(new Date(member.archivedAt)),
-                                })}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions>
-                          <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
-                        </ItemActions>
-                      </Item>
+                      <ArchivedMemberRow key={member.id} member={member} spaceId={spaceId} />
                     ))}
                   </ItemGroup>
                 </Card>
+                <p className="mt-2.5 px-1 text-sm text-muted-foreground">
+                  {t('admin.space.archivedHint')}
+                </p>
               </section>
             ) : null}
           </>
@@ -232,7 +219,9 @@ function MemberRow({
 }) {
   const { t } = useTranslation()
   const changeRole = useChangeMemberRole(spaceId)
+  const archiveMember = useArchiveMember(spaceId)
   const [confirmRole, setConfirmRole] = useState<'owner' | 'regular' | undefined>()
+  const [confirmArchive, setConfirmArchive] = useState(false)
 
   const contacts = [member.displayName, member.email, member.phone].filter(Boolean).join(' · ')
 
@@ -261,6 +250,19 @@ function MemberRow({
             text: t('admin.space.makeRegularText'),
             confirm: t('admin.space.makeRegularConfirm'),
           }
+
+  const applyArchive = () => {
+    archiveMember.mutate(
+      { memberId: member.id },
+      {
+        onSuccess: () => {
+          setConfirmArchive(false)
+          toast(t('space.card.archivedToast', { name: member.name }))
+        },
+        onError: (error) => toast(adminSpaceErrorMessage(error, t), 'danger'),
+      },
+    )
+  }
 
   return (
     <Item size="lg">
@@ -294,7 +296,50 @@ function MemberRow({
             <Icon name="user" className="size-4" />
           </Button>
         ) : null}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive"
+          aria-label={t('space.card.archiveRow', { name: member.name })}
+          onClick={() => setConfirmArchive(true)}
+        >
+          <Icon name="archive" className="size-4" />
+        </Button>
       </ItemActions>
+      {confirmArchive ? (
+        // A mid-flight archiving owns the dialog: it cannot be dismissed
+        // until the request settles, so the callbacks land on a visible
+        // dialog.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !archiveMember.isPending) setConfirmArchive(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.archiveTitle', { name: member.name })}</DialogTitle>
+              <DialogDescription>{t('space.card.archiveText')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={archiveMember.isPending}
+                onClick={() => setConfirmArchive(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={archiveMember.isPending}
+                onClick={applyArchive}
+              >
+                {t('space.card.archiveConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
       {dialog !== undefined ? (
         // A mid-flight role change owns the dialog: it cannot be dismissed
         // until the request settles, so the callbacks land on a visible dialog.
@@ -320,6 +365,119 @@ function MemberRow({
               <Button onClick={applyRole} disabled={changeRole.isPending}>
                 {dialog.confirm}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </Item>
+  )
+}
+
+/*
+ * The archived member's row (issue #23): the pill and the archiving date,
+ * and — while the private state exists — the restore through a new code.
+ * Once the purge has run, the restore is no longer offered, and the row
+ * says so.
+ */
+function ArchivedMemberRow({ member, spaceId }: { member: AdminMember; spaceId: string }) {
+  const { t, i18n } = useTranslation()
+  const issue = useIssueAccessCode(spaceId)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [issued, setIssued] = useState<string | undefined>()
+
+  const dateFormatter = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long' })
+  const isPurged = member.privateStatePurgedAt !== undefined
+
+  return (
+    <Item size="lg" className="opacity-70">
+      <Avatar size="sm" hue={hueFromId(member.id)}>
+        <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
+      </Avatar>
+      <ItemContent>
+        <ItemTitle>{member.name}</ItemTitle>
+        <ItemDescription>
+          {member.archivedAt === undefined
+            ? null
+            : t('space.members.archivedSince', {
+                date: dateFormatter.format(new Date(member.archivedAt)),
+              })}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
+        {!isPurged ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t('space.card.restoreButton')}
+            onClick={() => setConfirmRestore(true)}
+          >
+            {t('space.card.restoreConfirm')}
+          </Button>
+        ) : null}
+      </ItemActions>
+      {confirmRestore ? (
+        // The restore is the code issuance (issue #23): the new code is the
+        // way back in, shown once.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !issue.isPending) setConfirmRestore(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.restoreTitle', { name: member.name })}</DialogTitle>
+              <DialogDescription>{t('space.card.restoreText')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={issue.isPending}
+                onClick={() => setConfirmRestore(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button
+                disabled={issue.isPending}
+                onClick={() =>
+                  issue.mutate(
+                    { memberId: member.id },
+                    {
+                      onSuccess: (result) => {
+                        setConfirmRestore(false)
+                        setIssued(result.code)
+                        toast(t('space.card.restoredToast', { name: member.name }))
+                      },
+                      onError: (error) => toast(accessCodeErrorMessage(error, t), 'danger'),
+                    },
+                  )
+                }
+              >
+                {t('space.card.restoreConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+      {issued !== undefined ? (
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !issue.isPending) setIssued(undefined)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.issuedTitle')}</DialogTitle>
+              <DialogDescription>{t('space.card.shownOnce')}</DialogDescription>
+            </DialogHeader>
+            <CodeDisplay code={issued} />
+            <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t('admin.codes.meta')}
+            </p>
+            <DialogFooter>
+              <Button onClick={() => setIssued(undefined)}>{t('admin.codes.done')}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

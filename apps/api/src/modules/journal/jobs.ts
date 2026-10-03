@@ -200,9 +200,9 @@ function purgeCutoff(now: Date, retentionDays: number): Date {
  * the journal, so its private-state purge reaches this through the
  * composition root's port. It runs inside the caller's transaction, behind
  * the space row lock the caller has taken, and reports what it removed —
- * the drafts' tombstones come back for the caller's recordChanges, the
- * images' storage keys go with the queued cleanup job like the trash
- * purge's do.
+ * the drafts' tombstones come back for the caller's recordChanges, and the
+ * images' ids come back so the caller schedules the cleanup job with them,
+ * exactly like the trash purge does.
  */
 
 /**

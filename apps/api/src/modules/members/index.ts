@@ -21,6 +21,7 @@ export {
   completeOnboarding,
   describeMember,
   findMemberInSpace,
+  listActiveMembers,
   listArchivedMemberIds,
   listMemberIdsInTx,
   listMembers,

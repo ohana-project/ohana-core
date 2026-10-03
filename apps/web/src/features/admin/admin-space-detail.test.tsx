@@ -508,8 +508,9 @@ describe('AdminSpaceDetail — the archive (issue #23)', () => {
     expect(within(archiveSection).getByText('Пётр')).toBeInTheDocument()
     expect(within(archiveSection).getByText('В архиве')).toBeInTheDocument()
     expect(within(archiveSection).getByText('в архиве с 3 сентября')).toBeInTheDocument()
-    // The active list keeps Дима, and the archived one never carries the
-    // role-change controls.
-    expect(within(archiveSection).queryByRole('button')).not.toBeInTheDocument()
+    // The archived row carries the restore action, not the role controls.
+    expect(
+      within(archiveSection).getByRole('button', { name: 'Восстановить участника' }),
+    ).toBeInTheDocument()
   })
 })

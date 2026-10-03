@@ -10,7 +10,7 @@ import {
   type PushSender,
   pushLogError,
 } from '../../platform/push/index.ts'
-import { listMembers, type Member } from '../members/index.ts'
+import { listActiveMembers, type Member } from '../members/index.ts'
 import {
   listSubscriptionsForMember,
   removeSubscriptionsByEndpointAcrossSpaces,
@@ -329,11 +329,10 @@ async function resolveReminderRecipients(
   spaceId: string,
   stored: { reminder: CalendarEventReminder; memberIds: string[] },
 ): Promise<Member[]> {
-  const members = await listMembers({ db: deps.db, clock: deps.clock }, spaceId)
-  const active = members.filter((member) => member.archivedAt === null)
-  if (stored.reminder.everyone) return active
+  const members = await listActiveMembers({ db: deps.db, clock: deps.clock }, spaceId)
+  if (stored.reminder.everyone) return members
   const named = new Set(stored.memberIds)
-  return active.filter((member) => named.has(member.id))
+  return members.filter((member) => named.has(member.id))
 }
 
 /** The recipient's stored language (ADR-0006); the unset one falls back to

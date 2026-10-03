@@ -17,6 +17,7 @@ export {
 } from './contracts.ts'
 export { notificationsRoutes } from './routes.ts'
 export {
+  deleteMemberSubscriptionsInTx,
   ensureVapidKeys,
   listSubscriptionsForMember,
   type NotificationsActor,

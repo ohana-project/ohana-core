@@ -36,10 +36,12 @@ import {
   listGiftFavoritesOfMember,
   listGiftFavoritesOfWish,
   listGiftReservationsHeldByMember,
+  listGiftReservationsOnMembersWishes,
   listGiftReservationsVisibleTo,
   listWishesInSpace,
   listWishesOfMember,
   markWishReceived,
+  restampGiftReservationsOnMembersWishes,
   restampWishesOfMember,
   updateWish,
 } from './repository.ts'
@@ -589,12 +591,17 @@ export async function getWishReservation(
   return reservation
 }
 
-/** The reservations the requesting member may see, creation order (issue #19). */
+/**
+ * The reservations the requesting member may see, creation order (issue
+ * #19) — save those on an archived author's wish (issue #23): the wish is
+ * hidden, so its reservation is hidden with it.
+ */
 export async function listGiftReservations(
   deps: WishlistDeps,
   actor: WishlistActor,
 ): Promise<Array<{ reservation: GiftReservation; wishAuthorMemberId: string }>> {
-  return listGiftReservationsVisibleTo(deps.db, actor.spaceId, actor.memberId)
+  const archived = await listArchivedMemberIds(deps.db, actor.spaceId)
+  return listGiftReservationsVisibleTo(deps.db, actor.spaceId, actor.memberId, archived)
 }
 
 /** The sync contributor's delta: the favorites changed since the cursor. */
@@ -612,7 +619,8 @@ export async function listChangedGiftReservations(
   actor: { memberId: string; spaceId: string },
   since: bigint,
 ): Promise<Array<{ reservation: GiftReservation; wishAuthorMemberId: string }>> {
-  return listChangedGiftReservationsVisibleTo(tx, actor.spaceId, actor.memberId, since)
+  const archived = await listArchivedMemberIds(tx, actor.spaceId)
+  return listChangedGiftReservationsVisibleTo(tx, actor.spaceId, actor.memberId, since, archived)
 }
 
 /**
@@ -685,6 +693,10 @@ export async function archiveWishlistOfMemberInTx(
   const wishes = await listWishesOfMember(tx, spaceId, memberId)
   const held = await listGiftReservationsHeldByMember(tx, spaceId, memberId)
   await deleteGiftReservationsHeldByMember(tx, spaceId, memberId)
+  // The reservations held on the member's own wishes stay on the server,
+  // hidden beside their wishes (issue #23) — every member but the wish's
+  // author (the archived member here) learns they left their view.
+  const onWishes = await listGiftReservationsOnMembersWishes(tx, spaceId, memberId)
   return [
     ...wishes.map(
       (wish): TombstoneInput => ({
@@ -696,6 +708,18 @@ export async function archiveWishlistOfMemberInTx(
     ...(
       await Promise.all(
         held.map((entry) =>
+          tombstonesForReservationEnding(
+            tx,
+            spaceId,
+            entry.reservation.id,
+            entry.wishAuthorMemberId,
+          ),
+        ),
+      )
+    ).flat(),
+    ...(
+      await Promise.all(
+        onWishes.map((entry) =>
           tombstonesForReservationEnding(
             tx,
             spaceId,
@@ -721,6 +745,9 @@ export async function restampWishesOfMemberInTx(
   now: Date,
 ): Promise<void> {
   await restampWishesOfMember(tx, spaceId, memberId, revision, now)
+  // The reservations held on the member's wishes ride the restore's
+  // revision with the wishes they belong to (issue #23).
+  await restampGiftReservationsOnMembersWishes(tx, spaceId, memberId, revision, now)
 }
 
 /**

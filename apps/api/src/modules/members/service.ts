@@ -2,6 +2,7 @@ import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import { revokeIssuedAccessCodesForMemberInTx, revokeMemberSessionsInTx } from '../access/index.ts'
+import { deleteMemberSubscriptionsInTx } from '../notifications/index.ts'
 import { getSpace, lockSpace, type SpacesDeps } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
@@ -205,6 +206,18 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
 }
 
 /**
+ * The space's active membership (issue #23): the reads that act on the
+ * space's living membership — the calendar's reminder recipients, for one —
+ * ask for it here, so the archived rule stays with the module that owns
+ * the member row.
+ */
+export async function listActiveMembers(deps: MembersDeps, spaceId: string): Promise<Member[]> {
+  await getSpace(deps, spaceId)
+  const members = await listMembersInSpace(deps.db, spaceId)
+  return members.filter((member) => member.archivedAt === null)
+}
+
+/**
  * The space's member ids, read inside a caller's transaction: a section
  * module whose deletion concerns more members than its actor — the
  * wishlist's reservation leaves every member's view except the wish's
@@ -324,11 +337,16 @@ export async function archiveMember(
         writes: async (writeTx, revision) => {
           archived = await updateMemberArchived(writeTx, spaceId, memberId, revision, now)
           // The sign-in credentials go with the archiving, in this
-          // transaction: sessions are not synchronised data, so no
-          // revision is spent on them; the codes' revocation rides the
-          // same one.
-          await revokeMemberSessionsInTx(writeTx, spaceId, memberId)
+          // transaction — the codes first, then the sessions: a redemption
+          // racing the archiving either spends its code before the
+          // revocation (its session is then here to be deleted) or finds
+          // the code no longer issued and inserts nothing.
           await revokeIssuedAccessCodesForMemberInTx(writeTx, spaceId, memberId, now)
+          await revokeMemberSessionsInTx(writeTx, spaceId, memberId)
+          // The archived member's devices cannot unsubscribe themselves
+          // (their sessions are gone): their push subscriptions go too, so
+          // a later restore never reminds a signed-out device.
+          await deleteMemberSubscriptionsInTx(writeTx, spaceId, memberId)
         },
         tombstones,
       },
@@ -343,10 +361,12 @@ export async function archiveMember(
  * The restore inside a caller's transaction (issue #23, ADR-0005): the
  * member's row loses its archiving stamp and their wishes are re-stamped
  * with the restore's revision, so the sync delta delivers both as upserts
- * and every device shows the member and their wishlist whole. The caller —
- * the access module's issuance, through the composition root's port — has
- * already taken the space row lock, refused a purged member, and read the
- * member under the same lock.
+ * and every device shows the member and their wishlist whole. Every session
+ * the member may still hold goes with the restore — the new code being
+ * issued is the only way back in. The caller — the access module's
+ * issuance, through the composition root's port — has already taken the
+ * space row lock, refused a purged member, and read the member under the
+ * same lock.
  */
 export async function restoreArchivedMemberInTx(
   tx: Tx,
@@ -363,6 +383,7 @@ export async function restoreArchivedMemberInTx(
       writes: async (writeTx, revision) => {
         restored = await updateMemberRestored(writeTx, spaceId, memberId, revision, now)
         await wishlist.restampWishesInTx(writeTx, spaceId, memberId, revision, now)
+        await revokeMemberSessionsInTx(writeTx, spaceId, memberId)
       },
     },
     now,

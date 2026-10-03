@@ -628,3 +628,152 @@ describe('the restore through code issuance (issue #23)', () => {
     })
   })
 })
+
+/*
+ * What stays (issue #23, ADR-0007): the published history keeps its
+ * attribution, the private state survives the archiving, and the restore
+ * hands the member a clean slate of devices — the old ones stay signed out.
+ */
+describe('what stays and what dies with the archiving (issue #23)', () => {
+  test('the published entries stay in the feed and sync, with their attribution', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const bystander = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      const bystanderSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, bystander.id)).code,
+      )
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/v1/journal/entries',
+        headers: memberHeaders(memberSession),
+        payload: { title: 'Выходные', text: 'Было хорошо' },
+      })
+      expect(created.statusCode).toBe(201)
+      const entryId = (created.json() as { id: string }).id
+      const published = await app.inject({
+        method: 'POST',
+        url: `/api/v1/journal/entries/${entryId}/publish`,
+        headers: memberHeaders(memberSession),
+      })
+      expect(published.statusCode).toBe(200)
+
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // The feed keeps the entry, under its author's name.
+      const feed = await app.inject({
+        method: 'GET',
+        url: '/api/v1/journal/feed',
+        headers: memberHeaders(bystanderSession),
+      })
+      expect(feed.statusCode).toBe(200)
+      const entries = feed.json().entries as Array<{ id: string; authorId: string }>
+      const kept = entries.find((row) => row.id === entryId)
+      expect(kept).toBeDefined()
+      expect(kept?.authorId).toBe(member.id)
+
+      // The sync keeps delivering it to devices that never had it: a fresh
+      // device's full sync answers the entry whole.
+      const delta = await sync(app, bystanderSession, '0')
+      expect(
+        delta.changes.some(
+          (change) => change.entity === 'journal_entry' && change.entry?.id === entryId,
+        ),
+      ).toBe(true)
+      // And no tombstone tells the devices it is gone.
+      expect(
+        delta.tombstones.filter(
+          (row) => row.entity === 'journal_entry' && row.entityId === entryId,
+        ),
+      ).toEqual([])
+    })
+  })
+
+  test('a pre-archive session stays dead after a restore', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // The restore issues a fresh code — the only way back in.
+      expect((await issueOwnerCode(app, ownerSession, member.id)).statusCode).toBe(201)
+
+      // The pre-archive device does not come back with it.
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/me',
+        headers: memberHeaders(memberSession),
+      })
+      expect(me.statusCode).toBe(401)
+    })
+  })
+
+  test('the restore keeps the gift favorites the member made', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const other = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      const otherSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, other.id)).code,
+      )
+      const wish = await createWish(app, otherSession, 'Книга')
+      const favorite = await app.inject({
+        method: 'POST',
+        url: `/api/v1/wishlist/wishes/${wish.id}/favorite`,
+        headers: memberHeaders(memberSession),
+      })
+      expect(favorite.statusCode).toBe(201)
+      const favoriteId = (favorite.json() as { id: string }).id
+
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // The restore issues the way back in.
+      const issued = await issueOwnerCode(app, ownerSession, member.id)
+      expect(issued.statusCode).toBe(201)
+      const { code } = issued.json() as { code: string }
+      const restored = await signInMember(app, code)
+
+      const favorites = await app.inject({
+        method: 'GET',
+        url: '/api/v1/wishlist/favorites',
+        headers: memberHeaders(restored),
+      })
+      expect(favorites.statusCode).toBe(200)
+      expect(
+        (favorites.json().favorites as Array<{ id: string }>).some((row) => row.id === favoriteId),
+      ).toBe(true)
+    })
+  })
+})

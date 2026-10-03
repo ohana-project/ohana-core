@@ -434,8 +434,11 @@ export async function redeemAccessCode(
       // An archived member cannot sign in (issue #23): their codes were
       // revoked when they were archived, so a redemption that reaches a
       // live archived member is a racing straggler — refused, and the
-      // throw rolls the spent status back with the transaction.
-      throw new DomainError('member_archived', 'The member has been archived', 403)
+      // throw rolls the spent status back with the transaction. The
+      // refusal is exactly the one a revoked code gets: the requester is
+      // unauthenticated, and a distinct answer would reveal the member's
+      // state (architecture.md, "Errors").
+      throw refusalForStatus('revoked', row.id)
     }
     const space = await getSpaceInTx(tx, row.spaceId)
     const token = randomBytes(32).toString('base64url')

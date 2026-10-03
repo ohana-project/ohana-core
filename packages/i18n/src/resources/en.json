@@ -139,7 +139,8 @@
       "makeRegularConfirm": "Remove the role",
       "lastOwnerNote": "The owner role can be passed on, but not taken from the last owner",
       "noMembers": "Nobody is here yet — add the first member",
-      "tooShort": "At least {count, plural, one {# character} other {# characters}} — check the value"
+      "tooShort": "At least {count, plural, one {# character} other {# characters}} — check the value",
+      "archivedHint": "Restoring brings the member back with all their data — the new code is shown once"
     },
     "codes": {
       "title": "Access codes",
@@ -198,7 +199,8 @@
       "access_code_replaced": "The code has already been replaced",
       "access_code_revoked": "The code has already been revoked",
       "member_archived": "The member is archived — restore them to change the role",
-      "member_purged": "The member's private data has been purged — restoration is no longer available"
+      "member_purged": "The member's private data has been purged — restoration is no longer available",
+      "member_already_archived": "The member is already archived"
     }
   },
   "nav": {

@@ -33,6 +33,7 @@ import {
 } from '../modules/media/index.ts'
 import type { MemberWishlistPort } from '../modules/members/index.ts'
 import {
+  MEMBER_PURGE_QUEUES,
   MEMBER_PURGE_SWEEP_CRON,
   MEMBER_PURGE_SWEEP_JOB,
   type MemberPurgeJobsDeps,
@@ -121,7 +122,7 @@ export function buildWorker(deps: WorkerDeps): Worker {
       await ensureQueues(deps.boss, [
         { name: JOURNAL_PURGE_JOB },
         { name: JOURNAL_PURGE_SWEEP_JOB },
-        { name: MEMBER_PURGE_SWEEP_JOB },
+        ...MEMBER_PURGE_QUEUES,
         ...MEDIA_QUEUE_SETUPS,
         ...CALENDAR_QUEUE_SETUPS,
       ])

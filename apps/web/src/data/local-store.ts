@@ -30,6 +30,10 @@ export interface StoredMemberProfile {
   phone?: string
   interfaceLanguage?: 'ru' | 'en'
   role: 'owner' | 'regular'
+  // The archiving stamps (issue #23): the sync carries them, and the
+  // screens hide the member's rows from the space's lists.
+  archivedAt?: string
+  privateStatePurgedAt?: string
   createdAt: string
 }
 

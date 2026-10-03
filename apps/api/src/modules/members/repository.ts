@@ -84,14 +84,6 @@ export async function getMemberInSpace(
   return rows[0]
 }
 
-export async function countOwnersInSpace(executor: Executor, spaceId: string): Promise<number> {
-  const rows = await executor
-    .select({ count: sql<number>`count(*)::int` })
-    .from(members)
-    .where(and(eq(members.spaceId, spaceId), eq(members.role, 'owner')))
-  return rows[0]?.count ?? 0
-}
-
 /**
  * The active owners (issue #23): an archived member keeps their role — the
  * restore returns them with everything intact — but holds no standing in
@@ -217,7 +209,15 @@ export async function updateMemberArchived(
   const updated = await tx
     .update(members)
     .set({ archivedAt: now, revision, updatedAt: now })
-    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .where(
+      and(
+        eq(members.spaceId, spaceId),
+        eq(members.id, memberId),
+        // The guard keeps a future caller that forgot the space row lock
+        // from archiving loudly instead of silently.
+        isNull(members.archivedAt),
+      ),
+    )
     .returning()
   const row = updated[0]
   if (!row) {
@@ -241,7 +241,15 @@ export async function updateMemberRestored(
   const updated = await tx
     .update(members)
     .set({ archivedAt: null, revision, updatedAt: now })
-    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .where(
+      and(
+        eq(members.spaceId, spaceId),
+        eq(members.id, memberId),
+        // Only an archived row restores; anything else is a lost race the
+        // guard turns loud.
+        isNull(members.privateStatePurgedAt),
+      ),
+    )
     .returning()
   const row = updated[0]
   if (!row) {
@@ -265,7 +273,15 @@ export async function markMemberPrivateStatePurged(
   const updated = await tx
     .update(members)
     .set({ privateStatePurgedAt: now, revision, updatedAt: now })
-    .where(and(eq(members.spaceId, spaceId), eq(members.id, memberId)))
+    .where(
+      and(
+        eq(members.spaceId, spaceId),
+        eq(members.id, memberId),
+        // Only a still-archived row purges; a restore that won the race
+        // must not be stamped.
+        isNull(members.privateStatePurgedAt),
+      ),
+    )
     .returning()
   const row = updated[0]
   if (!row) {

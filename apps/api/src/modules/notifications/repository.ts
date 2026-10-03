@@ -178,3 +178,19 @@ export async function deletePushSubscriptionByEndpointAcrossSpaces(
 ): Promise<void> {
   await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint))
 }
+
+/**
+ * The member's subscriptions, deleted whole (issue #23): the archiving
+ * takes them in its own transaction, and the rows come back so the caller
+ * knows what it removed.
+ */
+export async function deletePushSubscriptionsForMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<PushSubscription[]> {
+  return tx
+    .delete(pushSubscriptions)
+    .where(and(eq(pushSubscriptions.spaceId, spaceId), eq(pushSubscriptions.memberId, memberId)))
+    .returning()
+}
