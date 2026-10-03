@@ -2,7 +2,12 @@ import { eq } from 'drizzle-orm'
 import { afterAll, afterEach, describe, expect, test } from 'vitest'
 import { type FixedClock, fixedClock } from '../../platform/clock.ts'
 import { createSilentLogger } from '../../platform/logging.ts'
-import { createTestHarness, recordingPushSender, type TestHarness } from '../../testing/harness.ts'
+import {
+  createTestHarness,
+  dbFailingOnNthTransaction,
+  recordingPushSender,
+  type TestHarness,
+} from '../../testing/harness.ts'
 import {
   ADMIN_MARKER_HEADER,
   ADMIN_SESSION_COOKIE,
@@ -15,6 +20,7 @@ import type { TimedSeriesBody } from './contracts.ts'
 import {
   CALENDAR_QUEUE_SETUPS,
   CALENDAR_REMINDER_JOB,
+  CALENDAR_SENT_QUEUE_SETUPS,
   type CalendarReminderJobData,
   type CalendarReminderJobsDeps,
   extendReminderHorizons,
@@ -558,6 +564,8 @@ describe('sendDueCalendarReminder', () => {
     })
 
     expect(push.sends).toHaveLength(3)
+    // The three sends above were verified below; the same fixture is the
+    // run-twice case that stands past the takeover window further down.
     const byEndpoint = new Map(push.sends.map((send) => [send.credentials.endpoint, send.payload]))
     // The opted-in Russian device reads the event and its moment in the
     // event's zone.
@@ -586,6 +594,16 @@ describe('sendDueCalendarReminder', () => {
       tag: expectedTag,
       url: expectedUrl,
     })
+
+    // A redelivery past the takeover window — the lease is long gone —
+    // answers quiet because of the receipt, not the lease.
+    clock.advance(REMINDER_CLAIM_TAKEOVER_MS + 60_000)
+    await sendDueCalendarReminder(reminderDeps(clock), {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    expect(push.sends).toHaveLength(3)
   })
 
   test('an occurrence moved behind a live claim retries instead of answering finally', async () => {
@@ -1235,6 +1253,9 @@ describe("the reminder queue's retry schedule", () => {
     const options = setup?.options
     expect(options).toBeDefined()
     const { retryLimit, retryDelay } = options as { retryLimit: number; retryDelay: number }
+    // The arithmetic below holds only with the backoff on and no cap.
+    expect(options).toMatchObject({ retryBackoff: true })
+    expect((options as { retryDelayMax?: number }).retryDelayMax).toBeUndefined()
     // The first retry lands within half a minute: a one-minute lead's
     // reminder is still ahead of its occurrence.
     expect(retryDelay * 2).toBeLessThanOrEqual(30)
@@ -1246,6 +1267,99 @@ describe("the reminder queue's retry schedule", () => {
       0,
     )
     expect(minimumWaitMs).toBeGreaterThan(REMINDER_CLAIM_TAKEOVER_MS / 1000)
+    // The api ensures the reminder queue with these very options: a fresh
+    // installation's first schedules cannot fall back to the defaults.
+    expect(CALENDAR_SENT_QUEUE_SETUPS).toContainEqual(setup)
+  })
+})
+
+describe("the delivery run's failure ordering", () => {
+  test('a cleanup failure after the receipt costs the removal, not the reminder', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const boris = await harness.createMember(space.id, { name: 'Борис' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', false, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', false, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    // Anya's endpoint is expired; the cleanup's transaction is the third
+    // the run opens (claim, receipt, removal) and it fails on demand.
+    push.respondWith((credentials) =>
+      credentials.endpoint.includes('anya') ? 'expired' : 'delivered',
+    )
+    const failing = dbFailingOnNthTransaction(harness.db, 3)
+    const deps = { ...reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z'))), db: failing }
+
+    // The run resolves: the receipt is already written, the cleanup's
+    // failure is the logged loss, not the job's.
+    await expect(
+      sendDueCalendarReminder(deps, {
+        spaceId: space.id,
+        eventId: event.id,
+        originalDate: '2026-01-10',
+      }),
+    ).resolves.toBeUndefined()
+    const receipted = await harness.db
+      .select()
+      .from(calendarRemindersSent)
+      .where(eq(calendarRemindersSent.eventId, event.id))
+    expect(receipted).toHaveLength(1)
+    expect(receipted[0]?.sentAt).not.toBeNull()
+    // A cleanup that failed costs the removal: the row stays until the
+    // next send to it retires it.
+    const remaining = await harness.db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.memberId, anya.id))
+    expect(remaining).toHaveLength(1)
+    push.respondWith('delivered')
+  })
+
+  test('a receipt whose cleanup failed still keeps the duplicate quiet', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const boris = await harness.createMember(space.id, { name: 'Борис' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', false, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', false, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    push.respondWith((credentials) =>
+      credentials.endpoint.includes('anya') ? 'expired' : 'delivered',
+    )
+    const failing = dbFailingOnNthTransaction(harness.db, 3)
+    const deps = { ...reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z'))), db: failing }
+    await sendDueCalendarReminder(deps, {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+
+    // The same job, redelivered: the receipt answers before any send —
+    // even one for a row the failed cleanup left behind. Her subscription
+    // retires at the next occurrence's reminder instead.
+    push.sends.length = 0
+    push.respondWith((credentials) =>
+      credentials.endpoint.includes('anya') ? 'expired' : 'delivered',
+    )
+    await sendDueCalendarReminder(deps, {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    expect(push.sends).toHaveLength(0)
+    push.respondWith('delivered')
   })
 })
 

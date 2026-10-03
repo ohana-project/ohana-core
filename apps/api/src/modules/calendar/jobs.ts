@@ -4,7 +4,7 @@ import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import type { JobSender, QueueSetup } from '../../platform/jobs/index.ts'
 import type { Logger } from '../../platform/logging.ts'
-import type { PushPayload, PushSender } from '../../platform/push/index.ts'
+import { endpointHost, type PushPayload, type PushSender } from '../../platform/push/index.ts'
 import { listMembers, type Member } from '../members/index.ts'
 import {
   listSubscriptionsForMember,
@@ -237,26 +237,20 @@ export async function sendDueCalendarReminder(
   // Nobody was reached: a transient refusal across every device. The
   // claim row goes, the job throws, and the queue's retry sends from
   // scratch — a family missing its reminder is worse than a slow one.
+  // The receipt (or, when nobody was reached, the release) lands BEFORE
+  // the expired-endpoint cleanup: a cleanup failure must never leave the
+  // claim held past the run — the retry would meet a live claim with the
+  // same start and answer quietly, and the reminder would be lost. The
+  // removal is idempotent, so it is best-effort on every path.
   if (delivered === 0 && failed > 0) {
-    // The expired endpoints go even on this path — the removal is
-    // idempotent, and the acceptance criteria ask for it on every path.
-    for (const endpoint of expiredEndpoints) {
-      await deps.db.transaction(async (tx) => {
-        await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
-      })
-    }
     await deps.db.transaction(async (tx) => {
       await releaseReminderClaim(tx, data.spaceId, data.eventId, data.originalDate, lease)
     })
+    await retireExpiredEndpoints(deps, expiredEndpoints)
     throw new Error(
       `Calendar reminder ${data.eventId}/${data.originalDate} reached no device (${failed} failed); the queue retries`,
     )
   }
-  // The receipt, for this start: every other job for the occurrence and
-  // start — the duplicates the design creates on purpose — answers quiet.
-  // It lands BEFORE the expired-endpoint cleanup: a cleanup failure must
-  // never fail the job past its receipt — the retry would answer quiet
-  // and the removal is idempotent anyway, so it is best-effort here.
   await deps.db.transaction(async (tx) => {
     await markReminderSent(
       tx,
@@ -267,18 +261,7 @@ export async function sendDueCalendarReminder(
       deps.clock.now(),
     )
   })
-  for (const endpoint of expiredEndpoints) {
-    try {
-      await deps.db.transaction(async (tx) => {
-        await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
-      })
-    } catch (error) {
-      deps.logger.warn(
-        { err: error, endpointHost: new URL(endpoint).host },
-        'Expired push subscription not removed; the next send to it retires it',
-      )
-    }
-  }
+  await retireExpiredEndpoints(deps, expiredEndpoints)
   deps.logger.info(
     {
       spaceId: data.spaceId,
@@ -290,6 +273,30 @@ export async function sendDueCalendarReminder(
     },
     'Calendar reminder dispatched',
   )
+}
+
+/**
+ * The endpoints the push service rejected as expired go, wherever in the
+ * installation they sat — but a removal that fails only logs, on every
+ * path: the next send to that endpoint retires it, and the run's own
+ * answer (receipt or release, already written) must not be undone.
+ */
+async function retireExpiredEndpoints(
+  deps: CalendarReminderJobsDeps,
+  endpoints: readonly string[],
+): Promise<void> {
+  for (const endpoint of endpoints) {
+    try {
+      await deps.db.transaction(async (tx) => {
+        await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
+      })
+    } catch (error) {
+      deps.logger.warn(
+        { err: error, endpointHost: endpointHost(endpoint) },
+        'Expired push subscription not removed; the next send to it retires it',
+      )
+    }
+  }
 }
 
 /** The space the reminder answers to, or undefined when it is gone — a

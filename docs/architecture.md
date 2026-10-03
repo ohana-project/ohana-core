@@ -133,7 +133,7 @@ The sync conventions below are established in the foundation and must not be byp
 
 ### Background jobs
 
-- pg-boss runs on the same PostgreSQL. Jobs are sent inside the domain transaction through pg-boss's transaction-aware submission, and every process that sends to a queue ensures the queue exists first.
+- pg-boss runs on the same PostgreSQL. Jobs are sent inside the domain transaction through pg-boss's transaction-aware submission, and every process that sends to a queue ensures the queue exists first — with the options its jobs need, since pg-boss copies a queue's retry settings into each job when the job is sent.
 - Handlers are safe to repeat, because they check current state before acting.
 - Recurring maintenance jobs (trash purge, private-state purge) are scheduled with pg-boss's cron.
 - Time comes only from the injected clock.

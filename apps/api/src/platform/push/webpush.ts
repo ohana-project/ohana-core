@@ -7,6 +7,7 @@ import type {
   PushSendResult,
   VapidKeys,
 } from './index.ts'
+import { endpointHost } from './index.ts'
 
 /*
  * The Web Push implementation of the push port (ADR-0006): messages are
@@ -71,7 +72,7 @@ export function createWebPushSender(vapid: VapidKeys, logger: Logger, subject: s
         const status = (error as { statusCode?: unknown }).statusCode
         if (status === 404 || status === 410) return 'expired'
         logger.warn(
-          { err: error, endpointHost: new URL(credentials.endpoint).host },
+          { err: error, endpointHost: endpointHost(credentials.endpoint) },
           'Web Push delivery failed; the subscription is kept',
         )
         return 'failed'

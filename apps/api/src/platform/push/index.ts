@@ -45,3 +45,17 @@ export interface VapidKeys {
   publicKey: string
   privateKey: string
 }
+
+/**
+ * The host of a stored endpoint, for logs: endpoints work like capability
+ * URLs, so their full spelling stays out of the logs — and a stored value
+ * that cannot parse (the schema pins only the scheme) answers as
+ * unparseable instead of throwing inside an error handler.
+ */
+export function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host
+  } catch {
+    return '<unparseable>'
+  }
+}
