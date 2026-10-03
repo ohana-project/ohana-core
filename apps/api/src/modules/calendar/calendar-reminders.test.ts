@@ -20,6 +20,7 @@ import {
   sendDueCalendarReminder,
 } from './jobs.ts'
 import { REMINDER_HORIZON_DAYS } from './reminders.ts'
+import * as repository from './repository.ts'
 import { calendarRemindersSent } from './tables.ts'
 
 /*
@@ -867,18 +868,19 @@ describe('sendDueCalendarReminder', () => {
     const clock = fixedClock(new Date('2026-01-10T18:46:00.000Z'))
     const deps = reminderDeps(clock)
 
-    // A sender claimed the occurrence and died before sending.
-    await harness.db.transaction(async (tx) => {
-      const { claimReminder } = await import('./repository.ts')
-      await claimReminder(
+    // A sender claimed the occurrence and died before sending; its lease
+    // is what it was handed at claim time.
+    const staleLease = await harness.db.transaction(async (tx) =>
+      repository.claimReminder(
         tx,
         space.id,
         event.id,
         '2026-01-10',
         new Date('2026-01-10T19:00:00.000Z'),
         clock.now(),
-      )
-    })
+      ),
+    )
+    if (staleLease === undefined) throw new Error('The first claim must win')
     push.sends.length = 0
     await sendDueCalendarReminder(deps, {
       spaceId: space.id,
@@ -896,6 +898,27 @@ describe('sendDueCalendarReminder', () => {
       originalDate: '2026-01-10',
     })
     expect(push.sends).toHaveLength(1)
+
+    // The stalled sender wakes up and finishes its bookkeeping: its lease
+    // no longer owns the claim, so neither its receipt nor its release
+    // can undo the successor's.
+    const claim = await repository.getReminderClaim(harness.db, space.id, event.id, '2026-01-10')
+    expect(claim?.sentAt).not.toBeNull()
+    await harness.db.transaction(async (tx) => {
+      await repository.markReminderSent(
+        tx,
+        space.id,
+        event.id,
+        '2026-01-10',
+        staleLease,
+        clock.now(),
+      )
+    })
+    await harness.db.transaction(async (tx) => {
+      await repository.releaseReminderClaim(tx, space.id, event.id, '2026-01-10', staleLease)
+    })
+    const after = await repository.getReminderClaim(harness.db, space.id, event.id, '2026-01-10')
+    expect(after?.sentAt).not.toBeNull()
   })
 
   test('sweep rounds missed for days fill exactly the gap they left', async () => {
@@ -921,6 +944,7 @@ describe('sendDueCalendarReminder', () => {
     // horizon holding a job.
     resetJobLog()
     const laterDeps = reminderDeps(fixedClock(new Date('2026-02-06T00:00:00.000Z')))
+    await extendReminderHorizons(laterDeps)
     await extendReminderHorizons(laterDeps)
     const gapRound = reminderJobs().filter((job) => job.data.spaceId === space.id)
     const gapDays = new Set(gapRound.map((job) => job.data.originalDate))
@@ -969,6 +993,45 @@ describe('sendDueCalendarReminder', () => {
       .where(eq(calendarRemindersSent.eventId, event.id))
     expect(receipted).toHaveLength(1)
     push.respondWith('delivered')
+  })
+
+  test("a forward clock jump's watermark is reset to the real horizon", async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Зарядка',
+      allDay: false,
+      date: '2026-01-01',
+      startTime: '07:00',
+      endTime: '07:30',
+      recurrence: { frequency: 'daily' },
+      reminder: { leadMinutes: 10, recipients: { everyone: true } },
+    })
+    // A sweep once ran with the clock a year ahead.
+    const { calendarEventReminders } = await import('./tables.ts')
+    await harness.db
+      .update(calendarEventReminders)
+      .set({ scheduledThrough: new Date('2027-06-01T00:00:00.000Z') })
+      .where(eq(calendarEventReminders.eventId, event.id))
+
+    resetJobLog()
+    const deps = reminderDeps(fixedClock(new Date('2026-02-01T00:00:00.000Z')))
+    await extendReminderHorizons(deps)
+    const poisoned = reminderJobs().filter((job) => job.data.spaceId === space.id)
+    // The guard treats the impossible watermark as unset: the whole
+    // horizon is re-queued (the claim keeps one send).
+    expect(poisoned.length).toBeGreaterThanOrEqual(REMINDER_HORIZON_DAYS)
+
+    // The reset reached the database: the next round adds nothing, and
+    // the row reads the real horizon.
+    resetJobLog()
+    await extendReminderHorizons(deps)
+    expect(reminderJobs().filter((job) => job.data.spaceId === space.id)).toHaveLength(0)
+    const rows = await harness.db
+      .select()
+      .from(calendarEventReminders)
+      .where(eq(calendarEventReminders.eventId, event.id))
+    expect(rows[0]?.scheduledThrough?.toISOString()).toBe('2026-04-04T00:00:00.000Z')
   })
 
   test('a deleted event and a dropped reminder answer quietly', async () => {

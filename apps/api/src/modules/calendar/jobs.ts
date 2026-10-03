@@ -10,7 +10,13 @@ import {
   listSubscriptionsForMember,
   removeSubscriptionsByEndpointAcrossSpaces,
 } from '../notifications/index.ts'
-import { getSpace, lockSpace, type Space, sectionVisibility } from '../spaces/index.ts'
+import {
+  getSpace,
+  getSpaceInTx,
+  lockSpace,
+  type Space,
+  sectionVisibility,
+} from '../spaces/index.ts'
 import {
   REMINDER_HORIZON_DAYS,
   REMINDER_STALE_LIMIT_MS,
@@ -22,6 +28,7 @@ import {
   claimReminder,
   deleteReminderClaimsBefore,
   getEventInSpace,
+  getReminderClaim,
   getReminderForEvent,
   listExceptionsForEvent,
   listReminderEventsInSpace,
@@ -149,45 +156,84 @@ export async function sendDueCalendarReminder(
   const lease = await deps.db.transaction(async (tx) =>
     claimReminder(tx, data.spaceId, data.eventId, data.originalDate, start, now),
   )
-  if (lease === undefined) return
+  if (lease === undefined) {
+    // A live claim for a *different* start: the occurrence was moved while
+    // another run's send is in flight, and this job's answer ("not my
+    // turn") would otherwise be final. Throwing puts it back in the queue,
+    // behind that claim's receipt or release.
+    const live = await getReminderClaim(deps.db, data.spaceId, data.eventId, data.originalDate)
+    if (live !== undefined && live.sentAt === null && live.startAt.getTime() !== start.getTime()) {
+      throw new Error(
+        `Calendar reminder ${data.eventId}/${data.originalDate} moved behind a live claim; the queue retries`,
+      )
+    }
+    return
+  }
 
   const recipients = await resolveReminderRecipients(deps, data.spaceId, stored)
+  const subscriptions = await Promise.all(
+    recipients.map(async (recipient) => ({
+      recipient,
+      rows: await listSubscriptionsForMember(deps.db, data.spaceId, recipient.id),
+    })),
+  )
+  // The sends go out together: a run takes about one send's timeout, so a
+  // crowded recipient list cannot outlive the claim's takeover window.
+  const sends = await Promise.allSettled(
+    subscriptions.flatMap(({ recipient, rows }) =>
+      rows.map(async (subscription) => {
+        const payload = reminderPayload({
+          locale: interfaceLocale(recipient),
+          details: subscription.notifyDetails,
+          title: occurrenceTitle(event, exception),
+          start,
+          allDay: occurrenceIsAllDay(event, exception),
+          timezone: occurrenceTimezone(event, exception, space.timezone),
+          tag: `reminder:${data.eventId}:${data.originalDate}`,
+          url: `/calendar/${data.eventId}`,
+        })
+        const result = await deps.push.send(
+          {
+            endpoint: subscription.endpoint,
+            p256dh: subscription.p256dh,
+            auth: subscription.auth,
+          },
+          payload,
+        )
+        return { result, endpoint: subscription.endpoint }
+      }),
+    ),
+  )
   let delivered = 0
   let failed = 0
-  for (const recipient of recipients) {
-    const subscriptions = await listSubscriptionsForMember(deps.db, data.spaceId, recipient.id)
-    for (const subscription of subscriptions) {
-      const payload = reminderPayload({
-        locale: interfaceLocale(recipient),
-        details: subscription.notifyDetails,
-        title: occurrenceTitle(event, exception),
-        start,
-        allDay: occurrenceIsAllDay(event, exception),
-        timezone: occurrenceTimezone(event, exception, space.timezone),
-        tag: `reminder:${data.eventId}:${data.originalDate}`,
-        url: `/calendar/${data.eventId}`,
-      })
-      const result = await deps.push.send(
-        { endpoint: subscription.endpoint, p256dh: subscription.p256dh, auth: subscription.auth },
-        payload,
-      )
-      if (result === 'delivered') {
-        delivered += 1
-      } else if (result === 'failed') {
-        failed += 1
-      } else {
-        // The push service said the subscription is gone: the row goes too
-        // (the acceptance criteria), wherever in the installation it sat.
-        await deps.db.transaction(async (tx) => {
-          await removeSubscriptionsByEndpointAcrossSpaces(tx, subscription.endpoint)
-        })
-      }
+  const expiredEndpoints: string[] = []
+  for (const settled of sends) {
+    if (settled.status !== 'fulfilled') {
+      // One send throwing (the sender's own contract keeps that to a
+      // result; this guards a bug) counts as a transient failure.
+      failed += 1
+      continue
     }
+    const { result, endpoint } = settled.value
+    if (result === 'delivered') {
+      delivered += 1
+    } else if (result === 'failed') {
+      failed += 1
+    } else {
+      // The push service said the subscription is gone: the row goes too
+      // (the acceptance criteria), wherever in the installation it sat.
+      expiredEndpoints.push(endpoint)
+    }
+  }
+  for (const endpoint of expiredEndpoints) {
+    await deps.db.transaction(async (tx) => {
+      await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
+    })
   }
   // Nobody was reached: a transient refusal across every device. The
   // claim row goes, the job throws, and the queue's retry sends from
   // scratch — a family missing its reminder is worse than a slow one.
-  if (delivered === 0 && failed > 0 && lease !== undefined) {
+  if (delivered === 0 && failed > 0) {
     await deps.db.transaction(async (tx) => {
       await releaseReminderClaim(tx, data.spaceId, data.eventId, data.originalDate, lease)
     })
@@ -357,10 +403,15 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
         // The sweep reads a reminder row and then writes its watermark:
         // the space row lock keeps that read-decide-write serialised
         // against an edit committing beside it (architecture.md,
-        // "Revision bookkeeping").
-        await lockSpace(tx, spaceId)
-        const space = await spaceForReminder(deps, spaceId)
-        if (space === undefined) return
+        // "Revision bookkeeping"). A space removed mid-discovery answers
+        // quietly, like its pending jobs do.
+        try {
+          await lockSpace(tx, spaceId)
+        } catch (error) {
+          if (error instanceof DomainError && error.code === 'space_not_found') return
+          throw error
+        }
+        const space = await getSpaceInTx(tx, spaceId)
         const events = await listReminderEventsInSpace(tx, spaceId)
         for (const event of events) {
           const stored = await getReminderForEvent(tx, spaceId, event.id)
@@ -396,12 +447,16 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
           }
           await advanceReminderWatermark(tx, spaceId, event.id, horizonEnd)
         }
-        await deleteReminderClaimsBefore(tx, new Date(now.getTime() - REMINDER_CLAIM_RETENTION_MS))
       })
     } catch (cause) {
       failures.push({ spaceId, cause })
     }
   }
+  // The prune covers the installation: one pass, not one per space under
+  // each space's lock.
+  await deps.db.transaction(async (tx) => {
+    await deleteReminderClaimsBefore(tx, new Date(now.getTime() - REMINDER_CLAIM_RETENTION_MS))
+  })
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map((failure) => failure.cause),

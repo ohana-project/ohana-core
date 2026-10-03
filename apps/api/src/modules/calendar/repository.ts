@@ -426,8 +426,9 @@ export interface EventReminderWithRecipients {
 }
 
 /** The sweep's watermark moves in the round that filled the gap, and
- *  only forward: an edit that scheduled a longer horizon beside the round
- *  never loses it. */
+ *  only forward — except when it sits implausibly far ahead: a forward
+ *  clock jump poisons it, and the reset must reach the database or every
+ *  round would re-queue the whole horizon until real time caught up. */
 export async function advanceReminderWatermark(
   tx: Tx,
   spaceId: string,
@@ -437,7 +438,9 @@ export async function advanceReminderWatermark(
   await tx
     .update(calendarEventReminders)
     .set({
-      scheduledThrough: sql`greatest(${calendarEventReminders.scheduledThrough}, ${scheduledThrough})`,
+      scheduledThrough: sql`case when ${calendarEventReminders.scheduledThrough} > ${scheduledThrough}::timestamptz + interval '1 day'
+        then ${scheduledThrough}::timestamptz
+        else greatest(${calendarEventReminders.scheduledThrough}, ${scheduledThrough}::timestamptz) end`,
     })
     .where(
       and(eq(calendarEventReminders.spaceId, spaceId), eq(calendarEventReminders.eventId, eventId)),
@@ -648,6 +651,28 @@ export async function releaseReminderClaim(
         sql`${calendarRemindersSent.sentAt} is null`,
       ),
     )
+}
+
+/** One occurrence's claim, whatever state it is in — the handler's read
+ *  when a claim stands and it must know whose turn it is. */
+export async function getReminderClaim(
+  executor: Executor,
+  spaceId: string,
+  eventId: string,
+  originalDate: string,
+): Promise<{ sentAt: Date | null; startAt: Date } | undefined> {
+  const rows = await executor
+    .select({ sentAt: calendarRemindersSent.sentAt, startAt: calendarRemindersSent.startAt })
+    .from(calendarRemindersSent)
+    .where(
+      and(
+        eq(calendarRemindersSent.spaceId, spaceId),
+        eq(calendarRemindersSent.eventId, eventId),
+        eq(calendarRemindersSent.originalDate, originalDate),
+      ),
+    )
+    .limit(1)
+  return rows[0]
 }
 
 /** The claims no pending job can ask about any more — the sweep's prune. */

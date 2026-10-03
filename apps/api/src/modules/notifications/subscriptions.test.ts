@@ -378,8 +378,9 @@ describe('DELETE /api/v1/notifications/push/subscription', () => {
       })
       expect(second.statusCode).toBe(200)
       // The endpoint is gone; an absence says nothing about who else
-      // holds it, so the answer is false — the client has unsubscribed
-      // already anyway.
+      // holds it, so the answer is false. The browser's subscription may
+      // be left orphaned by that — harmless, since nothing sends to the
+      // endpoint any more.
       expect(second.json()).toEqual({ releaseBrowserSubscription: false })
     })
   })
