@@ -18,6 +18,7 @@ vi.mock('web-push', () => ({
 }))
 
 const { createWebPushSender, generateVapidKeys } = await import('./webpush.ts')
+const { pushLogError } = await import('./index.ts')
 const { createSilentLogger } = await import('../logging.ts')
 
 const SUBJECT = 'mailto:push@example.com'
@@ -79,6 +80,29 @@ describe('web push sender', () => {
     sendNotification.mockRejectedValueOnce(new Error('socket hung up'))
     expect(await sender.send(CREDENTIALS, { title: 't', body: 'b' })).toBe('failed')
     expect(await sender.send(CREDENTIALS, { title: 't', body: 'b' })).toBe('failed')
+  })
+
+  test('pushLogError forwards only safe scalars', async () => {
+    // An object stuffed into a field stays behind with the error object.
+    const payload = { endpoint: CREDENTIALS.endpoint }
+    expect(pushLogError({ name: payload, statusCode: payload, code: payload })).toEqual({
+      name: undefined,
+      statusCode: undefined,
+      code: undefined,
+    })
+    // A cause's code surfaces; nothing else of the cause does.
+    expect(pushLogError({ code: payload, cause: { code: 'ECONNRESET' } }).code).toBe('ECONNRESET')
+    // Null and a bare string answer the empty narrowed shape.
+    expect(pushLogError(undefined)).toEqual({
+      name: undefined,
+      statusCode: undefined,
+      code: undefined,
+    })
+    expect(pushLogError('total nonsense')).toEqual({
+      name: undefined,
+      statusCode: undefined,
+      code: undefined,
+    })
   })
 
   test('a refusal logs once per failed send, never on delivery', async () => {

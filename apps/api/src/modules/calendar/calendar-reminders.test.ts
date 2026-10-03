@@ -1309,7 +1309,14 @@ describe("the delivery run's failure ordering", () => {
         originalDate: '2026-01-10',
       }),
     ).resolves.toBeUndefined()
-    // The log tells the narrowed story — never the capability URL.
+    // The log tells the narrowed story — the call's exact shape fails on
+    // a raw-error regression, and the capability URL never serialises
+    // into it.
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toEqual({
+      err: { name: 'Error', statusCode: undefined, code: undefined },
+      endpointHost: 'fcm.googleapis.com',
+    })
     expect(JSON.stringify(warn.mock.calls)).not.toContain('fcm/send/anya-phone')
     const receipted = await harness.db
       .select()
