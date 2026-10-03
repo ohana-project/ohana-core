@@ -513,3 +513,110 @@ describe('the archiving in sync (issue #23)', () => {
     })
   })
 })
+
+/*
+ * The restore (issue #23, ADR-0005): issuing a new access code brings the
+ * archived member back with everything intact — their private state untouched,
+ * their wishes visible to the space again through the sync.
+ */
+
+async function issueOwnerCode(app: TestApp, session: MemberSession, memberId: string) {
+  const response = await app.inject({
+    method: 'POST',
+    url: `/api/v1/members/${memberId}/access-code`,
+    headers: memberHeaders(session),
+  })
+  return response
+}
+
+describe('the restore through code issuance (issue #23)', () => {
+  test('issuing a code for an archived member restores them with their data intact', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const bystander = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/me/onboarding',
+        headers: memberHeaders(memberSession),
+        payload: { displayName: 'Дима С.' },
+      })
+      const bystanderSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, bystander.id)).code,
+      )
+      const wish = await createWish(app, memberSession, 'Велосипед')
+      const draft = await app.inject({
+        method: 'POST',
+        url: '/api/v1/journal/entries',
+        headers: memberHeaders(memberSession),
+        payload: { title: 'Черновик', text: 'Личное' },
+      })
+      expect(draft.statusCode).toBe(201)
+
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+      const bystanderCursor = (await sync(app, bystanderSession, '0')).revision
+
+      // The owner issues a code for the archived member: the restore.
+      const issued = await issueOwnerCode(app, ownerSession, member.id)
+      expect(issued.statusCode).toBe(201)
+      const { code } = issued.json() as { code: string }
+
+      // The new code is the way back in, onboarding already done.
+      const redeemed = await app.inject({
+        method: 'POST',
+        url: '/api/v1/access-codes/redeem',
+        payload: { code },
+      })
+      expect(redeemed.statusCode).toBe(200)
+      expect(redeemed.json()).toMatchObject({
+        member: { id: member.id, name: 'Дима', displayName: 'Дима С.' },
+        needsOnboarding: false,
+      })
+      const restoredCookie = redeemed.cookies.find((candidate) =>
+        candidate.name.startsWith('ohana_member_session_'),
+      )
+      if (restoredCookie === undefined) throw new Error('Redemption produced no session cookie')
+      const restoredSession: MemberSession = {
+        memberId: restoredCookie.name.slice('ohana_member_session_'.length),
+        cookie: `${restoredCookie.name}=${restoredCookie.value}`,
+      }
+
+      // The member's devices learn the restore through the sync: the member
+      // upsert without the stamp, and the wishes as upserts again.
+      const delta = await sync(app, bystanderSession, bystanderCursor)
+      const memberUpsert = delta.changes.find(
+        (change) => change.entity === 'member' && change.member?.id === member.id,
+      )
+      expect(memberUpsert?.member?.archivedAt).toBeUndefined()
+      expect(
+        delta.changes.some(
+          (change) => change.entity === 'wishlist_wish' && change.wish?.id === wish.id,
+        ),
+      ).toBe(true)
+
+      // The private state survived the archiving: the draft is still there.
+      const drafts = await app.inject({
+        method: 'GET',
+        url: '/api/v1/journal/drafts',
+        headers: memberHeaders(restoredSession),
+      })
+      expect(drafts.statusCode).toBe(200)
+      expect(
+        (drafts.json() as Array<{ id: string }>).some(
+          (row) => row.id === (draft.json() as { id: string }).id,
+        ),
+      ).toBe(true)
+    })
+  })
+})
