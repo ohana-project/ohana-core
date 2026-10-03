@@ -25,6 +25,11 @@ jobs:
   compose-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # The installer's own location is /opt/ohana-core; the steps below
+      # install into the directories they create instead, except the one
+      # that checks that default.
+      OHANA_INSTALL_DIR: .
     steps:
       - uses: actions/checkout@v5
 
@@ -214,6 +219,45 @@ jobs:
             echo '::error::the mismatch refusal fired without a pin in .env'
             exit 1
           fi
+
+      - name: The installer installs into /opt/ohana-core
+        env:
+          OHANA_INSTALL_DIR: ''
+        run: |
+          # Without OHANA_INSTALL_DIR the installation goes to
+          # /opt/ohana-core, wherever the script is run from. The failing
+          # curl shim of the step above ends each run at the download.
+          mkdir "$RUNNER_TEMP/anywhere"
+          cd "$RUNNER_TEMP/anywhere"
+          export PATH="$RUNNER_TEMP/shim:$PATH"
+          # A location the user cannot write to is refused with the advice,
+          # and nothing is created. (/opt itself is writable for the
+          # runner's user, so a root-owned directory stands in.)
+          sudo mkdir "$RUNNER_TEMP/locked"
+          if out=$(OHANA_INSTALL_DIR="$RUNNER_TEMP/locked/ohana" sh "$GITHUB_WORKSPACE/deploy/install.sh" --yes 2>&1); then
+            echo '::error::the installer succeeded in a directory it cannot write to'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -qF "cannot write to $RUNNER_TEMP/locked/ohana"; then
+            echo '::error::the refusal did not name the directory'
+            printf '%s\n' "$out"
+            exit 1
+          fi
+          [ -z "$(sudo ls -A "$RUNNER_TEMP/locked")" ] ||
+            { echo '::error::the refusal created files'; exit 1; }
+          # The default: the script creates /opt/ohana-core itself.
+          [ ! -e /opt/ohana-core ] || sudo rmdir /opt/ohana-core
+          if out=$(sh "$GITHUB_WORKSPACE/deploy/install.sh" --yes 2>&1); then
+            echo '::error::the installer succeeded despite a failed download'
+            exit 1
+          fi
+          for want in 'Installing Ohana latest into /opt/ohana-core' 'downloading compose.yaml failed'; do
+            printf '%s\n' "$out" | grep -qF "$want" ||
+              { echo "::error::the output lacks: $want"; printf '%s\n' "$out"; exit 1; }
+          done
+          [ -z "$(ls -A)" ] && [ -z "$(ls -A /opt/ohana-core)" ] ||
+            { echo '::error::the failed run left files behind'; exit 1; }
+          sudo rmdir /opt/ohana-core
 
       - name: On a terminal the installer is a wizard
         run: |

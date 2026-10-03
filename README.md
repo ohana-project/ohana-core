@@ -11,12 +11,14 @@ You need a Linux machine on `amd64` or `arm64` (a Raspberry Pi 5 works) with [Do
 One command installs Ohana: the release's install script downloads the release's `compose.yaml`, generates the secrets into `.env`, starts the stack, and prints the address and the generated administrator password.
 
 ```sh
-curl -fsSL https://github.com/ohana-project/ohana-core/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/ohana-project/ohana-core/releases/latest/download/install.sh | sudo sh
 ```
+
+Ohana is installed into `/opt/ohana-core`, wherever the command is run from: `compose.yaml` and `.env` live there, and later `docker compose` commands (logs, upgrades) are run from that directory. Writing there is what the `sudo` is for; as root, pipe to plain `sh`. `OHANA_INSTALL_DIR=<directory>` in the script's environment installs somewhere else — use it to rewrite an installation made in another directory by an earlier release (`OHANA_INSTALL_DIR=. sh install.sh --force` from that directory).
 
 Run on a terminal, the script is a small wizard: it asks whether to enable the bundled Caddy and, if so, for the domain it should serve with automatic Let's Encrypt HTTPS (point the domain's DNS at the machine first). It asks on the terminal itself, so the piped one-liner above is asked too. Without a terminal — cron, most CI, output redirected to a file — or with `--yes`, it asks nothing and installs the default. Automation that runs with a terminal attached (`ssh -t`, a CI system that allocates one) must pass `--yes` or a mode flag, or the wizard waits for an answer.
 
-By default the api answers plain HTTP on port 3000 of the machine itself and no reverse proxy is involved. Note that signing in sets Secure cookies: browsers keep them off plain HTTP, so reach Ohana through an SSH tunnel (some browsers refuse sign-in even on localhost over plain HTTP) or use one of the two HTTPS modes below. Flags choose a mode without the wizard (after the pipe: `| sh -s -- <flags>`):
+By default the api answers plain HTTP on port 3000 of the machine itself and no reverse proxy is involved. Note that signing in sets Secure cookies: browsers keep them off plain HTTP, so reach Ohana through an SSH tunnel (some browsers refuse sign-in even on localhost over plain HTTP) or use one of the two HTTPS modes below. Flags choose a mode without the wizard (after the pipe: `| sudo sh -s -- <flags>`):
 
 - `--caddy-domain ohana.example.com` serves `https://ohana.example.com` with automatic Let's Encrypt HTTPS through the bundled Caddy — the wizard's "yes".
 - `--port <port>` publishes the default mode on another port than 3000; `--yes` skips the wizard and takes the default mode as it is.
@@ -41,7 +43,7 @@ When the stack is up, the whole application is served from one port: the web cli
 
 ## Upgrading
 
-1. Download the new release's `compose.yaml` into the deployment directory, replacing the old one, and re-check your `.env` against the release's `env.production.example`.
+1. Download the new release's `compose.yaml` into the deployment directory (`/opt/ohana-core` when the install script made it), replacing the old one, and re-check your `.env` against the release's `env.production.example`.
 2. Restart the stack:
 
    ```sh
