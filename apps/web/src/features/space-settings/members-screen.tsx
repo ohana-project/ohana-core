@@ -18,8 +18,8 @@ import {
   ItemGroup,
   ItemTitle,
 } from '@/ui/item.tsx'
-import { Spinner } from '@/ui/spinner.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
+import { Spinner } from '@/ui/spinner.tsx'
 import { SettingsShell } from './settings-shell.tsx'
 
 /*
@@ -112,9 +112,7 @@ export function MembersScreen() {
                             </span>
                           ) : null}
                         </ItemTitle>
-                        {contacts.length > 0 ? (
-                          <ItemDescription>{contacts}</ItemDescription>
-                        ) : null}
+                        {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
                       </ItemContent>
                       <ItemActions>
                         <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>

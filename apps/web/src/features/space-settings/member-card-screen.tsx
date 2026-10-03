@@ -153,7 +153,6 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
             </span>
           ) : null}
         </header>
-
         {isOwner ? (
           isArchived ? (
             <ArchivedOwnerSections
@@ -168,7 +167,8 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
           <p className="px-1 text-sm text-muted-foreground">
             {t(profile.role === 'owner' ? 'admin.space.ownerPill' : 'admin.space.regularPill')}
           </p>
-        )}      </div>
+        )}{' '}
+      </div>
     </SettingsShell>
   )
 }

@@ -97,7 +97,7 @@ async function mockOwnerApi(page: Page) {
   const issuedCode = 'SASF-KQLV'
   // The archiving state (issue #23): the archive POST flips it, and the
   // members list answers from it — the way the real member row behaves.
-  let dimaArchivedAt: string | undefined = undefined
+  let dimaArchivedAt: string | undefined
   // The space answers from this object, so a PATCH in one screen is the
   // GET everywhere else — the way the real space row behaves.
   const space = {
@@ -147,7 +147,9 @@ async function mockOwnerApi(page: Page) {
     return route.fulfill(
       json(
         200,
-        dimaArchivedAt === undefined ? PROFILES : [PROFILES[0], { ...PROFILES[1], archivedAt: dimaArchivedAt }],
+        dimaArchivedAt === undefined
+          ? PROFILES
+          : [PROFILES[0], { ...PROFILES[1], archivedAt: dimaArchivedAt }],
       ),
     )
   })
@@ -370,7 +372,9 @@ test.describe('archiving and restoring members', () => {
     await archiveDialog.getByRole('button', { name: 'Архивировать', exact: true }).click()
 
     // The card turns into the archive state: what stays and what hides.
-    await expect(page.getByText('Осталось: записи в дневнике, события, вишлист и фото')).toBeVisible()
+    await expect(
+      page.getByText('Осталось: записи в дневнике, события, вишлист и фото'),
+    ).toBeVisible()
     await expect(page.getByText('в архиве с 3 сентября').first()).toBeVisible()
 
     // The members screen lists the archived member separately.
@@ -383,7 +387,9 @@ test.describe('archiving and restoring members', () => {
 
     // The restore is the code issuance: the new code shows once.
     await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
-    await expect(page.getByText('Осталось: записи в дневнике, события, вишлист и фото')).toBeVisible()
+    await expect(
+      page.getByText('Осталось: записи в дневнике, события, вишлист и фото'),
+    ).toBeVisible()
     await page.getByRole('button', { name: 'Восстановить участника' }).click()
     const restoreDialog = page.getByRole('dialog', { name: /Вернуть Дима/ })
     await expect(restoreDialog).toBeVisible()

@@ -549,16 +549,18 @@ describe('MemberCardScreen — the archive (issue #23)', () => {
       if (path === '/api/v1/members') return okBody(archivedProfiles)
       throw new Error(`Unexpected GET ${String(path)}`)
     })
-    apiPost.mockResolvedValue(
-      okBody({ ...CODE, code: 'SASF-KQLV', status: 'issued' }, 201),
-    )
+    apiPost.mockResolvedValue(okBody({ ...CODE, code: 'SASF-KQLV', status: 'issued' }, 201))
     renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
 
     expect(await screen.findByRole('heading', { name: 'Дима' })).toBeInTheDocument()
     expect(screen.getByText('в архиве с 3 сентября')).toBeInTheDocument()
-    expect(screen.getByText('Осталось: записи в дневнике, события, вишлист и фото')).toBeInTheDocument()
     expect(
-      screen.getByText('Скрыто: участник не входит в пространство, его нет в списках и получателях событий'),
+      screen.getByText('Осталось: записи в дневнике, события, вишлист и фото'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Скрыто: участник не входит в пространство, его нет в списках и получателях событий',
+      ),
     ).toBeInTheDocument()
     // The owner instruments are replaced by the archive state.
     expect(screen.queryByText('Код входа')).not.toBeInTheDocument()
@@ -590,7 +592,9 @@ describe('MemberCardScreen — the archive (issue #23)', () => {
     })
     renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
 
-    expect(await screen.findByText('Личные данные участника удалены — восстановление недоступно')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Личные данные участника удалены — восстановление недоступно'),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Восстановить участника' })).not.toBeInTheDocument()
   })
 })
