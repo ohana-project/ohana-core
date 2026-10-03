@@ -167,6 +167,25 @@ jobs:
           cmp .env "$RUNNER_TEMP/env-before-refusal"
           cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
 
+      - name: A failed download leaves the directory untouched
+        working-directory: deploy/install
+        run: |
+          # A curl shim that fails stands in for a network error: even a
+          # --force rewrite must not leave a .env.bak behind on one, so
+          # the backup can only exist after the download succeeded.
+          cp .env "$RUNNER_TEMP/env-before-fail"
+          mkdir shim
+          printf '#!/bin/sh\nexit 22\n' > shim/curl
+          chmod +x shim/curl
+          if out=$(PATH="$PWD/shim:$PATH" sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::the installer succeeded despite a failed download'
+            exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'
+          [ ! -e .env.bak ] || { echo '::error::a failed download left a .env.bak behind'; exit 1; }
+          cmp .env "$RUNNER_TEMP/env-before-fail"
+          rm -rf shim
+
       - name: --force keeps an installation's secrets
         working-directory: deploy/install
         run: |
@@ -182,11 +201,16 @@ jobs:
           real_admin=$(grep '^ADMIN_INITIAL_PASSWORD=' .env | tail -n 1 | sed 's/^ADMIN_INITIAL_PASSWORD=//')
           sed -i '1i POSTGRES_PASSWORD=' .env
           sed -i "s|^POSTGRES_PASSWORD=${real_pw}|  export POSTGRES_PASSWORD=${real_pw}|" .env
+          # A project name in .env must survive the rewrite: the volumes
+          # were created under it (here: the same name the directory yields).
+          printf 'COMPOSE_PROJECT_NAME=install\n' >> .env
           cp .env "$RUNNER_TEMP/env-before-force"
           export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
           sh ../../deploy/install.sh --force --port 3210
           # A second rewrite must keep the first backup, not clobber it.
           sh ../../deploy/install.sh --force --port 3210
+          [ "$(grep -cx 'COMPOSE_PROJECT_NAME=install' .env)" = "1" ] ||
+            { echo '::error::--force dropped COMPOSE_PROJECT_NAME'; exit 1; }
           env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
           [ "$env_val" = "$real_pw" ] ||
             { echo '::error::--force regenerated POSTGRES_PASSWORD'; exit 1; }
@@ -200,7 +224,9 @@ jobs:
           cmp .env.bak "$RUNNER_TEMP/env-before-force" ||
             { echo '::error::.env.bak is not the previous .env'; exit 1; }
           [ "$(ls .env.bak.* 2> /dev/null | wc -l)" = "1" ] ||
-            { echo '::error::the second --force multiplied backups'; exit 1; }
+            { echo '::error::the second --force did not leave exactly one timestamped backup'; exit 1; }
+          [ "$(stat -c %a .env.bak.*)" = "600" ] ||
+            { echo '::error::the timestamped backup is not owner-only'; exit 1; }
           [ "$(stat -c %a .env)" = "600" ] || { echo '::error::.env is not owner-only'; exit 1; }
           [ "$(stat -c %a .env.bak)" = "600" ] || { echo '::error::.env.bak is not owner-only'; exit 1; }
 
@@ -215,7 +241,7 @@ jobs:
           # refusal, so no shim is needed. The .env is the only file
           # removed: a realistic operator deletes exactly the file that
           # holds the secrets. The stack of the --force step above is
-          # still up, so its data volume exists.
+          # still up, so its data volumes exist.
           mv .env "$RUNNER_TEMP/kept-env"
           ls -A > "$RUNNER_TEMP/ls-before-guard"
           if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
@@ -224,8 +250,8 @@ jobs:
           fi
           printf '%s\n' "$out" | grep -q 'data volume'
           # --force must not bypass the guard either: without the secrets
-          # there is no way past it. No shim is on PATH, so a bypass could
-          # not install anything anyway.
+          # there is no way past it. A bypass would fall through to the
+          # real download; either way the greps below fail this step.
           if out=$(sh ../../deploy/install.sh --force --port 3210 2>&1); then
             echo '::error::--force bypassed the data-volume guard'
             exit 1
@@ -235,6 +261,17 @@ jobs:
           cmp "$RUNNER_TEMP/ls-before-guard" "$RUNNER_TEMP/ls-after-guard"
           [ ! -e .env ]
           [ -f compose.yaml ]
+          # A .env that kept the database password but lost the storage
+          # keys must hit the media-volume branch of the guard.
+          printf 'POSTGRES_PASSWORD=x\n' > .env
+          out=$(sh ../../deploy/install.sh --port 3210 2>&1) || true
+          printf '%s\n' "$out" | grep -q 'rustfs-data'
+          rm .env
+          # The remedy, executed exactly as the message prints it: it must
+          # work without a .env and take the data volumes with it.
+          docker compose -p install down --volumes
+          [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the guard remedy left data volumes behind'; exit 1; }
           mv "$RUNNER_TEMP/kept-env" .env
 
       - name: Install through the script onto an external proxy network

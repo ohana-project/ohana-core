@@ -159,6 +159,9 @@ network_set=0
 port=3000
 port_set=0
 force=0
+# A Compose project name set in the caller's environment pins the project
+# the same way it does for every later docker compose call.
+COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-}
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -327,18 +330,32 @@ fi
 # survives — its .env was deleted, or never held the password — would lock
 # that data away forever: Postgres keeps the password it was initialised
 # with. There is no override short of erasing the data, so this comes
-# before the overwrite refusal below.
-project=${COMPOSE_PROJECT_NAME:-${old_compose_project_name:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')}}
+# before the overwrite refusal below. The project name from the .env is
+# normalised for the label lookup only: quotes and trailing comments are
+# valid to Compose but never appear in a label.
+old_project_lookup=${old_compose_project_name%%[[:space:]]*}
+old_project_lookup=${old_project_lookup#\"}
+old_project_lookup=${old_project_lookup#\'}
+old_project_lookup=${old_project_lookup%\"}
+old_project_lookup=${old_project_lookup%\'}
+old_project_lookup=$(printf '%s' "$old_project_lookup" | tr '[:upper:]' '[:lower:]')
+project=${COMPOSE_PROJECT_NAME:-${old_project_lookup:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')}}
 data_volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=postgres-data' | sed -n '1p')
 media_volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=rustfs-data' | sed -n '1p')
 locked_volume=
 if [ -n "$data_volume" ] && [ -z "$old_postgres_password" ]; then
 	locked_volume=$data_volume
-elif [ -n "$media_volume" ] && [ -z "$old_storage_access_key" ]; then
+elif [ -n "$media_volume" ] && { [ -z "$old_storage_access_key" ] || [ -z "$old_storage_secret_key" ]; }; then
 	locked_volume=$media_volume
 fi
 if [ -n "$locked_volume" ]; then
-	die "a data volume of an installation in this directory (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD and STORAGE_ACCESS_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
+	# The same project name can be claimed by an installation in another
+	# directory; the erase remedy below must never reach that one.
+	owner_dir=$(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Label "com.docker.compose.project.working_dir"}}' | sed -n '1p')
+	if [ -n "$owner_dir" ] && [ "$owner_dir" != "$(pwd)" ]; then
+		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project belongs to an installation in ${owner_dir}, so it must not be erased from here; install into a differently named directory, set COMPOSE_PROJECT_NAME, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
+	fi
+	die "a data volume of the Compose project '${project}' (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
 fi
 
 for file in .env compose.yaml compose.override.yaml; do
@@ -389,7 +406,7 @@ if [ "$had_env" -eq 1 ]; then
 		backup=".env.bak.$(date +%Y%m%d%H%M%S)"
 	fi
 	cp .env "$backup"
-	say "Only the secrets are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there."
+	say "Only the secrets are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there (STORAGE_ENDPOINT and STORAGE_BUCKET in particular, if you used external object storage)."
 fi
 
 # A compose.override.yaml left behind by an earlier --external-network
@@ -484,10 +501,14 @@ ENV
 # The file holds generated secrets; keep it to the operator who ran this.
 chmod 600 .env
 
-# Kept from the previous .env so a --force rewrite does not move the
-# installation to a different, empty set of volumes.
-if [ -n "$old_compose_project_name" ]; then
-	printf '\n# Kept from the previous .env: the project name the existing data\n# volumes belong to.\nCOMPOSE_PROJECT_NAME=%s\n' "$old_compose_project_name" >> .env
+# Pin the Compose project name, so the data volumes stay with this
+# directory: from the install's environment, or carried from the previous
+# .env. Without one the directory name decides, which a rename would
+# silently change.
+if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+	printf '\n# From the environment the installer ran with: the Compose project\n# name the data volumes belong to.\nCOMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_PROJECT_NAME" >> .env
+elif [ -n "$old_compose_project_name" ]; then
+	printf '\n# Kept from the previous .env: the Compose project name the existing\n# data volumes belong to.\nCOMPOSE_PROJECT_NAME=%s\n' "$old_compose_project_name" >> .env
 fi
 
 say 'Starting the stack (this pulls the images; it can take a few minutes)...'
