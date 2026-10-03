@@ -249,12 +249,6 @@ importers:
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
-      i18next:
-        specifier: ^26.4.2
-        version: 26.4.2(typescript@7.0.2)
-      i18next-icu:
-        specifier: ^2.4.4
-        version: 2.4.4(intl-messageformat@11.2.15)
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -9478,10 +9472,6 @@ snapshots:
   i18next@26.4.2(typescript@6.0.3):
     optionalDependencies:
       typescript: 6.0.3
-
-  i18next@26.4.2(typescript@7.0.2):
-    optionalDependencies:
-      typescript: 7.0.2
 
   iconv-lite@0.7.3:
     dependencies:

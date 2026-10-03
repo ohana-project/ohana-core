@@ -18,16 +18,17 @@ RUN pnpm --filter @ohana/web build
 
 # The legacy deploy yields a self-contained directory: source, migrations,
 # and production node_modules. The api's one workspace dependency
-# (@ohana/i18n, the reminders' payload texts) is deployed as the workspace
-# link it keeps; the package travels as TS source, and node strips types
-# only outside node_modules, so it lands in /app/vendor under a link from
-# the deployed tree. Its own node_modules is dropped so its runtime
-# dependencies (i18next, i18next-icu) resolve from /app/node_modules, where
-# they are listed as the api's direct dependencies.
+# (@ohana/i18n, the reminders' payload texts) the legacy deploy leaves as a
+# dangling workspace link, so the package is deployed beside the api, under
+# /app/vendor, and the link is re-pointed there. The package travels as TS
+# source, and node strips types only outside node_modules — which is why it
+# must not live under /app/node_modules itself; this rests on node's default
+# symlink resolution (no --preserve-symlinks). The package deploys with its
+# own production dependencies, and its tests are dropped: nothing at runtime
+# imports them.
 RUN pnpm --filter @ohana/api deploy --prod --legacy /app && \
-    mkdir -p /app/vendor && \
-    cp -R /repo/packages/i18n /app/vendor/i18n && \
-    rm -rf /app/vendor/i18n/node_modules && \
+    pnpm --filter @ohana/i18n deploy --prod --legacy /app/vendor/i18n && \
+    rm /app/vendor/i18n/src/*.test.ts && \
     rm /app/node_modules/@ohana/i18n && \
     ln -s /app/vendor/i18n /app/node_modules/@ohana/i18n
 
