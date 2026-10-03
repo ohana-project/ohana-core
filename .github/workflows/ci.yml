@@ -230,21 +230,23 @@ jobs:
           mkdir "$RUNNER_TEMP/anywhere"
           cd "$RUNNER_TEMP/anywhere"
           export PATH="$RUNNER_TEMP/shim:$PATH"
-          # Not writable for the runner's user: refused with the advice,
-          # and nothing is created.
-          if out=$(sh "$GITHUB_WORKSPACE/deploy/install.sh" --yes 2>&1); then
-            echo '::error::the installer succeeded without a writable /opt/ohana-core'
+          # A location the user cannot write to is refused with the advice,
+          # and nothing is created. (/opt itself is writable for the
+          # runner's user, so a root-owned directory stands in.)
+          sudo mkdir "$RUNNER_TEMP/locked"
+          if out=$(OHANA_INSTALL_DIR="$RUNNER_TEMP/locked/ohana" sh "$GITHUB_WORKSPACE/deploy/install.sh" --yes 2>&1); then
+            echo '::error::the installer succeeded in a directory it cannot write to'
             exit 1
           fi
-          if ! printf '%s\n' "$out" | grep -q 'cannot write to /opt/ohana-core'; then
-            echo '::error::the refusal did not name /opt/ohana-core'
+          if ! printf '%s\n' "$out" | grep -qF "cannot write to $RUNNER_TEMP/locked/ohana"; then
+            echo '::error::the refusal did not name the directory'
             printf '%s\n' "$out"
             exit 1
           fi
-          [ ! -e /opt/ohana-core ] ||
-            { echo '::error::the refusal created /opt/ohana-core'; exit 1; }
-          sudo mkdir -p /opt/ohana-core
-          sudo chown "$(id -un)" /opt/ohana-core
+          [ -z "$(sudo ls -A "$RUNNER_TEMP/locked")" ] ||
+            { echo '::error::the refusal created files'; exit 1; }
+          # The default: the script creates /opt/ohana-core itself.
+          [ ! -e /opt/ohana-core ] || sudo rmdir /opt/ohana-core
           if out=$(sh "$GITHUB_WORKSPACE/deploy/install.sh" --yes 2>&1); then
             echo '::error::the installer succeeded despite a failed download'
             exit 1
