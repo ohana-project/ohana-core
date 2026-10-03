@@ -1,7 +1,9 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
+import type { JobSender } from '../../platform/jobs/index.ts'
 import { wallTimeToInstant } from '../../platform/timezone.ts'
+import { findMemberInSpace } from '../members/index.ts'
 import { assertTimezone, requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import {
@@ -9,8 +11,13 @@ import {
   type CreateEventBody,
   type OccurrenceBody,
   type RecurrenceDto,
+  type ReminderBody,
+  type ReminderDto,
+  type ReminderRecipientsBody,
   type TimedEventBody,
+  toReminderDto,
 } from './contracts.ts'
+import { CALENDAR_REMINDER_JOB, type CalendarReminderJobData } from './jobs.ts'
 import { assertEventEditableBy } from './policy.ts'
 import {
   composeRrule,
@@ -19,25 +26,41 @@ import {
   seriesRecurrence,
   seriesStartDate,
 } from './recurrence.ts'
+import { REMINDER_HORIZON_DAYS, reminderJobsBetween } from './reminders.ts'
+
 import {
   deleteEvent,
   deleteEventExceptions,
   deleteEventExceptionsFor,
+  deleteEventReminder,
+  deleteReminderClaimsForEvent,
+  type EventReminderWithRecipients,
   getEventInSpace,
+  getReminderForEvent,
   insertEvent,
   listChangedEvents,
   listEventsInSpace,
   listExceptionsForEvent,
   listExceptionsForEvents,
+  listRemindersForEvents,
   touchEvent,
   updateEvent,
   upsertEventException,
+  upsertEventReminder,
 } from './repository.ts'
-import type { CalendarEvent, CalendarEventException } from './tables.ts'
+import type { CalendarEvent, CalendarEventException, CalendarEventReminder } from './tables.ts'
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 export interface CalendarDeps {
   db: Db
   clock: Clock
+  /**
+   * The jobs port (issue #22): the reminder use cases schedule their
+   * per-occurrence jobs inside the same transaction as the change, so a
+   * rollback takes the jobs with it.
+   */
+  jobs: JobSender
 }
 
 /**
@@ -54,14 +77,15 @@ export interface CalendarActor {
 }
 
 /**
- * An event and the exceptions it carries (issue #21): what the reads and
- * the sync contributor project onto the wire together — the exceptions
- * travel inside the event's DTO, so one row is all a device needs to
- * expand the series, offline included.
+ * An event and what travels with it (issues #21 and #22): the exceptions
+ * and the reminder inside the event's DTO — what the reads and the sync
+ * contributor project onto the wire together, so one row is all a device
+ * needs to expand the series and know its reminder, offline included.
  */
 export interface CalendarEventWithExceptions {
   event: CalendarEvent
   exceptions: CalendarEventException[]
+  reminder?: ReminderDto
 }
 
 /**
@@ -83,6 +107,7 @@ export async function createEvent(
 ): Promise<CalendarEventWithExceptions> {
   const now = deps.clock.now()
   let created: CalendarEvent | undefined
+  let result: CalendarEventWithExceptions | undefined
   await deps.db.transaction(async (tx) => {
     const space = await requireVisibleSectionInTx(tx, actor.spaceId, 'calendar')
     assertValidRecurrence(input.recurrence, input.date)
@@ -99,13 +124,29 @@ export async function createEvent(
             revision,
             now,
           })
+          // The creator's one reminder (issue #22), beside the event in the
+          // same transaction; its jobs ride the same commit.
+          const reminder = await writeEventReminder(
+            writeTx,
+            deps,
+            actor.spaceId,
+            created,
+            [],
+            input.reminder,
+            revision,
+            now,
+            space.timezone,
+          )
+          result = { event: created, exceptions: [], reminder: toReminderOf(reminder) }
         },
       },
       now,
     )
   })
-  if (created === undefined) throw new Error('Creating a calendar event produced no row')
-  return { event: created, exceptions: [] }
+  if (created === undefined || result === undefined) {
+    throw new Error('Creating a calendar event produced no row')
+  }
+  return result
 }
 
 /**
@@ -122,7 +163,11 @@ export async function getEvent(
   if (event === undefined) {
     throw notFound('event_not_found', `Calendar event ${eventId} does not exist`)
   }
-  return { event, exceptions: await listExceptionsForEvent(deps.db, actor.spaceId, eventId) }
+  return {
+    event,
+    exceptions: await listExceptionsForEvent(deps.db, actor.spaceId, eventId),
+    reminder: toReminderOf(await getReminderForEvent(deps.db, actor.spaceId, eventId)),
+  }
 }
 
 /** The space's events — the HTTP contract the tests and the document speak. */
@@ -131,6 +176,11 @@ export async function listEvents(
   actor: CalendarActor,
 ): Promise<CalendarEventWithExceptions[]> {
   const events = await listEventsInSpace(deps.db, actor.spaceId)
+  const reminders = await listRemindersForEvents(
+    deps.db,
+    actor.spaceId,
+    events.map((event) => event.id),
+  )
   return groupExceptions(
     events,
     await listExceptionsForEvents(
@@ -138,7 +188,7 @@ export async function listEvents(
       actor.spaceId,
       events.map((event) => event.id),
     ),
-  )
+  ).map((entry) => ({ ...entry, reminder: toReminderOf(reminders.get(entry.event.id)) }))
 }
 
 /** The events and their exceptions, grouped once — the reads' and the
@@ -146,7 +196,7 @@ export async function listEvents(
 function groupExceptions(
   events: CalendarEvent[],
   exceptions: readonly CalendarEventException[],
-): CalendarEventWithExceptions[] {
+): Omit<CalendarEventWithExceptions, 'reminder'>[] {
   const byEvent = new Map<string, CalendarEventException[]>()
   for (const exception of exceptions) {
     const group = byEvent.get(exception.eventId)
@@ -222,10 +272,24 @@ export async function editEvent(
             )
           }
           const staleDates = new Set(stale.map((exception) => exception.originalDate))
-          result = {
-            event: row,
-            exceptions: exceptions.filter((exception) => !staleDates.has(exception.originalDate)),
-          }
+          const kept = exceptions.filter((exception) => !staleDates.has(exception.originalDate))
+          // The body's reminder is the whole truth of the replace (the
+          // wishlist's PUT precedent): naming none removes the one there
+          // was. The jobs are rescheduled from the event's new state, and
+          // whatever the old schedule still had pending answers for the
+          // event it meets when it fires.
+          const reminder = await writeEventReminder(
+            writeTx,
+            deps,
+            actor.spaceId,
+            row,
+            kept,
+            input.reminder,
+            revision,
+            now,
+            space.timezone,
+          )
+          result = { event: row, exceptions: kept, reminder: toReminderOf(reminder) }
         },
       },
       now,
@@ -290,10 +354,20 @@ export async function editOccurrence(
             now,
           })
           const row = await touchAfter(writeTx, actor, eventId, revision, now)
-          result = {
-            event: row,
-            exceptions: await listExceptionsForEvent(writeTx, actor.spaceId, eventId),
-          }
+          const exceptions = await listExceptionsForEvent(writeTx, actor.spaceId, eventId)
+          // The override's reminder moves with its occurrence (issue #22):
+          // the jobs are rescheduled from the event's new state, and the
+          // series' reminder rides the answer.
+          const reminder = await rescheduleEventReminder(
+            writeTx,
+            deps,
+            actor.spaceId,
+            row,
+            exceptions,
+            now,
+            space.timezone,
+          )
+          result = { event: row, exceptions, reminder: toReminderOf(reminder) }
         },
       },
       now,
@@ -316,7 +390,7 @@ export async function cancelOccurrence(
 ): Promise<void> {
   const now = deps.clock.now()
   await deps.db.transaction(async (tx) => {
-    await requireVisibleSectionInTx(tx, actor.spaceId, 'calendar')
+    const space = await requireVisibleSectionInTx(tx, actor.spaceId, 'calendar')
     const existing = await requireEventInSpace(tx, actor, eventId)
     assertEventEditableBy(existing.event, actor)
     requireSeriesOccurrence(existing.event, originalDate)
@@ -337,7 +411,20 @@ export async function cancelOccurrence(
             revision,
             now,
           })
-          await touchAfter(writeTx, actor, eventId, revision, now)
+          const row = await touchAfter(writeTx, actor, eventId, revision, now)
+          const exceptions = await listExceptionsForEvent(writeTx, actor.spaceId, eventId)
+          // The cancelled occurrence's reminder goes with it (issue #22):
+          // the rescheduled jobs no longer ask about that date, and a job
+          // the old schedule still holds answers "cancelled" when it fires.
+          await rescheduleEventReminder(
+            writeTx,
+            deps,
+            actor.spaceId,
+            row,
+            exceptions,
+            now,
+            space.timezone,
+          )
         },
       },
       now,
@@ -375,6 +462,12 @@ export async function removeEvent(
       {
         writes: async (writeTx) => {
           await deleteEventExceptions(writeTx, actor.spaceId, eventId)
+          // The reminder and its send-once bookkeeping go with the event —
+          // explicitly, in the same transaction (the wishlist's model; the
+          // composite foreign keys carry no cascade of their own). The
+          // pending jobs answer "gone" when they fire.
+          await deleteEventReminder(writeTx, actor.spaceId, eventId)
+          await deleteReminderClaimsForEvent(writeTx, actor.spaceId, eventId)
           const row = await deleteEvent(writeTx, actor.spaceId, eventId)
           if (row === undefined) {
             // The defensive backstop, like the edit's: unreachable under
@@ -396,6 +489,11 @@ export async function listChangedEventsFor(
   since: bigint,
 ): Promise<CalendarEventWithExceptions[]> {
   const events = await listChangedEvents(tx, actor.spaceId, since)
+  const reminders = await listRemindersForEvents(
+    tx,
+    actor.spaceId,
+    events.map((event) => event.id),
+  )
   return groupExceptions(
     events,
     await listExceptionsForEvents(
@@ -403,7 +501,134 @@ export async function listChangedEventsFor(
       actor.spaceId,
       events.map((event) => event.id),
     ),
+  ).map((entry) => ({ ...entry, reminder: toReminderOf(reminders.get(entry.event.id)) }))
+}
+
+/*
+ * The reminder's shared writes (issue #22): what create, edit, and the
+ * occurrence changes all run — the config rows, the recipients' existence,
+ * and the per-occurrence jobs, all inside the caller's transaction.
+ */
+
+/**
+ * Writes the body's reminder beside the event and schedules its jobs. The
+ * body's reminder is the whole truth: naming none removes the one there
+ * was. Returns the stored reminder with its named recipients, so the
+ * caller's result carries it.
+ */
+async function writeEventReminder(
+  writeTx: Tx,
+  deps: CalendarDeps,
+  spaceId: string,
+  event: CalendarEvent,
+  exceptions: readonly CalendarEventException[],
+  body: ReminderBody | undefined,
+  revision: bigint,
+  now: Date,
+  spaceTimezone: string,
+): Promise<EventReminderWithRecipients | undefined> {
+  if (body === undefined) {
+    await deleteEventReminder(writeTx, spaceId, event.id)
+    return undefined
+  }
+  await assertReminderRecipientsExist(writeTx, spaceId, body.recipients)
+  const memberIds: string[] =
+    'memberIds' in body.recipients ? [...new Set(body.recipients.memberIds)] : []
+  const stored = await upsertEventReminder(writeTx, spaceId, event.id, {
+    leadMinutes: body.leadMinutes,
+    everyone: !('memberIds' in body.recipients),
+    memberIds,
+    revision,
+    now,
+    // The jobs below cover the whole span; the sweep's watermark starts here.
+    scheduledThrough: new Date(now.getTime() + REMINDER_HORIZON_DAYS * DAY_MS),
+  })
+  await scheduleReminderJobs(writeTx, deps, spaceId, event, exceptions, stored, now, spaceTimezone)
+  return { reminder: stored, memberIds }
+}
+
+/**
+ * Reschedules an event's reminder jobs from its current state — the
+ * occurrence changes' path, where the config stands and the moments moved.
+ */
+async function rescheduleEventReminder(
+  writeTx: Tx,
+  deps: CalendarDeps,
+  spaceId: string,
+  event: CalendarEvent,
+  exceptions: readonly CalendarEventException[],
+  now: Date,
+  spaceTimezone: string,
+): Promise<EventReminderWithRecipients | undefined> {
+  const stored = await getReminderForEvent(writeTx, spaceId, event.id)
+  if (stored === undefined) return undefined
+  await scheduleReminderJobs(
+    writeTx,
+    deps,
+    spaceId,
+    event,
+    exceptions,
+    stored.reminder,
+    now,
+    spaceTimezone,
   )
+  return stored
+}
+
+/**
+ * The per-occurrence jobs (issue #22): one per occurrence whose reminder
+ * falls in `[now − stale limit, now + horizon]`, each set to first run at
+ * its reminder's moment. Duplicate jobs are part of the design — a later
+ * edit schedules anew and the old pending jobs re-read the event when they
+ * fire — and the send-once claim makes them send once.
+ */
+async function scheduleReminderJobs(
+  tx: Tx,
+  deps: CalendarDeps,
+  spaceId: string,
+  event: CalendarEvent,
+  exceptions: readonly CalendarEventException[],
+  reminder: CalendarEventReminder,
+  now: Date,
+  spaceTimezone: string,
+): Promise<void> {
+  for (const job of reminderJobsBetween(event, exceptions, reminder, spaceTimezone, now)) {
+    await deps.jobs.sendInTx(tx, {
+      name: CALENDAR_REMINDER_JOB,
+      data: {
+        spaceId,
+        eventId: event.id,
+        originalDate: job.originalDate,
+      } satisfies CalendarReminderJobData,
+      startAfter: job.sendAt,
+    })
+  }
+}
+
+/** The named recipients must be members of this space: a body that names
+ *  a stranger is a validation answer, not a half-written reminder. */
+async function assertReminderRecipientsExist(
+  tx: Tx,
+  spaceId: string,
+  recipients: ReminderRecipientsBody,
+): Promise<void> {
+  if (!('memberIds' in recipients)) return
+  for (const memberId of recipients.memberIds) {
+    const member = await findMemberInSpace(tx, spaceId, memberId)
+    if (member === undefined) {
+      throw new DomainError(
+        'reminder_recipient_not_found',
+        `Reminder recipient ${memberId} is not a member of this space`,
+        400,
+      )
+    }
+  }
+}
+
+/** The stored reminder as its DTO, or absent. */
+function toReminderOf(stored: EventReminderWithRecipients | undefined): ReminderDto | undefined {
+  if (stored === undefined) return undefined
+  return toReminderDto(stored.reminder, stored.memberIds)
 }
 
 async function requireEventInSpace(

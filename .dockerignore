@@ -11,3 +11,4 @@ dist/
 .github/
 docs/
 deploy/
+**/.DS_Store

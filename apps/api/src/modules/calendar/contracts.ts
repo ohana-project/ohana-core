@@ -1,6 +1,7 @@
 import { type Static, Type } from '@sinclair/typebox'
 import { parseRrule } from './recurrence.ts'
 import type { CalendarEvent, CalendarEventException } from './tables.ts'
+import { REMINDER_LEAD_MAX_MINUTES } from './tables.ts'
 
 /*
  * The calendar contracts (issues #20 and #21). The DTO names the creator by
@@ -115,6 +116,57 @@ export const EventExceptionDtoSchema = Type.Union([
 
 export type EventExceptionDto = Static<typeof EventExceptionDtoSchema>
 
+/*
+ * The reminder (issue #22): one per event, a lead in minutes and the
+ * recipients the creator chose — everyone (evaluated when the reminder
+ * sends, so later members are in) or a named list of members. The
+ * occurrence routes name no reminder: an override rides its series' one
+ * reminder, and a single date has none of its own to set.
+ */
+
+export const ReminderRecipientsBodySchema = Type.Union([
+  Type.Object({ everyone: Type.Literal(true) }, { additionalProperties: false }),
+  Type.Object(
+    {
+      memberIds: Type.Array(Type.String({ format: 'uuid' }), { minItems: 1, uniqueItems: true }),
+    },
+    { additionalProperties: false },
+  ),
+])
+
+export type ReminderRecipientsBody = Static<typeof ReminderRecipientsBodySchema>
+
+export const ReminderBodySchema = Type.Object(
+  {
+    leadMinutes: Type.Integer({ minimum: 1, maximum: REMINDER_LEAD_MAX_MINUTES }),
+    recipients: ReminderRecipientsBodySchema,
+  },
+  { additionalProperties: false },
+)
+
+export type ReminderBody = Static<typeof ReminderBodySchema>
+
+export const ReminderDtoSchema = Type.Object(
+  {
+    leadMinutes: Type.Integer({ minimum: 1, maximum: REMINDER_LEAD_MAX_MINUTES }),
+    recipients: ReminderRecipientsBodySchema,
+  },
+  { additionalProperties: false },
+)
+
+export type ReminderDto = Static<typeof ReminderDtoSchema>
+
+/** The stored reminder as the wire carries it: everyone, or the named ids. */
+export function toReminderDto(
+  reminder: { leadMinutes: number; everyone: boolean },
+  memberIds: readonly string[],
+): ReminderDto {
+  return {
+    leadMinutes: reminder.leadMinutes,
+    recipients: reminder.everyone ? { everyone: true } : { memberIds: [...memberIds] },
+  }
+}
+
 export const CalendarEventDtoSchema = Type.Object(
   {
     id: Type.String({ format: 'uuid' }),
@@ -131,6 +183,9 @@ export const CalendarEventDtoSchema = Type.Object(
     // and its exceptions ride along on a repeating one.
     recurrence: Type.Optional(RecurrenceSchema),
     exceptions: Type.Optional(Type.Array(EventExceptionDtoSchema)),
+    // The event's one reminder (issue #22): absent when the creator set
+    // none, the lead and the recipients when they did.
+    reminder: Type.Optional(ReminderDtoSchema),
     createdAt: Type.String({ format: 'date-time' }),
     updatedAt: Type.String({ format: 'date-time' }),
   },
@@ -153,6 +208,7 @@ export type CalendarEventDto = Static<typeof CalendarEventDtoSchema>
 export function toEventDto(
   event: CalendarEvent,
   exceptions: readonly CalendarEventException[] = [],
+  reminder?: ReminderDto,
 ): CalendarEventDto {
   const base = {
     id: event.id,
@@ -170,6 +226,9 @@ export function toEventDto(
   }
   if (exceptions.length > 0) {
     dto.exceptions = exceptions.map(toExceptionDto)
+  }
+  if (reminder !== undefined) {
+    dto.reminder = reminder
   }
   return dto
 }
@@ -295,13 +354,17 @@ export type OccurrenceBody = Static<typeof OccurrenceBodySchema>
 
 const recurrenceProperty = { recurrence: Type.Optional(RecurrenceSchema) }
 
+// The reminder is a series-and-one-time-event setting: an occurrence's
+// replacement has no reminder of its own (issue #22).
+const reminderProperty = { reminder: Type.Optional(ReminderBodySchema) }
+
 export const AllDaySeriesBodySchema = Type.Object(
-  { ...allDayEventProperties, ...recurrenceProperty },
+  { ...allDayEventProperties, ...recurrenceProperty, ...reminderProperty },
   { additionalProperties: false },
 )
 
 export const TimedSeriesBodySchema = Type.Object(
-  { ...timedEventProperties, ...recurrenceProperty },
+  { ...timedEventProperties, ...recurrenceProperty, ...reminderProperty },
   { additionalProperties: false },
 )
 

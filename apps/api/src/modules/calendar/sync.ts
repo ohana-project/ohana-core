@@ -33,9 +33,9 @@ export const calendarSyncContributor = {
     }
     const changed = await listChangedEventsFor(tx, actor, since)
     return {
-      upserts: changed.map(({ event, exceptions }) => ({
+      upserts: changed.map(({ event, exceptions, reminder }) => ({
         entity: CALENDAR_EVENT_SYNC_ENTITY,
-        event: toEventDto(event, exceptions),
+        event: toEventDto(event, exceptions, reminder),
       })),
     }
   },

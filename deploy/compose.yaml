@@ -28,6 +28,9 @@ x-app-env: &app-env
   STORAGE_BUCKET: ${STORAGE_BUCKET:-ohana}
   # The photo upload limit in bytes (issue #17); the default is 25 MiB.
   MEDIA_MAX_UPLOAD_BYTES: ${MEDIA_MAX_UPLOAD_BYTES:-26214400}
+  # The Web Push identity's contact (issue #22); the push services reach
+  # the operator here about abuse.
+  PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT:-}
 
 services:
   postgres:

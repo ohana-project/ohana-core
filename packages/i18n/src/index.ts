@@ -1,7 +1,9 @@
 import i18next from 'i18next'
 import ICU from 'i18next-icu'
-import en from './resources/en.json'
-import ru from './resources/ru.json'
+// The import attributes are required at runtime: the api ships as TS source
+// executed by node's type stripping, and ESM refuses JSON without them.
+import en from './resources/en.json' with { type: 'json' }
+import ru from './resources/ru.json' with { type: 'json' }
 
 export const locales = ['ru', 'en'] as const
 export type Locale = (typeof locales)[number]

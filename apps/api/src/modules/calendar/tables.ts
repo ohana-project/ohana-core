@@ -6,6 +6,7 @@ import {
   date,
   foreignKey,
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -15,6 +16,14 @@ import {
 import { uuidv7 } from '../../platform/db/uuid.ts'
 import { members } from '../members/tables.ts'
 import { spaces } from '../spaces/tables.ts'
+
+/**
+ * The reminder lead's bound (issue #22): from one minute to thirty days
+ * before an occurrence. The database enforces the range beside the
+ * contract; the constant is the one definition of "thirty days" both
+ * spell.
+ */
+export const REMINDER_LEAD_MAX_MINUTES = 43_200
 
 /**
  * A calendar event (issue #20, CONTEXT.md): a planned activity or
@@ -190,3 +199,158 @@ export const calendarEventExceptions = pgTable(
 )
 
 export type CalendarEventException = typeof calendarEventExceptions.$inferSelect
+
+/**
+ * An event's reminder (issue #22): the one reminder an event carries — a
+ * lead time before the occurrence and the recipients the creator chose,
+ * either everyone (evaluated at send time, so members who join later are
+ * in and leavers are out) or a named list. The row travels inside its
+ * event's DTO — the exceptions' precedent: a change stamps the event row,
+ * and that stamp is the delivery. Absent row, no reminder.
+ */
+export const calendarEventReminders = pgTable(
+  'calendar_event_reminders',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    spaceId: uuid('space_id')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    eventId: uuid('event_id').notNull(),
+    /** How many minutes before the occurrence the reminder is due. */
+    leadMinutes: integer('lead_minutes').notNull(),
+    /**
+     * How far the per-occurrence jobs have been scheduled: the sweep's
+     * watermark (issue #22). A round missed for any reason fills exactly
+     * the gap between this and the horizon, and a create or edit — which
+     * schedules the whole span itself — sets it to that horizon.
+     */
+    scheduledThrough: timestamp('scheduled_through', { withTimezone: true }),
+    /**
+     * Everyone in the space, read when the reminder sends. The named
+     * alternative stands in the recipients table below.
+     */
+    everyone: boolean('everyone').notNull(),
+    // The convention's bookkeeping, read by nothing — the delivery is the
+    // parent event's stamp (the media module's precedent).
+    revision: bigint('revision', { mode: 'bigint' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique('calendar_event_reminders_space_id_id_key').on(table.spaceId, table.id),
+    // One reminder per event (ADR-0006: version 1.0 has one configurable
+    // reminder per event) — a second write is the replace, never a second
+    // row.
+    unique('calendar_event_reminders_event_key').on(table.spaceId, table.eventId),
+    check(
+      'calendar_event_reminders_lead_range',
+      // sql.raw so the migration generator inlines the bound instead of
+      // emitting a $1 placeholder no raw-SQL migration run can bind.
+      sql`${table.leadMinutes} between 1 and ${sql.raw(String(REMINDER_LEAD_MAX_MINUTES))}`,
+    ),
+    foreignKey({
+      name: 'calendar_event_reminders_space_id_event_id_fk',
+      columns: [table.spaceId, table.eventId],
+      foreignColumns: [calendarEvents.spaceId, calendarEvents.id],
+    }),
+  ],
+)
+
+export type CalendarEventReminder = typeof calendarEventReminders.$inferSelect
+
+/**
+ * The named recipients of an event's reminder (issue #22): the members the
+ * creator picked one by one. Written only when the reminder is not for
+ * everyone; the composite foreign keys keep every reference inside the
+ * space (ADR-0016). A recipient the space later loses is filtered when the
+ * reminder sends — the send-time evaluation, not this list, is the truth.
+ */
+export const calendarEventReminderRecipients = pgTable(
+  'calendar_event_reminder_recipients',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    spaceId: uuid('space_id')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    eventId: uuid('event_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique('calendar_event_reminder_recipients_recipient_key').on(
+      table.spaceId,
+      table.eventId,
+      table.memberId,
+    ),
+    foreignKey({
+      name: 'calendar_event_reminder_recipients_space_id_event_id_fk',
+      columns: [table.spaceId, table.eventId],
+      foreignColumns: [calendarEvents.spaceId, calendarEvents.id],
+    }),
+    foreignKey({
+      name: 'calendar_event_reminder_recipients_space_id_member_id_fk',
+      columns: [table.spaceId, table.memberId],
+      foreignColumns: [members.spaceId, members.id],
+    }),
+  ],
+)
+
+export type CalendarEventReminderRecipient = typeof calendarEventReminderRecipients.$inferSelect
+
+/**
+ * The send-once bookkeeping (issue #22): the occurrences a reminder has
+ * already been claimed for. Not a synchronised table — the devices never
+ * read it — and not a delivery record: the claim arms the handler's
+ * idempotency, so a redelivered or duplicated job sends nothing, while a
+ * crashed sender may take a stale claim over. The rows die with their
+ * event, and the sweep prunes what no job can ask about any more.
+ */
+export const calendarRemindersSent = pgTable(
+  'calendar_reminders_sent',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    spaceId: uuid('space_id')
+      .notNull()
+      .references(() => spaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    eventId: uuid('event_id').notNull(),
+    /** The occurrence the reminder belonged to, by its original date. */
+    originalDate: date('original_date', { mode: 'string' }).notNull(),
+    /** When a run claimed the occurrence; the idempotency's lease. */
+    remindedAt: timestamp('reminded_at', { withTimezone: true }).notNull(),
+    /**
+     * The occurrence's start the receipt answers for: a reminder that went
+     * out for the 18:00 start is not one for the 20:00 the creator moved
+     * it to — that one goes out too (issue #22). Total with the receipt:
+     * a sent row always names its start.
+     */
+    startAt: timestamp('start_at', { withTimezone: true }).notNull(),
+    /**
+     * When the reminder actually went out. Null, the claim is a live
+     * sender's lease — or a crashed one's, after the takeover window — and
+     * the reminder may still be sent; set, every other job for the
+     * occurrence answers quiet, however late it fires.
+     */
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (table) => [
+    unique('calendar_reminders_sent_occurrence_key').on(
+      table.spaceId,
+      table.eventId,
+      table.originalDate,
+    ),
+    index('calendar_reminders_sent_reminded_idx').on(table.remindedAt),
+    foreignKey({
+      name: 'calendar_reminders_sent_space_id_event_id_fk',
+      columns: [table.spaceId, table.eventId],
+      foreignColumns: [calendarEvents.spaceId, calendarEvents.id],
+    }),
+  ],
+)
+
+export type CalendarReminderSent = typeof calendarRemindersSent.$inferSelect

@@ -1,6 +1,16 @@
 import { sql } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
 import {
+  CALENDAR_QUEUE_SETUPS,
+  CALENDAR_REMINDER_JOB,
+  CALENDAR_REMINDER_SWEEP_CRON,
+  CALENDAR_REMINDER_SWEEP_JOB,
+  type CalendarReminderJobData,
+  type CalendarReminderJobsDeps,
+  extendReminderHorizons,
+  sendDueCalendarReminder,
+} from '../modules/calendar/index.ts'
+import {
   JOURNAL_PURGE_JOB,
   JOURNAL_PURGE_SWEEP_CRON,
   JOURNAL_PURGE_SWEEP_JOB,
@@ -23,6 +33,7 @@ import {
 import type { Db } from '../platform/db/index.ts'
 import { createPgBossJobSender, ensureQueues } from '../platform/jobs/pgboss.ts'
 import type { Logger } from '../platform/logging.ts'
+import type { PushSender } from '../platform/push/index.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 
 export interface WorkerDeps {
@@ -31,6 +42,11 @@ export interface WorkerDeps {
   logger: Logger
   /** The photos' storage: the derivatives land there, the purges clean up there. */
   storage: ObjectStorage
+  /**
+   * The Web Push sender (issue #22): the calendar reminders go out through
+   * it, signed with the installation's VAPID keys.
+   */
+  push: PushSender
   /**
    * The pg-boss instance the worker claims jobs through — started by the
    * entrypoint from configuration, handed in explicitly like every other
@@ -54,7 +70,8 @@ export interface Worker {
  */
 export function buildWorker(deps: WorkerDeps): Worker {
   // The worker's own sender: the purge schedules the photos' cleanup inside
-  // its transactions, the way the api's use cases schedule theirs.
+  // its transactions, the way the api's use cases schedule theirs; the
+  // reminder sweep schedules the horizon's jobs the same way.
   const jobs = createPgBossJobSender(deps.boss)
   const jobDeps: JournalJobsDeps = { db: deps.db, clock: deps.clock, jobs }
   const mediaJobDeps: MediaJobsDeps = {
@@ -63,6 +80,13 @@ export function buildWorker(deps: WorkerDeps): Worker {
     storage: deps.storage,
     touchEntry: touchEntryRevision,
   }
+  const calendarJobDeps: CalendarReminderJobsDeps = {
+    db: deps.db,
+    clock: deps.clock,
+    jobs,
+    push: deps.push,
+    logger: deps.logger,
+  }
   return {
     async start() {
       await deps.db.execute(sql`select 1`)
@@ -70,6 +94,7 @@ export function buildWorker(deps: WorkerDeps): Worker {
         { name: JOURNAL_PURGE_JOB },
         { name: JOURNAL_PURGE_SWEEP_JOB },
         ...MEDIA_QUEUE_SETUPS,
+        ...CALENDAR_QUEUE_SETUPS,
       ])
       await deps.boss.work<JournalPurgeJobData>(JOURNAL_PURGE_JOB, async (jobs) => {
         for (const job of jobs) await purgeTrashedEntry(jobDeps, job.data)
@@ -80,10 +105,17 @@ export function buildWorker(deps: WorkerDeps): Worker {
       await deps.boss.work<MediaDeleteJobData>(MEDIA_DELETE_JOB, async (jobs) => {
         for (const job of jobs) await deleteEntryImageObjects(deps, job.data)
       })
+      await deps.boss.work<CalendarReminderJobData>(CALENDAR_REMINDER_JOB, async (jobs) => {
+        for (const job of jobs) await sendDueCalendarReminder(calendarJobDeps, job.data)
+      })
       await deps.boss.work(JOURNAL_PURGE_SWEEP_JOB, async () => {
         await purgeDueTrashedEntries(jobDeps)
       })
+      await deps.boss.work(CALENDAR_REMINDER_SWEEP_JOB, async () => {
+        await extendReminderHorizons(calendarJobDeps)
+      })
       await deps.boss.schedule(JOURNAL_PURGE_SWEEP_JOB, JOURNAL_PURGE_SWEEP_CRON)
+      await deps.boss.schedule(CALENDAR_REMINDER_SWEEP_JOB, CALENDAR_REMINDER_SWEEP_CRON)
       deps.logger.info('Worker started')
     },
     async stop() {

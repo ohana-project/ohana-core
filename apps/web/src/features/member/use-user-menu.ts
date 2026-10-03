@@ -40,6 +40,12 @@ export function useMemberUserMenu(): ShellUserMenuItem[] {
           ]
         : []),
       {
+        id: 'notifications',
+        label: t('notifications.menuItem'),
+        icon: 'bell',
+        onSelect: () => void navigate({ to: '/notifications' }),
+      },
+      {
         id: 'accounts',
         label: t('member.home.accounts'),
         icon: 'users',

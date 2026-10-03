@@ -881,6 +881,52 @@
     "editingOccurrence": "Создал: {name} · только это событие",
     "occurrenceCancelledToast": "Событие отменено",
     "occurrenceCancelledTitle": "Это событие отменено",
-    "occurrenceCancelledText": "Серия продолжается без этой даты."
+    "occurrenceCancelledText": "Серия продолжается без этой даты.",
+    "reminderLabel": "Напоминание",
+    "reminderHint": "Получатели получат push-уведомление заранее.",
+    "reminderLead": "За сколько напомнить",
+    "reminderLead15": "За 15 минут",
+    "reminderLead60": "За час",
+    "reminderLead120": "За 2 часа",
+    "reminderLeadDay": "За день",
+    "reminderEveryone": "Все участники",
+    "reminderRecipients": "Получатели",
+    "reminderLeadWeek": "За неделю",
+    "reminderRecipientsHint": "Напоминание придёт только выбранным людям",
+    "reminderRecipientsRequired": "Выберите хотя бы одного получателя",
+    "reminderLeadCustom": "За {minutes} мин"
+  },
+  "notifications": {
+    "menuItem": "Уведомления",
+    "push": {
+      "neutralTitle": "Напоминание о событии",
+      "neutralBody": "Скоро событие в вашем календаре",
+      "detailsBody": "Начало — {time}"
+    },
+    "settings": {
+      "title": "Уведомления",
+      "subtitle": "Напоминания о событиях календаря на этом устройстве.",
+      "deviceSection": "Это устройство",
+      "deviceTitle": "Напоминания на этом устройстве",
+      "deviceOn": "Устройство получит напоминание о событии заранее.",
+      "deviceOff": "Включите напоминания — браузер спросит разрешение.",
+      "deviceBlocked": "Разрешение на уведомления отключено в настройках браузера.",
+      "onBadge": "Включено",
+      "enableButton": "Включить",
+      "enableSwitch": "Включить напоминания на этом устройстве",
+      "enabledToast": "Напоминания включены на этом устройстве",
+      "disabledToast": "Напоминания отключены на этом устройстве",
+      "deniedToast": "Браузер не дал разрешение на уведомления",
+      "enableFailedToast": "Не удалось включить напоминания",
+      "disableFailedToast": "Не удалось отключить напоминания",
+      "detailsTitle": "Показывать событие в уведомлении",
+      "detailsText": "Название и время события — только на этом устройстве.",
+      "detailsSwitch": "Показывать подробности события",
+      "detailsSavedToast": "Сохранено",
+      "detailsFailedToast": "Не удалось сохранить",
+      "neutralHint": "Без этой настройки уведомление приходит в нейтральной форме: какое событие — не сказано.",
+      "iosTitle": "iOS: нужно установленное приложение",
+      "iosText": "На iPhone и iPad напоминания приходят только в приложении Ohana, установленном на экран «Домой». Добавьте его через меню Safari «Поделиться» → «На экран “Домой”»."
+    }
   }
 }

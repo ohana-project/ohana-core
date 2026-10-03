@@ -13,7 +13,7 @@ import { fixedClock } from '../platform/clock.ts'
 import { createDb } from '../platform/db/index.ts'
 import { createPgBossJobSender, startJobQueue } from '../platform/jobs/pgboss.ts'
 import { createSilentLogger } from '../platform/logging.ts'
-import { createTestHarness } from '../testing/harness.ts'
+import { createTestHarness, recordingPushSender } from '../testing/harness.ts'
 import { buildWorker } from './buildWorker.ts'
 
 const harness = await createTestHarness()
@@ -34,6 +34,7 @@ describe('buildWorker', () => {
         clock: harness.clock,
         logger: createSilentLogger(),
         storage: harness.storage,
+        push: recordingPushSender(),
         boss,
       })
       await worker.start()
@@ -65,6 +66,7 @@ describe('buildWorker', () => {
         clock: workerClock,
         logger: createSilentLogger(),
         storage: harness.storage,
+        push: recordingPushSender(),
         boss,
       })
       await worker.start()
@@ -133,6 +135,7 @@ describe('buildWorker', () => {
         clock: { now: () => new Date() },
         logger: createSilentLogger(),
         storage: harness.storage,
+        push: recordingPushSender(),
         // The boss is never started: the worker's first statement is what
         // the entrypoint sees fail.
         boss: new PgBoss({ connectionString: unreachableUrl }),

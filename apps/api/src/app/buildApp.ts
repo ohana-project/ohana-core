@@ -26,6 +26,7 @@ import {
   membersSyncContributor,
 } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
+import { notificationsRoutes } from '../modules/notifications/index.ts'
 import { spacesSyncContributor } from '../modules/spaces/index.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import { syncRoutes } from '../modules/sync/routes.ts'
@@ -36,6 +37,7 @@ import { healthRoutes } from '../platform/http/health.ts'
 import { createSpaFallback, registerStaticFiles } from '../platform/http/staticFiles.ts'
 import type { JobSender } from '../platform/jobs/index.ts'
 import type { Logger } from '../platform/logging.ts'
+import type { VapidKeys } from '../platform/push/index.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 import { registerErrorHandler } from './errorHandler.ts'
 
@@ -51,6 +53,12 @@ export interface AppDeps {
    * the service's streaming counter are one configuration value.
    */
   mediaMaxUploadBytes: number
+  /**
+   * The Web Push identity's generator (issue #22): the notifications
+   * service persists a pair on first start; the composition root supplies
+   * the platform's implementation.
+   */
+  generateVapidKeys: () => VapidKeys
   webDist?: string
 }
 
@@ -134,14 +142,25 @@ export function buildApp(deps: AppDeps) {
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
   })
+  // The notifications module owns the devices' push subscriptions (issue
+  // #22): a member manages their own devices' subscriptions and their
+  // per-device opt-in to event details. Notifications are not a section —
+  // the routes carry the member session guard alone.
+  app.register(notificationsRoutes, {
+    prefix: '/api/v1',
+    deps: { db: deps.db, clock: deps.clock, generateKeys: deps.generateVapidKeys },
+    access: accessDeps,
+  })
   // The calendar is a section module (ADR-0011) like the journal and the
   // wishlist: its routes mount the access module's guard and the spaces
   // module's section gate, and its writes recheck visibility inside their
   // transactions (issue #20). Its removals are true deletes, so their
-  // tombstones ride the same transactions.
+  // tombstones ride the same transactions. The reminders (issue #22)
+  // schedule their per-occurrence jobs through the jobs port, inside the
+  // transaction that changed the event.
   app.register(calendarRoutes, {
     prefix: '/api/v1',
-    deps: { db: deps.db, clock: deps.clock },
+    deps: { db: deps.db, clock: deps.clock, jobs: deps.jobs },
     access: accessDeps,
   })
   // The wishlist is a section module (ADR-0011) like the journal: its

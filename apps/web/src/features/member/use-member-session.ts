@@ -12,6 +12,7 @@ import {
   setActiveMemberId,
 } from '@/data/session-registry.ts'
 import { forgetSync } from '@/data/sync-engine.ts'
+import { releasePushSubscription } from '@/features/notifications/use-push-subscription.ts'
 import { forgetFetchedImages, JOURNAL_PHOTO_CACHE } from '@/lib/photo-cache.ts'
 
 /*
@@ -217,6 +218,10 @@ export function forgetMember(queryClient: QueryClient, memberId: string): void {
   })
 }
 
+/** How long a sign-out waits for the push release before going on
+ *  without it (issue #22): the row outlives the session either way. */
+const SIGN_OUT_RELEASE_TIMEOUT_MS = 3000
+
 /**
  * Signs the given member out after the API deletes their session. The
  * member travels with the mutation, so the request and the cleanup always
@@ -228,6 +233,29 @@ export function useMemberSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (memberId: string): Promise<string> => {
+      // The device's reminder row goes with the sign-out (issue #22): a
+      // handed-over phone must not keep receiving this member's
+      // notifications. Best effort either way — a release that fails or
+      // outlives its bound costs the expired-endpoint removal, never the
+      // sign-out.
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, SIGN_OUT_RELEASE_TIMEOUT_MS)
+          releasePushSubscription(memberId).then(
+            () => {
+              clearTimeout(timer)
+              resolve()
+            },
+            (cause: unknown) => {
+              clearTimeout(timer)
+              reject(cause)
+            },
+          )
+        })
+      } catch {
+        // The row outlives the session; the push service's own expiry
+        // removes it eventually.
+      }
       const response = await api.DELETE('/api/v1/me/session', {
         params: { header: { 'x-ohana-member': memberId } },
       })

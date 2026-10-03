@@ -16,9 +16,21 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm --filter @ohana/web build
 
-# The api package has no workspace dependencies, so a legacy deploy yields a
-# self-contained directory: source, migrations, and production node_modules.
-RUN pnpm --filter @ohana/api deploy --prod --legacy /app
+# The legacy deploy yields a self-contained directory: source, migrations,
+# and production node_modules. The api's one workspace dependency
+# (@ohana/i18n, the reminders' payload texts) the legacy deploy leaves as a
+# dangling workspace link, so the package is deployed beside the api, under
+# /app/vendor, and the link is re-pointed there. The package travels as TS
+# source, and node strips types only outside node_modules — which is why it
+# must not live under /app/node_modules itself; this rests on node's default
+# symlink resolution (no --preserve-symlinks). The package deploys with its
+# own production dependencies, and its tests are dropped: nothing at runtime
+# imports them.
+RUN pnpm --filter @ohana/api deploy --prod --legacy /app && \
+    pnpm --filter @ohana/i18n deploy --prod --legacy /app/vendor/i18n && \
+    find /app/vendor/i18n -type f -name '*.test.*' -not -path '*/node_modules/*' -delete && \
+    rm /app/node_modules/@ohana/i18n && \
+    ln -s /app/vendor/i18n /app/node_modules/@ohana/i18n
 
 FROM node:24-alpine
 ENV NODE_ENV=production

@@ -9,6 +9,14 @@ import { fixedClock } from '../platform/clock.ts'
 import { createDb, type Db, type Tx } from '../platform/db/index.ts'
 import type { JobSender, JobSubmission } from '../platform/jobs/index.ts'
 import { createSilentLogger } from '../platform/logging.ts'
+import type {
+  PushCredentials,
+  PushPayload,
+  PushSender,
+  PushSendResult,
+  VapidKeys,
+} from '../platform/push/index.ts'
+import { generateVapidKeys } from '../platform/push/webpush.ts'
 import { createS3Storage, type ObjectStorageWithSetup } from '../platform/storage/s3.ts'
 
 export interface TestEnvironment {
@@ -60,11 +68,72 @@ export function recordingJobSender(): RecordingJobSender {
   return sender
 }
 
+/**
+ * The recording push port the harness wires by default (issue #22): every
+ * send is kept for the test's assertions and answered by the script the
+ * test sets — delivered unless told otherwise. The real Web Push sender is
+ * exercised by the platform's own tests, which mock only the transport.
+ */
+export interface RecordingPushSender extends PushSender {
+  sends: Array<{ credentials: PushCredentials; payload: PushPayload }>
+  /** The answer the next sends give, until changed. */
+  respondWith(
+    result:
+      | PushSendResult
+      | ((credentials: PushCredentials, payload: PushPayload) => PushSendResult),
+  ): void
+}
+
+/**
+ * A db whose Nth transaction rejects — the seam for pinning a handler's
+ * failure ordering (the receipt before the cleanup, the prune riding the
+ * aggregate) without mocking the queries inside those transactions.
+ */
+export function dbFailingOnNthTransaction(
+  db: Db,
+  n: number,
+  mode: 'exactly' | 'from' = 'exactly',
+): Db {
+  let calls = 0
+  const failing = {
+    transaction: <T>(
+      callback: Parameters<Db['transaction']>[0],
+      config?: Parameters<Db['transaction']>[1],
+    ): Promise<T> => {
+      calls += 1
+      const fails = mode === 'exactly' ? calls === n : calls >= n
+      if (fails) {
+        return Promise.reject(new Error(`transaction ${calls} failed on demand`))
+      }
+      return db.transaction(callback as never, config) as Promise<T>
+    },
+  }
+  return Object.assign(Object.create(Object.getPrototypeOf(db)), db, failing)
+}
+
+export function recordingPushSender(): RecordingPushSender {
+  let respond:
+    | PushSendResult
+    | ((credentials: PushCredentials, payload: PushPayload) => PushSendResult) = 'delivered'
+  const sender: RecordingPushSender = {
+    sends: [],
+    respondWith(result) {
+      respond = result
+    },
+    async send(credentials, payload) {
+      sender.sends.push({ credentials, payload })
+      return typeof respond === 'function' ? respond(credentials, payload) : respond
+    },
+  }
+  return sender
+}
+
 export interface TestHarness {
   db: Db
   clock: FixedClock
   storage: ObjectStorageWithSetup
   jobs: RecordingJobSender
+  generateVapidKeys: () => VapidKeys
   /** The test run's container endpoints, for pieces that build their own connections. */
   environment: TestEnvironment
   createSpace(input?: { name?: string; timezone?: string }): Promise<Space>
@@ -97,6 +166,9 @@ export async function createTestHarness(): Promise<TestHarness> {
     // The production default; an upload-limit test passes its own smaller
     // bound through buildTestApp's overrides.
     mediaMaxUploadBytes: 26_214_400,
+    // The real generator: pure CPU, no push service touched, so the
+    // persisted test pairs are honest VAPID keys.
+    generateVapidKeys,
   }
 
   return {
@@ -104,6 +176,7 @@ export async function createTestHarness(): Promise<TestHarness> {
     clock,
     storage,
     jobs,
+    generateVapidKeys,
     environment,
     createSpace: (input) =>
       createSpace(
