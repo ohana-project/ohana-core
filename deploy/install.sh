@@ -74,7 +74,8 @@ Options:
                   (POSTGRES_PASSWORD, the storage keys, and
                   ADMIN_INITIAL_PASSWORD — the data volumes are keyed by
                   the first two) and leaves the previous .env as a .env.bak
-                  copy; every other setting must be copied back from there
+                  copy (.env.bak.<timestamp> when one already exists);
+                  every other setting must be copied back from there
 
 Without a mode flag and run on a terminal, the script asks which mode to
 use. Without a terminal — piping this script to sh, for example — it uses
@@ -308,27 +309,36 @@ old_postgres_password=
 old_storage_access_key=
 old_storage_secret_key=
 old_admin_password=
+old_compose_project_name=
 if [ -e .env ]; then
 	had_env=1
 	# The last occurrence wins, the way Compose reads an env file — a
 	# file assembled by appending real values to the example starts with
-	# an empty assignment of the same name. Leading whitespace and an
-	# export prefix are Compose-valid too.
-	old_postgres_password=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | sed -n '$p')
-	old_storage_access_key=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}STORAGE_ACCESS_KEY=//p' .env | sed -n '$p')
-	old_storage_secret_key=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}STORAGE_SECRET_KEY=//p' .env | sed -n '$p')
-	old_admin_password=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}ADMIN_INITIAL_PASSWORD=//p' .env | sed -n '$p')
+	# an empty assignment of the same name. Leading whitespace, an export
+	# prefix, and a Windows carriage return are tolerated too.
+	old_postgres_password=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
+	old_storage_access_key=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}STORAGE_ACCESS_KEY=//p' .env | tr -d '\r' | sed -n '$p')
+	old_storage_secret_key=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}STORAGE_SECRET_KEY=//p' .env | tr -d '\r' | sed -n '$p')
+	old_admin_password=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}ADMIN_INITIAL_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
+	old_compose_project_name=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}COMPOSE_PROJECT_NAME=//p' .env | tr -d '\r' | sed -n '$p')
 fi
 
 # Installing with fresh secrets while a data volume of this directory
 # survives — its .env was deleted, or never held the password — would lock
 # that data away forever: Postgres keeps the password it was initialised
-# with. There is no override short of erasing the volume, so this comes
+# with. There is no override short of erasing the data, so this comes
 # before the overwrite refusal below.
-project=${COMPOSE_PROJECT_NAME:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')}
-volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=postgres-data' | sed -n '1p')
-if [ -n "$volume" ] && [ -z "$old_postgres_password" ]; then
-	die "a postgres-data volume of an installation in this directory (${volume}) still exists, but its POSTGRES_PASSWORD is not available here; installing would lock that data away — restore the old .env (or just its POSTGRES_PASSWORD line), or erase the volume: docker volume rm ${volume}"
+project=${COMPOSE_PROJECT_NAME:-${old_compose_project_name:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')}}
+data_volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=postgres-data' | sed -n '1p')
+media_volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=rustfs-data' | sed -n '1p')
+locked_volume=
+if [ -n "$data_volume" ] && [ -z "$old_postgres_password" ]; then
+	locked_volume=$data_volume
+elif [ -n "$media_volume" ] && [ -z "$old_storage_access_key" ]; then
+	locked_volume=$media_volume
+fi
+if [ -n "$locked_volume" ]; then
+	die "a data volume of an installation in this directory (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD and STORAGE_ACCESS_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
 fi
 
 for file in .env compose.yaml compose.override.yaml; do
@@ -336,19 +346,6 @@ for file in .env compose.yaml compose.override.yaml; do
 		die "$file already exists here; refusing to overwrite it (run with --force to overwrite, or install elsewhere)"
 	fi
 done
-
-# Only reached on a real rewrite: keep the previous .env as a backup —
-# only the secrets are carried over; other operator-written settings must
-# be copied back from it by hand. A second rewrite must not destroy the
-# first backup, so an existing one gets a timestamped name.
-if [ "$had_env" -eq 1 ]; then
-	backup=.env.bak
-	if [ -e "$backup" ]; then
-		backup=".env.bak.$(date +%Y%m%d%H%M%S)"
-	fi
-	cp .env "$backup"
-	say "Only the secrets are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there."
-fi
 
 if [ -z "$OHANA_INSTALL_VERSION" ]; then
 	assets_base="https://github.com/${OHANA_INSTALL_REPO}/releases/latest/download"
@@ -380,6 +377,20 @@ if ! grep -Eq "image: ghcr\\.io/${OHANA_INSTALL_REPO}[:@]" "$compose_tmp"; then
 fi
 mv "$compose_tmp" compose.yaml
 trap - EXIT
+
+# Only reached on a real rewrite (the download succeeded): keep the
+# previous .env as a backup — only the secrets are carried over; other
+# operator-written settings must be copied back from it by hand. A second
+# rewrite must not destroy the first backup, so an existing one gets a
+# timestamped name.
+if [ "$had_env" -eq 1 ]; then
+	backup=.env.bak
+	if [ -e "$backup" ]; then
+		backup=".env.bak.$(date +%Y%m%d%H%M%S)"
+	fi
+	cp .env "$backup"
+	say "Only the secrets are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there."
+fi
 
 # A compose.override.yaml left behind by an earlier --external-network
 # install would still be merged by docker compose in the other modes, so a
@@ -473,6 +484,12 @@ ENV
 # The file holds generated secrets; keep it to the operator who ran this.
 chmod 600 .env
 
+# Kept from the previous .env so a --force rewrite does not move the
+# installation to a different, empty set of volumes.
+if [ -n "$old_compose_project_name" ]; then
+	printf '\n# Kept from the previous .env: the project name the existing data\n# volumes belong to.\nCOMPOSE_PROJECT_NAME=%s\n' "$old_compose_project_name" >> .env
+fi
+
 say 'Starting the stack (this pulls the images; it can take a few minutes)...'
 
 if ! $up_command; then
@@ -536,8 +553,8 @@ fi
 
 if [ "$had_env" -eq 1 ]; then
 	say ''
-	say '  This initial password is used only while no administrator exists'
-	say '  yet; if one already exists, sign in with the password you set then.'
+	say 'The initial password above is used only while no administrator exists'
+	say 'yet; if one already exists, sign in with the password you set then.'
 else
 	say ''
 	say 'The password above is for the first sign-in. Change it in the'
