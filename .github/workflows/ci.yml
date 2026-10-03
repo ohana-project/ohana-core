@@ -24,9 +24,17 @@ jobs:
 
   compose-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+
+      - name: Lint the install script
+        run: |
+          # deploy/install.sh is attached to every release (issue #49);
+          # ordinary pushes lint the checkout's copy, the release workflow
+          # checks the copy it ships with the version baked in.
+          shellcheck -s sh deploy/install.sh
+          sh -n deploy/install.sh
 
       - name: Build application image
         run: docker build -t ohana:smoke .
@@ -100,3 +108,398 @@ jobs:
           $compose logs migrate | grep 'Database migration failed'
           $compose ps -a --format json \
             | jq -e 'select((.Service == "api" or .Service == "worker") and .State == "created")' > /dev/null
+
+      # The installer (issue #49) runs for real here, before any release:
+      # a curl shim serves a Compose file pinned to the locally built image
+      # (retagged the way a release pins it), so a broken installer fails
+      # a pull request instead of the next release's smoke. A CI step has
+      # no terminal, so the script takes its default mode without asking.
+      - name: Install through the script (the default mode)
+        working-directory: deploy
+        run: |
+          docker tag ohana:smoke ghcr.io/ohana-project/ohana-core:smoke
+          mkdir install-shim shim
+          sed -e 's|image: ${OHANA_IMAGE:?Set OHANA_IMAGE in .env}|image: ghcr.io/ohana-project/ohana-core:smoke|' \
+              -e '/^# The Ohana image comes from OHANA_IMAGE/,/^# paragraph; rewording any of it breaks the release pinning\.$/d' \
+            compose.yaml > install-shim/compose.yaml
+          grep -q 'image: ghcr.io/ohana-project/ohana-core:smoke' install-shim/compose.yaml
+          if grep -q 'OHANA_IMAGE' install-shim/compose.yaml; then
+            echo '::error::the shimmed Compose file still references OHANA_IMAGE'
+            exit 1
+          fi
+          cat > shim/curl <<'SHIM'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            case "$arg" in
+              *releases/*download/*) arg="file://${GITHUB_WORKSPACE}/deploy/install-shim/compose.yaml" ;;
+            esac
+            args+=("$arg")
+          done
+          exec /usr/bin/curl "${args[@]}"
+          SHIM
+          chmod +x shim/curl
+          export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
+          mkdir install
+          cd install
+          sh ../../deploy/install.sh --port 3210
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://localhost:3210
+
+      - name: A second install refuses to overwrite
+        working-directory: deploy/install
+        run: |
+          # The refusal happens before any download, so no shim is needed.
+          # Assert the reason, not just the non-zero exit, and that the
+          # directory is untouched.
+          ls -A > "$RUNNER_TEMP/ls-before-refusal"
+          cp .env "$RUNNER_TEMP/env-before-refusal"
+          cp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::the installer overwrote an existing installation without --force'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'refusing to overwrite'; then
+            echo '::error::the refusal did not say why'
+            exit 1
+          fi
+          ls -A > "$RUNNER_TEMP/ls-after-refusal"
+          cmp "$RUNNER_TEMP/ls-before-refusal" "$RUNNER_TEMP/ls-after-refusal" ||
+            { echo '::error::the refusal created or removed files'; exit 1; }
+          cmp .env "$RUNNER_TEMP/env-before-refusal" ||
+            { echo '::error::the refusal changed .env'; exit 1; }
+          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal" ||
+            { echo '::error::the refusal changed compose.yaml'; exit 1; }
+
+      - name: A failed download leaves the directory untouched
+        working-directory: deploy/install
+        run: |
+          # A curl shim that fails stands in for a network error: even a
+          # --force rewrite must not leave a .env.bak behind on one, so
+          # the backup can only exist after the download succeeded.
+          ls -A > "$RUNNER_TEMP/ls-before-fail"
+          cp .env "$RUNNER_TEMP/env-before-fail"
+          mkdir "$RUNNER_TEMP/shim"
+          printf '#!/bin/sh\nexit 22\n' > "$RUNNER_TEMP/shim/curl"
+          chmod +x "$RUNNER_TEMP/shim/curl"
+          if out=$(PATH="$RUNNER_TEMP/shim:$PATH" sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::the installer succeeded despite a failed download'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'; then
+            echo '::error::the failure was not the download'
+            exit 1
+          fi
+          ls -A > "$RUNNER_TEMP/ls-after-fail"
+          cmp "$RUNNER_TEMP/ls-before-fail" "$RUNNER_TEMP/ls-after-fail" ||
+            { echo '::error::the failed download created or removed files'; exit 1; }
+          cmp .env "$RUNNER_TEMP/env-before-fail" ||
+            { echo '::error::the failed download changed .env'; exit 1; }
+          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal" ||
+            { echo '::error::compose.yaml differs from the refusal step'; exit 1; }
+          # The relaxed mismatch rule: a .env without a pin plus a
+          # differing environment name must proceed — here it reaches the
+          # (failing) download instead of the project-mismatch refusal.
+          if out=$(PATH="$RUNNER_TEMP/shim:$PATH" COMPOSE_PROJECT_NAME=other sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::the installer succeeded despite a failed download'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'; then
+            echo '::error::the run under another project name did not reach the download'
+            exit 1
+          fi
+          if printf '%s\n' "$out" | grep -q 'the environment says COMPOSE_PROJECT_NAME='; then
+            echo '::error::the mismatch refusal fired without a pin in .env'
+            exit 1
+          fi
+
+      - name: --force keeps an installation's secrets
+        working-directory: deploy/install
+        run: |
+          # Assembled the messy way operators do it: an empty assignment
+          # first (like the example has), the real value appended after —
+          # as an indented export. The last occurrence is what Compose
+          # reads, so that is what a --force rewrite must keep — and
+          # up --wait below only passes if migrate and the api still
+          # authenticate with it.
+          real_pw=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
+          real_access=$(grep '^STORAGE_ACCESS_KEY=' .env | tail -n 1 | sed 's/^STORAGE_ACCESS_KEY=//')
+          real_secret=$(grep '^STORAGE_SECRET_KEY=' .env | tail -n 1 | sed 's/^STORAGE_SECRET_KEY=//')
+          real_admin=$(grep '^ADMIN_INITIAL_PASSWORD=' .env | tail -n 1 | sed 's/^ADMIN_INITIAL_PASSWORD=//')
+          sed -i '1i POSTGRES_PASSWORD=' .env
+          sed -i "s|^POSTGRES_PASSWORD=${real_pw}|  export POSTGRES_PASSWORD=${real_pw}|" .env
+          # A project name in .env must survive the rewrite: the volumes
+          # were created under it (here: the same name the directory
+          # yields). The quoted, commented form pins the normalisation.
+          printf 'COMPOSE_PROJECT_NAME="install" # pinned\n' >> .env
+          cp .env "$RUNNER_TEMP/env-before-force"
+          export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
+          sh ../../deploy/install.sh --force --port 3210
+          # A second rewrite must keep the first backup, not clobber it.
+          sh ../../deploy/install.sh --force --port 3210
+          [ "$(grep -cFx 'COMPOSE_PROJECT_NAME="install" # pinned' .env)" = "1" ] ||
+            { echo '::error::--force dropped or duplicated COMPOSE_PROJECT_NAME'; exit 1; }
+          # A rewrite under a project name that .env does not pin is
+          # refused: it would move the installation to empty volumes.
+          cp .env "$RUNNER_TEMP/env-before-mismatch"
+          if out=$(COMPOSE_PROJECT_NAME=other sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::--force ran under a mismatching project name'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'the environment says COMPOSE_PROJECT_NAME='; then
+            echo '::error::the mismatch refusal did not say what points where'
+            exit 1
+          fi
+          cmp .env "$RUNNER_TEMP/env-before-mismatch" ||
+            { echo '::error::the mismatch refusal changed .env'; exit 1; }
+          # An unnormalised name from the environment is refused before
+          # anything runs.
+          if out=$(COMPOSE_PROJECT_NAME=Bad_Name sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::an unusable COMPOSE_PROJECT_NAME was accepted'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q "COMPOSE_PROJECT_NAME='Bad_Name' is not a usable Compose project name"; then
+            echo '::error::the environment-name refusal did not name the value'
+            exit 1
+          fi
+          # The same refusal for a name carried in .env — and it must
+          # leave everything untouched (no backup, no rewrite).
+          cp .env "$RUNNER_TEMP/env-before-badpin"
+          printf 'COMPOSE_PROJECT_NAME=Bad_Name\n' >> .env
+          cp .env "$RUNNER_TEMP/env-with-badpin"
+          ls -A > "$RUNNER_TEMP/ls-before-badpin"
+          if out=$(sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::an unusable COMPOSE_PROJECT_NAME in .env was accepted'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q "the COMPOSE_PROJECT_NAME in .env ('Bad_Name') is not a usable"; then
+            echo '::error::the carried-name refusal did not name the value and source'
+            exit 1
+          fi
+          cmp .env "$RUNNER_TEMP/env-with-badpin" ||
+            { echo '::error::the carried-name refusal changed .env'; exit 1; }
+          ls -A > "$RUNNER_TEMP/ls-after-badpin"
+          cmp "$RUNNER_TEMP/ls-before-badpin" "$RUNNER_TEMP/ls-after-badpin" ||
+            { echo '::error::the carried-name refusal wrote files'; exit 1; }
+          cp "$RUNNER_TEMP/env-before-badpin" .env
+          env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
+          [ "$env_val" = "$real_pw" ] ||
+            { echo '::error::--force regenerated POSTGRES_PASSWORD'; exit 1; }
+          [ "$(sed -n 's/^STORAGE_ACCESS_KEY=//p' .env | tail -n 1)" = "$real_access" ] ||
+            { echo '::error::--force regenerated STORAGE_ACCESS_KEY'; exit 1; }
+          [ "$(sed -n 's/^STORAGE_SECRET_KEY=//p' .env | tail -n 1)" = "$real_secret" ] ||
+            { echo '::error::--force regenerated STORAGE_SECRET_KEY'; exit 1; }
+          [ "$(sed -n 's/^ADMIN_INITIAL_PASSWORD=//p' .env | tail -n 1)" = "$real_admin" ] ||
+            { echo '::error::--force regenerated ADMIN_INITIAL_PASSWORD'; exit 1; }
+          [ -f .env.bak ] || { echo '::error::--force left no .env.bak'; exit 1; }
+          cmp .env.bak "$RUNNER_TEMP/env-before-force" ||
+            { echo '::error::.env.bak is not the previous .env'; exit 1; }
+          [ "$(ls .env.bak.* 2> /dev/null | wc -l)" = "1" ] ||
+            { echo '::error::the second --force did not leave exactly one timestamped backup'; exit 1; }
+          [ "$(stat -c %a .env.bak.*)" = "600" ] ||
+            { echo '::error::the timestamped backup is not owner-only'; exit 1; }
+          [ "$(stat -c %a .env)" = "600" ] || { echo '::error::.env is not owner-only'; exit 1; }
+          [ "$(stat -c %a .env.bak)" = "600" ] || { echo '::error::.env.bak is not owner-only'; exit 1; }
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://localhost:3210
+
+      - name: The data-volume guard refuses without the volume's secrets
+        working-directory: deploy/install
+        run: |
+          # Every refusal here is asserted on what it says, not just on a
+          # non-zero exit, and on the files it leaves behind. The guard
+          # runs before any download and before the overwrite refusal, so
+          # no shim is needed. The .env is the only file removed: a
+          # realistic operator deletes exactly the file that holds the
+          # secrets. The stack of the --force step above is still up, so
+          # its data volumes exist.
+          expect() {
+            if ! printf '%s\n' "$out" | grep -q "$1"; then
+              echo "::error::expected the refusal to mention: $1"
+              exit 1
+            fi
+          }
+          forbid() {
+            if printf '%s\n' "$out" | grep -q "$1"; then
+              echo "::error::the refusal must not mention: $1"
+              exit 1
+            fi
+          }
+          same() {
+            if ! cmp "$1" "$2"; then
+              echo "::error::$3"
+              exit 1
+            fi
+          }
+          checked_absent() {
+            if [ -e "$1" ]; then
+              echo "::error::$1 should not exist"
+              exit 1
+            fi
+          }
+          checked_present() {
+            if [ ! -f "$1" ]; then
+              echo "::error::$1 should still exist"
+              exit 1
+            fi
+          }
+          mv .env "$RUNNER_TEMP/kept-env"
+          ls -A > "$RUNNER_TEMP/ls-before-guard"
+
+          # Ours: the volume belongs to this directory, so the refusal
+          # prints the erase remedy (while the containers are up).
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling over a data volume without its secrets succeeded'
+            exit 1
+          fi
+          expect 'data volume'
+          expect 'down --volumes'
+          # --force must not bypass the guard either: without the secrets
+          # there is no way past it. A bypass would fall through to the
+          # real download; either way the expectations below fail this step.
+          if out=$(sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::--force bypassed the data-volume guard'
+            exit 1
+          fi
+          expect 'data volume'
+          ls -A > "$RUNNER_TEMP/ls-after-guard"
+          same "$RUNNER_TEMP/ls-before-guard" "$RUNNER_TEMP/ls-after-guard" "the refused run changed the directory"
+          checked_absent .env
+          checked_present compose.yaml
+
+          # Foreign: the same project name is claimed by another
+          # directory, so nothing may be erased from here. The advice
+          # matches where the clashing name came from.
+          mkdir -p "$RUNNER_TEMP/other-install"
+          # Precondition: no .env, the name from the environment.
+          if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'must not be erased from here'
+          expect 'choose a different COMPOSE_PROJECT_NAME'
+          expect 'or unset it'
+          forbid 'down --volumes'
+          # Precondition: the name pinned in the foreign directory's own
+          # .env, none in the environment.
+          printf 'COMPOSE_PROJECT_NAME=install\n' > "$RUNNER_TEMP/other-install/.env"
+          if out=$(cd "$RUNNER_TEMP/other-install" && sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'must not be erased from here'
+          expect 'change the COMPOSE_PROJECT_NAME line in .env'
+          forbid 'in the environment'
+          forbid 'down --volumes'
+          # Precondition: the name pinned in .env AND set in the
+          # environment, agreeing — following either advice alone loops.
+          if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'and the COMPOSE_PROJECT_NAME in the environment'
+          forbid 'or unset it'
+          forbid 'down --volumes'
+          rm "$RUNNER_TEMP/other-install/.env"
+          # Precondition: no .env, the name from the directory name alone
+          # (the environment unset — here it is set to the same project,
+          # so the advice says unsetting is not enough).
+          mkdir -p "$RUNNER_TEMP/elsewhere/install"
+          if out=$(cd "$RUNNER_TEMP/elsewhere/install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'must not be erased from here'
+          expect 'unsetting it is not enough'
+          forbid 'down --volumes'
+
+          # The ours-remedy, executed exactly as the message prints it —
+          # with the containers still up, as the operator would run it: it
+          # stops them and takes the data volumes with it.
+          docker compose -p install down --volumes
+          [ -z "$(docker ps -aq --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the guard remedy left containers behind'; exit 1; }
+          [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the guard remedy left data volumes behind'; exit 1; }
+
+          # Unknown: with the containers gone but volumes kept, nothing
+          # attributes the volume to this directory. The message names the
+          # volume for manual inspection, and its own erase instructions
+          # work in the state it describes.
+          POSTGRES_PASSWORD=dummy STORAGE_ACCESS_KEY=dummy STORAGE_SECRET_KEY=dummy \
+            docker compose -p install up -d postgres rustfs
+          docker compose -p install down
+          [ -n "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the unknown-ownership setup created no volumes'; exit 1; }
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling over an unattributable volume succeeded'
+            exit 1
+          fi
+          expect 'cannot tell whether that volume is this directory'
+          forbid 'docker compose -p install down --volumes'
+          volume=$(printf '%s\n' "$out" | sed -n 's/.*docker volume rm \([^ ,]*\).*/\1/p')
+          docker volume inspect "$volume" > /dev/null ||
+            { echo '::error::the printed volume does not exist'; exit 1; }
+          # A .env that kept the database password and only one storage
+          # key must hit the media-volume branch while both volumes exist:
+          # the missing secret key is what the second arm of the guard's
+          # condition catches, and the password keeps the data volume out
+          # of the message.
+          printf 'POSTGRES_PASSWORD=x\nSTORAGE_ACCESS_KEY=x\n' > .env
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::the media-volume branch did not refuse'
+            exit 1
+          fi
+          expect 'rustfs-data'
+          forbid 'postgres-data'
+          rm .env
+          # The named volume erased, the guard names the remaining one.
+          docker volume rm "$volume" > /dev/null
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling succeeded with a data volume left'
+            exit 1
+          fi
+          expect 'rustfs-data'
+          forbid "$volume"
+          # Nothing was left behind for the next step.
+          docker volume rm $(docker volume ls -q --filter label=com.docker.compose.project=install) > /dev/null
+          [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::data volumes were left behind'; exit 1; }
+          mv "$RUNNER_TEMP/kept-env" .env
+
+      - name: Install through the script onto an external proxy network
+        working-directory: deploy
+        run: |
+          cd install
+          docker compose down --volumes
+          cd ..
+          docker network create ci-proxy
+          export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
+          mkdir install-external
+          cd install-external
+          COMPOSE_PROJECT_NAME=ohana-ext sh ../../deploy/install.sh --external-network ci-proxy --port 3211
+          # A project name from the environment is pinned into .env, so
+          # the next plain docker compose call addresses the same project.
+          grep -qx 'COMPOSE_PROJECT_NAME=ohana-ext' .env ||
+            { echo '::error::the environment project name was not pinned into .env'; exit 1; }
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://127.0.0.1:3211
+
+      - name: A proxy on the shared network reaches the api as ohana
+        run: |
+          docker run --rm --network ci-proxy busybox:1.37.0 \
+            wget -qO- http://ohana:3000/api/health | grep '"status":"ok"'
+
+      - name: Stop the stacks the script installed
+        working-directory: deploy
+        run: |
+          cd install-external
+          docker compose down --volumes
+          cd ../install
+          docker compose down --volumes

@@ -2,10 +2,13 @@
 # as v1.2.0 (ADR-0018): the Ohana image is built natively for linux/amd64 and
 # linux/arm64 on GitHub-hosted runners, pushed to GHCR as one
 # multi-architecture image, and verified to start from the pulled image on
-# both architectures, with Caddy enabled and disabled. Only then does the
-# image receive the version tag, and the release carry generated notes plus
-# a Compose file pinned to that version and the environment example, so
-# operators never build anything and never pull `latest`.
+# both architectures, with Caddy enabled, disabled, and through the release's
+# own install script in its default (no reverse proxy) and
+# external-proxy-network modes. Only then does the image receive the version
+# tag, and the release carry generated notes with a Quick start block plus
+# three assets: a Compose file pinned to that version, the environment
+# example, and the install script with the version baked in — so operators
+# never build anything and never pull `latest`.
 
 name: Release
 
@@ -80,6 +83,31 @@ jobs:
               exit 1
             fi
           done
+
+          # The installer is shipped with the version and the repository
+          # baked in, so the downloaded copy installs exactly its own
+          # release's files from the repository it was released by (a fork
+          # or a rename must not fetch another repo's Compose file). The
+          # rewrite targets the assignment lines only; the checks keep a
+          # broken script from ever reaching a release page. shellcheck is
+          # preinstalled on the runner.
+          sed -e "s|^OHANA_INSTALL_VERSION=.*|OHANA_INSTALL_VERSION='${tag}'|" \
+              -e "s|^OHANA_INSTALL_REPO=.*|OHANA_INSTALL_REPO='${GITHUB_REPOSITORY,,}'|" \
+            deploy/install.sh > release/install.sh
+          if grep -q "^OHANA_INSTALL_VERSION=''" release/install.sh; then
+            echo "::error::the release install script does not carry the ${tag} version"
+            exit 1
+          fi
+          if ! grep -qF "OHANA_INSTALL_VERSION='${tag}'" release/install.sh; then
+            echo "::error::the release install script does not carry the ${tag} version"
+            exit 1
+          fi
+          if ! grep -qF "OHANA_INSTALL_REPO='${GITHUB_REPOSITORY,,}'" release/install.sh; then
+            echo "::error::the release install script does not carry the ${GITHUB_REPOSITORY} repository"
+            exit 1
+          fi
+          shellcheck -s sh release/install.sh
+          sh -n release/install.sh
 
           # The placeholders only satisfy interpolation; the check is about
           # the file being a valid, fully pinned Compose file.
@@ -178,6 +206,14 @@ jobs:
           - runner: ubuntu-24.04-arm
             platform: linux/arm64
             caddy: true
+          # The installer leg (issue #49): the stack comes up through
+          # deploy/install.sh itself, the way an operator's one-liner runs
+          # it — once in the default mode (no reverse proxy) and once
+          # attached to an external proxy network — instead of through
+          # hand-assembled files.
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            install_script: true
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     permissions:
@@ -236,6 +272,7 @@ jobs:
           fi
 
       - name: Start the stack
+        if: matrix.install_script != true
         working-directory: release
         env:
           CADDY: ${{ matrix.caddy == true }}
@@ -251,6 +288,37 @@ jobs:
             docker compose up -d --wait
           fi
 
+      - name: Start the stack with the release install script (the default)
+        if: matrix.install_script == true
+        working-directory: release
+        env:
+          RELEASE_DIR: ${{ github.workspace }}/release
+        run: |
+          # The installer downloads its files from the release assets, which
+          # do not exist yet — the release is created only after the smoke
+          # passes (ADR-0018). A curl shim in front of PATH serves the
+          # digest-pinned compose.yaml locally, so the script's own logic
+          # runs end to end against the same images the other legs verified.
+          # No flags: this is the default installation, no reverse proxy,
+          # and a CI step has no terminal to ask on.
+          mkdir shim
+          cat > shim/curl <<'SHIM'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            case "$arg" in
+              *releases/*download/*) arg="file://${RELEASE_DIR}/compose.yaml" ;;
+            esac
+            args+=("$arg")
+          done
+          exec /usr/bin/curl "${args[@]}"
+          SHIM
+          chmod +x shim/curl
+          export PATH="$RELEASE_DIR/shim:$PATH"
+          mkdir install
+          cd install
+          sh ../install.sh
+
       - uses: ./.github/actions/check-serving
         with:
           base-url: ${{ matrix.caddy == true && 'https://localhost:8443' || 'http://localhost:3000' }}
@@ -260,7 +328,7 @@ jobs:
       # image is published (issue #17, ADR-0008): the decode runs through
       # the shipped `heif-dec` and the worker's own code path.
       - name: Verify HEIC decoding in this image
-        working-directory: release
+        working-directory: ${{ matrix.install_script == true && 'release/install' || 'release' }}
         run: |
           docker compose exec -T worker node scripts/verify-heic.ts
 
@@ -273,9 +341,75 @@ jobs:
             exit 1
           fi
 
+      # The external-network mode (issue #49): the api joins an existing
+      # Docker network so a reverse proxy in another Compose project can
+      # reach it through a generated compose.override.yaml. The network
+      # stands in for the operator's proxy project; its serving path is
+      # asserted the same way the default mode's is.
+      - name: Install through the script onto an external proxy network
+        if: matrix.install_script == true
+        working-directory: release
+        env:
+          RELEASE_DIR: ${{ github.workspace }}/release
+        run: |
+          # The default installation still holds port 3000.
+          cd install
+          docker compose --profile caddy down --volumes
+          cd ..
+          docker network create ohana-proxy
+          export PATH="$RELEASE_DIR/shim:$PATH"
+          mkdir install-external
+          cd install-external
+          sh ../install.sh --external-network ohana-proxy
+
+      - uses: ./.github/actions/check-serving
+        if: matrix.install_script == true
+        with:
+          base-url: http://127.0.0.1:3000
+
+      - name: On the external proxy network, the api stays off-loopback
+        if: matrix.install_script == true
+        working-directory: release/install-external
+        run: |
+          if curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"; then
+            echo '::error::the api port is reachable off-loopback in the external-network mode'
+            exit 1
+          fi
+
+      - name: The api joins the external proxy network
+        if: matrix.install_script == true
+        working-directory: release/install-external
+        run: |
+          # docker inspect reports the name with a leading slash, the
+          # network's container list without it.
+          api_name=$(docker inspect --format '{{.Name}}' "$(docker compose ps -q api)")
+          api_name=${api_name#/}
+          if ! docker network inspect ohana-proxy --format '{{range .Containers}}{{.Name}} {{end}}' | grep -qF "${api_name} "; then
+            echo '::error::the api container did not join the external network'
+            docker network inspect ohana-proxy
+            exit 1
+          fi
+
+      - name: A client on the network reaches the api as ohana
+        if: matrix.install_script == true
+        run: |
+          # The alias the printed proxy configuration points at must
+          # resolve on the shipped stack, on both architectures.
+          docker run --rm --network ohana-proxy busybox:1.37.0 \
+            wget -qO- http://ohana:3000/api/health | grep '"status":"ok"'
+
       - name: Stop the stack
+        if: matrix.install_script != true
         working-directory: release
         run: docker compose --profile caddy down --volumes
+
+      - name: Stop the stacks the script installed
+        if: matrix.install_script == true
+        run: |
+          cd release/install-external
+          docker compose --profile caddy down --volumes
+          cd ../install
+          docker compose --profile caddy down --volumes
 
   merge:
     needs: [prepare, smoke]
@@ -348,8 +482,32 @@ jobs:
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi
+
+          # The Quick start block (issue #49) carries this release's exact
+          # one-liners and is prepended to the generated notes
+          # (--notes-file is the body; with --generate-notes GitHub appends
+          # the generated part). Piping to sh stays honest: the script is
+          # short enough to read first, and the notes say so.
+          sed -e "s|@VERSION@|${VERSION}|g" -e "s|@REPO@|${GITHUB_REPOSITORY}|g" > notes.md <<'NOTES'
+          ## Quick start
+
+          On a server with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin:
+
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh
+
+          serves plain HTTP on port 3000 of the machine itself — the default; no reverse proxy is involved. Signing in sets Secure cookies, so a browser on another machine needs HTTPS: reach Ohana from the machine itself, or use one of the two HTTPS modes below. For automatic Let's Encrypt HTTPS on a domain through the bundled Caddy:
+
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --caddy-domain ohana.example.com
+
+          Running your own reverse proxy (an own Caddy, Traefik, nginx — in its own Compose project)? Attach Ohana to its Docker network:
+
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --external-network <network>
+
+          The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done, and in the external-network mode the site to add to your proxy (`reverse_proxy ohana:3000` — the release's `compose.yaml` is never touched, the mode writes a `compose.override.yaml`). It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
+          NOTES
+
           # --repo keeps gh from looking for a git checkout, which this job
           # does not have.
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" \
-            --generate-notes "${args[@]}" \
-            release/compose.yaml release/env.production.example
+            --generate-notes --notes-file notes.md "${args[@]}" \
+            release/compose.yaml release/env.production.example release/install.sh
