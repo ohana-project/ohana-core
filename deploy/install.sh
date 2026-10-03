@@ -22,6 +22,11 @@
 
 set -eu
 
+# Ranges like [a-z0-9] in case patterns and tr must not pick up locale
+# surprises; every name this script validates is plain ASCII.
+LC_ALL=C
+export LC_ALL
+
 # Secret-bearing files (.env, the .env backup of a --force rewrite) are
 # created readable by their owner only, whatever the caller's umask was.
 umask 077
@@ -77,6 +82,14 @@ Options:
                   the previous .env as a .env.bak copy
                   (.env.bak.<timestamp> when one already exists); every
                   other setting must be copied back from there
+
+Environment:
+
+  COMPOSE_PROJECT_NAME   pin the Compose project name the data volumes
+                         belong to (lowercase letters, digits, '-' and
+                         '_', starting with a letter or digit); a name
+                         already in the previous .env survives a --force
+                         rewrite
 
 Without a mode flag and run on a terminal, the script asks which mode to
 use. Without a terminal — piping this script to sh, for example — it uses
@@ -236,6 +249,19 @@ if [ "$domain_set" -eq 1 ] && [ "$network_set" -eq 1 ]; then
 	die '--caddy-domain and --external-network cannot be combined'
 fi
 
+# A Compose project name set in the caller's environment pins the project
+# the same way it does for every later docker compose call. Compose
+# rejects names that are not already normalised, and the value ends up in
+# the label filter and in .env, so it is checked here — before the
+# operator answers any prompt and before anything else runs.
+if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+	case "$COMPOSE_PROJECT_NAME" in
+	[!a-z0-9]* | *[!a-z0-9_-]*)
+		die "COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}' is not a usable Compose project name (lowercase letters, digits, '-' and '_', starting with a letter or digit)"
+		;;
+	esac
+fi
+
 # The deployment shape. Interactive only when a terminal is on stdin:
 # piped (curl | sh) or redirected runs take the default without asking,
 # so the one-liner stays a one-liner.
@@ -278,18 +304,6 @@ fi
 # the flag path, and rejects an explicit --port 3000 there too.
 if [ "$domain_set" -eq 1 ] && [ "$port_set" -eq 1 ]; then
 	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
-fi
-
-# A Compose project name set in the caller's environment pins the project
-# the same way it does for every later docker compose call. Compose
-# rejects names that are not already normalised, and the value ends up in
-# the label filter and in .env, so it is checked before anything runs.
-if [ -n "$COMPOSE_PROJECT_NAME" ]; then
-	case "$COMPOSE_PROJECT_NAME" in
-	[!a-z0-9]* | *[!a-z0-9_-]*)
-		die "COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}' is not a usable Compose project name (lowercase letters, digits, '-' and '_', starting with a letter or digit)"
-		;;
-	esac
 fi
 
 if [ "$domain_set" -eq 1 ]; then
@@ -344,16 +358,16 @@ fi
 # that data away forever: Postgres keeps the password it was initialised
 # with. There is no override short of erasing the data, so this comes
 # before the overwrite refusal below. The project name from the .env is
-# normalised for the label lookup only: quotes and trailing comments are
-# valid to Compose but never appear in a label.
-old_project_lookup=${old_compose_project_name%%[[:space:]]*}
-old_project_lookup=${old_project_lookup#\"}
-old_project_lookup=${old_project_lookup#\'}
-old_project_lookup=${old_project_lookup%\"}
-old_project_lookup=${old_project_lookup%\'}
-old_project_lookup=$(printf '%s' "$old_project_lookup" | tr '[:upper:]' '[:lower:]')
+# normalised for the label lookup only: surrounding whitespace, quotes,
+# and trailing comments are valid to Compose but never appear in a label.
+# A value Compose itself would reject is refused here — it would only
+# fail later, after the files have been rewritten.
+old_project_lookup=$(printf '%s' "$old_compose_project_name" | sed 's/^[[:space:]]*//; s/[[:space:]]*#.*//; s/^["'\'']//; s/["'\'']$//; s/[[:space:]]*$//')
 case "$old_project_lookup" in
-'' | [!a-z0-9]* | *[!a-z0-9_-]*) old_project_lookup= ;;
+'') ;;
+[!a-z0-9]* | *[!a-z0-9_-]*)
+	die "the COMPOSE_PROJECT_NAME in .env ('${old_compose_project_name}') is not a usable Compose project name (lowercase letters, digits, '-' and '_'); fix or remove that line"
+	;;
 esac
 dir_project=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')
 previous_project=${old_project_lookup:-$dir_project}
@@ -370,7 +384,8 @@ if [ -n "$locked_volume" ]; then
 	# The same project name can be claimed by an installation in another
 	# directory; the erase advice must never reach that one. Ownership is
 	# read off the project's containers; with none, nothing attributes
-	# the volume to this directory and no erase command is printed.
+	# the volume to this directory and no erase command is printed. A
+	# failing docker ps lands on that same arm, which is the safe side.
 	here_logical=$PWD
 	here=$(pwd -P)
 	has_ours=0
@@ -386,7 +401,12 @@ if [ -n "$locked_volume" ]; then
 $(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)
 EOF
 	if [ "$has_foreign" -eq 1 ]; then
-		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project also belongs to an installation in another directory, so it must not be erased from here; install into a differently named directory, unset COMPOSE_PROJECT_NAME, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
+		if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+			remedy='choose a different COMPOSE_PROJECT_NAME (or unset it)'
+		else
+			remedy='set COMPOSE_PROJECT_NAME to a name of its own'
+		fi
+		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project also belongs to an installation in another directory, so it must not be erased from here; install into a differently named directory, ${remedy}, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
 	fi
 	if [ "$has_ours" -eq 1 ]; then
 		die "a data volume of the Compose project '${project}' (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
@@ -396,9 +416,11 @@ fi
 
 # A --force rewrite under a different project name than the previous
 # installation's would leave it untouched and come up on empty volumes —
-# or clash with its ports.
-if [ "$had_env" -eq 1 ] && [ -n "$COMPOSE_PROJECT_NAME" ] && [ "$COMPOSE_PROJECT_NAME" != "$previous_project" ]; then
-	die "this installation's Compose project is '${previous_project}', but the environment says COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}'; running would move it to a different, empty set of volumes — unset COMPOSE_PROJECT_NAME, or install elsewhere"
+# or clash with its ports. Refused only on evidence: an explicit name in
+# the previous .env. A directory rename with no pin is exactly the case
+# where COMPOSE_PROJECT_NAME reattaches the old volumes.
+if [ "$had_env" -eq 1 ] && [ -n "$old_project_lookup" ] && [ -n "$COMPOSE_PROJECT_NAME" ] && [ "$COMPOSE_PROJECT_NAME" != "$previous_project" ]; then
+	die "this directory's .env pins the Compose project '${previous_project}', but the environment says COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}'; running would move it to a different, empty set of volumes — unset COMPOSE_PROJECT_NAME, change COMPOSE_PROJECT_NAME in .env, or install elsewhere"
 fi
 
 for file in .env compose.yaml compose.override.yaml; do

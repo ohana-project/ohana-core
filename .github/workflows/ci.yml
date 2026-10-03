@@ -212,8 +212,24 @@ jobs:
           sh ../../deploy/install.sh --force --port 3210
           # A second rewrite must keep the first backup, not clobber it.
           sh ../../deploy/install.sh --force --port 3210
-          [ "$(grep -Fx 'COMPOSE_PROJECT_NAME="install" # pinned' .env)" ] ||
-            { echo '::error::--force dropped COMPOSE_PROJECT_NAME'; exit 1; }
+          [ "$(grep -cFx 'COMPOSE_PROJECT_NAME="install" # pinned' .env)" = "1" ] ||
+            { echo '::error::--force dropped or duplicated COMPOSE_PROJECT_NAME'; exit 1; }
+          # A rewrite under a project name that .env does not pin is
+          # refused: it would move the installation to empty volumes.
+          cp .env "$RUNNER_TEMP/env-before-mismatch"
+          if out=$(COMPOSE_PROJECT_NAME=other sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::--force ran under a mismatching project name'
+            exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'the environment says COMPOSE_PROJECT_NAME='
+          cmp .env "$RUNNER_TEMP/env-before-mismatch"
+          # An unnormalised name from the environment is refused before
+          # anything runs.
+          if out=$(COMPOSE_PROJECT_NAME=Bad_Name sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::an unusable COMPOSE_PROJECT_NAME was accepted'
+            exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'not a usable Compose project name'
           env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
           [ "$env_val" = "$real_pw" ] ||
             { echo '::error::--force regenerated POSTGRES_PASSWORD'; exit 1; }
@@ -252,6 +268,8 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$out" | grep -q 'data volume'
+          # The "ours" arm of the guard prints the erase remedy.
+          printf '%s\n' "$out" | grep -q 'down --volumes'
           # --force must not bypass the guard either: without the secrets
           # there is no way past it. A bypass would fall through to the
           # real download; either way the greps below fail this step.
@@ -272,7 +290,21 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$out" | grep -q 'must not be erased from here'
-          printf '%s\n' "$out" | grep -q 'down --volumes' && exit 1 || true
+          if printf '%s\n' "$out" | grep -q 'down --volumes'; then
+            echo '::error::the foreign refusal printed an erase command'
+            exit 1
+          fi
+          # With the containers gone but the volumes kept, ownership is
+          # unknown: the message may name the volume for manual inspection
+          # but must not run an erase itself.
+          docker compose -p install down
+          out=$(sh ../../deploy/install.sh --port 3210 2>&1) || true
+          printf '%s\n' "$out" | grep -q 'cannot tell whether that volume is this directory'
+          printf '%s\n' "$out" | grep -q 'docker volume rm'
+          if printf '%s\n' "$out" | grep -q 'docker compose -p install down --volumes'; then
+            echo '::error::the unknown-ownership refusal printed an erase command'
+            exit 1
+          fi
           # A .env that kept the database password and only one storage
           # key must hit the media-volume branch: the missing secret key
           # is what the second arm of the guard's condition catches.
