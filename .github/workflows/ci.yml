@@ -371,16 +371,19 @@ jobs:
 
           # Foreign: the same project name is claimed by another
           # directory, so nothing may be erased from here. The advice
-          # matches where the clashing name came from: the environment.
+          # matches where the clashing name came from.
           mkdir -p "$RUNNER_TEMP/other-install"
+          # Precondition: no .env, the name from the environment.
           if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
             echo '::error::a foreign directory could reinstall over the project'
             exit 1
           fi
           expect 'must not be erased from here'
           expect 'choose a different COMPOSE_PROJECT_NAME'
+          expect 'or unset it'
           forbid 'down --volumes'
-          # ... from a pin in the foreign directory's own .env ...
+          # Precondition: the name pinned in the foreign directory's own
+          # .env, none in the environment.
           printf 'COMPOSE_PROJECT_NAME=install\n' > "$RUNNER_TEMP/other-install/.env"
           if out=$(cd "$RUNNER_TEMP/other-install" && sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
             echo '::error::a foreign directory could reinstall over the project'
@@ -390,24 +393,26 @@ jobs:
           expect 'change the COMPOSE_PROJECT_NAME line in .env'
           forbid 'in the environment'
           forbid 'down --volumes'
-          # ... and from the directory name alone.
-          rm "$RUNNER_TEMP/other-install/.env"
-          mkdir -p "$RUNNER_TEMP/elsewhere/install"
-          if out=$(cd "$RUNNER_TEMP/elsewhere/install" && sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
-            echo '::error::a foreign directory could reinstall over the project'
-            exit 1
-          fi
-          expect 'must not be erased from here'
-          expect 'install into a differently named directory'
-          forbid 'down --volumes'
-          # The environment agreeing with the foreign .env pin would loop:
-          # both must change.
+          # Precondition: the name pinned in .env AND set in the
+          # environment, agreeing — following either advice alone loops.
           if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
             echo '::error::a foreign directory could reinstall over the project'
             exit 1
           fi
           expect 'and the COMPOSE_PROJECT_NAME in the environment'
           forbid 'or unset it'
+          forbid 'down --volumes'
+          rm "$RUNNER_TEMP/other-install/.env"
+          # Precondition: no .env, the name from the directory name alone
+          # (the environment unset — here it is set to the same project,
+          # so the advice says unsetting is not enough).
+          mkdir -p "$RUNNER_TEMP/elsewhere/install"
+          if out=$(cd "$RUNNER_TEMP/elsewhere/install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'must not be erased from here'
+          expect 'unsetting it is not enough'
           forbid 'down --volumes'
 
           # The ours-remedy, executed exactly as the message prints it —
