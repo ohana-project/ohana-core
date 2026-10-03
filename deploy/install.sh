@@ -358,15 +358,15 @@ fi
 # that data away forever: Postgres keeps the password it was initialised
 # with. There is no override short of erasing the data, so this comes
 # before the overwrite refusal below. The project name from the .env is
-# normalised for the label lookup only: surrounding whitespace, quotes,
-# and trailing comments are valid to Compose but never appear in a label.
-# A value Compose itself would reject is refused here — it would only
-# fail later, after the files have been rewritten.
-old_project_lookup=$(printf '%s' "$old_compose_project_name" | sed 's/^[[:space:]]*//; s/[[:space:]]*#.*//; s/^["'\'']//; s/["'\'']$//; s/[[:space:]]*$//')
+# normalised for the label lookup only: surrounding whitespace, quotes as
+# a matched pair, and comments after whitespace are valid to Compose but
+# never appear in a label. A value Compose itself would reject is refused
+# here — it would only fail later, after the files have been rewritten.
+old_project_lookup=$(printf '%s' "$old_compose_project_name" | sed 's/^[[:space:]]*//; s/[[:space:]]\{1,\}#.*//; s/[[:space:]]*$//; s/^"\(.*\)"$/\1/; s/^'\''\(.*\)'\''$/\1/')
 case "$old_project_lookup" in
 '') ;;
 [!a-z0-9]* | *[!a-z0-9_-]*)
-	die "the COMPOSE_PROJECT_NAME in .env ('${old_compose_project_name}') is not a usable Compose project name (lowercase letters, digits, '-' and '_'); fix or remove that line"
+	die "the COMPOSE_PROJECT_NAME in .env ('${old_compose_project_name}') is not a usable Compose project name (lowercase letters, digits, '-' and '_', starting with a letter or digit); fix or remove that line"
 	;;
 esac
 dir_project=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')
@@ -403,10 +403,12 @@ EOF
 	if [ "$has_foreign" -eq 1 ]; then
 		if [ -n "$COMPOSE_PROJECT_NAME" ]; then
 			remedy='choose a different COMPOSE_PROJECT_NAME (or unset it)'
+		elif [ -n "$old_project_lookup" ]; then
+			remedy='change the COMPOSE_PROJECT_NAME line in .env'
 		else
-			remedy='set COMPOSE_PROJECT_NAME to a name of its own'
+			remedy='install into a differently named directory, or set COMPOSE_PROJECT_NAME to a name of its own'
 		fi
-		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project also belongs to an installation in another directory, so it must not be erased from here; install into a differently named directory, ${remedy}, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
+		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project also belongs to an installation in another directory, so it must not be erased from here; ${remedy}, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
 	fi
 	if [ "$has_ours" -eq 1 ]; then
 		die "a data volume of the Compose project '${project}' (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
@@ -572,7 +574,7 @@ chmod 600 .env
 # silently change.
 if [ -n "$COMPOSE_PROJECT_NAME" ]; then
 	printf '\n# From the environment the installer ran with: the Compose project\n# name the data volumes belong to.\nCOMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_PROJECT_NAME" >> .env
-elif [ -n "$old_compose_project_name" ]; then
+elif [ -n "$old_project_lookup" ]; then
 	printf '\n# Kept from the previous .env: the Compose project name the existing\n# data volumes belong to.\nCOMPOSE_PROJECT_NAME=%s\n' "$old_compose_project_name" >> .env
 fi
 

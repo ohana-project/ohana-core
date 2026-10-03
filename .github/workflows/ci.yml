@@ -161,7 +161,10 @@ jobs:
             echo '::error::the installer overwrote an existing installation without --force'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'refusing to overwrite'
+          if ! printf '%s\n' "$out" | grep -q 'refusing to overwrite'; then
+            echo '::error::the refusal did not say why'
+            exit 1
+          fi
           ls -A > "$RUNNER_TEMP/ls-after-refusal"
           cmp "$RUNNER_TEMP/ls-before-refusal" "$RUNNER_TEMP/ls-after-refusal"
           cmp .env "$RUNNER_TEMP/env-before-refusal"
@@ -182,11 +185,29 @@ jobs:
             echo '::error::the installer succeeded despite a failed download'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'
+          if ! printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'; then
+            echo '::error::the failure was not the download'
+            exit 1
+          fi
           ls -A > "$RUNNER_TEMP/ls-after-fail"
           cmp "$RUNNER_TEMP/ls-before-fail" "$RUNNER_TEMP/ls-after-fail"
           cmp .env "$RUNNER_TEMP/env-before-fail"
           cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
+          # The relaxed mismatch rule: a .env without a pin plus a
+          # differing environment name must proceed — here it reaches the
+          # (failing) download instead of the project-mismatch refusal.
+          if out=$(PATH="$RUNNER_TEMP/shim:$PATH" COMPOSE_PROJECT_NAME=other sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::the installer succeeded despite a failed download'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'; then
+            echo '::error::the run under another project name did not reach the download'
+            exit 1
+          fi
+          if printf '%s\n' "$out" | grep -q 'the environment says COMPOSE_PROJECT_NAME='; then
+            echo '::error::the mismatch refusal fired without a pin in .env'
+            exit 1
+          fi
 
       - name: --force keeps an installation's secrets
         working-directory: deploy/install
@@ -221,7 +242,10 @@ jobs:
             echo '::error::--force ran under a mismatching project name'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'the environment says COMPOSE_PROJECT_NAME='
+          if ! printf '%s\n' "$out" | grep -q 'the environment says COMPOSE_PROJECT_NAME='; then
+            echo '::error::the mismatch refusal did not say what points where'
+            exit 1
+          fi
           cmp .env "$RUNNER_TEMP/env-before-mismatch"
           # An unnormalised name from the environment is refused before
           # anything runs.
@@ -229,7 +253,26 @@ jobs:
             echo '::error::an unusable COMPOSE_PROJECT_NAME was accepted'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'not a usable Compose project name'
+          if ! printf '%s\n' "$out" | grep -q "COMPOSE_PROJECT_NAME='Bad_Name' is not a usable Compose project name"; then
+            echo '::error::the environment-name refusal did not name the value'
+            exit 1
+          fi
+          # The same refusal for a name carried in .env — and it must
+          # leave everything untouched (no backup, no rewrite).
+          cp .env "$RUNNER_TEMP/env-before-badpin"
+          printf 'COMPOSE_PROJECT_NAME=Bad_Name\n' >> .env
+          if out=$(sh ../../deploy/install.sh --force --port 3210 2>&1); then
+            echo '::error::an unusable COMPOSE_PROJECT_NAME in .env was accepted'
+            exit 1
+          fi
+          if ! printf '%s\n' "$out" | grep -q "the COMPOSE_PROJECT_NAME in .env ('Bad_Name') is not a usable"; then
+            echo '::error::the carried-name refusal did not name the value and source'
+            exit 1
+          fi
+          cmp .env "$RUNNER_TEMP/env-before-badpin"
+          [ "$(ls .env.bak.* 2> /dev/null | wc -l)" = "1" ] ||
+            { echo '::error::the carried-name refusal wrote files'; exit 1; }
+          cp "$RUNNER_TEMP/env-before-badpin" .env
           env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
           [ "$env_val" = "$real_pw" ] ||
             { echo '::error::--force regenerated POSTGRES_PASSWORD'; exit 1; }
@@ -256,6 +299,20 @@ jobs:
       - name: Reinstalling without the volume's secrets refuses, --force too
         working-directory: deploy/install
         run: |
+          # Every refusal here is asserted on what it says, not just on a
+          # non-zero exit, and on the files it leaves behind.
+          expect() {
+            if ! printf '%s\n' "$out" | grep -q "$1"; then
+              echo "::error::expected the refusal to mention: $1"
+              exit 1
+            fi
+          }
+          forbid() {
+            if printf '%s\n' "$out" | grep -q "$1"; then
+              echo "::error::the refusal must not mention: $1"
+              exit 1
+            fi
+          }
           # The guard runs before any download and before the overwrite
           # refusal, so no shim is needed. The .env is the only file
           # removed: a realistic operator deletes exactly the file that
@@ -267,56 +324,70 @@ jobs:
             echo '::error::reinstalling over a data volume without its secrets succeeded'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'data volume'
+          expect 'data volume'
           # The "ours" arm of the guard prints the erase remedy.
-          printf '%s\n' "$out" | grep -q 'down --volumes'
+          expect 'down --volumes'
           # --force must not bypass the guard either: without the secrets
           # there is no way past it. A bypass would fall through to the
-          # real download; either way the greps below fail this step.
+          # real download; either way the expectations below fail this step.
           if out=$(sh ../../deploy/install.sh --force --port 3210 2>&1); then
             echo '::error::--force bypassed the data-volume guard'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'data volume'
+          expect 'data volume'
           ls -A > "$RUNNER_TEMP/ls-after-guard"
           cmp "$RUNNER_TEMP/ls-before-guard" "$RUNNER_TEMP/ls-after-guard"
           [ ! -e .env ]
           [ -f compose.yaml ]
           # A project living in another directory must not be erasable
-          # from here: the refusal names no erase command.
+          # from here: the refusal names no erase command, and its advice
+          # matches where the clashing name came from (the environment).
           mkdir -p "$RUNNER_TEMP/other-install"
           if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
             echo '::error::a foreign directory could reinstall over the project'
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'must not be erased from here'
-          if printf '%s\n' "$out" | grep -q 'down --volumes'; then
-            echo '::error::the foreign refusal printed an erase command'
-            exit 1
-          fi
+          expect 'must not be erased from here'
+          expect 'choose a different COMPOSE_PROJECT_NAME'
+          forbid 'down --volumes'
           # With the containers gone but the volumes kept, ownership is
           # unknown: the message may name the volume for manual inspection
           # but must not run an erase itself.
           docker compose -p install down
-          out=$(sh ../../deploy/install.sh --port 3210 2>&1) || true
-          printf '%s\n' "$out" | grep -q 'cannot tell whether that volume is this directory'
-          printf '%s\n' "$out" | grep -q 'docker volume rm'
-          if printf '%s\n' "$out" | grep -q 'docker compose -p install down --volumes'; then
-            echo '::error::the unknown-ownership refusal printed an erase command'
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling over an unattributable volume succeeded'
             exit 1
           fi
+          expect 'cannot tell whether that volume is this directory'
+          expect 'docker volume rm'
+          forbid 'docker compose -p install down --volumes'
           # A .env that kept the database password and only one storage
           # key must hit the media-volume branch: the missing secret key
           # is what the second arm of the guard's condition catches.
           printf 'POSTGRES_PASSWORD=x\nSTORAGE_ACCESS_KEY=x\n' > .env
-          out=$(sh ../../deploy/install.sh --port 3210 2>&1) || true
-          printf '%s\n' "$out" | grep -q 'rustfs-data'
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::the media-volume branch did not refuse'
+            exit 1
+          fi
+          expect 'rustfs-data'
           rm .env
-          # The remedy, executed exactly as the message prints it: it must
-          # work without a .env and take the data volumes with it.
+          # The ours-remedy, executed exactly as the message prints it —
+          # with the containers still up, as the operator would run it: it
+          # stops them and takes the data volumes with it.
           docker compose -p install down --volumes
           [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
             { echo '::error::the guard remedy left data volumes behind'; exit 1; }
+          # Recreate the volumes, then take the containers away: the
+          # unknown-ownership state. Its own erase instructions must work
+          # there, and the earlier down --volumes must not be relied on.
+          POSTGRES_PASSWORD=dummy STORAGE_ACCESS_KEY=dummy STORAGE_SECRET_KEY=dummy \
+            docker compose -p install up -d postgres
+          docker compose -p install down
+          [ -n "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the unknown-ownership setup created no volumes'; exit 1; }
+          docker volume rm $(docker volume ls -q --filter label=com.docker.compose.project=install) > /dev/null
+          [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
+            { echo '::error::the manual volume erase left data volumes behind'; exit 1; }
           mv "$RUNNER_TEMP/kept-env" .env
 
       - name: Install through the script onto an external proxy network
