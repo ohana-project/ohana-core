@@ -11,10 +11,15 @@ You need a Linux machine on `amd64` or `arm64` (a Raspberry Pi 5 works) with [Do
 One command installs Ohana: the release's install script downloads the release's `compose.yaml`, generates the secrets into `.env`, starts the stack, and prints the address and the generated administrator password.
 
 ```sh
-curl -fsSL https://github.com/ohana-project/ohana-core/releases/latest/download/install.sh | bash -s -- --domain ohana.example.com
+curl -fsSL https://github.com/ohana-project/ohana-core/releases/latest/download/install.sh | sh
 ```
 
-Point a domain's DNS at the machine for automatic Let's Encrypt HTTPS, or use `--no-domain` to serve plain HTTP on `http://localhost:3000` instead. The script is short — read it before running it (`curl -fsSL <the url> -o install.sh`, then `sh install.sh`) if you prefer not to pipe it.
+By default the api answers plain HTTP on port 3000 of the machine itself and no reverse proxy is involved. The other modes:
+
+- `--caddy-domain ohana.example.com` serves `https://ohana.example.com` with automatic Let's Encrypt HTTPS through the bundled Caddy (point the domain's DNS at the machine first).
+- `--external-network <network>` attaches the api to an existing Docker network so a reverse proxy in another Compose project — your own Caddy, Traefik, nginx — can reach it. The script writes a `compose.override.yaml` (the release's `compose.yaml` is never edited), binds the api port to `127.0.0.1` only, and prints the exact site block to add to your proxy: with Caddy, one `reverse_proxy <container>:3000` line in your Caddyfile.
+
+Run on a terminal the script asks which mode to use; piped or redirected it takes the default. The script is short — read it before running it (`curl -fsSL <the url> -o install.sh`, then `sh install.sh`) if you prefer not to pipe it.
 
 Or set it up by hand:
 
@@ -49,12 +54,24 @@ Your data lives in the named volumes `postgres-data` and `rustfs-data`, which up
 [`deploy/env.production.example`](deploy/env.production.example) documents every setting. The notable ones:
 
 - **HTTPS.** With the `caddy` profile enabled, `CADDY_ADDRESS` picks what Caddy serves: a domain for automatic Let's Encrypt HTTPS, `localhost` for a locally issued certificate, or `http://<host>` for plain HTTP behind another proxy. Set `OHANA_PORT` to `127.0.0.1:3000` so the api is only reachable through Caddy.
-- **Existing reverse proxy.** Leave the `caddy` profile off and point your proxy at the published api port.
+- **Existing reverse proxy.** Leave the `caddy` profile off and attach the api to your proxy's Docker network with a `compose.override.yaml` beside `compose.yaml` — Compose merges it automatically:
+
+  ```yaml
+  services:
+    api:
+      networks: [default, <your proxy network>]
+
+  networks:
+    <your proxy network>:
+      external: true
+  ```
+
+  Join the proxy's container to the same network, point it at the api container (`reverse_proxy <container name>:3000` in a Caddyfile), and set `OHANA_PORT` to `127.0.0.1:3000` so the published port stays a loopback-only convenience. `install.sh --external-network <network>` does all of this and prints the site block.
 - **External object storage.** Set `STORAGE_ENDPOINT` (with its region, keys, and bucket) to any S3-compatible endpoint instead of the bundled single-node RustFS.
 
 ## Releasing
 
-Pushing a semantic version tag such as `v1.2.0` (prereleases like `v1.2.0-rc.1` are marked as such; `+build` metadata is not supported) publishes a release: the workflow runs the quality gate, builds the image natively for amd64 and arm64, verifies on both architectures that the pulled images start — with Caddy enabled, disabled, and installed through the release's own install script — and only then tags the multi-architecture image and creates the GitHub Release with generated notes (a Quick start block with that release's install one-liner on top) and three assets attached: a Compose file pinned to the release version, the environment example, and the install script with the version baked in. Nothing else publishes: ordinary pushes run CI only.
+Pushing a semantic version tag such as `v1.2.0` (prereleases like `v1.2.0-rc.1` are marked as such; `+build` metadata is not supported) publishes a release: the workflow runs the quality gate, builds the image natively for amd64 and arm64, verifies on both architectures that the pulled images start — with Caddy enabled, disabled, and installed through the release's own install script in its default and external-proxy-network modes — and only then tags the multi-architecture image and creates the GitHub Release with generated notes (a Quick start block with that release's install one-liners on top) and three assets attached: a Compose file pinned to the release version, the environment example, and the install script with the version baked in. Nothing else publishes: ordinary pushes run CI only.
 
 One-time, at the first release: the `ghcr.io/ohana-project/ohana-core` package is created private by the first push; make it public in its package settings (Danger Zone → Change visibility) so operators can pull without credentials. The release smoke pulls anonymously, so it fails until this is done.
 

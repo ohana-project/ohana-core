@@ -2,8 +2,9 @@
 # as v1.2.0 (ADR-0018): the Ohana image is built natively for linux/amd64 and
 # linux/arm64 on GitHub-hosted runners, pushed to GHCR as one
 # multi-architecture image, and verified to start from the pulled image on
-# both architectures, with Caddy enabled, disabled, and installed through the
-# release's own install script. Only then does the image receive the version
+# both architectures, with Caddy enabled, disabled, and through the release's
+# own install script in its default (no reverse proxy) and
+# external-proxy-network modes. Only then does the image receive the version
 # tag, and the release carry generated notes with a Quick start block plus
 # three assets: a Compose file pinned to that version, the environment
 # example, and the install script with the version baked in — so operators
@@ -199,7 +200,9 @@ jobs:
             caddy: true
           # The installer leg (issue #49): the stack comes up through
           # deploy/install.sh itself, the way an operator's one-liner runs
-          # it, instead of through hand-assembled files.
+          # it — once in the default mode (no reverse proxy) and once
+          # attached to an external proxy network — instead of through
+          # hand-assembled files.
           - runner: ubuntu-latest
             platform: linux/amd64
             install_script: true
@@ -277,7 +280,7 @@ jobs:
             docker compose up -d --wait
           fi
 
-      - name: Start the stack with the release install script
+      - name: Start the stack with the release install script (the default)
         if: matrix.install_script == true
         working-directory: release
         env:
@@ -288,6 +291,8 @@ jobs:
           # passes (ADR-0018). A curl shim in front of PATH serves the
           # digest-pinned compose.yaml locally, so the script's own logic
           # runs end to end against the same images the other legs verified.
+          # No flags: this is the default installation, no reverse proxy,
+          # and a CI step has no terminal to ask on.
           mkdir shim
           cat > shim/curl <<'SHIM'
           #!/usr/bin/env bash
@@ -304,7 +309,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/shim:$PATH"
           mkdir install
           cd install
-          sh ../install.sh --no-domain
+          sh ../install.sh
 
       - uses: ./.github/actions/check-serving
         with:
@@ -328,9 +333,64 @@ jobs:
             exit 1
           fi
 
+      # The external-network mode (issue #49): the api joins an existing
+      # Docker network so a reverse proxy in another Compose project can
+      # reach it through a generated compose.override.yaml. The network
+      # stands in for the operator's proxy project; its serving path is
+      # asserted the same way the default mode's is.
+      - name: Install through the script onto an external proxy network
+        if: matrix.install_script == true
+        working-directory: release
+        env:
+          RELEASE_DIR: ${{ github.workspace }}/release
+        run: |
+          # The default installation still holds port 3000.
+          cd install
+          docker compose --profile caddy down --volumes
+          cd ..
+          docker network create ohana-proxy
+          export PATH="$GITHUB_WORKSPACE/shim:$PATH"
+          mkdir install-external
+          cd install-external
+          sh ../install.sh --external-network ohana-proxy
+
+      - uses: ./.github/actions/check-serving
+        if: matrix.install_script == true
+        with:
+          base-url: http://127.0.0.1:3000
+
+      - name: On the external proxy network, the api stays off-loopback
+        if: matrix.install_script == true
+        working-directory: release/install-external
+        run: |
+          if curl -fsS --max-time 3 "http://$(hostname -I | awk '{print $1}'):3000/api/health"; then
+            echo '::error::the api port is reachable off-loopback in the external-network mode'
+            exit 1
+          fi
+
+      - name: The api joins the external proxy network
+        if: matrix.install_script == true
+        working-directory: release/install-external
+        run: |
+          api_name=$(docker inspect --format '{{.Name}}' "$(docker compose ps -q api)")
+          if ! docker network inspect ohana-proxy --format '{{range .Containers}}{{.Name}} {{end}}' | grep -qF "${api_name} "; then
+            echo '::error::the api container did not join the external network'
+            docker network inspect ohana-proxy
+            exit 1
+          fi
+
       - name: Stop the stack
-        working-directory: ${{ matrix.install_script == true && 'release/install' || 'release' }}
+        if: matrix.install_script != true
+        working-directory: release
         run: docker compose --profile caddy down --volumes
+
+      - name: Stop the stacks the script installed
+        if: matrix.install_script == true
+        run: |
+          cd release/install-external
+          docker compose --profile caddy down --volumes
+          cd ../install
+          docker compose --profile caddy down --volumes
 
   merge:
     needs: [prepare, smoke]
@@ -405,22 +465,26 @@ jobs:
           fi
 
           # The Quick start block (issue #49) carries this release's exact
-          # one-liner and is prepended to the generated notes (--notes-file
-          # is the body; with --generate-notes GitHub appends the generated
-          # part). Piping to bash stays honest: the script is short enough
-          # to read first, and the notes say so.
+          # one-liners and is prepended to the generated notes
+          # (--notes-file is the body; with --generate-notes GitHub appends
+          # the generated part). Piping to sh stays honest: the script is
+          # short enough to read first, and the notes say so.
           sed -e "s|@VERSION@|${VERSION}|g" -e "s|@REPO@|${GITHUB_REPOSITORY}|g" > notes.md <<'NOTES'
           ## Quick start
 
           On a server with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin:
 
-              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | bash -s -- --domain ohana.example.com
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh
 
-          serves `https://ohana.example.com` with automatic Let's Encrypt HTTPS, and
+          serves plain HTTP on port 3000 of the machine itself — the default; no reverse proxy is involved. For automatic Let's Encrypt HTTPS on a domain through the bundled Caddy:
 
-              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | bash -s -- --no-domain
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --caddy-domain ohana.example.com
 
-          serves plain HTTP on port 3000 of the machine itself. The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done. It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
+          Running your own reverse proxy (an own Caddy, Traefik, nginx — in its own Compose project)? Attach Ohana to its Docker network:
+
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --external-network <network>
+
+          The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done, and in the external-network mode the exact site block to add to your proxy (never touching the release's `compose.yaml` — it writes a `compose.override.yaml`). It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
           NOTES
 
           # --repo keeps gh from looking for a git checkout, which this job
