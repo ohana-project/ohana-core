@@ -245,6 +245,7 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/access-codes', () => {
             db: harness.db,
             clock: harness.clock,
             findMemberInSpace: async () => undefined,
+            restoreArchivedMember: async () => undefined,
           },
           issued.code,
         ),

@@ -3085,6 +3085,14 @@
                           }
                         ]
                       },
+                      "archivedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "privateStatePurgedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
                       "revision": {
                         "pattern": "^[0-9]+$",
                         "type": "string"
@@ -3269,6 +3277,14 @@
                         }
                       ]
                     },
+                    "archivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "privateStatePurgedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
                     "revision": {
                       "pattern": "^[0-9]+$",
                       "type": "string"
@@ -3422,6 +3438,143 @@
                         }
                       ]
                     },
+                    "archivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "privateStatePurgedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "revision": {
+                      "pattern": "^[0-9]+$",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/members/{memberId}/archive": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "spaceId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "memberId",
+            "required": true
+          },
+          {
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-admin",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "spaceId",
+                    "name",
+                    "role",
+                    "revision",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "spaceId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "phone": {
+                      "type": "string"
+                    },
+                    "interfaceLanguage": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ru"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "en"
+                          ]
+                        }
+                      ]
+                    },
+                    "role": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "owner"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "regular"
+                          ]
+                        }
+                      ]
+                    },
+                    "archivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "privateStatePurgedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
                     "revision": {
                       "pattern": "^[0-9]+$",
                       "type": "string"
@@ -3526,6 +3679,14 @@
                               ]
                             }
                           ]
+                        },
+                        "archivedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "privateStatePurgedAt": {
+                          "format": "date-time",
+                          "type": "string"
                         },
                         "createdAt": {
                           "format": "date-time",
@@ -3693,6 +3854,14 @@
                             }
                           ]
                         },
+                        "archivedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "privateStatePurgedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
                         "createdAt": {
                           "format": "date-time",
                           "type": "string"
@@ -3804,6 +3973,14 @@
                             ]
                           }
                         ]
+                      },
+                      "archivedAt": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "privateStatePurgedAt": {
+                        "format": "date-time",
+                        "type": "string"
                       },
                       "createdAt": {
                         "format": "date-time",
@@ -3965,6 +4142,14 @@
                         }
                       ]
                     },
+                    "archivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "privateStatePurgedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
                     "createdAt": {
                       "format": "date-time",
                       "type": "string"
@@ -4093,6 +4278,119 @@
                           ]
                         }
                       ]
+                    },
+                    "archivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "privateStatePurgedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/members/{memberId}/archive": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "memberId",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "name",
+                    "role",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "phone": {
+                      "type": "string"
+                    },
+                    "interfaceLanguage": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ru"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "en"
+                          ]
+                        }
+                      ]
+                    },
+                    "role": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "owner"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "regular"
+                          ]
+                        }
+                      ]
+                    },
+                    "archivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "privateStatePurgedAt": {
+                      "format": "date-time",
+                      "type": "string"
                     },
                     "createdAt": {
                       "format": "date-time",
@@ -7556,6 +7854,14 @@
                                         ]
                                       }
                                     ]
+                                  },
+                                  "archivedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "privateStatePurgedAt": {
+                                    "format": "date-time",
+                                    "type": "string"
                                   },
                                   "createdAt": {
                                     "format": "date-time",

@@ -184,28 +184,30 @@ export function SpaceHomeScreen() {
               <SectionHeader title={t('member.home.membersSection')} />
               <Card className="py-0">
                 <ItemGroup>
-                  {snapshot.data?.members.map((profile) => {
-                    const profileName = profile.displayName ?? profile.name
-                    const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
-                    return (
-                      <Item key={profile.id} size="lg">
-                        <Avatar size="sm" hue={hueFromId(profile.id)}>
-                          <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
-                        </Avatar>
-                        <ItemContent>
-                          <ItemTitle>{profileName}</ItemTitle>
-                          {contacts.length > 0 ? (
-                            <ItemDescription>{contacts}</ItemDescription>
-                          ) : null}
-                        </ItemContent>
-                        <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
-                          {profile.role === 'owner'
-                            ? t('admin.space.ownerPill')
-                            : t('admin.space.regularPill')}
-                        </Badge>
-                      </Item>
-                    )
-                  })}
+                  {snapshot.data?.members
+                    .filter((profile) => profile.archivedAt === undefined)
+                    .map((profile) => {
+                      const profileName = profile.displayName ?? profile.name
+                      const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
+                      return (
+                        <Item key={profile.id} size="lg">
+                          <Avatar size="sm" hue={hueFromId(profile.id)}>
+                            <AvatarFallback>{monogramOf(profileName)}</AvatarFallback>
+                          </Avatar>
+                          <ItemContent>
+                            <ItemTitle>{profileName}</ItemTitle>
+                            {contacts.length > 0 ? (
+                              <ItemDescription>{contacts}</ItemDescription>
+                            ) : null}
+                          </ItemContent>
+                          <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
+                            {profile.role === 'owner'
+                              ? t('admin.space.ownerPill')
+                              : t('admin.space.regularPill')}
+                          </Badge>
+                        </Item>
+                      )
+                    })}
                 </ItemGroup>
               </Card>
             </section>

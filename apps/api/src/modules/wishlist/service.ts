@@ -1,7 +1,7 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Tx } from '../../platform/db/index.ts'
 import { DomainError, notFound } from '../../platform/errors.ts'
-import { listMemberIdsInTx } from '../members/index.ts'
+import { listArchivedMemberIds, listMemberIdsInTx } from '../members/index.ts'
 import { requireVisibleSectionInTx } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import type { WriteWishBody } from './contracts.ts'
@@ -19,8 +19,10 @@ import {
 import {
   clearWishReceived,
   deleteGiftFavorite,
+  deleteGiftFavoritesOfMember,
   deleteGiftFavoritesOfWish,
   deleteGiftReservation,
+  deleteGiftReservationsHeldByMember,
   deleteWish,
   getGiftFavoriteInSpace,
   getGiftReservationInSpace,
@@ -33,9 +35,14 @@ import {
   listChangedWishesVisibleTo,
   listGiftFavoritesOfMember,
   listGiftFavoritesOfWish,
+  listGiftReservationsHeldByMember,
+  listGiftReservationsOnMembersWishes,
   listGiftReservationsVisibleTo,
   listWishesInSpace,
+  listWishesOfMember,
   markWishReceived,
+  restampGiftReservationsOnMembersWishes,
+  restampWishesOfMember,
   updateWish,
 } from './repository.ts'
 import type { GiftFavorite, GiftReservation, Wish } from './tables.ts'
@@ -316,9 +323,10 @@ export async function clearReceived(
 
 /**
  * One wish, the way the requesting member may see it: every wish of the
- * space is visible to every member (policy.ts), so the only refusal is a
- * wish that is not in this space at all — 404, its existence in another
- * space unrevealed (architecture.md, "Errors").
+ * space is visible to every member (policy.ts), save an archived author's —
+ * hidden from the space but kept (issue #23) — so the refusals are a wish
+ * that is not in this space at all or one the space no longer sees: 404,
+ * its existence unrevealed (architecture.md, "Errors").
  */
 export async function getWish(
   deps: WishlistDeps,
@@ -331,14 +339,17 @@ export async function getWish(
 /**
  * The space's browse (issue #18): every member's wishes, creation order —
  * or one member's wishlist when the query names them. The rows go back
- * raw; the route maps them onto the wire shape.
+ * raw; the route maps them onto the wire shape. The archived authors'
+ * wishes are hidden from the space (issue #23); the set is read through
+ * the members module's public surface on the same executor.
  */
 export async function listWishes(
   deps: WishlistDeps,
   actor: WishlistActor,
   authorMemberId: string | undefined,
 ): Promise<Wish[]> {
-  return listWishesInSpace(deps.db, actor.spaceId, actor.memberId, authorMemberId)
+  const archived = await listArchivedMemberIds(deps.db, actor.spaceId)
+  return listWishesInSpace(deps.db, actor.spaceId, actor.memberId, authorMemberId, archived)
 }
 
 /** The sync contributor's delta: the wishes changed since the cursor. */
@@ -347,7 +358,8 @@ export async function listChangedWishes(
   actor: { memberId: string; spaceId: string },
   since: bigint,
 ): Promise<Wish[]> {
-  return listChangedWishesVisibleTo(tx, actor.spaceId, actor.memberId, since)
+  const archived = await listArchivedMemberIds(tx, actor.spaceId)
+  return listChangedWishesVisibleTo(tx, actor.spaceId, actor.memberId, since, archived)
 }
 
 /**
@@ -579,12 +591,17 @@ export async function getWishReservation(
   return reservation
 }
 
-/** The reservations the requesting member may see, creation order (issue #19). */
+/**
+ * The reservations the requesting member may see, creation order (issue
+ * #19) — save those on an archived author's wish (issue #23): the wish is
+ * hidden, so its reservation is hidden with it.
+ */
 export async function listGiftReservations(
   deps: WishlistDeps,
   actor: WishlistActor,
 ): Promise<Array<{ reservation: GiftReservation; wishAuthorMemberId: string }>> {
-  return listGiftReservationsVisibleTo(deps.db, actor.spaceId, actor.memberId)
+  const archived = await listArchivedMemberIds(deps.db, actor.spaceId)
+  return listGiftReservationsVisibleTo(deps.db, actor.spaceId, actor.memberId, archived)
 }
 
 /** The sync contributor's delta: the favorites changed since the cursor. */
@@ -602,7 +619,8 @@ export async function listChangedGiftReservations(
   actor: { memberId: string; spaceId: string },
   since: bigint,
 ): Promise<Array<{ reservation: GiftReservation; wishAuthorMemberId: string }>> {
-  return listChangedGiftReservationsVisibleTo(tx, actor.spaceId, actor.memberId, since)
+  const archived = await listArchivedMemberIds(tx, actor.spaceId)
+  return listChangedGiftReservationsVisibleTo(tx, actor.spaceId, actor.memberId, since, archived)
 }
 
 /**
@@ -636,10 +654,120 @@ async function requireWishInSpace(
   wishId: string,
 ): Promise<Wish> {
   const wish = await getWishInSpace(executor, actor.spaceId, wishId)
-  if (wish === undefined || !wishVisibleTo(wish, actor.memberId)) {
+  if (wish === undefined) {
+    throw notFound('wish_not_found', `Wish ${wishId} does not exist`)
+  }
+  // The archived authors' wishes are hidden from the space (issue #23) but
+  // kept: the read takes the archived set from the members module's public
+  // surface on the same executor, so the rule is the one policy.ts states.
+  const archived = await listArchivedMemberIds(executor, actor.spaceId)
+  if (!wishVisibleTo(wish, actor.memberId, archived)) {
     throw notFound('wish_not_found', `Wish ${wishId} does not exist`)
   }
   return wish
+}
+
+/*
+ * The member lifecycle's part (issue #23): the members module sits below
+ * the wishlist, so its archive, restore, and purge use cases reach these
+ * through the composition root's port. Each runs inside the caller's
+ * transaction, behind the space row lock the caller has taken, and each
+ * is deleted-then-reported: the tombstones come back so the caller's
+ * recordChanges writes them with the revision it computes.
+ */
+
+/**
+ * The wishlist's part of archiving a member: their wishes leave the
+ * space's view — kept on the server, hidden until a restore — so each is
+ * tombstoned to everyone; their reservations end, and each ending is
+ * tombstoned to every member but the wish's author (issue #19's rule:
+ * the author never learns a reservation existed, not even that one ended).
+ * The released reservations are deleted here; the tombstones come back
+ * for the caller's recordChanges.
+ */
+export async function archiveWishlistOfMemberInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<TombstoneInput[]> {
+  const wishes = await listWishesOfMember(tx, spaceId, memberId)
+  const held = await listGiftReservationsHeldByMember(tx, spaceId, memberId)
+  await deleteGiftReservationsHeldByMember(tx, spaceId, memberId)
+  // The reservations held on the member's own wishes stay on the server,
+  // hidden beside their wishes (issue #23) — every member but the wish's
+  // author (the archived member here) learns they left their view.
+  const onWishes = await listGiftReservationsOnMembersWishes(tx, spaceId, memberId)
+  return [
+    ...wishes.map(
+      (wish): TombstoneInput => ({
+        entity: WISHLIST_WISH_SYNC_ENTITY,
+        entityId: wish.id,
+        audience: { kind: 'all' },
+      }),
+    ),
+    ...(
+      await Promise.all(
+        held.map((entry) =>
+          tombstonesForReservationEnding(
+            tx,
+            spaceId,
+            entry.reservation.id,
+            entry.wishAuthorMemberId,
+          ),
+        ),
+      )
+    ).flat(),
+    ...(
+      await Promise.all(
+        onWishes.map((entry) =>
+          tombstonesForReservationEnding(
+            tx,
+            spaceId,
+            entry.reservation.id,
+            entry.wishAuthorMemberId,
+          ),
+        ),
+      )
+    ).flat(),
+  ]
+}
+
+/**
+ * The wishlist's part of restoring a member (issue #23): the wishes are
+ * stamped with the restore's revision, so the sync delta delivers them as
+ * upserts again and every device shows the restored member's wishlist.
+ */
+export async function restampWishesOfMemberInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+  revision: bigint,
+  now: Date,
+): Promise<void> {
+  await restampWishesOfMember(tx, spaceId, memberId, revision, now)
+  // The reservations held on the member's wishes ride the restore's
+  // revision with the wishes they belong to (issue #23).
+  await restampGiftReservationsOnMembersWishes(tx, spaceId, memberId, revision, now)
+}
+
+/**
+ * The wishlist's part of the private-state purge (issue #23): the member's
+ * gift favorites — private to them alone — are deleted, and each leaves a
+ * member-scoped tombstone for the member who made it.
+ */
+export async function purgeGiftFavoritesOfMemberInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<TombstoneInput[]> {
+  const favorites = await deleteGiftFavoritesOfMember(tx, spaceId, memberId)
+  return favorites.map(
+    (favorite): TombstoneInput => ({
+      entity: WISHLIST_GIFT_FAVORITE_SYNC_ENTITY,
+      entityId: favorite.id,
+      audience: { kind: 'member', memberId: favorite.memberId },
+    }),
+  )
 }
 
 /** The schema already validates the raw fields; this applies to what is stored. */

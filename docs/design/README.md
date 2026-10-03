@@ -204,7 +204,7 @@ Each screen is implemented in the ticket that delivers its behaviour, as its own
 | [`code-entry`](screens/code-entry.html), [`onboarding`](screens/onboarding.html) | #9 Access codes and member sign-in |
 | [`accounts`](screens/accounts.html) | #10 Several sign-ins on one device |
 | [`install`](screens/install.html) | #11 Installable PWA shell |
-| [`members`](screens/members.html), [`member-card`](screens/member-card.html), [`invite`](screens/invite.html), [`space-settings`](screens/space-settings.html) | #12 Owner management of members and codes (archiving: #23) |
+| [`members`](screens/members.html), [`member-card`](screens/member-card.html), [`invite`](screens/invite.html), [`space-settings`](screens/space-settings.html) | #12 Owner management of members and codes, #23 archiving and restoring |
 | [`diary`](screens/diary.html), [`diary-entry`](screens/diary-entry.html), [`diary-editor`](screens/diary-editor.html), [`drafts`](screens/drafts.html) | #15 Journal entries, drafts, and publishing (photos: #17) |
 | [`trash`](screens/trash.html) | #16 Journal trash |
 | [`wishlists`](screens/wishlists.html), [`wishlist-mine`](screens/wishlist-mine.html), [`wishlist-person`](screens/wishlist-person.html) | #18 Wishlist: wishes |

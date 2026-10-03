@@ -23,14 +23,22 @@ import type { MediaDeps } from '../modules/media/index.ts'
 import {
   adminCountMembersBySpace,
   findMemberInSpace,
+  type MemberWishlistPort,
   membersSyncContributor,
+  restoreArchivedMemberInTx,
 } from '../modules/members/index.ts'
 import { membersRoutes } from '../modules/members/routes.ts'
 import { notificationsRoutes } from '../modules/notifications/index.ts'
 import { spacesSyncContributor } from '../modules/spaces/index.ts'
 import { spacesRoutes } from '../modules/spaces/routes.ts'
 import { syncRoutes } from '../modules/sync/routes.ts'
-import { wishlistRoutes, wishlistSyncContributor } from '../modules/wishlist/index.ts'
+import {
+  archiveWishlistOfMemberInTx,
+  purgeGiftFavoritesOfMemberInTx,
+  restampWishesOfMemberInTx,
+  wishlistRoutes,
+  wishlistSyncContributor,
+} from '../modules/wishlist/index.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Db } from '../platform/db/index.ts'
 import { healthRoutes } from '../platform/http/health.ts'
@@ -87,11 +95,26 @@ export function buildApp(deps: AppDeps) {
   // The access module sits below members, so the member lookups its service
   // and guard need arrive through this port; the members module sits above
   // access and receives the guard's deps back for its member-facing routes.
+  // The restore of an archived member (issue #23) rides the same port
+  // shape: the issuance calls it inside its own transaction, and the
+  // members module's restore re-stamps the member and their wishes.
+  // The members module sits below the wishlist, so the wishlist's part of
+  // the member lifecycle — the archiving's tombstones and released
+  // reservations, the restore's wish re-stamps, the purge's favorite
+  // deletions — arrives as the port the routes and jobs receive.
+  const memberWishlistPort: MemberWishlistPort = {
+    archiveInTx: archiveWishlistOfMemberInTx,
+    restampWishesInTx: restampWishesOfMemberInTx,
+    purgeFavoritesInTx: purgeGiftFavoritesOfMemberInTx,
+  }
   const accessDeps: AccessDeps = {
     db: deps.db,
     clock: deps.clock,
     findMemberInSpace: (executor, spaceId, memberId) =>
       findMemberInSpace(executor, spaceId, memberId),
+    restoreArchivedMember: async (tx, spaceId, memberId, now) => {
+      await restoreArchivedMemberInTx(tx, spaceId, memberId, now, memberWishlistPort)
+    },
   }
   // The spaces listing needs the members module's administrative count, and
   // the members module sits above spaces, so the counter is injected here
@@ -141,6 +164,7 @@ export function buildApp(deps: AppDeps) {
     prefix: '/api/v1',
     deps: { db: deps.db, clock: deps.clock },
     access: accessDeps,
+    wishlist: memberWishlistPort,
   })
   // The notifications module owns the devices' push subscriptions (issue
   // #22): a member manages their own devices' subscriptions and their

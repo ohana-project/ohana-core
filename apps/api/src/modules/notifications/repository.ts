@@ -178,3 +178,19 @@ export async function deletePushSubscriptionByEndpointAcrossSpaces(
 ): Promise<void> {
   await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint))
 }
+
+/**
+ * The member's subscriptions, deleted whole (issue #23): the archiving
+ * takes them in its own transaction — the archived member's devices
+ * cannot unsubscribe themselves — and the restore and the private-state
+ * purge call it again for a row a raced subscribe request left behind.
+ */
+export async function deletePushSubscriptionsForMember(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<void> {
+  await tx
+    .delete(pushSubscriptions)
+    .where(and(eq(pushSubscriptions.spaceId, spaceId), eq(pushSubscriptions.memberId, memberId)))
+}

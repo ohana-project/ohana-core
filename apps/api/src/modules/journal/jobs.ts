@@ -1,5 +1,5 @@
 import type { Clock } from '../../platform/clock.ts'
-import type { Db } from '../../platform/db/index.ts'
+import type { Db, Tx } from '../../platform/db/index.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
 import { imagesOfEntries, MEDIA_DELETE_JOB, type MediaDeleteJobData } from '../media/index.ts'
@@ -8,8 +8,10 @@ import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { JOURNAL_ENTRY_SYNC_ENTITY } from './contracts.ts'
 import { purgeAtFor, trashedAtOf } from './policy.ts'
 import {
+  deleteDraftEntriesInSpace,
   deleteTrashedEntriesInSpace,
   getEntryInSpace,
+  listDraftsOfAuthor,
   listPurgeableEntriesInSpace,
   listSpacesWithPurgeableEntriesAcrossSpaces,
 } from './repository.ts'
@@ -191,4 +193,52 @@ export async function purgeDueTrashedEntries(deps: JournalJobsDeps): Promise<voi
 /** The moment a trashed entry must have been trashed before to be due now. */
 function purgeCutoff(now: Date, retentionDays: number): Date {
   return new Date(now.getTime() - retentionDays * DAY_MS)
+}
+
+/*
+ * The member lifecycle's part (issue #23): the members module sits below
+ * the journal, so its private-state purge reaches this through the
+ * composition root's port. It runs inside the caller's transaction, behind
+ * the space row lock the caller has taken, and reports what it removed —
+ * the drafts' tombstones come back for the caller's recordChanges, and the
+ * images' ids come back so the caller schedules the cleanup job with them,
+ * exactly like the trash purge does.
+ */
+
+/**
+ * The member's private-state purge, journal side: their drafts — visible
+ * to nobody but them, and they can no longer sign in — are deleted whole,
+ * photos included. The published entries and the trash stay; the trash's
+ * own sweep answers for the trashed rows. The tombstones name the member:
+ * a draft was only ever theirs, so the delta that would apply them is the
+ * member's alone.
+ */
+export async function purgeDraftsOfMemberInTx(
+  tx: Tx,
+  spaceId: string,
+  memberId: string,
+): Promise<{ imageIds: string[]; tombstones: TombstoneInput[] }> {
+  const drafts = await listDraftsOfAuthor(tx, spaceId, memberId)
+  if (drafts.length === 0) return { imageIds: [], tombstones: [] }
+  const grouped = await imagesOfEntries(
+    tx,
+    spaceId,
+    drafts.map((draft) => draft.id),
+  )
+  const imageIds = [...grouped.values()].flat().map((image) => image.id)
+  await deleteDraftEntriesInSpace(
+    tx,
+    spaceId,
+    drafts.map((draft) => draft.id),
+  )
+  return {
+    imageIds,
+    tombstones: drafts.map(
+      (draft): TombstoneInput => ({
+        entity: JOURNAL_ENTRY_SYNC_ENTITY,
+        entityId: draft.id,
+        audience: { kind: 'member', memberId },
+      }),
+    ),
+  }
 }

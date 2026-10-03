@@ -38,6 +38,9 @@ export type AdminMember = {
   phone?: string
   interfaceLanguage?: 'ru' | 'en'
   role: 'owner' | 'regular'
+  // The archiving stamps (issue #23), absent while the member is active.
+  archivedAt?: string
+  privateStatePurgedAt?: string
   revision: string
   createdAt: string
   updatedAt: string
@@ -141,6 +144,26 @@ export function useProvisionMember(spaceId: string) {
   })
 }
 
+/**
+ * POST /api/v1/spaces/:spaceId/members/:memberId/archive — the instance
+ * administrator removes a member from any space (issue #23, ADR-0005).
+ */
+export function useArchiveMember(spaceId: string) {
+  const invalidate = useInvalidateSpaces()
+  return useMutation({
+    mutationFn: async (input: { memberId: string }) => {
+      const response = await api.POST('/api/v1/spaces/{spaceId}/members/{memberId}/archive', {
+        params: { path: { spaceId, memberId: input.memberId } },
+        headers: adminMarker,
+      })
+      await assertOk(response)
+    },
+    // A refused request (last_owner, for instance) must still refresh, or
+    // the screen keeps offering an action the server will refuse again.
+    onSettled: invalidate,
+  })
+}
+
 export function useChangeMemberRole(spaceId: string) {
   const invalidate = useInvalidateSpaces()
   return useMutation({
@@ -167,6 +190,9 @@ type AdminSpaceErrorKey =
   | 'admin.errors.invalid_timezone'
   | 'admin.errors.member_not_found'
   | 'admin.errors.last_owner'
+  | 'admin.errors.member_archived'
+  | 'admin.errors.member_already_archived'
+  | 'admin.errors.member_purged'
   | 'admin.errors.validation_failed'
   | 'admin.errors.unexpected'
 
@@ -179,6 +205,9 @@ const adminSpaceErrorKeys: Partial<Record<string, AdminSpaceErrorKey>> = {
   invalid_timezone: 'admin.errors.invalid_timezone',
   member_not_found: 'admin.errors.member_not_found',
   last_owner: 'admin.errors.last_owner',
+  member_archived: 'admin.errors.member_archived',
+  member_already_archived: 'admin.errors.member_already_archived',
+  member_purged: 'admin.errors.member_purged',
   validation_failed: 'admin.errors.validation_failed',
 }
 

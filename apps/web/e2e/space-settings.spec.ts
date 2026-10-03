@@ -95,6 +95,9 @@ function json(status: number, body: unknown) {
 async function mockOwnerApi(page: Page) {
   const signedIn = new Set<string>([OWNER_ID])
   const issuedCode = 'SASF-KQLV'
+  // The archiving state (issue #23): the archive POST flips it, and the
+  // members list answers from it — the way the real member row behaves.
+  let dimaArchivedAt: string | undefined
   // The space answers from this object, so a PATCH in one screen is the
   // GET everywhere else — the way the real space row behaves.
   const space = {
@@ -141,7 +144,21 @@ async function mockOwnerApi(page: Page) {
         }),
       )
     }
-    return route.fulfill(json(200, PROFILES))
+    return route.fulfill(
+      json(
+        200,
+        dimaArchivedAt === undefined
+          ? PROFILES
+          : [PROFILES[0], { ...PROFILES[1], archivedAt: dimaArchivedAt }],
+      ),
+    )
+  })
+
+  await page.route('**/api/v1/members/*/archive', (route) => {
+    const memberId = route.request().headers()['x-ohana-member']
+    if (memberId !== OWNER_ID) return route.fulfill(json(403, {}))
+    dimaArchivedAt = '2026-09-03T10:00:00.000Z'
+    return route.fulfill(json(200, { ...PROFILES[1], archivedAt: dimaArchivedAt }))
   })
 
   await page.route(ACCESS_CODE, (route) => {
@@ -327,5 +344,57 @@ test.describe('owner management of members and codes', () => {
     await expect(page.getByText('Свежее в дневнике')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Календарь' }).first()).toBeVisible()
     await expect(page.getByText('Ближайшие события')).toBeVisible()
+  })
+})
+
+test.describe('archiving and restoring members', () => {
+  test('an owner archives a member, sees them listed separately, and restores them with a new code', async ({
+    page,
+  }) => {
+    await mockOwnerApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(OWNER_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Участники' }).click()
+    await expect(page).toHaveURL(/\/members$/)
+
+    // The archiving runs from the member's card, behind a confirmation.
+    await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
+    await page.getByRole('button', { name: 'Архивировать Дима' }).click()
+    // ICU cannot decline names, so the title reads the nominative form
+    // (docs/design/README.md); the toast is a dialog too, hence the name.
+    const archiveDialog = page.getByRole('dialog', { name: /Архивировать/ })
+    await expect(archiveDialog).toBeVisible()
+    await archiveDialog.getByRole('button', { name: 'Архивировать', exact: true }).click()
+
+    // The card turns into the archive state: what stays and what hides.
+    await expect(
+      page.getByText('Осталось: записи в дневнике, события, вишлист и фото'),
+    ).toBeVisible()
+    await expect(page.getByText('в архиве с 3 сентября').first()).toBeVisible()
+
+    // The members screen lists the archived member separately.
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Участники' }).click()
+    await expect(page).toHaveURL(/\/members$/)
+    await expect(page.getByRole('heading', { name: 'Архив' })).toBeVisible()
+    await expect(page.getByText('в архиве с 3 сентября')).toBeVisible()
+    await expect(page.getByText('В архиве').last()).toBeVisible()
+
+    // The restore is the code issuance: the new code shows once.
+    await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
+    await expect(
+      page.getByText('Осталось: записи в дневнике, события, вишлист и фото'),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Восстановить участника' }).click()
+    const restoreDialog = page.getByRole('dialog', { name: /Вернуть Дима/ })
+    await expect(restoreDialog).toBeVisible()
+    await restoreDialog.getByRole('button', { name: 'Восстановить' }).click()
+    await expect(page.getByText('SASF-KQLV')).toBeVisible()
+    await expect(page.getByText('Дима снова участник пространства')).toBeVisible()
   })
 })

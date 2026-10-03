@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { isNull, sql } from 'drizzle-orm'
 import type { Executor } from '../../platform/db/index.ts'
 import { members } from './tables.ts'
 
@@ -8,13 +8,18 @@ import { members } from './tables.ts'
  * in their name and file.
  */
 
-/** Counts members per space across the whole installation, in one grouped query. */
+/**
+ * Counts the active members per space across the whole installation, in one
+ * grouped query. Archived members are out of the space (issue #23), so
+ * they do not count toward it.
+ */
 export async function countMembersPerSpaceAcrossInstallation(
   executor: Executor,
 ): Promise<Map<string, number>> {
   const rows = await executor
     .select({ spaceId: members.spaceId, count: sql<number>`count(*)::int` })
     .from(members)
+    .where(isNull(members.archivedAt))
     .groupBy(members.spaceId)
   return new Map(rows.map((row) => [row.spaceId, row.count]))
 }

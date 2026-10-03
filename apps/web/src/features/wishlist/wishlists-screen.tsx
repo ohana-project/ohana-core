@@ -32,7 +32,11 @@ export function WishlistsScreen() {
   // The same derivation the favorites screen counts, so the two numbers
   // cannot disagree: absent wishes and received ones are left out.
   const savedIdeas = favoritesWithWishes(favorites, wishes)
-  const others = profiles.filter((profile) => profile.id !== meId)
+  // An archived member's wishlist is hidden from the space (issue #23):
+  // the store may still hold their profile, but no card for them.
+  const others = profiles.filter(
+    (profile) => profile.id !== meId && profile.archivedAt === undefined,
+  )
 
   return (
     <WishlistShell

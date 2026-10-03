@@ -139,6 +139,7 @@ function registerJournalStandIn(app: TestApp) {
     clock: harness.clock,
     findMemberInSpace: (executor, spaceId, memberId) =>
       findMemberInSpace(executor, spaceId, memberId),
+    restoreArchivedMember: async () => undefined,
   }
   app.register(
     async (section) => {

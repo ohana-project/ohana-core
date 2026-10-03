@@ -16,6 +16,7 @@ import {
   JOURNAL_PURGE_SWEEP_JOB,
   type JournalJobsDeps,
   type JournalPurgeJobData,
+  purgeDraftsOfMemberInTx,
   purgeDueTrashedEntries,
   purgeTrashedEntry,
   touchEntryRevision,
@@ -30,6 +31,19 @@ import {
   type MediaDerivativesJobData,
   type MediaJobsDeps,
 } from '../modules/media/index.ts'
+import type { MemberWishlistPort } from '../modules/members/index.ts'
+import {
+  MEMBER_PURGE_QUEUES,
+  MEMBER_PURGE_SWEEP_CRON,
+  MEMBER_PURGE_SWEEP_JOB,
+  type MemberPurgeJobsDeps,
+  purgeDuePrivateState,
+} from '../modules/members/index.ts'
+import {
+  archiveWishlistOfMemberInTx,
+  purgeGiftFavoritesOfMemberInTx,
+  restampWishesOfMemberInTx,
+} from '../modules/wishlist/index.ts'
 import type { Db } from '../platform/db/index.ts'
 import { createPgBossJobSender, ensureQueues } from '../platform/jobs/pgboss.ts'
 import type { Logger } from '../platform/logging.ts'
@@ -87,12 +101,28 @@ export function buildWorker(deps: WorkerDeps): Worker {
     push: deps.push,
     logger: deps.logger,
   }
+  // The members module sits below the wishlist and the journal, so the
+  // private-state purge's data deletions arrive through these ports (issue
+  // #23), wired to the modules' public surfaces.
+  const memberWishlistPort: MemberWishlistPort = {
+    archiveInTx: archiveWishlistOfMemberInTx,
+    restampWishesInTx: restampWishesOfMemberInTx,
+    purgeFavoritesInTx: purgeGiftFavoritesOfMemberInTx,
+  }
+  const memberJobDeps: MemberPurgeJobsDeps = {
+    db: deps.db,
+    clock: deps.clock,
+    jobs,
+    wishlist: memberWishlistPort,
+    journal: { purgeDraftsInTx: purgeDraftsOfMemberInTx },
+  }
   return {
     async start() {
       await deps.db.execute(sql`select 1`)
       await ensureQueues(deps.boss, [
         { name: JOURNAL_PURGE_JOB },
         { name: JOURNAL_PURGE_SWEEP_JOB },
+        ...MEMBER_PURGE_QUEUES,
         ...MEDIA_QUEUE_SETUPS,
         ...CALENDAR_QUEUE_SETUPS,
       ])
@@ -111,10 +141,14 @@ export function buildWorker(deps: WorkerDeps): Worker {
       await deps.boss.work(JOURNAL_PURGE_SWEEP_JOB, async () => {
         await purgeDueTrashedEntries(jobDeps)
       })
+      await deps.boss.work(MEMBER_PURGE_SWEEP_JOB, async () => {
+        await purgeDuePrivateState(memberJobDeps)
+      })
       await deps.boss.work(CALENDAR_REMINDER_SWEEP_JOB, async () => {
         await extendReminderHorizons(calendarJobDeps)
       })
       await deps.boss.schedule(JOURNAL_PURGE_SWEEP_JOB, JOURNAL_PURGE_SWEEP_CRON)
+      await deps.boss.schedule(MEMBER_PURGE_SWEEP_JOB, MEMBER_PURGE_SWEEP_CRON)
       await deps.boss.schedule(CALENDAR_REMINDER_SWEEP_JOB, CALENDAR_REMINDER_SWEEP_CRON)
       deps.logger.info('Worker started')
     },

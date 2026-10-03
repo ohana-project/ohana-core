@@ -15,6 +15,7 @@ export {
   JOURNAL_SENT_QUEUES,
   type JournalJobsDeps,
   type JournalPurgeJobData,
+  purgeDraftsOfMemberInTx,
   purgeDueTrashedEntries,
   purgeTrashedEntry,
 } from './jobs.ts'

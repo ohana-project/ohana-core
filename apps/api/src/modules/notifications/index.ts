@@ -1,9 +1,11 @@
 /**
  * The notifications module's public surface (issue #22): what the
  * composition roots mount and wire — the member-facing subscription
- * routes — and what the calendar's reminder sender reads: a member's
- * subscriptions and the removal of an expired endpoint. All else is the
- * module's interior; tests import it directly.
+ * routes — what the calendar's reminder sender reads: a member's
+ * subscriptions and the removal of an expired endpoint — and what the
+ * members lifecycle calls in its own transactions (issue #23): the
+ * deletion of a member's subscriptions on archiving, restore, and purge.
+ * All else is the module's interior; tests import it directly.
  */
 
 export {
@@ -17,6 +19,7 @@ export {
 } from './contracts.ts'
 export { notificationsRoutes } from './routes.ts'
 export {
+  deleteMemberSubscriptionsInTx,
   ensureVapidKeys,
   listSubscriptionsForMember,
   type NotificationsActor,

@@ -558,29 +558,31 @@ export function EventEditorScreen({
                         >
                           {t('calendar.reminderEveryone')}
                         </PickRow>
-                        {profiles.map((profile) => (
-                          <PickRow
-                            key={profile.id}
-                            pressed={effectiveReminderMembers.includes(profile.id)}
-                            onPressedChange={(pressed) => {
-                              setReminderEveryone(false)
-                              setReminderMembers(
-                                pressed
-                                  ? [...effectiveReminderMembers, profile.id]
-                                  : effectiveReminderMembers.filter((id) => id !== profile.id),
-                              )
-                            }}
-                            leading={
-                              <Avatar size="sm" hue={hueFromId(profile.id)}>
-                                <AvatarFallback>
-                                  {monogramOf(profile.displayName ?? profile.name)}
-                                </AvatarFallback>
-                              </Avatar>
-                            }
-                          >
-                            {profile.displayName ?? profile.name}
-                          </PickRow>
-                        ))}
+                        {profiles
+                          .filter((profile) => profile.archivedAt === undefined)
+                          .map((profile) => (
+                            <PickRow
+                              key={profile.id}
+                              pressed={effectiveReminderMembers.includes(profile.id)}
+                              onPressedChange={(pressed) => {
+                                setReminderEveryone(false)
+                                setReminderMembers(
+                                  pressed
+                                    ? [...effectiveReminderMembers, profile.id]
+                                    : effectiveReminderMembers.filter((id) => id !== profile.id),
+                                )
+                              }}
+                              leading={
+                                <Avatar size="sm" hue={hueFromId(profile.id)}>
+                                  <AvatarFallback>
+                                    {monogramOf(profile.displayName ?? profile.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              }
+                            >
+                              {profile.displayName ?? profile.name}
+                            </PickRow>
+                          ))}
                         <p className="px-3.5 py-2.5 text-sm text-muted-foreground">
                           {reminderIncomplete
                             ? t('calendar.reminderRecipientsRequired')

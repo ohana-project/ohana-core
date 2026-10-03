@@ -1,4 +1,4 @@
-import { eq, ne, type SQL } from 'drizzle-orm'
+import { eq, ne, notInArray, type SQL } from 'drizzle-orm'
 import { DomainError } from '../../platform/errors.ts'
 import { giftFavorites, wishes } from './tables.ts'
 
@@ -15,31 +15,36 @@ import { giftFavorites, wishes } from './tables.ts'
  */
 
 /**
- * What the requesting member may see of a wish: everything in their space,
- * whoever wrote it. True today, but stated here so the module's one place
- * for "what a member may see" exists and the reads go through it — a
- * future rule lands in this file and its SQL dialect beside it, and every
- * read and the sync contributor follow (architecture.md, "Sync
- * contributors"); the gift favorite and gift reservation rules of issue
- * #19 sit beside this one below. The space scoping of the queries is
- * applied before this rule; it is not repeated here.
+ * What the requesting member may see of a wish. Every wish of the space is
+ * visible to every member — whoever wrote it — except the wishes of an
+ * archived member (issue #23, CONTEXT.md, archived member): the wishes are
+ * hidden from the space but kept, and come back when the member is
+ * restored. `archivedMemberIds` is the space's archived set, read through
+ * the members module's public surface; the caller reads it under the same
+ * lock the read or write runs behind.
  */
-export function wishVisibleTo(_wish: { authorMemberId: string }, _memberId: string): boolean {
-  return true
+export function wishVisibleTo(
+  wish: { authorMemberId: string },
+  _memberId: string,
+  archivedMemberIds: readonly string[],
+): boolean {
+  return !archivedMemberIds.includes(wish.authorMemberId)
 }
 
 /**
  * The same rule over the module's table, for the queries that must decide
  * visibility inside SQL (the browse and the sync contributor's delta).
  * Kept next to `wishVisibleTo` so what a member may see is defined in
- * exactly one place. Today it narrows nothing: `undefined` in a drizzle
- * `and(...)` is no extra filter beyond the space scope the query already
- * carries — the `memberId` keeps the signature level with `wishVisibleTo`,
- * so a rule that does narrow per member changes no call site; issue #19's
- * gift favorite and gift reservation rules sit beside this one.
+ * exactly one place. An empty archived set narrows nothing: `undefined` in
+ * a drizzle `and(...)` is no extra filter beyond the space scope the query
+ * already carries.
  */
-export function wishVisibleToSql(_memberId: string): undefined {
-  return undefined
+export function wishVisibleToSql(
+  _memberId: string,
+  archivedMemberIds: readonly string[],
+): SQL | undefined {
+  if (archivedMemberIds.length === 0) return undefined
+  return notInArray(wishes.authorMemberId, [...archivedMemberIds])
 }
 
 /**

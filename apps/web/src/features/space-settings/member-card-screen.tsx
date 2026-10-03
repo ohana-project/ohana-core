@@ -38,6 +38,7 @@ import { SettingsShell } from './settings-shell.tsx'
 import {
   type AccessCodeStatus,
   spaceSettingsErrorMessage,
+  useArchiveSpaceMember,
   useChangeSpaceMemberRole,
   useIssueMemberAccessCode,
   useMemberAccessCode,
@@ -51,8 +52,18 @@ import {
  * their access code with its status, and their devices — the owner's
  * instruments; a regular member sees the read-only profile. Issuing a code
  * shows the plaintext once; disconnecting ends every session of the member
- * (issue #12, ADR-0005). Archiving arrives with its own ticket (#23).
+ * (issue #12, ADR-0005). The archive row removes the member from the space
+ * while the family history keeps their name; an archived card explains what
+ * the archive means and offers the restore through a new code (issue #23).
  */
+
+/** The profile shape the card reads, with the archiving stamps (issue #23). */
+interface CardProfile {
+  role: 'owner' | 'regular'
+  createdAt: string
+  archivedAt?: string
+  privateStatePurgedAt?: string
+}
 
 const codeStatusPill: Record<
   AccessCodeStatus['status'],
@@ -108,6 +119,10 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
 
   const displayName = profile.displayName ?? profile.name
   const title = t('space.card.title', { name: displayName })
+  // An archived member's card (issue #23): the owner sees the archive state
+  // with the restore, everyone else sees the read-only profile with the pill.
+  const isArchived = profile.archivedAt !== undefined
+  const archivedAt = profile.archivedAt
 
   return (
     <SettingsShell title={title}>
@@ -118,21 +133,41 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
           </Avatar>
           <div className="min-w-0">
             <h1 className="text-display-lg">{displayName}</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {t('space.card.memberSince', {
-                date: dateFormatter.format(new Date(profile.createdAt)),
-              })}
-            </p>
+            {archivedAt !== undefined ? (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {t('space.members.archivedSince', {
+                  date: dateFormatter.format(new Date(archivedAt)),
+                })}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {t('space.card.memberSince', {
+                  date: dateFormatter.format(new Date(profile.createdAt)),
+                })}
+              </p>
+            )}
           </div>
+          {isArchived ? (
+            <span className="ml-auto">
+              <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
+            </span>
+          ) : null}
         </header>
-
         {isOwner ? (
-          <OwnerSections memberId={memberId} displayName={displayName} profile={profile} />
+          isArchived ? (
+            <ArchivedOwnerSections
+              memberId={memberId}
+              displayName={displayName}
+              profile={profile}
+            />
+          ) : (
+            <OwnerSections memberId={memberId} displayName={displayName} profile={profile} />
+          )
         ) : (
           <p className="px-1 text-sm text-muted-foreground">
             {t(profile.role === 'owner' ? 'admin.space.ownerPill' : 'admin.space.regularPill')}
           </p>
-        )}
+        )}{' '}
       </div>
     </SettingsShell>
   )
@@ -145,7 +180,7 @@ function OwnerSections({
 }: {
   memberId: string
   displayName: string
-  profile: { role: 'owner' | 'regular' }
+  profile: CardProfile
 }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
@@ -155,11 +190,16 @@ function OwnerSections({
   const issueCode = useIssueMemberAccessCode()
   const revokeCode = useRevokeMemberAccessCode()
   const revokeDevices = useRevokeMemberDevices()
+  const archiveMember = useArchiveSpaceMember()
 
   const codeStatus = useMemberAccessCode(memberId)
   const devices = useMemberDevices(memberId)
 
-  const owners = profiles.data?.filter((member) => member.role === 'owner').length ?? 0
+  // The last-active-owner count (issue #23): the archived owners hold no
+  // standing, so the space's protection counts the active ones only.
+  const owners =
+    profiles.data?.filter((member) => member.role === 'owner' && member.archivedAt === undefined)
+      .length ?? 0
   const isLastOwner = profile.role === 'owner' && owners <= 1
   // An owner may be reviewing their own card: disconnecting then ends this
   // device's own session and must sign the device out.
@@ -171,6 +211,7 @@ function OwnerSections({
   const [issueError, setIssueError] = useState<string | undefined>()
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
   const [confirmRevoke, setConfirmRevoke] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
 
   const dateFormatter = new Intl.DateTimeFormat(i18n.language, {
     day: 'numeric',
@@ -371,6 +412,33 @@ function OwnerSections({
         <p className="mt-2.5 px-1 text-sm text-muted-foreground">{t('space.card.devicesHint')}</p>
       </section>
 
+      <section>
+        <SectionHeader title={t('space.card.spaceSection')} />
+        <Card className="py-0">
+          <Item size="lg">
+            <ItemMedia variant="icon">
+              <Icon name="archive" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{t('space.card.archiveRow', { name: displayName })}</ItemTitle>
+              <ItemDescription>{t('space.card.archiveRowSub')}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                disabled={isLastOwner}
+                aria-label={t('space.card.archiveRow', { name: displayName })}
+                onClick={() => setConfirmArchive(true)}
+              >
+                {t('space.card.archiveConfirm')}
+              </Button>
+            </ItemActions>
+          </Item>
+        </Card>
+      </section>
+
       {dialog !== undefined ? (
         // A mid-flight role change owns the dialog: it cannot be dismissed
         // until the request settles, so the callbacks land on a visible dialog.
@@ -528,6 +596,52 @@ function OwnerSections({
         </Dialog>
       ) : null}
 
+      {confirmArchive ? (
+        // A mid-flight archiving owns the dialog: it cannot be dismissed
+        // until the request settles, so the callbacks land on a visible
+        // dialog.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !archiveMember.isPending) setConfirmArchive(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.archiveTitle', { name: displayName })}</DialogTitle>
+              <DialogDescription>{t('space.card.archiveText')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={archiveMember.isPending}
+                onClick={() => setConfirmArchive(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={archiveMember.isPending}
+                onClick={() =>
+                  archiveMember.mutate(
+                    { memberId },
+                    {
+                      onSuccess: () => {
+                        setConfirmArchive(false)
+                        toast(t('space.card.archivedToast', { name: displayName }))
+                      },
+                      onError: (error) => toast(spaceSettingsErrorMessage(error, t), 'danger'),
+                    },
+                  )
+                }
+              >
+                {t('space.card.archiveConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       {confirmRevoke ? (
         // A mid-flight revocation owns the dialog: it cannot be dismissed
         // until the request settles, so the callbacks land on a visible
@@ -583,6 +697,155 @@ function OwnerSections({
               >
                 {t('space.card.revokeCodeConfirm')}
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
+  )
+}
+
+/*
+ * The archived card (docs/design/screens/member-card.html, the archived
+ * state): the explain card says what the archive keeps and what it hides,
+ * and the restore issues the new code — the one action that brings the
+ * member back with everything intact (issue #23, ADR-0005). Once the
+ * private state is purged, the restore is no longer offered, and the card
+ * says so instead.
+ */
+function ArchivedOwnerSections({
+  memberId,
+  displayName,
+  profile,
+}: {
+  memberId: string
+  displayName: string
+  profile: CardProfile
+}) {
+  const { t, i18n } = useTranslation()
+  const issueCode = useIssueMemberAccessCode()
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [issued, setIssued] = useState<string | undefined>()
+
+  const dateFormatter = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long' })
+  const isPurged = profile.privateStatePurgedAt !== undefined
+  const archivedAt = profile.archivedAt
+
+  return (
+    <>
+      <section>
+        <Card className="py-0">
+          <Item size="lg">
+            <ItemContent>
+              <ItemTitle>
+                {archivedAt === undefined
+                  ? null
+                  : t('space.card.archivedSinceTitle', {
+                      name: displayName,
+                      date: dateFormatter.format(new Date(archivedAt)),
+                    })}
+              </ItemTitle>
+            </ItemContent>
+          </Item>
+          <Item size="lg">
+            <ItemMedia variant="icon">
+              <Icon name="check" className="text-ok" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemDescription>{t('space.card.archivedKept')}</ItemDescription>
+            </ItemContent>
+          </Item>
+          <Item size="lg">
+            <ItemMedia variant="icon">
+              <Icon name="x" className="text-destructive" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemDescription>{t('space.card.archivedHidden')}</ItemDescription>
+            </ItemContent>
+          </Item>
+        </Card>
+      </section>
+
+      {isPurged ? (
+        <p className="px-1 text-sm text-muted-foreground">{t('space.card.purgedNote')}</p>
+      ) : (
+        <section>
+          <Button size="lg" className="w-full" onClick={() => setConfirmRestore(true)}>
+            <Icon name="restore" className="size-4" />
+            {t('space.card.restoreButton')}
+          </Button>
+          <p className="mt-2.5 px-1 text-center text-sm text-muted-foreground">
+            {t('space.card.restoreHint', { name: displayName })}
+          </p>
+        </section>
+      )}
+
+      {confirmRestore ? (
+        // The restore is the code issuance (issue #23): the confirm hands
+        // over to the issued dialog, which owns the plaintext until it is
+        // dismissed.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !issueCode.isPending) setConfirmRestore(false)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.restoreTitle', { name: displayName })}</DialogTitle>
+              <DialogDescription>{t('space.card.restoreText')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                disabled={issueCode.isPending}
+                onClick={() => setConfirmRestore(false)}
+              >
+                {t('ui.close')}
+              </Button>
+              <Button
+                disabled={issueCode.isPending}
+                onClick={() =>
+                  issueCode.mutate(
+                    { memberId },
+                    {
+                      onSuccess: (result) => {
+                        setConfirmRestore(false)
+                        setIssued(result.code)
+                        toast(t('space.card.restoredToast', { name: displayName }))
+                      },
+                      onError: (error) => toast(spaceSettingsErrorMessage(error, t), 'danger'),
+                    },
+                  )
+                }
+              >
+                {t('space.card.restoreConfirm')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {issued !== undefined ? (
+        // The plaintext code shows once — the same dialog the issue flow
+        // uses; closing it loses the code, as everywhere else.
+        <Dialog
+          open
+          onOpenChange={(next) => {
+            if (!next && !issueCode.isPending) setIssued(undefined)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('space.card.issuedTitle')}</DialogTitle>
+              <DialogDescription>{t('space.card.shownOnce')}</DialogDescription>
+            </DialogHeader>
+            <CodeDisplay code={issued} />
+            <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+              {t('space.invite.expiresMeta')}
+            </p>
+            <DialogFooter>
+              <Button onClick={() => setIssued(undefined)}>{t('space.invite.done')}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
