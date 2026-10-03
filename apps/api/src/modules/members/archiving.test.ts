@@ -593,6 +593,25 @@ describe('the archiving in sync (issue #23)', () => {
           change.entity === 'wishlist_gift_reservation' && change.reservation?.id === reservationId,
       )
       expect(upserts).toHaveLength(1)
+
+      // The wish's author — the restored member — never learns the
+      // reservation existed, not even that it hid beside their wish
+      // (ADR-0001): no change and no tombstone of it reaches them.
+      const { code } = issued.json() as { code: string }
+      const authorSession = await signInMember(app, code)
+      const authorFresh = await sync(app, authorSession, '0')
+      expect(
+        authorFresh.changes.filter(
+          (change) =>
+            change.entity === 'wishlist_gift_reservation' &&
+            change.reservation?.id === reservationId,
+        ),
+      ).toEqual([])
+      expect(
+        authorFresh.tombstones.filter(
+          (row) => row.entity === 'wishlist_gift_reservation' && row.entityId === reservationId,
+        ),
+      ).toEqual([])
     })
   })
 

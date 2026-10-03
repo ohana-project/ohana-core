@@ -182,7 +182,8 @@ export async function deletePushSubscriptionByEndpointAcrossSpaces(
 /**
  * The member's subscriptions, deleted whole (issue #23): the archiving
  * takes them in its own transaction — the archived member's devices
- * cannot unsubscribe themselves.
+ * cannot unsubscribe themselves — and the restore and the private-state
+ * purge call it again for a row a raced subscribe request left behind.
  */
 export async function deletePushSubscriptionsForMember(
   tx: Tx,

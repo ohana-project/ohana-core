@@ -235,7 +235,8 @@ export function removeSubscriptionsByEndpointAcrossSpaces(tx: Tx, endpoint: stri
  * The member's subscriptions inside a caller's transaction (issue #23):
  * the archiving takes them, because the archived member's devices cannot
  * unsubscribe themselves — their sessions are gone — and a later restore
- * must not remind a signed-out device.
+ * must not remind a signed-out device. The restore and the private-state
+ * purge call it again for a row a raced subscribe request left behind.
  */
 export async function deleteMemberSubscriptionsInTx(
   tx: Tx,

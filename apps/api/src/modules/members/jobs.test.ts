@@ -14,6 +14,7 @@ import {
 import { journalEntries } from '../journal/tables.ts'
 import { MEDIA_DELETE_JOB, type MediaDeleteJobData } from '../media/index.ts'
 import { uploadEntryImage } from '../media/service.ts'
+import { pushSubscriptions } from '../notifications/tables.ts'
 import { syncTombstones } from '../sync/tables.ts'
 import {
   archiveWishlistOfMemberInTx,
@@ -82,6 +83,10 @@ async function tombstonesFor(spaceId: string, entityId: string) {
     .where(and(eq(syncTombstones.spaceId, spaceId), eq(syncTombstones.entityId, entityId)))
 }
 
+function subscriptionRowsForMember(memberId: string) {
+  return harness.db.select().from(pushSubscriptions).where(eq(pushSubscriptions.memberId, memberId))
+}
+
 interface Arranged {
   spaceId: string
   memberId: string
@@ -138,6 +143,19 @@ async function arrangeArchivedMember(): Promise<Arranged> {
 
   await archiveMember({ db: harness.db, clock: harness.clock }, wishlistPort, space.id, member.id)
 
+  // A subscribe request that raced the archiving may have written its row
+  // after it: the straggler the purge sweeps with everything else private.
+  await harness.db.insert(pushSubscriptions).values({
+    spaceId: space.id,
+    memberId: member.id,
+    endpoint: `https://fcm.googleapis.com/fcm/send/straggler-${member.id}`,
+    p256dh: 'p256dh-straggler',
+    auth: 'auth-straggler',
+    notifyDetails: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+
   return {
     spaceId: space.id,
     memberId: member.id,
@@ -161,6 +179,8 @@ describe('the private-state purge (issue #23)', () => {
     expect(drafts).toHaveLength(1)
     const rows = await harness.db.select().from(members).where(eq(members.id, arranged.memberId))
     expect(rows[0]?.privateStatePurgedAt).toBeNull()
+    // The subscription straggler waits with everything else private.
+    expect(await subscriptionRowsForMember(arranged.memberId)).toHaveLength(1)
   })
 
   test('the purge removes the drafts and favorites, keeps the wishes, and stamps the member', async () => {
@@ -189,6 +209,9 @@ describe('the private-state purge (issue #23)', () => {
       .from(giftFavorites)
       .where(eq(giftFavorites.id, arranged.favoriteId))
     expect(favorites).toHaveLength(0)
+
+    // The subscription straggler goes with the purge — the member's end.
+    expect(await subscriptionRowsForMember(arranged.memberId)).toEqual([])
 
     // The member is stamped purged — restoration is no longer offered.
     const rows = await harness.db.select().from(members).where(eq(members.id, arranged.memberId))
