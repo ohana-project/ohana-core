@@ -20,6 +20,14 @@
 # `curl ... | sh` too; without a terminal, or with --yes, nothing is asked
 # and the default shape is installed.
 #
+# The installation always lives in /opt/ohana-core, wherever the script is
+# run from: compose.yaml and .env are written there, and the Compose
+# project (the prefix of the data volumes) is named after it. Creating it
+# needs root on most machines. OHANA_INSTALL_DIR in the environment
+# overrides the location — CI installs into scratch directories with it,
+# and an installation made elsewhere before this default is rewritten
+# with it.
+#
 # The release workflow rewrites OHANA_INSTALL_VERSION and
 # OHANA_INSTALL_REPO below to the release's tag and repository and attaches
 # this script to the release, so the downloaded copy installs exactly its
@@ -39,6 +47,7 @@ umask 077
 
 OHANA_INSTALL_VERSION=''
 OHANA_INSTALL_REPO=ohana-project/ohana-core
+OHANA_INSTALL_DIR=${OHANA_INSTALL_DIR:-/opt/ohana-core}
 
 program() {
 	case "${0##*/}" in
@@ -95,6 +104,8 @@ Options:
 
 Environment:
 
+  OHANA_INSTALL_DIR      install somewhere else than /opt/ohana-core (for
+                         example "." for the current directory)
   COMPOSE_PROJECT_NAME   pin the Compose project name the data volumes
                          belong to (lowercase letters, digits, '-' and
                          '_', starting with a letter or digit); a name
@@ -107,7 +118,9 @@ and, if so, for the domain. It asks on the terminal itself, so piping the
 script to sh still gets the questions. Without a terminal (CI, cron, output
 redirected to a file) it installs the default mode without asking.
 
-The script downloads the release's compose.yaml, generates the secrets
+Ohana is installed into /opt/ohana-core, wherever the script is run from;
+writing there usually needs root (curl ... | sudo sh). The script
+downloads the release's compose.yaml there, generates the secrets
 into .env, and starts the stack with `docker compose up -d --wait`. The
 generated .env and the release's env.production.example document every
 setting.
@@ -299,6 +312,15 @@ docker compose version > /dev/null 2>&1 ||
 docker info > /dev/null 2>&1 ||
 	die 'Docker is installed but not running. Start it (for example: sudo systemctl start docker)'
 
+# Everything from here on happens in the installation directory. It is
+# created only now, after the refusals above, and stays private to its
+# owner (the umask above): it holds the secrets.
+if ! mkdir -p -- "$OHANA_INSTALL_DIR" 2> /dev/null ||
+	! CDPATH='' cd -- "$OHANA_INSTALL_DIR" 2> /dev/null || [ ! -w . ]; then
+	die "cannot write to ${OHANA_INSTALL_DIR}; run the installer as root (pipe it to 'sudo sh' instead of 'sh'), or hand the directory to your user first: sudo mkdir -p ${OHANA_INSTALL_DIR} && sudo chown \"\$(id -un)\" ${OHANA_INSTALL_DIR}"
+fi
+install_dir=$(pwd)
+
 # A --force rewrite of an existing installation keeps its secrets: the
 # postgres and rustfs volumes still hold data keyed by them, and fresh
 # ones would lock the stack out of its own data.
@@ -401,7 +423,7 @@ fi
 
 for file in .env compose.yaml compose.override.yaml; do
 	if [ -e "$file" ] && [ "$force" -ne 1 ]; then
-		die "$file already exists here; refusing to overwrite it (run with --force to overwrite, or install elsewhere)"
+		die "$file already exists in ${install_dir}; refusing to overwrite it (run with --force to overwrite, or set OHANA_INSTALL_DIR to install elsewhere)"
 	fi
 done
 
@@ -481,7 +503,7 @@ else
 	display_version=$OHANA_INSTALL_VERSION
 fi
 
-say "Installing Ohana ${display_version} into $(pwd)"
+say "Installing Ohana ${display_version} into ${install_dir}"
 
 compose_tmp=.compose.yaml.$$
 trap 'rm -f "$compose_tmp"' EXIT
@@ -624,7 +646,7 @@ say 'Starting the stack (this pulls the images; it can take a few minutes)...'
 
 if ! $up_command; then
 	say ''
-	say 'The stack did not come up healthy. Inspect it with:'
+	say "The stack did not come up healthy. Inspect it from ${install_dir} with:"
 	say '  docker compose ps'
 	say '  docker compose logs'
 	say 'and, once the problem is fixed, start it again with:'
@@ -633,7 +655,8 @@ if ! $up_command; then
 fi
 
 say ''
-say 'Ohana is up and healthy.'
+say "Ohana is up and healthy. It is installed in ${install_dir}: run"
+say 'docker compose commands (logs, upgrades) from that directory.'
 
 if [ "$shape" = external ]; then
 	say ''

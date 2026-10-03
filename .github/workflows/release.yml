@@ -216,6 +216,10 @@ jobs:
             install_script: true
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
+    env:
+      # The installer's own location is /opt/ohana-core; the smoke installs
+      # into the directories its steps create instead.
+      OHANA_INSTALL_DIR: .
     permissions:
       contents: read
     steps:
@@ -493,17 +497,17 @@ jobs:
 
           On a server with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin:
 
-              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sudo sh
 
-          Run on a terminal, the script asks whether to enable the bundled Caddy, which serves a domain with automatic Let's Encrypt HTTPS (point the domain's DNS at the machine first). Answer no — or run it without a terminal, or with `| sh -s -- --yes` (pass that in automation that has a terminal attached) — and it serves plain HTTP on port 3000 of the machine itself; no reverse proxy is involved. Signing in sets Secure cookies, so a browser on another machine needs HTTPS: reach Ohana from the machine itself, or use one of the two HTTPS modes. To choose Caddy and its domain without the question:
+          Run on a terminal, the script asks whether to enable the bundled Caddy, which serves a domain with automatic Let's Encrypt HTTPS (point the domain's DNS at the machine first). Answer no — or run it without a terminal, or with `| sudo sh -s -- --yes` (pass that in automation that has a terminal attached) — and it serves plain HTTP on port 3000 of the machine itself; no reverse proxy is involved. Signing in sets Secure cookies, so a browser on another machine needs HTTPS: reach Ohana from the machine itself, or use one of the two HTTPS modes. To choose Caddy and its domain without the question:
 
-              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --caddy-domain ohana.example.com
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sudo sh -s -- --caddy-domain ohana.example.com
 
           Running your own reverse proxy (an own Caddy, Traefik, nginx — in its own Compose project)? Attach Ohana to its Docker network:
 
-              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --external-network <network>
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sudo sh -s -- --external-network <network>
 
-          The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done, and in the external-network mode the site to add to your proxy (`reverse_proxy ohana:3000` — the release's `compose.yaml` is never touched, the mode writes a `compose.override.yaml`). It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
+          The script installs into `/opt/ohana-core` wherever it is run from (hence the `sudo`; `OHANA_INSTALL_DIR=<directory>` in its environment picks another place). It downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done, and in the external-network mode the site to add to your proxy (`reverse_proxy ohana:3000` — the release's `compose.yaml` is never touched, the mode writes a `compose.override.yaml`). It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
           NOTES
 
           # --repo keeps gh from looking for a git checkout, which this job
