@@ -3,6 +3,7 @@ import type { Db, Tx } from '../../platform/db/index.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
 import { readTrashRetentionDays } from '../admin/index.ts'
 import { MEDIA_DELETE_JOB, type MediaDeleteJobData } from '../media/index.ts'
+import { deleteMemberSubscriptionsInTx } from '../notifications/index.ts'
 import { lockSpace } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import {
@@ -108,6 +109,10 @@ export async function purgeDuePrivateState(deps: MemberPurgeJobsDeps): Promise<v
           {
             writes: async (writeTx, revision) => {
               await markMemberPrivateStatePurged(writeTx, member.spaceId, member.id, revision, now)
+              // A subscribe request that raced the archiving may have left
+              // its row behind; the purge is the member's end, so the row
+              // goes too — no endpoint counts a member who cannot return.
+              await deleteMemberSubscriptionsInTx(writeTx, member.spaceId, member.id)
               if (drafts.imageIds.length > 0) {
                 // The photos' objects go the way the trash purge sends
                 // them: the idempotent cleanup job, inside this same

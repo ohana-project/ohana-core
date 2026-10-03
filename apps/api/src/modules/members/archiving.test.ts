@@ -8,6 +8,7 @@ import {
   ensureInitialAdministrator,
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
+import { pushSubscriptions } from '../notifications/tables.ts'
 import { members as memberRows } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -233,6 +234,32 @@ describe('POST /api/v1/members/:memberId/archive (owner archives a member)', () 
     })
   })
 
+  test('archiving takes the member push subscriptions', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const session = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      await subscribeDevice(app, memberSession)
+      expect(await subscriptionRowsForMember(member.id)).toHaveLength(1)
+
+      expect((await archiveForMember(app, session, member.id)).statusCode).toBe(200)
+
+      // The archived member's devices cannot unsubscribe themselves — their
+      // sessions are gone — so the archiving takes the rows and a reminder
+      // never chases a signed-out device.
+      expect(await subscriptionRowsForMember(member.id)).toEqual([])
+    })
+  })
+
   test('an archived member can no longer authenticate', async () => {
     const space = await harness.createSpace()
     const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
@@ -361,6 +388,25 @@ async function reserve(app: TestApp, session: MemberSession, wishId: string): Pr
   return (response.json() as { id: string }).id
 }
 
+/** The member's device opts into pushes over the same route the web client calls. */
+async function subscribeDevice(app: TestApp, session: MemberSession): Promise<void> {
+  const response = await app.inject({
+    method: 'PUT',
+    url: '/api/v1/notifications/push/subscription',
+    payload: {
+      endpoint: `https://fcm.googleapis.com/fcm/send/${session.memberId}`,
+      keys: { p256dh: 'p256dh', auth: 'auth' },
+      notifyDetails: false,
+    },
+    headers: memberHeaders(session),
+  })
+  expect(response.statusCode).toBe(204)
+}
+
+function subscriptionRowsForMember(memberId: string) {
+  return harness.db.select().from(pushSubscriptions).where(eq(pushSubscriptions.memberId, memberId))
+}
+
 interface SyncResponse {
   revision: string
   changes: Array<{
@@ -368,6 +414,7 @@ interface SyncResponse {
     member?: { id: string; archivedAt?: string }
     wish?: { id: string }
     entry?: { id: string }
+    reservation?: { id: string }
   }>
   tombstones: Array<{ entity: string; entityId: string; audience: string; memberId?: string }>
 }
@@ -470,6 +517,82 @@ describe('the archiving in sync (issue #23)', () => {
       )
       expect(endings).toHaveLength(1)
       expect(endings[0]).toMatchObject({ audience: 'member', memberId: bystander.id })
+    })
+  })
+
+  test('the reservations on the member own wishes hide beside them, and the restore brings them back', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const reserver = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    const bystander = await harness.createMember(space.id, { name: 'Пётр', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      const reserverSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, reserver.id)).code,
+      )
+      const bystanderSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, bystander.id)).code,
+      )
+      const wish = await createWish(app, memberSession, 'Книга')
+      const reservationId = await reserve(app, reserverSession, wish.id)
+      const cursors = {
+        reserver: (await sync(app, reserverSession, '0')).revision,
+        bystander: (await sync(app, bystanderSession, '0')).revision,
+      }
+
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // The reservation is not ended — it hides beside the wish. Every
+      // member but the wish's author (the archived member here) learns it
+      // left their view, each through their own member-scoped tombstone.
+      const reserverDelta = await sync(app, reserverSession, cursors.reserver)
+      const reserverEndings = reserverDelta.tombstones.filter(
+        (row) => row.entity === 'wishlist_gift_reservation' && row.entityId === reservationId,
+      )
+      expect(reserverEndings).toHaveLength(1)
+      expect(reserverEndings[0]).toMatchObject({ audience: 'member', memberId: reserver.id })
+
+      const bystanderEndings = (
+        await sync(app, bystanderSession, cursors.bystander)
+      ).tombstones.filter(
+        (row) => row.entity === 'wishlist_gift_reservation' && row.entityId === reservationId,
+      )
+      expect(bystanderEndings).toHaveLength(1)
+      expect(bystanderEndings[0]).toMatchObject({ audience: 'member', memberId: bystander.id })
+
+      // A fresh device's sync from zero never receives it: the wish is
+      // hidden, and the reservation hides beside it.
+      const fresh = await sync(app, bystanderSession, '0')
+      expect(
+        fresh.changes.filter(
+          (change) =>
+            change.entity === 'wishlist_gift_reservation' &&
+            change.reservation?.id === reservationId,
+        ),
+      ).toEqual([])
+
+      // The restore re-stamps the wishes and the reservations held on them:
+      // the delta delivers the reservation as an upsert again.
+      const issued = await issueOwnerCode(app, ownerSession, member.id)
+      expect(issued.statusCode).toBe(201)
+
+      const restoredDelta = await sync(app, reserverSession, cursors.reserver)
+      const upserts = restoredDelta.changes.filter(
+        (change) =>
+          change.entity === 'wishlist_gift_reservation' && change.reservation?.id === reservationId,
+      )
+      expect(upserts).toHaveLength(1)
     })
   })
 
@@ -626,6 +749,46 @@ describe('the restore through code issuance (issue #23)', () => {
           (row) => row.id === (draft.json() as { id: string }).id,
         ),
       ).toBe(true)
+    })
+  })
+
+  test('the restore takes a subscription that raced the archiving', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      await subscribeDevice(app, memberSession)
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // A subscribe request authenticated before the archiving may have
+      // written its row after the archiving took the older ones: the
+      // straggler the restore has to sweep.
+      await harness.db.insert(pushSubscriptions).values({
+        spaceId: space.id,
+        memberId: member.id,
+        endpoint: `https://fcm.googleapis.com/fcm/send/straggler-${member.id}`,
+        p256dh: 'p256dh-straggler',
+        auth: 'auth-straggler',
+        notifyDetails: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+
+      const issued = await issueOwnerCode(app, ownerSession, member.id)
+      expect(issued.statusCode).toBe(201)
+
+      // The straggler goes with the restore — the new code is the only way
+      // back in, on a fresh device, and no reminder chases the old one.
+      expect(await subscriptionRowsForMember(member.id)).toEqual([])
     })
   })
 })

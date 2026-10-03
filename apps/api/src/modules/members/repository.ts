@@ -237,7 +237,7 @@ export async function updateMemberArchived(
     .returning()
   const row = updated[0]
   if (!row) {
-    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+    throw new Error(`Member ${memberId} in space ${spaceId} cannot be archived in its state`)
   }
   return row
 }

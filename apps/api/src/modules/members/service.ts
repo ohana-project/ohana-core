@@ -37,13 +37,17 @@ export type MemberRole = (typeof memberRoles)[number]
  */
 export interface MemberWishlistPort {
   /**
-   * Ends the member's reservations and collects the tombstones the
-   * archiving delivers — one per wish to everyone, one per ended
+   * Ends the member's reservations, hides the ones held on their own
+   * wishes beside the wishes, and collects the tombstones the archiving
+   * delivers — one per wish to everyone, one per ended or hidden
    * reservation to every member but the wish's author. Runs inside the
    * caller's transaction, behind the space row lock the caller took.
    */
   archiveInTx(tx: Tx, spaceId: string, memberId: string): Promise<TombstoneInput[]>
-  /** Stamps the member's wishes with the restore's revision, so they ride the delta again. */
+  /**
+   * Stamps the member's wishes — and the reservations held on them — with
+   * the restore's revision, so they ride the delta again.
+   */
   restampWishesInTx(
     tx: Tx,
     spaceId: string,
@@ -359,14 +363,14 @@ export async function archiveMember(
 
 /**
  * The restore inside a caller's transaction (issue #23, ADR-0005): the
- * member's row loses its archiving stamp and their wishes are re-stamped
- * with the restore's revision, so the sync delta delivers both as upserts
- * and every device shows the member and their wishlist whole. Every session
- * the member may still hold goes with the restore — the new code being
- * issued is the only way back in. The caller — the access module's
- * issuance, through the composition root's port — has already taken the
- * space row lock, refused a purged member, and read the member under the
- * same lock.
+ * member's row loses its archiving stamp and their wishes — with the
+ * reservations held on them — are re-stamped with the restore's revision,
+ * so the sync delta delivers both as upserts and every device shows the
+ * member and their wishlist whole. Every session the member may still hold
+ * goes with the restore — the new code being issued is the only way back
+ * in. The caller — the access module's issuance, through the composition
+ * root's port — has already taken the space row lock, refused a purged
+ * member, and read the member under the same lock.
  */
 export async function restoreArchivedMemberInTx(
   tx: Tx,
@@ -383,9 +387,10 @@ export async function restoreArchivedMemberInTx(
       writes: async (writeTx, revision) => {
         restored = await updateMemberRestored(writeTx, spaceId, memberId, revision, now)
         await wishlist.restampWishesInTx(writeTx, spaceId, memberId, revision, now)
-        // The session a racing redemption may have left goes too, and with
-        // it the subscription such a device could still hold — the new
-        // code being issued is the only way back in, on a fresh device.
+        // The sessions go with the restore, and the subscriptions with
+        // them: a subscribe request authenticated before the archiving may
+        // have written its row after it. The new code being issued is the
+        // only way back in, on a fresh device.
         await revokeMemberSessionsInTx(writeTx, spaceId, memberId)
         await deleteMemberSubscriptionsInTx(writeTx, spaceId, memberId)
       },
