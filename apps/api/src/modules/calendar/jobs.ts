@@ -2,7 +2,7 @@ import { createI18n, type Locale } from '@ohana/i18n'
 import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import type { JobSender } from '../../platform/jobs/index.ts'
+import type { JobSender, QueueSetup } from '../../platform/jobs/index.ts'
 import type { Logger } from '../../platform/logging.ts'
 import type { PushPayload, PushSender } from '../../platform/push/index.ts'
 import { listMembers, type Member } from '../members/index.ts'
@@ -91,8 +91,13 @@ export const CALENDAR_QUEUE_SETUPS = [
 ] as const
 
 /** The queues the api process must ensure before its first reminder
- *  schedule (architecture.md, "Background jobs"). */
-export const CALENDAR_SENT_QUEUES = [CALENDAR_REMINDER_JOB] as const
+ *  schedule, with the options their jobs need: pg-boss copies a queue's
+ *  retry settings into every job at send time, so a fresh installation's
+ *  first schedules — sent before the worker ever ran — must not fall back
+ *  to the defaults (architecture.md, "Background jobs"). */
+export const CALENDAR_SENT_QUEUE_SETUPS: QueueSetup[] = CALENDAR_QUEUE_SETUPS.filter(
+  (setup) => setup.name === CALENDAR_REMINDER_JOB,
+)
 
 export interface CalendarReminderJobData {
   spaceId: string
@@ -233,6 +238,13 @@ export async function sendDueCalendarReminder(
   // claim row goes, the job throws, and the queue's retry sends from
   // scratch — a family missing its reminder is worse than a slow one.
   if (delivered === 0 && failed > 0) {
+    // The expired endpoints go even on this path — the removal is
+    // idempotent, and the acceptance criteria ask for it on every path.
+    for (const endpoint of expiredEndpoints) {
+      await deps.db.transaction(async (tx) => {
+        await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
+      })
+    }
     await deps.db.transaction(async (tx) => {
       await releaseReminderClaim(tx, data.spaceId, data.eventId, data.originalDate, lease)
     })
@@ -262,7 +274,7 @@ export async function sendDueCalendarReminder(
       })
     } catch (error) {
       deps.logger.warn(
-        { err: error, endpoint },
+        { err: error, endpointHost: new URL(endpoint).host },
         'Expired push subscription not removed; the next send to it retires it',
       )
     }
@@ -409,6 +421,7 @@ function occurrenceTimezone(
 export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Promise<void> {
   const now = deps.clock.now()
   const horizonEnd = new Date(now.getTime() + REMINDER_HORIZON_DAYS * DAY_MS)
+  const watermarkResetAbove = new Date(horizonEnd.getTime() + DAY_MS)
   const spaceIds = await listSpacesWithReminderEventsAcrossSpaces(deps.db)
   const failures: Array<{ spaceId: string; cause: unknown }> = []
   for (const spaceId of spaceIds) {
@@ -437,9 +450,7 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
           // and a healthy one adds only the days since.
           // A watermark beyond the horizon is a forward clock jump's
           // poison (a bad NTP step, a VM restore): treat it as unset and
-          // let the duplicates — safe by design — wash it out. One
-          // threshold for both sides of the comparison.
-          const watermarkResetAbove = new Date(horizonEnd.getTime() + DAY_MS)
+          // let the duplicates — safe by design — wash it out.
           let watermark = stored.reminder.scheduledThrough ?? new Date(0)
           if (watermark.getTime() > watermarkResetAbove.getTime()) watermark = new Date(0)
           if (watermark.getTime() >= horizonEnd.getTime()) continue
@@ -481,7 +492,7 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map((failure) => failure.cause),
-      `Extending reminder horizons failed for ${failures.length} space(s): ${failures.map((f) => f.spaceId).join(', ')}`,
+      `Extending reminder horizons failed (${failures.length}): ${failures.map((f) => f.spaceId).join(', ')}`,
     )
   }
 }

@@ -71,7 +71,7 @@ export function createWebPushSender(vapid: VapidKeys, logger: Logger, subject: s
         const status = (error as { statusCode?: unknown }).statusCode
         if (status === 404 || status === 410) return 'expired'
         logger.warn(
-          { err: error, endpoint: credentials.endpoint },
+          { err: error, endpointHost: new URL(credentials.endpoint).host },
           'Web Push delivery failed; the subscription is kept',
         )
         return 'failed'

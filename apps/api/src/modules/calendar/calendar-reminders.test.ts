@@ -13,6 +13,7 @@ import { subscribe } from '../notifications/index.ts'
 import { pushSubscriptions } from '../notifications/tables.ts'
 import type { TimedSeriesBody } from './contracts.ts'
 import {
+  CALENDAR_QUEUE_SETUPS,
   CALENDAR_REMINDER_JOB,
   type CalendarReminderJobData,
   type CalendarReminderJobsDeps,
@@ -21,6 +22,7 @@ import {
 } from './jobs.ts'
 import { REMINDER_HORIZON_DAYS } from './reminders.ts'
 import * as repository from './repository.ts'
+import { REMINDER_CLAIM_TAKEOVER_MS } from './repository.ts'
 import { calendarRemindersSent } from './tables.ts'
 
 /*
@@ -744,62 +746,6 @@ describe('sendDueCalendarReminder', () => {
     push.respondWith('delivered')
   })
 
-  test("a stalled lease marks nothing on a successor's live claim", async () => {
-    const space = await harness.createSpace()
-    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    const event = await createEventWithReminder(space, anya, {
-      title: 'Ужин',
-      allDay: false,
-      date: '2026-01-10',
-      startTime: '19:00',
-      endTime: '21:00',
-      reminder: { leadMinutes: 15, recipients: { everyone: true } },
-    })
-    const start = new Date('2026-01-10T19:00:00.000Z')
-    const clock = fixedClock(new Date('2026-01-10T18:46:00.000Z'))
-
-    // Lease A claims; six minutes later lease B takes the unsent claim
-    // over, exactly as a crashed sender's successor would.
-    const leaseA = await harness.db.transaction(async (tx) =>
-      repository.claimReminder(tx, space.id, event.id, '2026-01-10', start, clock.now()),
-    )
-    if (leaseA === undefined) throw new Error('The first claim must win')
-    clock.advance(6 * 60 * 1000)
-    const leaseB = await harness.db.transaction(async (tx) =>
-      repository.claimReminder(tx, space.id, event.id, '2026-01-10', start, clock.now()),
-    )
-    if (leaseB === undefined) throw new Error('The takeover must win')
-
-    // A wakes up mid-send and reports success: B's claim stays live.
-    await harness.db.transaction(async (tx) => {
-      await repository.markReminderSent(tx, space.id, event.id, '2026-01-10', leaseA, clock.now())
-    })
-    const live = await repository.getReminderClaim(harness.db, space.id, event.id, '2026-01-10')
-    expect(live?.sentAt).toBeNull()
-    expect(live?.startAt).toEqual(start)
-
-    // A then reports total failure and lets go: B's claim stands.
-    await harness.db.transaction(async (tx) => {
-      await repository.releaseReminderClaim(tx, space.id, event.id, '2026-01-10', leaseA)
-    })
-    const held = await repository.getReminderClaim(harness.db, space.id, event.id, '2026-01-10')
-    expect(held?.sentAt).toBeNull()
-    expect(held?.startAt).toEqual(start)
-
-    // B finishes: its own receipt lands.
-    await harness.db.transaction(async (tx) => {
-      await repository.markReminderSent(tx, space.id, event.id, '2026-01-10', leaseB, clock.now())
-    })
-    const receipted = await repository.getReminderClaim(
-      harness.db,
-      space.id,
-      event.id,
-      '2026-01-10',
-    )
-    expect(receipted?.sentAt).not.toBeNull()
-    void event
-  })
-
   test('a reminder already sent stays quiet when a duplicate job fires hours later', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
@@ -1280,6 +1226,83 @@ describe('sendDueCalendarReminder', () => {
       originalDate: '2026-01-10',
     })
     expect(push.sends).toHaveLength(0)
+  })
+})
+
+describe("the reminder queue's retry schedule", () => {
+  test("its retries outlast the claim's takeover window, and land soon enough for short leads", async () => {
+    const setup = CALENDAR_QUEUE_SETUPS.find((queue) => queue.name === CALENDAR_REMINDER_JOB)
+    const options = setup?.options
+    expect(options).toBeDefined()
+    const { retryLimit, retryDelay } = options as { retryLimit: number; retryDelay: number }
+    // The first retry lands within half a minute: a one-minute lead's
+    // reminder is still ahead of its occurrence.
+    expect(retryDelay * 2).toBeLessThanOrEqual(30)
+    // The minimum cumulative wait (pg-boss's backoff never goes below
+    // delay * 2^n) outlasts the takeover window: the last retry's sender
+    // cannot race a successor it has already outlived.
+    const minimumWaitMs = Array.from({ length: retryLimit }, (_, n) => retryDelay * 2 ** n).reduce(
+      (sum, wait) => sum + wait,
+      0,
+    )
+    expect(minimumWaitMs).toBeGreaterThan(REMINDER_CLAIM_TAKEOVER_MS / 1000)
+  })
+})
+
+describe('reminder claim lease (repository)', () => {
+  test("a stalled lease marks nothing on a successor's live claim", async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Ужин',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '19:00',
+      endTime: '21:00',
+      reminder: { leadMinutes: 15, recipients: { everyone: true } },
+    })
+    const start = new Date('2026-01-10T19:00:00.000Z')
+    const clock = fixedClock(new Date('2026-01-10T18:46:00.000Z'))
+
+    // Lease A claims; six minutes later lease B takes the unsent claim
+    // over, exactly as a crashed sender's successor would.
+    const leaseA = await harness.db.transaction(async (tx) =>
+      repository.claimReminder(tx, space.id, event.id, '2026-01-10', start, clock.now()),
+    )
+    if (leaseA === undefined) throw new Error('The first claim must win')
+    clock.advance(6 * 60 * 1000)
+    const leaseB = await harness.db.transaction(async (tx) =>
+      repository.claimReminder(tx, space.id, event.id, '2026-01-10', start, clock.now()),
+    )
+    if (leaseB === undefined) throw new Error('The takeover must win')
+
+    // A wakes up mid-send and reports success: B's claim stays live.
+    await harness.db.transaction(async (tx) => {
+      await repository.markReminderSent(tx, space.id, event.id, '2026-01-10', leaseA, clock.now())
+    })
+    const live = await repository.getReminderClaim(harness.db, space.id, event.id, '2026-01-10')
+    expect(live?.sentAt).toBeNull()
+    expect(live?.startAt).toEqual(start)
+
+    // A then reports total failure and lets go: B's claim stands.
+    await harness.db.transaction(async (tx) => {
+      await repository.releaseReminderClaim(tx, space.id, event.id, '2026-01-10', leaseA)
+    })
+    const held = await repository.getReminderClaim(harness.db, space.id, event.id, '2026-01-10')
+    expect(held?.sentAt).toBeNull()
+    expect(held?.startAt).toEqual(start)
+
+    // B finishes: its own receipt lands.
+    await harness.db.transaction(async (tx) => {
+      await repository.markReminderSent(tx, space.id, event.id, '2026-01-10', leaseB, clock.now())
+    })
+    const receipted = await repository.getReminderClaim(
+      harness.db,
+      space.id,
+      event.id,
+      '2026-01-10',
+    )
+    expect(receipted?.sentAt).not.toBeNull()
   })
 })
 

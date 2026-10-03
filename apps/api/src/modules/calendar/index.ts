@@ -11,7 +11,7 @@ export {
   CALENDAR_REMINDER_JOB,
   CALENDAR_REMINDER_SWEEP_CRON,
   CALENDAR_REMINDER_SWEEP_JOB,
-  CALENDAR_SENT_QUEUES,
+  CALENDAR_SENT_QUEUE_SETUPS,
   type CalendarReminderJobData,
   type CalendarReminderJobsDeps,
   extendReminderHorizons,

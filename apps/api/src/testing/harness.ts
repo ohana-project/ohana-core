@@ -84,6 +84,28 @@ export interface RecordingPushSender extends PushSender {
   ): void
 }
 
+/**
+ * A db whose Nth transaction rejects — the seam for pinning a handler's
+ * failure ordering (the receipt before the cleanup, the prune riding the
+ * aggregate) without mocking the queries inside those transactions.
+ */
+export function dbFailingOnNthTransaction(db: Db, n: number): Db {
+  let calls = 0
+  const failing = {
+    transaction: <T>(
+      callback: Parameters<Db['transaction']>[0],
+      config?: Parameters<Db['transaction']>[1],
+    ): Promise<T> => {
+      calls += 1
+      if (calls === n) {
+        return Promise.reject(new Error(`transaction ${calls} failed on demand`))
+      }
+      return db.transaction(callback as never, config) as Promise<T>
+    },
+  }
+  return Object.assign(Object.create(Object.getPrototypeOf(db)), db, failing)
+}
+
 export function recordingPushSender(): RecordingPushSender {
   let respond:
     | PushSendResult

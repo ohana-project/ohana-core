@@ -1,6 +1,6 @@
 import { buildApp } from '../app/buildApp.ts'
 import { ensureInitialAdministrator } from '../modules/admin/index.ts'
-import { CALENDAR_SENT_QUEUES } from '../modules/calendar/index.ts'
+import { CALENDAR_SENT_QUEUE_SETUPS } from '../modules/calendar/index.ts'
 import { JOURNAL_SENT_QUEUES } from '../modules/journal/index.ts'
 import { MEDIA_QUEUE_SETUPS } from '../modules/media/index.ts'
 import { ensureVapidKeys } from '../modules/notifications/index.ts'
@@ -19,7 +19,7 @@ import { storageFromConfig } from '../platform/storage/s3.ts'
 const SENT_QUEUES: QueueSetup[] = [
   ...JOURNAL_SENT_QUEUES.map((name) => ({ name })),
   ...MEDIA_QUEUE_SETUPS,
-  ...CALENDAR_SENT_QUEUES.map((name) => ({ name })),
+  ...CALENDAR_SENT_QUEUE_SETUPS,
 ]
 
 async function main(): Promise<void> {
