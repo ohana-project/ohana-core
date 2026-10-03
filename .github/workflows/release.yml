@@ -84,18 +84,26 @@ jobs:
             fi
           done
 
-          # The installer is shipped with the version baked in, so the
-          # downloaded copy installs exactly its own release's files. The
-          # rewrite targets the assignment line only; the checks keep a
+          # The installer is shipped with the version and the repository
+          # baked in, so the downloaded copy installs exactly its own
+          # release's files from the repository it was released by (a fork
+          # or a rename must not fetch another repo's Compose file). The
+          # rewrite targets the assignment lines only; the checks keep a
           # broken script from ever reaching a release page. shellcheck is
           # preinstalled on the runner.
-          sed -e "s|^OHANA_INSTALL_VERSION=.*|OHANA_INSTALL_VERSION='${tag}'|" deploy/install.sh > release/install.sh
+          sed -e "s|^OHANA_INSTALL_VERSION=.*|OHANA_INSTALL_VERSION='${tag}'|" \
+              -e "s|^OHANA_INSTALL_REPO=.*|OHANA_INSTALL_REPO='${GITHUB_REPOSITORY,,}'|" \
+            deploy/install.sh > release/install.sh
           if grep -q "^OHANA_INSTALL_VERSION=''" release/install.sh; then
             echo "::error::the release install script does not carry the ${tag} version"
             exit 1
           fi
           if ! grep -qF "OHANA_INSTALL_VERSION='${tag}'" release/install.sh; then
             echo "::error::the release install script does not carry the ${tag} version"
+            exit 1
+          fi
+          if ! grep -qF "OHANA_INSTALL_REPO='${GITHUB_REPOSITORY,,}'" release/install.sh; then
+            echo "::error::the release install script does not carry the ${GITHUB_REPOSITORY} repository"
             exit 1
           fi
           shellcheck -s sh release/install.sh
@@ -306,7 +314,7 @@ jobs:
           exec /usr/bin/curl "${args[@]}"
           SHIM
           chmod +x shim/curl
-          export PATH="$GITHUB_WORKSPACE/shim:$PATH"
+          export PATH="$RELEASE_DIR/shim:$PATH"
           mkdir install
           cd install
           sh ../install.sh
@@ -349,7 +357,7 @@ jobs:
           docker compose --profile caddy down --volumes
           cd ..
           docker network create ohana-proxy
-          export PATH="$GITHUB_WORKSPACE/shim:$PATH"
+          export PATH="$RELEASE_DIR/shim:$PATH"
           mkdir install-external
           cd install-external
           sh ../install.sh --external-network ohana-proxy
@@ -372,7 +380,10 @@ jobs:
         if: matrix.install_script == true
         working-directory: release/install-external
         run: |
+          # docker inspect reports the name with a leading slash, the
+          # network's container list without it.
           api_name=$(docker inspect --format '{{.Name}}' "$(docker compose ps -q api)")
+          api_name=${api_name#/}
           if ! docker network inspect ohana-proxy --format '{{range .Containers}}{{.Name}} {{end}}' | grep -qF "${api_name} "; then
             echo '::error::the api container did not join the external network'
             docker network inspect ohana-proxy
@@ -476,7 +487,7 @@ jobs:
 
               curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh
 
-          serves plain HTTP on port 3000 of the machine itself — the default; no reverse proxy is involved. For automatic Let's Encrypt HTTPS on a domain through the bundled Caddy:
+          serves plain HTTP on port 3000 of the machine itself — the default; no reverse proxy is involved. Signing in sets Secure cookies, so a browser on another machine needs HTTPS: reach Ohana from the machine itself, or use one of the two HTTPS modes below. For automatic Let's Encrypt HTTPS on a domain through the bundled Caddy:
 
               curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --caddy-domain ohana.example.com
 
@@ -484,7 +495,7 @@ jobs:
 
               curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --external-network <network>
 
-          The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done, and in the external-network mode the exact site block to add to your proxy (never touching the release's `compose.yaml` — it writes a `compose.override.yaml`). It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
+          The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done, and in the external-network mode the site to add to your proxy (`reverse_proxy ohana:3000` — the release's `compose.yaml` is never touched, the mode writes a `compose.override.yaml`). It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
           NOTES
 
           # --repo keeps gh from looking for a git checkout, which this job

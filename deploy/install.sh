@@ -21,11 +21,18 @@
 
 set -eu
 
+# Secret-bearing files (.env, the .env backup of a --force rewrite) are
+# created readable by their owner only, whatever the caller's umask was.
+umask 077
+
 OHANA_INSTALL_VERSION=''
 OHANA_INSTALL_REPO=ohana-project/ohana-core
 
 program() {
-	basename "${0:-install.sh}"
+	case "${0##*/}" in
+	*install*) printf '%s\n' "${0##*/}" ;;
+	*) printf 'install.sh\n' ;;
+	esac
 }
 
 say() {
@@ -101,8 +108,48 @@ ask() {
 	fi
 }
 
+# normalize_domain <value>: accept the shapes a browser's address bar
+# suggests and keep the bare domain — Caddy's site address is a host name.
+normalize_domain() {
+	normalized=${1#http://}
+	normalized=${normalized#https://}
+	normalized=${normalized%/}
+	printf '%s\n' "$normalized"
+}
+
+check_domain() {
+	case "$1" in
+	'' | *[!A-Za-z0-9.-]* | [!A-Za-z0-9]*)
+		die "'$1' does not look like a domain name (example: ohana.example.com)"
+		;;
+	esac
+}
+
+check_port() {
+	case "$1" in
+	'' | *[!0-9]*)
+		die "'$1' is not a port number between 1 and 65535"
+		;;
+	esac
+	# The length cap keeps the numeric tests below from overflowing on
+	# absurdly long input.
+	if [ "${#1}" -gt 5 ] || [ "$1" -lt 1 ] || [ "$1" -gt 65535 ]; then
+		die "'$1' is not a port number between 1 and 65535"
+	fi
+}
+
+check_network_name() {
+	case "$1" in
+	'' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]*)
+		die "'$1' does not look like a Docker network name (example: caddy_proxy)"
+		;;
+	esac
+}
+
 domain=
+domain_set=0
 external_network=
+network_set=0
 port=3000
 force=0
 
@@ -110,31 +157,43 @@ while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--caddy-domain)
 		[ "$#" -ge 2 ] || die '--caddy-domain needs a value'
-		[ -z "$domain" ] || die '--caddy-domain cannot be used twice'
+		[ "$domain_set" -eq 0 ] || die '--caddy-domain cannot be used twice'
+		[ -n "$2" ] || die '--caddy-domain needs a value'
 		domain=$2
+		domain_set=1
 		shift 2
 		;;
 	--caddy-domain=*)
+		[ "$domain_set" -eq 0 ] || die '--caddy-domain cannot be used twice'
 		domain=${1#*=}
+		[ -n "$domain" ] || die '--caddy-domain needs a value'
+		domain_set=1
 		shift
 		;;
 	--external-network)
 		[ "$#" -ge 2 ] || die '--external-network needs a value'
-		[ -z "$external_network" ] || die '--external-network cannot be used twice'
+		[ "$network_set" -eq 0 ] || die '--external-network cannot be used twice'
+		[ -n "$2" ] || die '--external-network needs a value'
 		external_network=$2
+		network_set=1
 		shift 2
 		;;
 	--external-network=*)
+		[ "$network_set" -eq 0 ] || die '--external-network cannot be used twice'
 		external_network=${1#*=}
+		[ -n "$external_network" ] || die '--external-network needs a value'
+		network_set=1
 		shift
 		;;
 	--port)
 		[ "$#" -ge 2 ] || die '--port needs a value'
 		port=$2
+		check_port "$port"
 		shift 2
 		;;
 	--port=*)
 		port=${1#*=}
+		check_port "$port"
 		shift
 		;;
 	--force)
@@ -151,50 +210,26 @@ while [ "$#" -gt 0 ]; do
 	esac
 done
 
-# Accept the shapes a browser's address bar suggests and keep the bare
-# domain: Caddy's site address is a host name.
-case "$domain" in
-http://*) domain=${domain#http://} ;;
-https://*) domain=${domain#https://} ;;
-esac
-domain=${domain%/}
-
-if [ -n "$domain" ]; then
-	case "$domain" in
-	*[!A-Za-z0-9.-]* | [!A-Za-z0-9]*)
-		die "'$domain' does not look like a domain name (example: ohana.example.com)"
-		;;
-	esac
+if [ "$domain_set" -eq 1 ]; then
+	domain=$(normalize_domain "$domain")
+	check_domain "$domain"
+fi
+check_port "$port"
+if [ "$network_set" -eq 1 ]; then
+	check_network_name "$external_network"
 fi
 
-case "$port" in
-'' | *[!0-9]*)
-	die "'$port' is not a port number between 1 and 65535"
-	;;
-esac
-if [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-	die "'$port' is not a port number between 1 and 65535"
-fi
-
-if [ -n "$external_network" ]; then
-	case "$external_network" in
-	[!A-Za-z0-9]* | *[!A-Za-z0-9_.-]*)
-		die "'$external_network' does not look like a Docker network name (example: caddy_proxy)"
-		;;
-	esac
-fi
-
-if [ -n "$domain" ] && [ -n "$external_network" ]; then
+if [ "$domain_set" -eq 1 ] && [ "$network_set" -eq 1 ]; then
 	die '--caddy-domain and --external-network cannot be combined'
 fi
-if [ -n "$domain" ] && [ "$port" != 3000 ]; then
+if [ "$domain_set" -eq 1 ] && [ "$port" != 3000 ]; then
 	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
 fi
 
 # The deployment shape. Interactive only when a terminal is on stdin:
 # piped (curl | sh) or redirected runs take the default without asking,
 # so the one-liner stays a one-liner.
-if [ -z "$domain" ] && [ -z "$external_network" ] && [ -t 0 ]; then
+if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ -t 0 ]; then
 	say 'How should Ohana be reached?'
 	say '  1. Plain HTTP on a port of this machine (the default)'
 	say "  2. A domain name of this machine (HTTPS through the bundled Caddy, Let's Encrypt)"
@@ -205,30 +240,20 @@ if [ -z "$domain" ] && [ -z "$external_network" ] && [ -t 0 ]; then
 		ask 'Port to publish Ohana on [3000]: '
 		if [ -n "$ask_reply" ]; then
 			port=$ask_reply
+			check_port "$port"
 		fi
-		case "$port" in
-		'' | *[!0-9]*)
-			die "'$port' is not a port number between 1 and 65535"
-			;;
-		esac
 		;;
 	2)
 		ask 'Domain name (example: ohana.example.com): '
-		case "$ask_reply" in
-		'' | *[!A-Za-z0-9.-]* | [!A-Za-z0-9]*)
-			die "'$ask_reply' does not look like a domain name"
-			;;
-		esac
-		domain=$ask_reply
+		domain=$(normalize_domain "$ask_reply")
+		check_domain "$domain"
+		domain_set=1
 		;;
 	3)
 		ask 'Name of the Docker network shared with your reverse proxy: '
-		case "$ask_reply" in
-		'' | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]*)
-			die "'$ask_reply' does not look like a Docker network name"
-			;;
-		esac
+		check_network_name "$ask_reply"
 		external_network=$ask_reply
+		network_set=1
 		;;
 	*)
 		die 'please answer 1, 2, or 3 (or run again with --caddy-domain <domain> or --external-network <network>)'
@@ -236,9 +261,9 @@ if [ -z "$domain" ] && [ -z "$external_network" ] && [ -t 0 ]; then
 	esac
 fi
 
-if [ -n "$domain" ]; then
+if [ "$domain_set" -eq 1 ]; then
 	shape=caddy
-elif [ -n "$external_network" ]; then
+elif [ "$network_set" -eq 1 ]; then
 	shape=external
 else
 	shape=bare
@@ -253,19 +278,19 @@ docker compose version > /dev/null 2>&1 ||
 docker info > /dev/null 2>&1 ||
 	die 'Docker is installed but not running. Start it (for example: sudo systemctl start docker)'
 
+if [ "$shape" = external ]; then
+	# `external: true` in the generated compose.override.yaml makes Compose
+	# refuse to start when the network is missing; checking here — before
+	# any file is written — says what to do instead.
+	docker network inspect "$external_network" > /dev/null 2>&1 ||
+		die "the Docker network '${external_network}' does not exist on this machine; create it (docker network create ${external_network}) or check the name (docker network ls)"
+fi
+
 for file in .env compose.yaml compose.override.yaml; do
 	if [ -e "$file" ] && [ "$force" -ne 1 ]; then
 		die "$file already exists here; refusing to overwrite it (run with --force to overwrite, or install elsewhere)"
 	fi
 done
-
-# A compose.override.yaml left behind by an earlier --external-network
-# install would still be merged by docker compose in the other modes, so
-# --force removes it there rather than silently keeping it.
-if [ "$shape" != external ] && [ "$force" -eq 1 ] && [ -e compose.override.yaml ]; then
-	rm compose.override.yaml
-	say 'Removed the compose.override.yaml of an earlier external-network install.'
-fi
 
 if [ -z "$OHANA_INSTALL_VERSION" ]; then
 	assets_base="https://github.com/${OHANA_INSTALL_REPO}/releases/latest/download"
@@ -298,12 +323,39 @@ fi
 mv "$compose_tmp" compose.yaml
 trap - EXIT
 
-postgres_password=$(random_secret)
-storage_access_key=$(random_secret)
-storage_secret_key=$(random_secret)
+# A compose.override.yaml left behind by an earlier --external-network
+# install would still be merged by docker compose in the other modes, so a
+# --force run in them removes it. Only after the download succeeded, so a
+# failed download still leaves the directory untouched.
+if [ "$shape" != external ] && [ "$force" -eq 1 ] && [ -e compose.override.yaml ]; then
+	rm compose.override.yaml
+	say 'Removed the compose.override.yaml of an earlier external-network install.'
+fi
+
+# A --force rewrite of an existing installation keeps its secrets: the
+# postgres and rustfs volumes still hold data keyed by them, and fresh
+# ones would lock the stack out of its own data. The previous .env stays
+# alongside as a backup, so operator-written settings survive the rewrite
+# too.
+old_postgres_password=
+old_storage_access_key=
+old_storage_secret_key=
+if [ -e .env ]; then
+	old_postgres_password=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | sed -n '1p')
+	old_storage_access_key=$(sed -n 's/^STORAGE_ACCESS_KEY=//p' .env | sed -n '1p')
+	old_storage_secret_key=$(sed -n 's/^STORAGE_SECRET_KEY=//p' .env | sed -n '1p')
+	cp .env ".env.bak.$$"
+	say "The previous .env is kept as .env.bak.$$"
+fi
+
+postgres_password=${old_postgres_password:-$(random_secret)}
+storage_access_key=${old_storage_access_key:-$(random_secret)}
+storage_secret_key=${old_storage_secret_key:-$(random_secret)}
 admin_password=$(random_secret)
 
 up_command='docker compose up -d --wait'
+
+say 'Writing .env'
 
 if [ "$shape" = bare ]; then
 	cat > .env <<ENV
@@ -345,13 +397,15 @@ ENV
 	cat > compose.override.yaml <<EOF
 # Written by install.sh. docker compose merges this over compose.yaml
 # automatically; it attaches the api to the existing Docker network
-# ${external_network} so the reverse proxy of another Compose project can
-# reach it. Removing this file detaches Ohana again.
+# ${external_network}, where your reverse proxy reaches it under the name
+# "ohana". Removing this file detaches Ohana again.
 services:
   api:
     networks:
-      - default
-      - ${external_network}
+      default: null
+      ${external_network}:
+        aliases:
+          - ohana
 
 networks:
   ${external_network}:
@@ -377,14 +431,6 @@ ENV
 # The file holds generated secrets; keep it to the operator who ran this.
 chmod 600 .env
 
-if [ "$shape" = external ]; then
-	# `external: true` makes Compose refuse to start when the network is
-	# missing; checking here says what to do instead.
-	docker network inspect "$external_network" > /dev/null 2>&1 ||
-		die "the Docker network '${external_network}' does not exist on this machine; create it (docker network create ${external_network}) or check the name (docker network ls)"
-fi
-
-say 'Writing .env'
 say 'Starting the stack (this pulls the images; it can take a few minutes)...'
 
 if ! $up_command; then
@@ -395,12 +441,6 @@ if ! $up_command; then
 	say 'and, once the problem is fixed, start it again with:'
 	say "  ${up_command}"
 	exit 1
-fi
-
-api_container=
-if api_id=$(docker compose ps -q api | sed -n '1p') && [ -n "$api_id" ]; then
-	api_container=$(docker inspect --format '{{.Name}}' "$api_id" 2> /dev/null || true)
-	api_container=${api_container#/}
 fi
 
 say ''
@@ -423,13 +463,7 @@ if [ "$shape" = external ]; then
 	say '  2. Add a site that points at the api. In a Caddyfile:'
 	say ''
 	say '       <your Ohana domain> {'
-	if [ -n "$api_container" ]; then
-		say "           reverse_proxy ${api_container}:3000"
-	else
-		say '           reverse_proxy <the api container name>:3000'
-		say ''
-		say "     (find the api container's name with: docker compose ps)"
-	fi
+	say '           reverse_proxy ohana:3000'
 	say '       }'
 	say ''
 	say '  3. Reload the proxy. Serve Ohana through HTTPS: the sign-in'
@@ -444,6 +478,17 @@ else
 	say "  Open:                   ${url}"
 	say "  Instance administrator: ${url}/admin"
 	say "  Password:               ${admin_password}"
+fi
+
+if [ "$shape" = bare ]; then
+	say ''
+	say 'Two things to know about this mode:'
+	say '  - Signing in sets Secure cookies, so a browser on another machine'
+	say '    drops them over plain HTTP. Reach Ohana from this machine (for'
+	say '    example through an SSH tunnel), or serve HTTPS with'
+	say '    --caddy-domain or your own reverse proxy (--external-network).'
+	say '  - The port is published on all interfaces, and Docker publishes'
+	say '    ports past common firewall rules (ufw, firewalld).'
 fi
 
 say ''

@@ -14,10 +14,10 @@ One command installs Ohana: the release's install script downloads the release's
 curl -fsSL https://github.com/ohana-project/ohana-core/releases/latest/download/install.sh | sh
 ```
 
-By default the api answers plain HTTP on port 3000 of the machine itself and no reverse proxy is involved. The other modes:
+By default the api answers plain HTTP on port 3000 of the machine itself and no reverse proxy is involved. Note that signing in sets Secure cookies: a browser on another machine drops them over plain HTTP, so reach Ohana from the machine itself (for example through an SSH tunnel) or use one of the two HTTPS modes below. The other modes:
 
 - `--caddy-domain ohana.example.com` serves `https://ohana.example.com` with automatic Let's Encrypt HTTPS through the bundled Caddy (point the domain's DNS at the machine first).
-- `--external-network <network>` attaches the api to an existing Docker network so a reverse proxy in another Compose project — your own Caddy, Traefik, nginx — can reach it. The script writes a `compose.override.yaml` (the release's `compose.yaml` is never edited), binds the api port to `127.0.0.1` only, and prints the exact site block to add to your proxy: with Caddy, one `reverse_proxy <container>:3000` line in your Caddyfile.
+- `--external-network <network>` attaches the api to an existing Docker network so a reverse proxy in another Compose project — your own Caddy, Traefik, nginx — can reach it. The script writes a `compose.override.yaml` (the release's `compose.yaml` is never edited), binds the api port to `127.0.0.1` only, and prints the site to add to your proxy: with Caddy, one `reverse_proxy ohana:3000` line in your Caddyfile.
 
 Run on a terminal the script asks which mode to use; piped or redirected it takes the default. The script is short — read it before running it (`curl -fsSL <the url> -o install.sh`, then `sh install.sh`) if you prefer not to pipe it.
 
@@ -59,14 +59,17 @@ Your data lives in the named volumes `postgres-data` and `rustfs-data`, which up
   ```yaml
   services:
     api:
-      networks: [default, <your proxy network>]
+      networks:
+        default: null
+        <your proxy network>:
+          aliases: [ohana]
 
   networks:
     <your proxy network>:
       external: true
   ```
 
-  Join the proxy's container to the same network, point it at the api container (`reverse_proxy <container name>:3000` in a Caddyfile), and set `OHANA_PORT` to `127.0.0.1:3000` so the published port stays a loopback-only convenience. `install.sh --external-network <network>` does all of this and prints the site block.
+  Join the proxy's container to the same network, point it at `ohana:3000` (`reverse_proxy ohana:3000` in a Caddyfile), and set `OHANA_PORT` to `127.0.0.1:3000` so the published port stays a loopback-only convenience. `install.sh --external-network <network>` does all of this and prints the site. One caveat: the api resolves DNS across every network it joins, so on a shared network whose other projects expose containers named `api`, `postgres`, or `rustfs`, name lookups inside Ohana can cross over.
 - **External object storage.** Set `STORAGE_ENDPOINT` (with its region, keys, and bucket) to any S3-compatible endpoint instead of the bundled single-node RustFS.
 
 ## Releasing

@@ -24,7 +24,7 @@ jobs:
 
   compose-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
 
@@ -108,3 +108,80 @@ jobs:
           $compose logs migrate | grep 'Database migration failed'
           $compose ps -a --format json \
             | jq -e 'select((.Service == "api" or .Service == "worker") and .State == "created")' > /dev/null
+
+      # The installer (issue #49) runs for real here, before any release:
+      # a curl shim serves a Compose file pinned to the locally built image
+      # (retagged the way a release pins it), so a broken installer fails
+      # a pull request instead of the next release's smoke. A CI step has
+      # no terminal, so the script takes its default mode without asking.
+      - name: Install through the script (the default mode)
+        working-directory: deploy
+        run: |
+          docker tag ohana:smoke ghcr.io/ohana-project/ohana-core:smoke
+          mkdir install-shim shim
+          sed -e 's|image: ${OHANA_IMAGE:?Set OHANA_IMAGE in .env}|image: ghcr.io/ohana-project/ohana-core:smoke|' \
+              -e '/^# The Ohana image comes from OHANA_IMAGE/,/^# paragraph; rewording any of it breaks the release pinning\.$/d' \
+            compose.yaml > install-shim/compose.yaml
+          grep -q 'image: ghcr.io/ohana-project/ohana-core:smoke' install-shim/compose.yaml
+          if grep -q 'OHANA_IMAGE' install-shim/compose.yaml; then
+            echo '::error::the shimmed Compose file still references OHANA_IMAGE'
+            exit 1
+          fi
+          cat > shim/curl <<'SHIM'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            case "$arg" in
+              *releases/*download/*) arg="file://${GITHUB_WORKSPACE}/deploy/install-shim/compose.yaml" ;;
+            esac
+            args+=("$arg")
+          done
+          exec /usr/bin/curl "${args[@]}"
+          SHIM
+          chmod +x shim/curl
+          export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
+          mkdir install
+          cd install
+          sh ../../deploy/install.sh --port 3210
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://localhost:3210
+
+      - name: A second install refuses to overwrite
+        working-directory: deploy/install
+        run: |
+          # The refusal happens before any download, so no shim is needed.
+          if sh ../../deploy/install.sh --port 3210; then
+            echo '::error::the installer overwrote an existing installation without --force'
+            exit 1
+          fi
+
+      - name: Install through the script onto an external proxy network
+        working-directory: deploy
+        run: |
+          cd install
+          docker compose down --volumes
+          cd ..
+          docker network create ci-proxy
+          export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
+          mkdir install-external
+          cd install-external
+          sh ../../deploy/install.sh --external-network ci-proxy --port 3211
+
+      - uses: ./.github/actions/check-serving
+        with:
+          base-url: http://127.0.0.1:3211
+
+      - name: A proxy on the shared network reaches the api as ohana
+        run: |
+          docker run --rm --network ci-proxy busybox \
+            wget -qO- http://ohana:3000/api/health | grep '"status":"ok"'
+
+      - name: Stop the stacks the script installed
+        working-directory: deploy
+        run: |
+          cd install-external
+          docker compose down --volumes
+          cd ../install
+          docker compose down --volumes
