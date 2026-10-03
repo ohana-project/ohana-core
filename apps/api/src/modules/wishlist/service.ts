@@ -693,16 +693,18 @@ export async function archiveWishlistOfMemberInTx(
         audience: { kind: 'all' },
       }),
     ),
-    ...(await Promise.all(
-      held.map((entry) =>
-        tombstonesForReservationEnding(
-          tx,
-          spaceId,
-          entry.reservation.id,
-          entry.wishAuthorMemberId,
+    ...(
+      await Promise.all(
+        held.map((entry) =>
+          tombstonesForReservationEnding(
+            tx,
+            spaceId,
+            entry.reservation.id,
+            entry.wishAuthorMemberId,
+          ),
         ),
-      ),
-    )).flat(),
+      )
+    ).flat(),
   ]
 }
 

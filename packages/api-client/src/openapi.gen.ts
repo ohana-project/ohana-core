@@ -1533,6 +1533,10 @@ export interface paths {
                             phone?: string;
                             interfaceLanguage?: "ru" | "en";
                             role: "owner" | "regular";
+                            /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
                             revision: string;
                             /** Format: date-time */
                             createdAt: string;
@@ -1585,6 +1589,10 @@ export interface paths {
                             phone?: string;
                             interfaceLanguage?: "ru" | "en";
                             role: "owner" | "regular";
+                            /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
                             revision: string;
                             /** Format: date-time */
                             createdAt: string;
@@ -1651,6 +1659,10 @@ export interface paths {
                             phone?: string;
                             interfaceLanguage?: "ru" | "en";
                             role: "owner" | "regular";
+                            /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
                             revision: string;
                             /** Format: date-time */
                             createdAt: string;
@@ -1661,6 +1673,66 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/members/{memberId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-admin"?: string;
+                };
+                path: {
+                    spaceId: string;
+                    memberId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            spaceId: string;
+                            name: string;
+                            displayName?: string;
+                            email?: string;
+                            phone?: string;
+                            interfaceLanguage?: "ru" | "en";
+                            role: "owner" | "regular";
+                            /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
+                            revision: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/me": {
@@ -1697,6 +1769,10 @@ export interface paths {
                                 phone?: string;
                                 interfaceLanguage?: "ru" | "en";
                                 role: "owner" | "regular";
+                                /** Format: date-time */
+                                archivedAt?: string;
+                                /** Format: date-time */
+                                privateStatePurgedAt?: string;
                                 /** Format: date-time */
                                 createdAt: string;
                             };
@@ -1765,6 +1841,10 @@ export interface paths {
                                 interfaceLanguage?: "ru" | "en";
                                 role: "owner" | "regular";
                                 /** Format: date-time */
+                                archivedAt?: string;
+                                /** Format: date-time */
+                                privateStatePurgedAt?: string;
+                                /** Format: date-time */
                                 createdAt: string;
                             };
                             space: {
@@ -1818,6 +1898,10 @@ export interface paths {
                             interfaceLanguage?: "ru" | "en";
                             role: "owner" | "regular";
                             /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
+                            /** Format: date-time */
                             createdAt: string;
                         }[];
                     };
@@ -1862,6 +1946,10 @@ export interface paths {
                             phone?: string;
                             interfaceLanguage?: "ru" | "en";
                             role: "owner" | "regular";
+                            /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
                             /** Format: date-time */
                             createdAt: string;
                         };
@@ -1923,12 +2011,70 @@ export interface paths {
                             interfaceLanguage?: "ru" | "en";
                             role: "owner" | "regular";
                             /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
+                            /** Format: date-time */
                             createdAt: string;
                         };
                     };
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/members/{memberId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path: {
+                    memberId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                            displayName?: string;
+                            email?: string;
+                            phone?: string;
+                            interfaceLanguage?: "ru" | "en";
+                            role: "owner" | "regular";
+                            /** Format: date-time */
+                            archivedAt?: string;
+                            /** Format: date-time */
+                            privateStatePurgedAt?: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/notifications/push/public-key": {
@@ -3312,6 +3458,10 @@ export interface paths {
                                     phone?: string;
                                     interfaceLanguage?: "ru" | "en";
                                     role: "owner" | "regular";
+                                    /** Format: date-time */
+                                    archivedAt?: string;
+                                    /** Format: date-time */
+                                    privateStatePurgedAt?: string;
                                     /** Format: date-time */
                                     createdAt: string;
                                 };

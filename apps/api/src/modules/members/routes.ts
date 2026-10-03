@@ -24,14 +24,14 @@ import {
   toMemberProfileDto,
 } from './contracts.ts'
 import {
+  archiveMember,
   changeMemberRole,
   completeOnboarding,
   describeMember,
-  type MemberWishlistPort,
   listMembers,
   type MembersDeps,
+  type MemberWishlistPort,
   provisionMember,
-  archiveMember,
 } from './service.ts'
 import type { Member } from './tables.ts'
 

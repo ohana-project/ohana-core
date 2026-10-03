@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
+import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
 import { issueAccessCode } from '../access/index.ts'
 import { instanceSettings } from '../admin/tables.ts'
 import { purgeDraftsOfMemberInTx } from '../journal/jobs.ts'
@@ -25,9 +26,8 @@ import {
   type WishlistDeps,
 } from '../wishlist/service.ts'
 import { giftFavorites, wishes } from '../wishlist/tables.ts'
-import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
-import { type MemberPurgeJobsDeps, purgeDuePrivateState } from './jobs.ts'
 import { findMemberInSpace } from './index.ts'
+import { type MemberPurgeJobsDeps, purgeDuePrivateState } from './jobs.ts'
 import { archiveMember, type MemberWishlistPort } from './service.ts'
 import { members } from './tables.ts'
 
@@ -125,7 +125,11 @@ async function arrangeArchivedMember(): Promise<Arranged> {
     { memberId: member.id, spaceId: space.id, role: 'regular' },
     draft.id,
     { stream: Readable.from(Buffer.from('кадр черновика')), contentType: 'image/jpeg' },
-    { authorize: async () => undefined, authorizeInTx: async () => undefined, maxBytes: 26_214_400 },
+    {
+      authorize: async () => undefined,
+      authorizeInTx: async () => undefined,
+      maxBytes: 26_214_400,
+    },
   )
 
   const othersWish = await createWish(wishlistDeps(), otherActor, { title: 'Книга' })
@@ -176,10 +180,7 @@ describe('the private-state purge (issue #23)', () => {
         ),
       )
     expect(drafts).toHaveLength(0)
-    const keptWishes = await harness.db
-      .select()
-      .from(wishes)
-      .where(eq(wishes.id, arranged.wishId))
+    const keptWishes = await harness.db.select().from(wishes).where(eq(wishes.id, arranged.wishId))
     expect(keptWishes).toHaveLength(1)
 
     // The favorites are gone.

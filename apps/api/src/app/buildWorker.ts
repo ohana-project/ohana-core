@@ -10,7 +10,6 @@ import {
   extendReminderHorizons,
   sendDueCalendarReminder,
 } from '../modules/calendar/index.ts'
-import type { MemberWishlistPort } from '../modules/members/index.ts'
 import {
   JOURNAL_PURGE_JOB,
   JOURNAL_PURGE_SWEEP_CRON,
@@ -23,6 +22,17 @@ import {
   touchEntryRevision,
 } from '../modules/journal/index.ts'
 import {
+  deleteEntryImageObjects,
+  generateEntryImageDerivatives,
+  MEDIA_DELETE_JOB,
+  MEDIA_DERIVATIVES_JOB,
+  MEDIA_QUEUE_SETUPS,
+  type MediaDeleteJobData,
+  type MediaDerivativesJobData,
+  type MediaJobsDeps,
+} from '../modules/media/index.ts'
+import type { MemberWishlistPort } from '../modules/members/index.ts'
+import {
   MEMBER_PURGE_SWEEP_CRON,
   MEMBER_PURGE_SWEEP_JOB,
   type MemberPurgeJobsDeps,
@@ -33,16 +43,6 @@ import {
   purgeGiftFavoritesOfMemberInTx,
   restampWishesOfMemberInTx,
 } from '../modules/wishlist/index.ts'
-import {
-  deleteEntryImageObjects,
-  generateEntryImageDerivatives,
-  MEDIA_DELETE_JOB,
-  MEDIA_DERIVATIVES_JOB,
-  MEDIA_QUEUE_SETUPS,
-  type MediaDeleteJobData,
-  type MediaDerivativesJobData,
-  type MediaJobsDeps,
-} from '../modules/media/index.ts'
 import type { Db } from '../platform/db/index.ts'
 import { createPgBossJobSender, ensureQueues } from '../platform/jobs/pgboss.ts'
 import type { Logger } from '../platform/logging.ts'

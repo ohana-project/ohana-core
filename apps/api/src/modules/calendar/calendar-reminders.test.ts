@@ -14,8 +14,14 @@ import {
   ensureInitialAdministrator,
 } from '../admin/index.ts'
 import { administrators, adminSessions } from '../admin/tables.ts'
+import type { MemberWishlistPort } from '../members/index.ts'
 import { subscribe } from '../notifications/index.ts'
 import { pushSubscriptions } from '../notifications/tables.ts'
+import {
+  archiveWishlistOfMemberInTx,
+  purgeGiftFavoritesOfMemberInTx,
+  restampWishesOfMemberInTx,
+} from '../wishlist/service.ts'
 import type { TimedSeriesBody } from './contracts.ts'
 import {
   CALENDAR_QUEUE_SETUPS,
@@ -30,12 +36,6 @@ import { REMINDER_HORIZON_DAYS } from './reminders.ts'
 import * as repository from './repository.ts'
 import { REMINDER_CLAIM_TAKEOVER_MS } from './repository.ts'
 import { calendarRemindersSent } from './tables.ts'
-import {
-  archiveWishlistOfMemberInTx,
-  purgeGiftFavoritesOfMemberInTx,
-  restampWishesOfMemberInTx,
-} from '../wishlist/service.ts'
-import type { MemberWishlistPort } from '../members/index.ts'
 
 /*
  * The calendar reminders (issue #22): the event's one reminder with its
@@ -1665,7 +1665,12 @@ describe('archived members receive no reminders (issue #23)', () => {
       reminder: { leadMinutes: 60, recipients: { everyone: true } },
     })
 
-    await archiveMember({ db: harness.db, clock: harness.clock }, archiveWishlistPort(), space.id, boris.id)
+    await archiveMember(
+      { db: harness.db, clock: harness.clock },
+      archiveWishlistPort(),
+      space.id,
+      boris.id,
+    )
 
     push.sends.length = 0
     await runHandler(fixedClock(new Date('2026-01-10T19:01:00.000Z')), {
@@ -1697,7 +1702,12 @@ describe('archived members receive no reminders (issue #23)', () => {
       },
     })
 
-    await archiveMember({ db: harness.db, clock: harness.clock }, archiveWishlistPort(), space.id, boris.id)
+    await archiveMember(
+      { db: harness.db, clock: harness.clock },
+      archiveWishlistPort(),
+      space.id,
+      boris.id,
+    )
 
     push.sends.length = 0
     await runHandler(fixedClock(new Date('2026-02-01T11:31:00.000Z')), {

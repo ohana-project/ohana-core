@@ -1,10 +1,7 @@
 import type { Clock } from '../../platform/clock.ts'
 import type { Db, Executor, Tx } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
-import {
-  revokeIssuedAccessCodesForMemberInTx,
-  revokeMemberSessionsInTx,
-} from '../access/index.ts'
+import { revokeIssuedAccessCodesForMemberInTx, revokeMemberSessionsInTx } from '../access/index.ts'
 import { getSpace, lockSpace, type SpacesDeps } from '../spaces/index.ts'
 import { recordChanges, type TombstoneInput } from '../sync/index.ts'
 import { countMembersPerSpaceAcrossInstallation } from './admin-repository.ts'
@@ -380,10 +377,7 @@ export async function restoreArchivedMemberInTx(
  * the set comes from the members module's own repository through its
  * public surface.
  */
-export function listArchivedMemberIds(
-  executor: Executor,
-  spaceId: string,
-): Promise<string[]> {
+export function listArchivedMemberIds(executor: Executor, spaceId: string): Promise<string[]> {
   return listArchivedMemberIdsInSpace(executor, spaceId)
 }
 

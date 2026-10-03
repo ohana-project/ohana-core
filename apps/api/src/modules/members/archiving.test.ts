@@ -1,9 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { afterAll, describe, expect, test } from 'vitest'
-import { ADMIN_MARKER_HEADER, ADMIN_SESSION_COOKIE, ensureInitialAdministrator } from '../admin/index.ts'
-import { administrators, adminSessions } from '../admin/tables.ts'
-import { memberSessions } from '../access/tables.ts'
 import { createTestHarness, type TestHarness } from '../../testing/harness.ts'
+import { memberSessions } from '../access/tables.ts'
+import {
+  ADMIN_MARKER_HEADER,
+  ADMIN_SESSION_COOKIE,
+  ensureInitialAdministrator,
+} from '../admin/index.ts'
+import { administrators, adminSessions } from '../admin/tables.ts'
 import { members as memberRows } from './tables.ts'
 
 const harness: TestHarness = await createTestHarness()
@@ -359,7 +363,11 @@ async function reserve(app: TestApp, session: MemberSession, wishId: string): Pr
 
 interface SyncResponse {
   revision: string
-  changes: Array<{ entity: string; member?: { id: string; archivedAt?: string }; wish?: { id: string } }>
+  changes: Array<{
+    entity: string
+    member?: { id: string; archivedAt?: string }
+    wish?: { id: string }
+  }>
   tombstones: Array<{ entity: string; entityId: string; audience: string; memberId?: string }>
 }
 

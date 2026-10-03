@@ -10,8 +10,8 @@ import { purgeAtFor, trashedAtOf } from './policy.ts'
 import {
   deleteDraftEntriesInSpace,
   deleteTrashedEntriesInSpace,
-  listDraftsOfAuthor,
   getEntryInSpace,
+  listDraftsOfAuthor,
   listPurgeableEntriesInSpace,
   listSpacesWithPurgeableEntriesAcrossSpaces,
 } from './repository.ts'
@@ -220,7 +220,11 @@ export async function purgeDraftsOfMemberInTx(
 ): Promise<{ imageIds: string[]; tombstones: TombstoneInput[] }> {
   const drafts = await listDraftsOfAuthor(tx, spaceId, memberId)
   if (drafts.length === 0) return { imageIds: [], tombstones: [] }
-  const grouped = await imagesOfEntries(tx, spaceId, drafts.map((draft) => draft.id))
+  const grouped = await imagesOfEntries(
+    tx,
+    spaceId,
+    drafts.map((draft) => draft.id),
+  )
   const imageIds = [...grouped.values()].flat().map((image) => image.id)
   await deleteDraftEntriesInSpace(
     tx,
@@ -229,10 +233,12 @@ export async function purgeDraftsOfMemberInTx(
   )
   return {
     imageIds,
-    tombstones: drafts.map((draft): TombstoneInput => ({
-      entity: JOURNAL_ENTRY_SYNC_ENTITY,
-      entityId: draft.id,
-      audience: { kind: 'member', memberId },
-    })),
+    tombstones: drafts.map(
+      (draft): TombstoneInput => ({
+        entity: JOURNAL_ENTRY_SYNC_ENTITY,
+        entityId: draft.id,
+        audience: { kind: 'member', memberId },
+      }),
+    ),
   }
 }

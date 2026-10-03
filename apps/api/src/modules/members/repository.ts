@@ -105,13 +105,7 @@ export async function countActiveOwnersInSpace(
   const rows = await executor
     .select({ count: sql<number>`count(*)::int` })
     .from(members)
-    .where(
-      and(
-        eq(members.spaceId, spaceId),
-        eq(members.role, 'owner'),
-        isNull(members.archivedAt),
-      ),
-    )
+    .where(and(eq(members.spaceId, spaceId), eq(members.role, 'owner'), isNull(members.archivedAt)))
   return rows[0]?.count ?? 0
 }
 
@@ -130,7 +124,11 @@ export async function listMembersDueForPrivateStatePurgeAcrossSpaces(
     .select()
     .from(members)
     .where(
-      and(isNotNull(members.archivedAt), isNull(members.privateStatePurgedAt), lte(members.archivedAt, cutoff)),
+      and(
+        isNotNull(members.archivedAt),
+        isNull(members.privateStatePurgedAt),
+        lte(members.archivedAt, cutoff),
+      ),
     )
     .orderBy(asc(members.archivedAt), asc(members.id))
 }

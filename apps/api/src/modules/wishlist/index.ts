@@ -7,9 +7,9 @@
  */
 
 export { wishlistRoutes } from './routes.ts'
-export { wishlistSyncContributor } from './sync.ts'
 export {
   archiveWishlistOfMemberInTx,
   purgeGiftFavoritesOfMemberInTx,
   restampWishesOfMemberInTx,
 } from './service.ts'
+export { wishlistSyncContributor } from './sync.ts'
