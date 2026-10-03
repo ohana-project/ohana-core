@@ -509,3 +509,88 @@ function apiPatchMock() {
     response: new Response(null, { status: 200 }),
   })
 }
+
+describe('MemberCardScreen — the archive (issue #23)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.clearAllMocks()
+    seedRegistry()
+    mockOwnerApi()
+  })
+
+  it('archives the member from their card after the confirmation', async () => {
+    const user = userEvent.setup()
+    apiPost.mockResolvedValue(okBody(PROFILES[1], 200))
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    await screen.findByRole('heading', { name: 'Дима' })
+    await user.click(screen.getByRole('button', { name: 'Архивировать Дима' }))
+
+    const dialog = within(await screen.findByRole('dialog'))
+    await user.click(dialog.getByRole('button', { name: 'Архивировать' }))
+
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/members/{memberId}/archive',
+      expect.objectContaining({ params: { path: { memberId: DIMA_ID } } }),
+    )
+  })
+
+  it('shows the archived card with what stays and what hides, and restores through a new code', async () => {
+    const user = userEvent.setup()
+    const archivedProfiles = [
+      PROFILES[0],
+      {
+        ...PROFILES[1],
+        archivedAt: '2026-09-03T10:00:00.000Z',
+      },
+    ]
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return okBody(archivedProfiles)
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    apiPost.mockResolvedValue(
+      okBody({ ...CODE, code: 'SASF-KQLV', status: 'issued' }, 201),
+    )
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    expect(await screen.findByRole('heading', { name: 'Дима' })).toBeInTheDocument()
+    expect(screen.getByText('в архиве с 3 сентября')).toBeInTheDocument()
+    expect(screen.getByText('Осталось: записи в дневнике, события, вишлист и фото')).toBeInTheDocument()
+    expect(
+      screen.getByText('Скрыто: участник не входит в пространство, его нет в списках и получателях событий'),
+    ).toBeInTheDocument()
+    // The owner instruments are replaced by the archive state.
+    expect(screen.queryByText('Код входа')).not.toBeInTheDocument()
+
+    // The restore is the code issuance: the new code is the way back in.
+    await user.click(screen.getByRole('button', { name: 'Восстановить участника' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await user.click(dialog.getByRole('button', { name: 'Восстановить' }))
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/members/{memberId}/access-code',
+      expect.objectContaining({ params: { path: { memberId: DIMA_ID } } }),
+    )
+    expect(await screen.findByText('SASF-KQLV')).toBeInTheDocument()
+  })
+
+  it('says the restore is no longer available once the private state is purged', async () => {
+    const archivedProfiles = [
+      PROFILES[0],
+      {
+        ...PROFILES[1],
+        archivedAt: '2026-09-03T10:00:00.000Z',
+        privateStatePurgedAt: '2026-10-03T10:00:00.000Z',
+      },
+    ]
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return okBody(archivedProfiles)
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    expect(await screen.findByText('Личные данные участника удалены — восстановление недоступно')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Восстановить участника' })).not.toBeInTheDocument()
+  })
+})

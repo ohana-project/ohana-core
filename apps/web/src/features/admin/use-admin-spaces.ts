@@ -38,6 +38,9 @@ export type AdminMember = {
   phone?: string
   interfaceLanguage?: 'ru' | 'en'
   role: 'owner' | 'regular'
+  // The archiving stamps (issue #23), absent while the member is active.
+  archivedAt?: string
+  privateStatePurgedAt?: string
   revision: string
   createdAt: string
   updatedAt: string
@@ -167,6 +170,8 @@ type AdminSpaceErrorKey =
   | 'admin.errors.invalid_timezone'
   | 'admin.errors.member_not_found'
   | 'admin.errors.last_owner'
+  | 'admin.errors.member_archived'
+  | 'admin.errors.member_purged'
   | 'admin.errors.validation_failed'
   | 'admin.errors.unexpected'
 
@@ -179,6 +184,8 @@ const adminSpaceErrorKeys: Partial<Record<string, AdminSpaceErrorKey>> = {
   invalid_timezone: 'admin.errors.invalid_timezone',
   member_not_found: 'admin.errors.member_not_found',
   last_owner: 'admin.errors.last_owner',
+  member_archived: 'admin.errors.member_archived',
+  member_purged: 'admin.errors.member_purged',
   validation_failed: 'admin.errors.validation_failed',
 }
 

@@ -95,7 +95,11 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
 
   const current = space.data
   const list = members.data
-  const owners = list.filter((member) => member.role === 'owner').length
+  // The archived members (issue #23) follow in their own section: they are
+  // out of the space, but the administrative area keeps seeing them.
+  const active = list.filter((member) => member.archivedAt === undefined)
+  const archived = list.filter((member) => member.archivedAt !== undefined)
+  const owners = active.filter((member) => member.role === 'owner').length
 
   return (
     <div className="flex flex-col gap-6">
@@ -149,18 +153,50 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
             </Empty>
           </Card>
         ) : (
-          <Card className="py-0">
-            <ItemGroup>
-              {list.map((member) => (
-                <MemberRow
-                  key={member.id}
-                  member={member}
-                  spaceId={spaceId}
-                  canDemote={member.role === 'owner' && owners > 1}
-                />
-              ))}
-            </ItemGroup>
-          </Card>
+          <>
+            <Card className="py-0">
+              <ItemGroup>
+                {active.map((member) => (
+                  <MemberRow
+                    key={member.id}
+                    member={member}
+                    spaceId={spaceId}
+                    canDemote={member.role === 'owner' && owners > 1}
+                  />
+                ))}
+              </ItemGroup>
+            </Card>
+
+            {archived.length > 0 ? (
+              <section className="mt-4">
+                <SectionHeader title={t('space.members.archivedTitle')} />
+                <Card className="py-0">
+                  <ItemGroup>
+                    {archived.map((member) => (
+                      <Item key={member.id} size="lg" className="opacity-70">
+                        <Avatar size="sm" hue={hueFromId(member.id)}>
+                          <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
+                        </Avatar>
+                        <ItemContent>
+                          <ItemTitle>{member.name}</ItemTitle>
+                          <ItemDescription>
+                            {member.archivedAt === undefined
+                              ? null
+                              : t('space.members.archivedSince', {
+                                  date: dateFormatter.format(new Date(member.archivedAt)),
+                                })}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
+                        </ItemActions>
+                      </Item>
+                    ))}
+                  </ItemGroup>
+                </Card>
+              </section>
+            ) : null}
+          </>
         )}
         <p className="mt-2.5 px-1 text-sm text-muted-foreground">
           {t('admin.space.lastOwnerNote')}

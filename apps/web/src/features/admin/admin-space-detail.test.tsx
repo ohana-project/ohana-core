@@ -468,3 +468,48 @@ describe('AdminSpaceDetail access codes', () => {
     )
   })
 })
+
+describe('AdminSpaceDetail — the archive (issue #23)', () => {
+  it('lists the archived members in their own section, with the archive pill', async () => {
+    const archivedMembers = [
+      ...MEMBERS,
+      {
+        id: '01900000-0000-7000-8000-000000000004',
+        spaceId: SPACE_ID,
+        name: 'Пётр',
+        role: 'regular' as const,
+        revision: '5',
+        createdAt: '2026-08-14T10:00:00.000Z',
+        updatedAt: '2026-09-03T10:00:00.000Z',
+        archivedAt: '2026-09-03T10:00:00.000Z',
+      },
+    ]
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/spaces/{spaceId}') {
+        return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/members') {
+        return {
+          data: archivedMembers,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/access-codes') {
+        return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    expect(await screen.findByText('Пётр')).toBeInTheDocument()
+    const archiveSection = screen.getByText('Архив').closest('section')
+    if (archiveSection === null) throw new Error('No archive section rendered')
+    expect(within(archiveSection).getByText('Пётр')).toBeInTheDocument()
+    expect(within(archiveSection).getByText('В архиве')).toBeInTheDocument()
+    expect(within(archiveSection).getByText('в архиве с 3 сентября')).toBeInTheDocument()
+    // The active list keeps Дима, and the archived one never carries the
+    // role-change controls.
+    expect(within(archiveSection).queryByRole('button')).not.toBeInTheDocument()
+  })
+})

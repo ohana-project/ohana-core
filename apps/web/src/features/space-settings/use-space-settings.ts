@@ -182,7 +182,32 @@ export function useIssueMemberAccessCode() {
       return response.data
     },
     // Issuing replaces the member's older unused code: the status row and
-    // the device list refresh either way.
+    // the device list refresh either way. For an archived member the same
+    // call is the restore (issue #23): the member upsert and their wishes
+    // re-enter the local store through the sync this triggers.
+    onSuccess: () => void triggerSync(),
+    onSettled: invalidate,
+  })
+}
+
+/**
+ * POST /api/v1/members/:memberId/archive — the owner removes a member from
+ * the space (issue #23, ADR-0005). The member's own device learns it
+ * through the sync's member upsert; the wishes the space loses ride the
+ * tombstones of the same response.
+ */
+export function useArchiveSpaceMember() {
+  const invalidate = useInvalidateMemberArea()
+  return useMutation({
+    mutationFn: async (input: { memberId: string }) => {
+      const response = await api.POST('/api/v1/members/{memberId}/archive', {
+        params: { path: { memberId: input.memberId } },
+      })
+      await assertOk(response)
+    },
+    onSuccess: () => void triggerSync(),
+    // A refusal (last_owner) must still refresh, or the screen keeps
+    // offering an action the server will refuse again.
     onSettled: invalidate,
   })
 }
@@ -284,6 +309,9 @@ type SpaceSettingsErrorKey =
   | 'space.errors.owner_required'
   | 'space.errors.member_not_found'
   | 'space.errors.last_owner'
+  | 'space.errors.member_archived'
+  | 'space.errors.member_already_archived'
+  | 'space.errors.member_purged'
   | 'space.errors.invalid_timezone'
   | 'space.errors.access_code_not_found'
   | 'space.errors.access_code_used'
@@ -297,6 +325,9 @@ const spaceSettingsErrorKeys: Partial<Record<string, SpaceSettingsErrorKey>> = {
   owner_required: 'space.errors.owner_required',
   member_not_found: 'space.errors.member_not_found',
   last_owner: 'space.errors.last_owner',
+  member_archived: 'space.errors.member_archived',
+  member_already_archived: 'space.errors.member_already_archived',
+  member_purged: 'space.errors.member_purged',
   invalid_timezone: 'space.errors.invalid_timezone',
   access_code_not_found: 'space.errors.access_code_not_found',
   access_code_used: 'space.errors.access_code_used',

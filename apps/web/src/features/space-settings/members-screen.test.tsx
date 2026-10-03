@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
@@ -135,5 +135,59 @@ describe('MembersScreen', () => {
 
     const row = await screen.findByRole('link', { name: 'Открыть карточку: Дима' })
     expect(row).toHaveAttribute('href', '/members/$memberId')
+  })
+})
+
+describe('MembersScreen — the archive (issue #23)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.clearAllMocks()
+    seedRegistry()
+  })
+
+  it('lists the archived members separately, with the archive pill and the hint', async () => {
+    mockMe(OWNER_ME)
+    const archivedProfiles = [
+      ...PROFILES,
+      {
+        id: '01900000-0000-7000-8000-000000000004',
+        name: 'Пётр',
+        role: 'regular' as const,
+        createdAt: '2026-08-14T10:00:00.000Z',
+        archivedAt: '2026-09-03T10:00:00.000Z',
+      },
+    ]
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: OWNER_ME, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/members') {
+        return {
+          data: archivedProfiles,
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<MembersScreen />)
+
+    // The archived member does not sit in the active list: their pill is
+    // the archive one, and their row sits under the archive heading.
+    expect(await screen.findByRole('heading', { name: 'Участники' })).toBeInTheDocument()
+    const archiveSection = screen.getByText('Архив').closest('section')
+    if (archiveSection === null) throw new Error('No archive section rendered')
+    expect(archiveSection).toBeInTheDocument()
+    expect(within(archiveSection).getByText('Пётр')).toBeInTheDocument()
+    expect(within(archiveSection).getByText('В архиве')).toBeInTheDocument()
+    expect(within(archiveSection).getByText('в архиве с 3 сентября')).toBeInTheDocument()
+    expect(
+      within(archiveSection).getByText(
+        'Архивный не входит в пространство: дневник, события и вишлист остаются, но скрываются из списков',
+      ),
+    ).toBeInTheDocument()
+    // The active list keeps Дима; Пётр is not in it.
+    const activeCard = screen.getByText('Дима').closest('[data-slot="card"]')
+    expect(activeCard).not.toBe(archiveSection)
   })
 })

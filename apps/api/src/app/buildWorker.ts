@@ -121,6 +121,7 @@ export function buildWorker(deps: WorkerDeps): Worker {
       await ensureQueues(deps.boss, [
         { name: JOURNAL_PURGE_JOB },
         { name: JOURNAL_PURGE_SWEEP_JOB },
+        { name: MEMBER_PURGE_SWEEP_JOB },
         ...MEDIA_QUEUE_SETUPS,
         ...CALENDAR_QUEUE_SETUPS,
       ])

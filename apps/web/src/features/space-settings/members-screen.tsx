@@ -19,20 +19,30 @@ import {
   ItemTitle,
 } from '@/ui/item.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
+import { SectionHeader } from '@/ui/section-header.tsx'
 import { SettingsShell } from './settings-shell.tsx'
 
 /*
  * The space members (docs/design/screens/members.html): every member of the
  * space with their role, one tap from their card. The invite action and the
  * per-member management belong to an owner (issue #12); a regular member
- * sees the same list read-only. Archiving arrives with its own ticket.
+ * sees the same list read-only. The archived members (issue #23) follow in
+ * their own section, dimmed: they are out of the space, but their history
+ * keeps their name.
  */
 export function MembersScreen() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const session = useMemberSessionStatus()
   const profiles = useSpaceProfiles()
 
   const isOwner = session.me?.member.role === 'owner'
+  const all = profiles.data ?? []
+  const active = all.filter((profile) => profile.archivedAt === undefined)
+  const archived = all.filter((profile) => profile.archivedAt !== undefined)
+  const archivedDateFormatter = new Intl.DateTimeFormat(i18n.language, {
+    day: 'numeric',
+    month: 'long',
+  })
 
   return (
     <SettingsShell title={t('space.members.title')}>
@@ -60,7 +70,7 @@ export function MembersScreen() {
           </div>
         ) : profiles.isError ? (
           <ErrorState onRetry={() => void profiles.refetch()} />
-        ) : profiles.data.length === 0 ? (
+        ) : all.length === 0 ? (
           <Card>
             <Empty>
               <EmptyMedia>
@@ -70,52 +80,107 @@ export function MembersScreen() {
             </Empty>
           </Card>
         ) : (
-          <Card className="py-0">
-            <ItemGroup>
-              {profiles.data.map((profile) => {
-                const displayName = profile.displayName ?? profile.name
-                const isSelf = profile.id === session.me?.member.id
-                const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
-                return (
-                  <Item
-                    key={profile.id}
-                    size="lg"
-                    render={
-                      <Link
-                        to="/members/$memberId"
-                        params={{ memberId: profile.id }}
-                        aria-label={t('space.members.openCard', { name: displayName })}
-                      />
-                    }
-                  >
-                    <Avatar size="sm" hue={hueFromId(profile.id)}>
-                      <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
-                    </Avatar>
-                    <ItemContent>
-                      <ItemTitle>
-                        {displayName}
-                        {isSelf ? (
-                          <span className="font-normal text-muted-foreground">
-                            {' '}
-                            · {t('space.members.you')}
-                          </span>
+          <>
+            <Card className="py-0">
+              <ItemGroup>
+                {active.map((profile) => {
+                  const displayName = profile.displayName ?? profile.name
+                  const isSelf = profile.id === session.me?.member.id
+                  const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
+                  return (
+                    <Item
+                      key={profile.id}
+                      size="lg"
+                      render={
+                        <Link
+                          to="/members/$memberId"
+                          params={{ memberId: profile.id }}
+                          aria-label={t('space.members.openCard', { name: displayName })}
+                        />
+                      }
+                    >
+                      <Avatar size="sm" hue={hueFromId(profile.id)}>
+                        <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
+                      </Avatar>
+                      <ItemContent>
+                        <ItemTitle>
+                          {displayName}
+                          {isSelf ? (
+                            <span className="font-normal text-muted-foreground">
+                              {' '}
+                              · {t('space.members.you')}
+                            </span>
+                          ) : null}
+                        </ItemTitle>
+                        {contacts.length > 0 ? (
+                          <ItemDescription>{contacts}</ItemDescription>
                         ) : null}
-                      </ItemTitle>
-                      {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
-                    </ItemContent>
-                    <ItemActions>
-                      <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
-                        {profile.role === 'owner'
-                          ? t('admin.space.ownerPill')
-                          : t('admin.space.regularPill')}
-                      </Badge>
-                      <Icon name="chevron-right" className="size-4 text-muted-foreground" />
-                    </ItemActions>
-                  </Item>
-                )
-              })}
-            </ItemGroup>
-          </Card>
+                      </ItemContent>
+                      <ItemActions>
+                        <Badge variant={profile.role === 'owner' ? 'primary' : 'neutral'}>
+                          {profile.role === 'owner'
+                            ? t('admin.space.ownerPill')
+                            : t('admin.space.regularPill')}
+                        </Badge>
+                        <Icon name="chevron-right" className="size-4 text-muted-foreground" />
+                      </ItemActions>
+                    </Item>
+                  )
+                })}
+              </ItemGroup>
+            </Card>
+
+            {archived.length > 0 ? (
+              <section>
+                <SectionHeader title={t('space.members.archivedTitle')} />
+                <Card className="py-0">
+                  <ItemGroup>
+                    {archived.map((profile) => {
+                      const displayName = profile.displayName ?? profile.name
+                      const archivedAt = profile.archivedAt
+                      const contacts = [profile.email, profile.phone].filter(Boolean).join(' · ')
+                      return (
+                        <Item
+                          key={profile.id}
+                          size="lg"
+                          className="opacity-70"
+                          render={
+                            <Link
+                              to="/members/$memberId"
+                              params={{ memberId: profile.id }}
+                              aria-label={t('space.members.openCard', { name: displayName })}
+                            />
+                          }
+                        >
+                          <Avatar size="sm" hue={hueFromId(profile.id)}>
+                            <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
+                          </Avatar>
+                          <ItemContent>
+                            <ItemTitle>{displayName}</ItemTitle>
+                            <ItemDescription>
+                              {archivedAt === undefined
+                                ? null
+                                : t('space.members.archivedSince', {
+                                    date: archivedDateFormatter.format(new Date(archivedAt)),
+                                  })}
+                              {contacts.length > 0 ? ` · ${contacts}` : ''}
+                            </ItemDescription>
+                          </ItemContent>
+                          <ItemActions>
+                            <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
+                            <Icon name="chevron-right" className="size-4 text-muted-foreground" />
+                          </ItemActions>
+                        </Item>
+                      )
+                    })}
+                  </ItemGroup>
+                </Card>
+                <p className="mt-2.5 px-1 text-sm text-muted-foreground">
+                  {t('space.members.archivedHint')}
+                </p>
+              </section>
+            ) : null}
+          </>
         )}
         {isOwner ? (
           <p className="px-1 text-sm text-muted-foreground">{t('admin.space.lastOwnerNote')}</p>
