@@ -11,6 +11,7 @@ import {
 import { administrators, adminSessions } from '../admin/tables.ts'
 import { subscribe } from '../notifications/index.ts'
 import { pushSubscriptions } from '../notifications/tables.ts'
+import type { TimedSeriesBody } from './contracts.ts'
 import {
   CALENDAR_REMINDER_JOB,
   type CalendarReminderJobData,
@@ -625,18 +626,19 @@ describe('sendDueCalendarReminder', () => {
     // The creator moves the event to 20:00; the fresh job carries the new
     // reminder — the old receipt answered only for the old start.
     const { editEvent } = await import('./service.ts')
+    const movedBody: TimedSeriesBody = {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '20:00',
+      endTime: '21:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    }
     await editEvent(
       { db: harness.db, clock, jobs: harness.jobs },
       { memberId: anya.id, spaceId: space.id, role: 'owner' },
       event.id,
-      {
-        title: 'Обед',
-        allDay: false,
-        date: '2026-01-10',
-        startTime: '20:00',
-        endTime: '21:00',
-        reminder: { leadMinutes: 30, recipients: { everyone: true } },
-      } as never,
+      movedBody,
     )
     clock.advance(2 * 60 * 60 * 1000)
     await runHandler(clock, data)
@@ -899,7 +901,7 @@ describe('sendDueCalendarReminder', () => {
   test('sweep rounds missed for days fill exactly the gap they left', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    const event = await createEventWithReminder(space, anya, {
+    await createEventWithReminder(space, anya, {
       title: 'Зарядка',
       allDay: false,
       date: '2026-01-01',
@@ -927,7 +929,6 @@ describe('sendDueCalendarReminder', () => {
     expect(gapDays).toEqual(
       new Set(['2026-04-04', '2026-04-05', '2026-04-06', '2026-04-07', '2026-04-08']),
     )
-    void event
   })
 
   test('a reminder that reached no device releases its claim for the retry', async () => {

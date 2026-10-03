@@ -139,9 +139,13 @@ export async function unsubscribe(
 ): Promise<boolean> {
   let releaseBrowserSubscription = false
   await deps.db.transaction(async (tx) => {
-    await deletePushSubscription(tx, actor.spaceId, actor.memberId, endpoint)
-    const remaining = await countSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
-    releaseBrowserSubscription = remaining === 0
+    const removed = await deletePushSubscription(tx, actor.spaceId, actor.memberId, endpoint)
+    // The endpoint stays a secret of the one who held it: a member that
+    // never subscribed learns nothing about who else does.
+    if (removed !== undefined) {
+      const remaining = await countSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
+      releaseBrowserSubscription = remaining === 0
+    }
   })
   return releaseBrowserSubscription
 }
@@ -158,8 +162,12 @@ const PUSH_SERVICE_HOSTS = [
   'updates.push.services.mozilla.com', // Firefox.
   'web.push.apple.com', // Safari, including Home Screen web apps on iOS.
   'push.services.mozilla.com', // Firefox's legacy host.
-  'aws.notify.windows.com', // Edge / Windows.
 ] as const
+
+/** Windows' WNS shards its endpoints per region
+ *  (`wns2-bn3p.notify.windows.com`), so the Windows/Edge service matches
+ *  by suffix. */
+const PUSH_SERVICE_HOST_SUFFIXES = ['notify.windows.com'] as const
 
 /**
  * The endpoint is where the worker's sends go: an https URL on one of the
@@ -181,7 +189,10 @@ function assertRoutableEndpoint(endpoint: string): void {
   }
   // A trailing dot is the root's own spelling of the same host.
   const host = url.hostname.replace(/\.$/, '')
-  if (!(PUSH_SERVICE_HOSTS as readonly string[]).includes(host)) {
+  const known =
+    (PUSH_SERVICE_HOSTS as readonly string[]).includes(host) ||
+    PUSH_SERVICE_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+  if (!known) {
     throw new DomainError(
       'invalid_push_endpoint',
       `“${endpoint}” does not name a public push service`,

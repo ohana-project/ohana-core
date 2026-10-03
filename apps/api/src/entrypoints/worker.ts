@@ -1,7 +1,7 @@
 import { buildWorker } from '../app/buildWorker.ts'
 import { ensureVapidKeys } from '../modules/notifications/index.ts'
 import { systemClock } from '../platform/clock.ts'
-import { loadConfigOrExit } from '../platform/config.ts'
+import { DEFAULT_PUSH_VAPID_SUBJECT, loadConfigOrExit } from '../platform/config.ts'
 import { createDb } from '../platform/db/index.ts'
 import { startJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   // first start and persisted, so every subscription the browsers minted
   // against the public key keeps answering this sender's signature.
   const vapid = await ensureVapidKeys({ db, clock: systemClock, generateKeys: generateVapidKeys })
-  if (config.pushVapidSubject === 'mailto:ohana@example.com') {
+  if (config.pushVapidSubject === DEFAULT_PUSH_VAPID_SUBJECT) {
     // Deliverable, not deliverable-to: the placeholder survives, the push
     // services have nobody to reach about abuse. The deployment answers
     // with PUSH_VAPID_SUBJECT.

@@ -1,5 +1,5 @@
 {
-  "id": "194efa9c-17e8-47c1-a408-39caa8ed0017",
+  "id": "8799bfa0-6e32-4e4d-b9c5-412c6ddcb4cf",
   "prevId": "9eb92d1e-7b54-4b9d-8b0a-7e8d584c0dc4",
   "version": "7",
   "dialect": "postgresql",
@@ -839,6 +839,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "scheduled_through": {
+          "name": "scheduled_through",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "everyone": {
           "name": "everyone",
           "type": "boolean",
@@ -1120,6 +1126,18 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "start_at": {
+          "name": "start_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

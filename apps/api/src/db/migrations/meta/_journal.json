@@ -110,22 +110,8 @@
     {
       "idx": 15,
       "version": "7",
-      "when": 1790980276925,
-      "tag": "0015_wealthy_yellowjacket",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1790984040760,
-      "tag": "0016_low_lady_ursula",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1790986619133,
-      "tag": "0017_loving_tinkerer",
+      "when": 1790988946912,
+      "tag": "0015_magical_shockwave",
       "breakpoints": true
     }
   ]

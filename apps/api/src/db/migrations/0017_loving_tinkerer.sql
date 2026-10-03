@@ -1,2 +1,0 @@
-ALTER TABLE "calendar_event_reminders" ADD COLUMN "scheduled_through" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "calendar_reminders_sent" ADD COLUMN "start_at" timestamp with time zone;

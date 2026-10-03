@@ -102,6 +102,9 @@ export async function setSubscriptionNotifyDetails(
   return updated[0]
 }
 
+/** The row the member held for the endpoint, or undefined when they held
+ *  none — the caller decides whether that absence is a 404 or a quiet
+ *  answer. */
 export async function deletePushSubscription(
   tx: Tx,
   spaceId: string,

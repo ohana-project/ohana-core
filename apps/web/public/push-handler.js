@@ -39,8 +39,11 @@ self.addEventListener('notificationclick', (event) => {
       }
       const known = clients.find((client) => 'focus' in client)
       if (known !== undefined) {
-        // An open app follows the notification: focus it, then send it to
-        // the notification's screen. The router takes a plain navigate.
+        // An open app follows the notification: focus it, then load the
+        // notification's screen. navigate() is a full page load — the SPA
+        // router boots afresh and opens the route, so in-memory state the
+        // member had not saved goes the way a real tap on a notification
+        // would expect.
         await known.focus()
         try {
           await known.navigate(url)

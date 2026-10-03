@@ -377,7 +377,10 @@ describe('DELETE /api/v1/notifications/push/subscription', () => {
         headers: memberHeaders(anya),
       })
       expect(second.statusCode).toBe(200)
-      expect(second.json()).toEqual({ releaseBrowserSubscription: true })
+      // The endpoint is gone; an absence says nothing about who else
+      // holds it, so the answer is false — the client has unsubscribed
+      // already anyway.
+      expect(second.json()).toEqual({ releaseBrowserSubscription: false })
     })
   })
 
@@ -504,11 +507,14 @@ describe('endpoint validation', () => {
         expect(response.json().error.code).toBe('invalid_push_endpoint')
       }
       expect(await rowsForMember(anya.memberId)).toHaveLength(0)
-      // The real services pass, a trailing root dot included.
+      // The real services pass, a trailing root dot and a sharded
+      // Windows host included.
       for (const endpoint of [
         'https://fcm.googleapis.com/fcm/send/1',
+        'https://fcm.googleapis.com./fcm/send/4',
         'https://web.push.apple.com/2',
         'https://updates.push.services.mozilla.com/wpush/v2/3',
+        'https://wns2-bn3p.notify.windows.com/w/?token=3',
       ]) {
         const response = await app.inject({
           method: 'PUT',
@@ -524,8 +530,10 @@ describe('endpoint validation', () => {
       }
       expect((await rowsForMember(anya.memberId)).map((row) => row.endpoint)).toEqual([
         'https://fcm.googleapis.com/fcm/send/1',
+        'https://fcm.googleapis.com./fcm/send/4',
         'https://web.push.apple.com/2',
         'https://updates.push.services.mozilla.com/wpush/v2/3',
+        'https://wns2-bn3p.notify.windows.com/w/?token=3',
       ])
     })
   })

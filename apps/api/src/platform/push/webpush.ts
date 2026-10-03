@@ -15,9 +15,9 @@ import type {
  * the port's three: a 404 or 410 from the push service means the
  * subscription is gone — the browser was uninstalled, the permission
  * revoked, the endpoint rotated — and the caller removes the row; every
- * other failure is transient and only logged, because the next
- * occurrence's reminder sends again (ADR-0009: delivery is not assumed
- * exactly-once).
+ * other failure is transient and only logged — the calendar's reminder
+ * run retries the whole occurrence when no device was reached (ADR-0009:
+ * delivery is not assumed exactly-once).
  */
 
 /**
@@ -27,6 +27,10 @@ import type {
  * deployment.
  */
 const PUSH_TTL_SECONDS = 6 * 60 * 60
+
+/** How long one send may take: a hung socket must not outlive the
+ *  reminder claim's takeover window. */
+const PUSH_TIMEOUT_MS = 30_000
 
 /** The VAPID key pair for a fresh installation: 256-bit P-256, the shape
  *  the Web Push protocol names. */
@@ -55,7 +59,12 @@ export function createWebPushSender(vapid: VapidKeys, logger: Logger, subject: s
             keys: { p256dh: credentials.p256dh, auth: credentials.auth },
           },
           JSON.stringify(payload),
-          { vapidDetails, TTL: PUSH_TTL_SECONDS, headers: { Urgency: 'normal' } },
+          {
+            vapidDetails,
+            TTL: PUSH_TTL_SECONDS,
+            timeout: PUSH_TIMEOUT_MS,
+            headers: { Urgency: 'normal' },
+          },
         )
         return 'delivered'
       } catch (error) {

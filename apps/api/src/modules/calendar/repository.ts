@@ -425,7 +425,9 @@ export interface EventReminderWithRecipients {
   memberIds: string[]
 }
 
-/** The sweep's watermark moves in the round that filled the gap. */
+/** The sweep's watermark moves in the round that filled the gap, and
+ *  only forward: an edit that scheduled a longer horizon beside the round
+ *  never loses it. */
 export async function advanceReminderWatermark(
   tx: Tx,
   spaceId: string,
@@ -434,7 +436,9 @@ export async function advanceReminderWatermark(
 ): Promise<void> {
   await tx
     .update(calendarEventReminders)
-    .set({ scheduledThrough })
+    .set({
+      scheduledThrough: sql`greatest(${calendarEventReminders.scheduledThrough}, ${scheduledThrough})`,
+    })
     .where(
       and(eq(calendarEventReminders.spaceId, spaceId), eq(calendarEventReminders.eventId, eventId)),
     )
@@ -548,12 +552,19 @@ export async function listReminderEventsInSpace(
 export const REMINDER_CLAIM_TAKEOVER_MS = 5 * 60 * 1000
 
 /**
- * Claims the occurrence's reminder for the start it computed: true, this
- * run sends; false, a live claim stands — a recent sender's lease, a
- * finished receipt for the same start, or a newer receipt for a start the
- * creator has since moved the occurrence to. The conditional upsert is
- * the whole protocol — concurrent duplicates of the same job agree on one
- * winner without a lock.
+ * The lease a claim hands its winner: only the run holding it may turn
+ * the claim into a receipt or release it, so a stalled sender can never
+ * undo a successor's work.
+ */
+export type ReminderClaimLease = { remindedAt: Date }
+
+/**
+ * Claims the occurrence's reminder for the start it computed: the lease
+ * when this run won (it sends), undefined when a live claim stands — a
+ * recent sender's lease, a finished receipt for the same start, or a
+ * newer receipt for a start the creator has since moved the occurrence
+ * to. The conditional upsert is the whole protocol — concurrent
+ * duplicates of the same job agree on one winner without a lock.
  */
 export async function claimReminder(
   tx: Tx,
@@ -562,7 +573,7 @@ export async function claimReminder(
   originalDate: string,
   start: Date,
   now: Date,
-): Promise<boolean> {
+): Promise<ReminderClaimLease | undefined> {
   const inserted = await tx
     .insert(calendarRemindersSent)
     .values({ spaceId, eventId, originalDate, startAt: start, remindedAt: now })
@@ -580,19 +591,23 @@ export async function claimReminder(
       where: sql`(${calendarRemindersSent.sentAt} is not null and ${calendarRemindersSent.startAt} is distinct from ${start})
         or (${calendarRemindersSent.sentAt} is null and ${calendarRemindersSent.remindedAt} <= ${new Date(now.getTime() - REMINDER_CLAIM_TAKEOVER_MS)})`,
     })
-    .returning({ id: calendarRemindersSent.id })
-  return inserted.length > 0
+    .returning({ remindedAt: calendarRemindersSent.remindedAt })
+  const row = inserted[0]
+  return row ? { remindedAt: row.remindedAt } : undefined
 }
 
-/** The claim becomes the receipt, for the start it sent: every other job
- *  for this occurrence and start — the duplicates the design creates on
- *  purpose — answers quiet. */
+/**
+ * The claim becomes the receipt, for the start and by the run the lease
+ * names: every other job for the occurrence and start — the duplicates
+ * the design creates on purpose — answers quiet. A run whose lease was
+ * taken over writes nothing.
+ */
 export async function markReminderSent(
   tx: Tx,
   spaceId: string,
   eventId: string,
   originalDate: string,
-  start: Date,
+  lease: ReminderClaimLease,
   now: Date,
 ): Promise<void> {
   await tx
@@ -603,18 +618,24 @@ export async function markReminderSent(
         eq(calendarRemindersSent.spaceId, spaceId),
         eq(calendarRemindersSent.eventId, eventId),
         eq(calendarRemindersSent.originalDate, originalDate),
-        eq(calendarRemindersSent.startAt, start),
+        eq(calendarRemindersSent.remindedAt, lease.remindedAt),
+        // A taken-over claim is the successor's to finish, not this run's.
+        sql`${calendarRemindersSent.sentAt} is null`,
       ),
     )
 }
 
-/** A run that could not deliver anywhere lets the occurrence go: the claim
- *  row goes too, so the queue's retry sends from scratch. */
+/**
+ * A run that could not deliver anywhere lets the occurrence go — but only
+ * its own lease: the claim row goes so the queue's retry sends from
+ * scratch, while a successor's claim stands.
+ */
 export async function releaseReminderClaim(
   tx: Tx,
   spaceId: string,
   eventId: string,
   originalDate: string,
+  lease: ReminderClaimLease,
 ): Promise<void> {
   await tx
     .delete(calendarRemindersSent)
@@ -623,6 +644,8 @@ export async function releaseReminderClaim(
         eq(calendarRemindersSent.spaceId, spaceId),
         eq(calendarRemindersSent.eventId, eventId),
         eq(calendarRemindersSent.originalDate, originalDate),
+        eq(calendarRemindersSent.remindedAt, lease.remindedAt),
+        sql`${calendarRemindersSent.sentAt} is null`,
       ),
     )
 }

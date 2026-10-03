@@ -10,7 +10,7 @@ import {
   listSubscriptionsForMember,
   removeSubscriptionsByEndpointAcrossSpaces,
 } from '../notifications/index.ts'
-import { getSpace, type Space, sectionVisibility } from '../spaces/index.ts'
+import { getSpace, lockSpace, type Space, sectionVisibility } from '../spaces/index.ts'
 import {
   REMINDER_HORIZON_DAYS,
   REMINDER_STALE_LIMIT_MS,
@@ -67,7 +67,10 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /** The retries a reminder job may spend: a run that reached no device
  *  releases its claim and throws, so a retry sends from scratch; a run
  *  that reached someone holds the receipt, and a retry only re-runs the
- *  state checks. */
+ *  state checks. A partial delivery is final — the reached devices keep
+ *  their reminder, the unreached ones wait for the next occurrence — the
+ *  alternative would be duplicate sends to the reached devices, which
+ *  "one reminder per occurrence" forbids. */
 export const CALENDAR_QUEUE_SETUPS = [
   {
     name: CALENDAR_REMINDER_JOB,
@@ -143,11 +146,10 @@ export async function sendDueCalendarReminder(
   // winner, a crashed sender's lease is taken over, and a receipt for the
   // same start never sends twice — while a start the creator has since
   // moved the occurrence to earns its own reminder.
-  let claimed = false
-  await deps.db.transaction(async (tx) => {
-    claimed = await claimReminder(tx, data.spaceId, data.eventId, data.originalDate, start, now)
-  })
-  if (!claimed) return
+  const lease = await deps.db.transaction(async (tx) =>
+    claimReminder(tx, data.spaceId, data.eventId, data.originalDate, start, now),
+  )
+  if (lease === undefined) return
 
   const recipients = await resolveReminderRecipients(deps, data.spaceId, stored)
   let delivered = 0
@@ -185,9 +187,9 @@ export async function sendDueCalendarReminder(
   // Nobody was reached: a transient refusal across every device. The
   // claim row goes, the job throws, and the queue's retry sends from
   // scratch — a family missing its reminder is worse than a slow one.
-  if (delivered === 0 && failed > 0) {
+  if (delivered === 0 && failed > 0 && lease !== undefined) {
     await deps.db.transaction(async (tx) => {
-      await releaseReminderClaim(tx, data.spaceId, data.eventId, data.originalDate)
+      await releaseReminderClaim(tx, data.spaceId, data.eventId, data.originalDate, lease)
     })
     throw new Error(
       `Calendar reminder ${data.eventId}/${data.originalDate} reached no device (${failed} failed); the queue retries`,
@@ -201,7 +203,7 @@ export async function sendDueCalendarReminder(
       data.spaceId,
       data.eventId,
       data.originalDate,
-      start,
+      lease,
       deps.clock.now(),
     )
   })
@@ -337,11 +339,12 @@ function occurrenceTimezone(
 
 /**
  * The horizon extension (the sweep): every space that holds a reminder
- * gets its events' upcoming occurrences scheduled again — the sweep only
- * adds what newly entered the horizon, the overlap keeps a missed round
- * covered, and the send-once claim keeps the seam honest. The claims that
- * outlived every job that could ask are pruned. One transaction per
- * space; one space's failure does not stop the others.
+ * gets its events' upcoming occurrences scheduled — exactly the span
+ * between the event's watermark and the horizon, so a worker down for a
+ * week fills that week's gap and a healthy round adds only the days
+ * since. The claims that outlived every job that could ask are pruned.
+ * One transaction per space; one space's failure does not stop the
+ * others.
  */
 export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Promise<void> {
   const now = deps.clock.now()
@@ -351,6 +354,11 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
   for (const spaceId of spaceIds) {
     try {
       await deps.db.transaction(async (tx) => {
+        // The sweep reads a reminder row and then writes its watermark:
+        // the space row lock keeps that read-decide-write serialised
+        // against an edit committing beside it (architecture.md,
+        // "Revision bookkeeping").
+        await lockSpace(tx, spaceId)
         const space = await spaceForReminder(deps, spaceId)
         if (space === undefined) return
         const events = await listReminderEventsInSpace(tx, spaceId)
@@ -362,7 +370,11 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
           // scheduled: the round fills exactly (watermark, horizon] and
           // moves it, so a worker down for a week fills that week's gap,
           // and a healthy one adds only the days since.
-          const watermark = stored.reminder.scheduledThrough ?? new Date(0)
+          // A watermark beyond the horizon is a forward clock jump's
+          // poison (a bad NTP step, a VM restore): treat it as unset and
+          // let the duplicates — safe by design — wash it out.
+          let watermark = stored.reminder.scheduledThrough ?? new Date(0)
+          if (watermark.getTime() > horizonEnd.getTime() + DAY_MS) watermark = new Date(0)
           if (watermark.getTime() >= horizonEnd.getTime()) continue
           for (const job of reminderJobsBetween(
             event,

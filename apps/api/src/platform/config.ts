@@ -19,6 +19,10 @@ const logLevel = Type.Union(
   ],
   { default: 'info' },
 )
+/** The placeholder contact the push services see until the operator sets
+ *  a real one; the worker warns when an installation still runs with it. */
+export const DEFAULT_PUSH_VAPID_SUBJECT = 'mailto:ohana@example.com'
+
 const databaseUrl = Type.String({ minLength: 1 })
 
 const ConfigSchema = Type.Object({
@@ -40,8 +44,8 @@ const ConfigSchema = Type.Object({
   // push services use it to reach the operator about abuse. A real one
   // keeps an installation deliverable; the default is a placeholder.
   pushVapidSubject: Type.String({
-    default: 'mailto:ohana@example.com',
-    pattern: '^(mailto:|https://)',
+    default: DEFAULT_PUSH_VAPID_SUBJECT,
+    pattern: '^(mailto:[^\\s@]+@[^\\s@]+|https://[^\\s/]+)',
   }),
   webDist: Type.Optional(Type.String({ minLength: 1 })),
   // The initial instance-administrator password (ADR-0005): used once to

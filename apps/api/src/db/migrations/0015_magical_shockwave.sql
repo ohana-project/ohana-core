@@ -12,6 +12,7 @@ CREATE TABLE "calendar_event_reminders" (
 	"space_id" uuid NOT NULL,
 	"event_id" uuid NOT NULL,
 	"lead_minutes" integer NOT NULL,
+	"scheduled_through" timestamp with time zone,
 	"everyone" boolean NOT NULL,
 	"revision" bigint NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
@@ -27,6 +28,8 @@ CREATE TABLE "calendar_reminders_sent" (
 	"event_id" uuid NOT NULL,
 	"original_date" date NOT NULL,
 	"reminded_at" timestamp with time zone NOT NULL,
+	"start_at" timestamp with time zone NOT NULL,
+	"sent_at" timestamp with time zone,
 	CONSTRAINT "calendar_reminders_sent_occurrence_key" UNIQUE("space_id","event_id","original_date")
 );
 --> statement-breakpoint

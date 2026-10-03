@@ -326,9 +326,10 @@ export const calendarRemindersSent = pgTable(
     /**
      * The occurrence's start the receipt answers for: a reminder that went
      * out for the 18:00 start is not one for the 20:00 the creator moved
-     * it to — that one goes out too (issue #22).
+     * it to — that one goes out too (issue #22). Total with the receipt:
+     * a sent row always names its start.
      */
-    startAt: timestamp('start_at', { withTimezone: true }),
+    startAt: timestamp('start_at', { withTimezone: true }).notNull(),
     /**
      * When the reminder actually went out. Null, the claim is a live
      * sender's lease — or a crashed one's, after the takeover window — and

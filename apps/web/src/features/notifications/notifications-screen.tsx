@@ -84,7 +84,6 @@ export function NotificationsScreen() {
   const busy = enable.isPending || disable.isPending || setDetails.isPending || mine.isFetching
 
   const toggleSubscription = (next: boolean) => {
-    console.log('TOGGLE-DBG', next, memberId)
     if (next) {
       if (memberId === undefined) return
       enable.mutate(
