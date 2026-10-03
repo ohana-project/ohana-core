@@ -47,4 +47,10 @@ describe('pushVapidSubject', () => {
       loadConfig({ ...VALID_ENVIRONMENT, PUSH_VAPID_SUBJECT: 'mailto:' }),
     ).rejects.toThrow(ConfigError)
   })
+
+  test('trailing junk after the address is refused', async () => {
+    await expect(
+      loadConfig({ ...VALID_ENVIRONMENT, PUSH_VAPID_SUBJECT: 'mailto:a@b junk text' }),
+    ).rejects.toThrow(ConfigError)
+  })
 })

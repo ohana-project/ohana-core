@@ -428,17 +428,20 @@ export interface EventReminderWithRecipients {
 /** The sweep's watermark moves in the round that filled the gap, and
  *  only forward — except when it sits implausibly far ahead: a forward
  *  clock jump poisons it, and the reset must reach the database or every
- *  round would re-queue the whole horizon until real time caught up. */
+ *  round would re-queue the whole horizon until real time caught up. The
+ *  reset threshold arrives from the caller, so both sides of the
+ *  comparison share one constant. */
 export async function advanceReminderWatermark(
   tx: Tx,
   spaceId: string,
   eventId: string,
   scheduledThrough: Date,
+  resetAbove: Date,
 ): Promise<void> {
   await tx
     .update(calendarEventReminders)
     .set({
-      scheduledThrough: sql`case when ${calendarEventReminders.scheduledThrough} > ${scheduledThrough}::timestamptz + interval '1 day'
+      scheduledThrough: sql`case when ${calendarEventReminders.scheduledThrough} > ${resetAbove}::timestamptz
         then ${scheduledThrough}::timestamptz
         else greatest(${calendarEventReminders.scheduledThrough}, ${scheduledThrough}::timestamptz) end`,
     })

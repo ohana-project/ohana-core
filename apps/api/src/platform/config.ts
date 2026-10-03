@@ -45,7 +45,7 @@ const ConfigSchema = Type.Object({
   // keeps an installation deliverable; the default is a placeholder.
   pushVapidSubject: Type.String({
     default: DEFAULT_PUSH_VAPID_SUBJECT,
-    pattern: '^(mailto:[^\\s@]+@[^\\s@]+|https://[^\\s/]+)',
+    pattern: '^(mailto:[^\\s@]+@[^\\s@]+|https://[^\\s/]+(/\\S*)?)$',
   }),
   webDist: Type.Optional(Type.String({ minLength: 1 })),
   // The initial instance-administrator password (ADR-0005): used once to

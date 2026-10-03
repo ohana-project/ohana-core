@@ -580,6 +580,148 @@ describe('sendDueCalendarReminder', () => {
     })
   })
 
+  test('an occurrence moved behind a live claim retries instead of answering finally', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+
+    // A run claimed the 18:00 occurrence and is mid-send (its lease is a
+    // minute old — live) when the creator moves the event to 20:00.
+    const clock = fixedClock(new Date('2026-01-10T19:31:00.000Z'))
+    const staleLease = await harness.db.transaction(async (tx) =>
+      repository.claimReminder(
+        tx,
+        space.id,
+        event.id,
+        '2026-01-10',
+        new Date('2026-01-10T18:00:00.000Z'),
+        clock.now(),
+      ),
+    )
+    if (staleLease === undefined) throw new Error('The first claim must win')
+    const { editEvent } = await import('./service.ts')
+    const movedBody: TimedSeriesBody = {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '20:00',
+      endTime: '21:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    }
+    await editEvent(
+      { db: harness.db, clock, jobs: harness.jobs },
+      { memberId: anya.id, spaceId: space.id, role: 'owner' },
+      event.id,
+      movedBody,
+    )
+
+    // The moved occurrence's own job fires while the old claim is live:
+    // answering "not my turn" would be final, so it throws for the queue.
+    const deps = reminderDeps(fixedClock(new Date('2026-01-10T19:32:00.000Z')))
+    push.sends.length = 0
+    await expect(
+      sendDueCalendarReminder(deps, {
+        spaceId: space.id,
+        eventId: event.id,
+        originalDate: '2026-01-10',
+      }),
+    ).rejects.toThrow(/moved behind a live claim/)
+    expect(push.sends).toHaveLength(0)
+
+    // The old claim resolves with its receipt; the retry then delivers the
+    // moved occurrence's reminder at its new time.
+    await harness.db.transaction(async (tx) => {
+      await repository.markReminderSent(
+        tx,
+        space.id,
+        event.id,
+        '2026-01-10',
+        staleLease,
+        clock.now(),
+      )
+    })
+    await sendDueCalendarReminder(deps, {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    expect(push.sends).toHaveLength(1)
+    expect(push.sends[0]?.payload.body).toContain('20:00')
+  })
+
+  test('a partial delivery is final: the receipt stands, no retry re-sends', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const boris = await harness.createMember(space.id, { name: 'Борис' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', false, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    // Anya's device is reached; Boris's push service hiccups.
+    push.respondWith((credentials) =>
+      credentials.endpoint.includes('boris') ? 'failed' : 'delivered',
+    )
+
+    const deps = reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z')))
+    push.sends.length = 0
+    await sendDueCalendarReminder(deps, {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    expect(push.sends).toHaveLength(2)
+    // The receipt stands: the retry the queue will not run, because
+    // nothing threw, would only duplicate Anya's notification.
+    const receipted = await harness.db
+      .select()
+      .from(calendarRemindersSent)
+      .where(eq(calendarRemindersSent.eventId, event.id))
+    expect(receipted).toHaveLength(1)
+    push.respondWith('delivered')
+  })
+
+  test('a run where every subscription expired writes its receipt', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    push.respondWith('expired')
+
+    const deps = reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z')))
+    await sendDueCalendarReminder(deps, {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    const receipted = await harness.db
+      .select()
+      .from(calendarRemindersSent)
+      .where(eq(calendarRemindersSent.eventId, event.id))
+    expect(receipted).toHaveLength(1)
+    push.respondWith('delivered')
+  })
+
   test('a reminder already sent stays quiet when a duplicate job fires hours later', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
@@ -1020,7 +1162,7 @@ describe('sendDueCalendarReminder', () => {
     const poisoned = reminderJobs().filter((job) => job.data.spaceId === space.id)
     // The guard treats the impossible watermark as unset: the whole
     // horizon is re-queued (the claim keeps one send).
-    expect(poisoned.length).toBeGreaterThanOrEqual(REMINDER_HORIZON_DAYS)
+    expect(poisoned).toHaveLength(REMINDER_HORIZON_DAYS)
 
     // The reset reached the database: the next round adds nothing, and
     // the row reads the real horizon.

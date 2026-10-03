@@ -81,7 +81,9 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export const CALENDAR_QUEUE_SETUPS = [
   {
     name: CALENDAR_REMINDER_JOB,
-    options: { retryLimit: 3, retryDelay: 300, retryBackoff: true },
+    // The first retry comes after a minute: short enough to matter for
+    // the shortest leads, long enough to sit out one live send.
+    options: { retryLimit: 3, retryDelay: 60, retryBackoff: true },
   },
   { name: CALENDAR_REMINDER_SWEEP_JOB },
 ] as const
@@ -225,11 +227,6 @@ export async function sendDueCalendarReminder(
       expiredEndpoints.push(endpoint)
     }
   }
-  for (const endpoint of expiredEndpoints) {
-    await deps.db.transaction(async (tx) => {
-      await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
-    })
-  }
   // Nobody was reached: a transient refusal across every device. The
   // claim row goes, the job throws, and the queue's retry sends from
   // scratch — a family missing its reminder is worse than a slow one.
@@ -243,6 +240,8 @@ export async function sendDueCalendarReminder(
   }
   // The receipt, for this start: every other job for the occurrence and
   // start — the duplicates the design creates on purpose — answers quiet.
+  // It lands BEFORE the expired-endpoint cleanup: a cleanup failure costs
+  // the removal its retry (idempotent), never a duplicate send.
   await deps.db.transaction(async (tx) => {
     await markReminderSent(
       tx,
@@ -253,6 +252,11 @@ export async function sendDueCalendarReminder(
       deps.clock.now(),
     )
   })
+  for (const endpoint of expiredEndpoints) {
+    await deps.db.transaction(async (tx) => {
+      await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
+    })
+  }
   deps.logger.info(
     {
       spaceId: data.spaceId,
@@ -445,7 +449,13 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
               startAfter: job.sendAt,
             })
           }
-          await advanceReminderWatermark(tx, spaceId, event.id, horizonEnd)
+          await advanceReminderWatermark(
+            tx,
+            spaceId,
+            event.id,
+            horizonEnd,
+            new Date(horizonEnd.getTime() + DAY_MS),
+          )
         }
       })
     } catch (cause) {
