@@ -278,9 +278,11 @@ jobs:
             echo '::error::the carried-name refusal did not name the value and source'
             exit 1
           fi
-          same .env "$RUNNER_TEMP/env-with-badpin" "the carried-name refusal changed .env"
+          cmp .env "$RUNNER_TEMP/env-with-badpin" ||
+            { echo '::error::the carried-name refusal changed .env'; exit 1; }
           ls -A > "$RUNNER_TEMP/ls-after-badpin"
-          same "$RUNNER_TEMP/ls-before-badpin" "$RUNNER_TEMP/ls-after-badpin" "the carried-name refusal wrote files"
+          cmp "$RUNNER_TEMP/ls-before-badpin" "$RUNNER_TEMP/ls-after-badpin" ||
+            { echo '::error::the carried-name refusal wrote files'; exit 1; }
           cp "$RUNNER_TEMP/env-before-badpin" .env
           env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
           [ "$env_val" = "$real_pw" ] ||
