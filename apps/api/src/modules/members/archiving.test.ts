@@ -324,3 +324,192 @@ describe('POST /api/v1/spaces/:spaceId/members/:memberId/archive (administrative
     })
   })
 })
+
+/*
+ * What stays and what disappears (issue #23): the wishes are hidden from
+ * the space but kept, the member's reservations are released, and every
+ * device learns of the change through the sync — tombstones for what left
+ * its view, the member upsert for the archiving stamp itself.
+ */
+
+async function createWish(
+  app: TestApp,
+  session: MemberSession,
+  title: string,
+): Promise<{ id: string }> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/wishlist/wishes',
+    headers: memberHeaders(session),
+    payload: { title },
+  })
+  expect(response.statusCode).toBe(201)
+  return response.json()
+}
+
+async function reserve(app: TestApp, session: MemberSession, wishId: string): Promise<string> {
+  const response = await app.inject({
+    method: 'POST',
+    url: `/api/v1/wishlist/wishes/${wishId}/reservation`,
+    headers: memberHeaders(session),
+  })
+  expect(response.statusCode).toBe(201)
+  return (response.json() as { id: string }).id
+}
+
+interface SyncResponse {
+  revision: string
+  changes: Array<{ entity: string; member?: { id: string; archivedAt?: string }; wish?: { id: string } }>
+  tombstones: Array<{ entity: string; entityId: string; audience: string; memberId?: string }>
+}
+
+async function sync(app: TestApp, session: MemberSession, since: string): Promise<SyncResponse> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/v1/sync?since=${since}`,
+    headers: memberHeaders(session),
+  })
+  expect(response.statusCode).toBe(200)
+  return response.json()
+}
+
+describe('the archiving in sync (issue #23)', () => {
+  test('the archiving stamps the member row and tombstones their wishes to everyone', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const bystander = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      const bystanderSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, bystander.id)).code,
+      )
+      const wish = await createWish(app, memberSession, 'Велосипед')
+      const cursor = (await sync(app, bystanderSession, '0')).revision
+
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      for (const session of [ownerSession, bystanderSession]) {
+        const delta = await sync(app, session, cursor)
+        const wishTombstones = delta.tombstones.filter(
+          (row) => row.entity === 'wishlist_wish' && row.entityId === wish.id,
+        )
+        expect(wishTombstones).toHaveLength(1)
+        expect(wishTombstones[0]?.audience).toBe('all')
+        const memberUpsert = delta.changes.find(
+          (change) => change.entity === 'member' && change.member?.id === member.id,
+        )
+        expect(memberUpsert?.member?.archivedAt).toEqual(expect.any(String))
+      }
+    })
+  })
+
+  test('the member reservations are released, tombstoned per member but never to the author', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const author = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    const bystander = await harness.createMember(space.id, { name: 'Пётр', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      const authorSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, author.id)).code,
+      )
+      const bystanderSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, bystander.id)).code,
+      )
+      const wish = await createWish(app, authorSession, 'Книга')
+      const reservationId = await reserve(app, memberSession, wish.id)
+      const cursors = {
+        author: (await sync(app, authorSession, '0')).revision,
+        bystander: (await sync(app, bystanderSession, '0')).revision,
+      }
+
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // Every member but the author learns the reservation ended; the
+      // author learns nothing — no all-audience tombstone may carry it.
+      const authorDelta = await sync(app, authorSession, cursors.author)
+      expect(
+        authorDelta.tombstones.filter(
+          (row) => row.entity === 'wishlist_gift_reservation' && row.entityId === reservationId,
+        ),
+      ).toEqual([])
+
+      const bystanderDelta = await sync(app, bystanderSession, cursors.bystander)
+      const endings = bystanderDelta.tombstones.filter(
+        (row) => row.entity === 'wishlist_gift_reservation' && row.entityId === reservationId,
+      )
+      expect(endings).toHaveLength(1)
+      expect(endings[0]).toMatchObject({ audience: 'member', memberId: bystander.id })
+    })
+  })
+
+  test('an archived member is excluded from the space and from the reminders differently', async () => {
+    const space = await harness.createSpace()
+    const owner = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const member = await harness.createMember(space.id, { name: 'Дима', role: 'regular' })
+    const other = await harness.createMember(space.id, { name: 'Люда', role: 'regular' })
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const ownerSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, owner.id)).code,
+      )
+      const memberSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, member.id)).code,
+      )
+      const otherSession = await signInMember(
+        app,
+        (await issueAdminCode(app, adminCookie, space.id, other.id)).code,
+      )
+      const wish = await createWish(app, memberSession, 'Велосипед')
+      expect((await archiveForMember(app, ownerSession, member.id)).statusCode).toBe(200)
+
+      // The browse hides the archived author's wishes from everyone else.
+      const browse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/wishlist/wishes',
+        headers: memberHeaders(otherSession),
+      })
+      expect(browse.statusCode).toBe(200)
+      expect(browse.json().wishes.some((row: { id: string }) => row.id === wish.id)).toBe(false)
+
+      // The wish itself answers 404 — its existence is not revealed.
+      const read = await app.inject({
+        method: 'GET',
+        url: `/api/v1/wishlist/wishes/${wish.id}`,
+        headers: memberHeaders(otherSession),
+      })
+      expect(read.statusCode).toBe(404)
+
+      // A fresh device's sync from zero never receives the hidden wishes.
+      const fresh = await sync(app, otherSession, '0')
+      expect(
+        fresh.changes.filter(
+          (change) => change.entity === 'wishlist_wish' && change.wish?.id === wish.id,
+        ),
+      ).toEqual([])
+    })
+  })
+})
