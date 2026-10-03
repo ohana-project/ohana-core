@@ -16,9 +16,20 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm --filter @ohana/web build
 
-# The api package has no workspace dependencies, so a legacy deploy yields a
-# self-contained directory: source, migrations, and production node_modules.
-RUN pnpm --filter @ohana/api deploy --prod --legacy /app
+# The legacy deploy yields a self-contained directory: source, migrations,
+# and production node_modules. The api's one workspace dependency
+# (@ohana/i18n, the reminders' payload texts) is deployed as the workspace
+# link it keeps; the package travels as TS source, and node strips types
+# only outside node_modules, so it lands in /app/vendor under a link from
+# the deployed tree. Its own node_modules is dropped so its runtime
+# dependencies (i18next, i18next-icu) resolve from /app/node_modules, where
+# they are listed as the api's direct dependencies.
+RUN pnpm --filter @ohana/api deploy --prod --legacy /app && \
+    mkdir -p /app/vendor && \
+    cp -R /repo/packages/i18n /app/vendor/i18n && \
+    rm -rf /app/vendor/i18n/node_modules && \
+    rm /app/node_modules/@ohana/i18n && \
+    ln -s /app/vendor/i18n /app/node_modules/@ohana/i18n
 
 FROM node:24-alpine
 ENV NODE_ENV=production
