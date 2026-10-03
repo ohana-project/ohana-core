@@ -893,7 +893,8 @@
     "reminderRecipients": "Recipients",
     "reminderLeadWeek": "A week before",
     "reminderRecipientsHint": "Only the picked members get the reminder",
-    "reminderRecipientsRequired": "Pick at least one recipient"
+    "reminderRecipientsRequired": "Pick at least one recipient",
+    "reminderLeadCustom": "{minutes} minutes before"
   },
   "notifications": {
     "menuItem": "Notifications",

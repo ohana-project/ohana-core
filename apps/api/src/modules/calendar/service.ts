@@ -26,7 +26,7 @@ import {
   seriesRecurrence,
   seriesStartDate,
 } from './recurrence.ts'
-import { REMINDER_HORIZON_DAYS, REMINDER_STALE_LIMIT_MS, reminderJobsBetween } from './reminders.ts'
+import { reminderJobsBetween } from './reminders.ts'
 import {
   deleteEvent,
   deleteEventExceptions,
@@ -48,8 +48,6 @@ import {
   upsertEventReminder,
 } from './repository.ts'
 import type { CalendarEvent, CalendarEventException, CalendarEventReminder } from './tables.ts'
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 export interface CalendarDeps {
   db: Db
@@ -355,8 +353,9 @@ export async function editOccurrence(
           const row = await touchAfter(writeTx, actor, eventId, revision, now)
           const exceptions = await listExceptionsForEvent(writeTx, actor.spaceId, eventId)
           // The override's reminder moves with its occurrence (issue #22):
-          // the jobs are rescheduled from the event's new state.
-          await rescheduleEventReminder(
+          // the jobs are rescheduled from the event's new state, and the
+          // series' reminder rides the answer.
+          const reminder = await rescheduleEventReminder(
             writeTx,
             deps,
             actor.spaceId,
@@ -365,7 +364,7 @@ export async function editOccurrence(
             now,
             space.timezone,
           )
-          result = { event: row, exceptions, reminder: existing.reminder }
+          result = { event: row, exceptions, reminder: toReminderOf(reminder) }
         },
       },
       now,
@@ -555,9 +554,9 @@ async function rescheduleEventReminder(
   exceptions: readonly CalendarEventException[],
   now: Date,
   spaceTimezone: string,
-): Promise<void> {
+): Promise<EventReminderWithRecipients | undefined> {
   const stored = await getReminderForEvent(writeTx, spaceId, event.id)
-  if (stored === undefined) return
+  if (stored === undefined) return undefined
   await scheduleReminderJobs(
     writeTx,
     deps,
@@ -568,6 +567,7 @@ async function rescheduleEventReminder(
     now,
     spaceTimezone,
   )
+  return stored
 }
 
 /**
@@ -587,9 +587,7 @@ async function scheduleReminderJobs(
   now: Date,
   spaceTimezone: string,
 ): Promise<void> {
-  const from = new Date(now.getTime() - REMINDER_STALE_LIMIT_MS)
-  const to = new Date(now.getTime() + REMINDER_HORIZON_DAYS * DAY_MS)
-  for (const job of reminderJobsBetween(event, exceptions, reminder, spaceTimezone, from, to)) {
+  for (const job of reminderJobsBetween(event, exceptions, reminder, spaceTimezone, now)) {
     await deps.jobs.sendInTx(tx, {
       name: CALENDAR_REMINDER_JOB,
       data: {

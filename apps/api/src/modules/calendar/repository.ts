@@ -517,9 +517,11 @@ export async function listReminderEventsInSpace(
 
 /*
  * The send-once bookkeeping: the claim arms the handler's idempotency. A
- * fresh claim wins; a claim older than the takeover window belongs to a
- * crashed sender and is taken over, so a reminder never dies with a
- * process.
+ * fresh claim wins; an *unsent* claim older than the takeover window
+ * belongs to a crashed sender and is taken over, so a reminder never dies
+ * with a process; a claim whose reminder has gone out answers every later
+ * job quiet, however late it fires (issue #22: one reminder per
+ * occurrence).
  */
 
 /** A claim younger than this belongs to a sender that may still be
@@ -527,9 +529,10 @@ export async function listReminderEventsInSpace(
 export const REMINDER_CLAIM_TAKEOVER_MS = 5 * 60 * 1000
 
 /**
- * Claims the occurrence's reminder: true, this run sends; false, a recent
- * claim stands. The conditional upsert is the whole protocol — concurrent
- * duplicates of the same job agree on one winner without a lock.
+ * Claims the occurrence's reminder: true, this run sends; false, a live
+ * claim stands — a recent sender's lease, or a finished one. The
+ * conditional upsert is the whole protocol — concurrent duplicates of the
+ * same job agree on one winner without a lock.
  */
 export async function claimReminder(
   tx: Tx,
@@ -548,11 +551,33 @@ export async function claimReminder(
         calendarRemindersSent.originalDate,
       ],
       set: { remindedAt: now },
-      // Only a stale claim — a crashed sender's — is taken over.
-      where: sql`${calendarRemindersSent.remindedAt} <= ${new Date(now.getTime() - REMINDER_CLAIM_TAKEOVER_MS)}`,
+      // Only an unsent claim past the takeover window — a crashed sender's
+      // — is taken over; a sent reminder is never sent again.
+      where: sql`${calendarRemindersSent.sentAt} is null and ${calendarRemindersSent.remindedAt} <= ${new Date(now.getTime() - REMINDER_CLAIM_TAKEOVER_MS)}`,
     })
     .returning({ id: calendarRemindersSent.id })
   return inserted.length > 0
+}
+
+/** The claim becomes the receipt: every other job for the occurrence —
+ *  the duplicates the design creates on purpose — answers quiet. */
+export async function markReminderSent(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+  originalDate: string,
+  now: Date,
+): Promise<void> {
+  await tx
+    .update(calendarRemindersSent)
+    .set({ sentAt: now })
+    .where(
+      and(
+        eq(calendarRemindersSent.spaceId, spaceId),
+        eq(calendarRemindersSent.eventId, eventId),
+        eq(calendarRemindersSent.originalDate, originalDate),
+      ),
+    )
 }
 
 /** The claims no pending job can ask about any more — the sweep's prune. */

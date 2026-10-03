@@ -14,7 +14,9 @@ import type {
   PushPayload,
   PushSender,
   PushSendResult,
+  VapidKeys,
 } from '../platform/push/index.ts'
+import { generateVapidKeys } from '../platform/push/webpush.ts'
 import { createS3Storage, type ObjectStorageWithSetup } from '../platform/storage/s3.ts'
 
 export interface TestEnvironment {
@@ -104,6 +106,7 @@ export interface TestHarness {
   clock: FixedClock
   storage: ObjectStorageWithSetup
   jobs: RecordingJobSender
+  generateVapidKeys: () => VapidKeys
   /** The test run's container endpoints, for pieces that build their own connections. */
   environment: TestEnvironment
   createSpace(input?: { name?: string; timezone?: string }): Promise<Space>
@@ -136,6 +139,9 @@ export async function createTestHarness(): Promise<TestHarness> {
     // The production default; an upload-limit test passes its own smaller
     // bound through buildTestApp's overrides.
     mediaMaxUploadBytes: 26_214_400,
+    // The real generator: pure CPU, no push service touched, so the
+    // persisted test pairs are honest VAPID keys.
+    generateVapidKeys,
   }
 
   return {
@@ -143,6 +149,7 @@ export async function createTestHarness(): Promise<TestHarness> {
     clock,
     storage,
     jobs,
+    generateVapidKeys,
     environment,
     createSpace: (input) =>
       createSpace(

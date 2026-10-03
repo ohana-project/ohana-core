@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Executor, Tx } from '../../platform/db/index.ts'
 import {
   type PushSubscription,
@@ -119,6 +119,39 @@ export async function deletePushSubscription(
     )
     .returning()
   return deleted[0]
+}
+
+export async function getPushSubscription(
+  executor: Executor,
+  spaceId: string,
+  memberId: string,
+  endpoint: string,
+): Promise<PushSubscription | undefined> {
+  const rows = await executor
+    .select()
+    .from(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.spaceId, spaceId),
+        eq(pushSubscriptions.memberId, memberId),
+        eq(pushSubscriptions.endpoint, endpoint),
+      ),
+    )
+    .limit(1)
+  return rows[0]
+}
+
+/** How many members still hold the endpoint: the delete's answer about the
+ *  browser's physical subscription, and the by-endpoint removal's reach. */
+export async function countSubscriptionsByEndpointAcrossSpaces(
+  tx: Tx,
+  endpoint: string,
+): Promise<number> {
+  const rows = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.endpoint, endpoint))
+  return rows[0]?.count ?? 0
 }
 
 /** The member's subscriptions — every device reminders may reach. */

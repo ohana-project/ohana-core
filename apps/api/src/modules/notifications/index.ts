@@ -10,18 +10,21 @@ export {
   PushPublicKeyDtoSchema,
   PushSubscriptionBodySchema,
   PushSubscriptionDetailsBodySchema,
+  PushSubscriptionDtoSchema,
+  PushSubscriptionParamsSchema,
   PushUnsubscribeBodySchema,
+  PushUnsubscribeDtoSchema,
 } from './contracts.ts'
 export { notificationsRoutes } from './routes.ts'
 export {
   ensureVapidKeys,
-  listActiveSubscriptionsInTx,
+  listSubscriptionsForMember,
   type NotificationsActor,
   type NotificationsDeps,
-  publicKeyOf,
-  removeExpiredSubscriptionInTx,
+  removeSubscriptionsByEndpointAcrossSpaces,
   setNotifyDetails,
   subscribe,
+  subscriptionOf,
   unsubscribe,
   type VapidKeysRow,
 } from './service.ts'

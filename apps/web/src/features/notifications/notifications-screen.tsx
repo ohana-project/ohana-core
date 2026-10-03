@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getActiveMemberId } from '@/data/session-registry.ts'
 import { SettingsShell } from '@/features/space-settings/settings-shell.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
@@ -20,9 +21,10 @@ import { toast } from '@/ui/toast.tsx'
 import type { NotificationContainer, PushRegistrar } from './push-client.ts'
 import {
   pushErrorMessage,
-  useDeviceSubscription,
+  useBrowserSubscription,
   useDisablePush,
   useEnablePush,
+  useMySubscription,
   useSetNotifyDetails,
 } from './use-push-subscription.ts'
 
@@ -66,14 +68,19 @@ export function NotificationsScreen() {
   const registrar = usePushRegistrar()
   const notification = notificationContainer()
 
-  const device = useDeviceSubscription(registrar)
+  const browser = useBrowserSubscription(registrar)
+  const mine = useMySubscription(browser.subscription, browser.refresh)
   const enable = useEnablePush(notification ?? rejectedNotification, registrar ?? emptyRegistrar)
   const disable = useDisablePush()
   const setDetails = useSetNotifyDetails()
 
-  const subscribed = device.subscription !== null
+  // The switches read the member's own row, never the browser's object:
+  // another member of this device may hold the physical subscription.
+  // Absent (the 404) and not-yet-read both mean off.
+  const subscribed = mine.isSuccess && mine.data !== null
   const permission = notification?.permission ?? 'denied'
-  const notifyDetails = device.details
+  const notifyDetails = mine.data?.notifyDetails ?? false
+  const busy = enable.isPending || disable.isPending || setDetails.isPending || mine.isFetching
 
   const toggleSubscription = (next: boolean) => {
     if (next) {
@@ -82,7 +89,7 @@ export function NotificationsScreen() {
         {
           onSuccess: () => {
             toast(t('notifications.settings.enabledToast'))
-            void device.refresh()
+            void mine.refresh()
           },
           onError: (error) => {
             toast(
@@ -96,28 +103,35 @@ export function NotificationsScreen() {
       )
       return
     }
-    if (device.subscription === null) return
-    disable.mutate(device.subscription, {
-      onSuccess: () => {
-        toast(t('notifications.settings.disabledToast'))
-        void device.refresh()
-      },
-      onError: () => toast(t('notifications.settings.disableFailedToast'), 'danger'),
-    })
-  }
-
-  const toggleDetails = (next: boolean) => {
-    if (device.subscription === null) return
-    setDetails.mutate(
-      { endpoint: device.subscription.endpoint, notifyDetails: next },
+    const browserSubscription = browser.subscription
+    const memberId = getActiveMemberId()
+    if (browserSubscription === null || memberId === undefined) return
+    disable.mutate(
+      { memberId, subscription: browserSubscription },
       {
-        onSuccess: () => toast(t('notifications.settings.detailsSavedToast')),
-        onError: () => toast(t('notifications.settings.detailsFailedToast'), 'danger'),
+        onSuccess: () => {
+          toast(t('notifications.settings.disabledToast'))
+          void mine.refresh()
+        },
+        onError: () => toast(t('notifications.settings.disableFailedToast'), 'danger'),
       },
     )
   }
 
-  const busy = enable.isPending || disable.isPending
+  const toggleDetails = (next: boolean) => {
+    const endpoint = browser.subscription?.endpoint
+    if (endpoint === undefined) return
+    setDetails.mutate(
+      { endpoint, notifyDetails: next },
+      {
+        onSuccess: () => {
+          toast(t('notifications.settings.detailsSavedToast'))
+          void mine.refresh()
+        },
+        onError: () => toast(t('notifications.settings.detailsFailedToast'), 'danger'),
+      },
+    )
+  }
 
   return (
     <SettingsShell title={t('notifications.settings.title')}>
@@ -149,7 +163,7 @@ export function NotificationsScreen() {
                       registrar === undefined ||
                       notification === undefined ||
                       busy ||
-                      !device.settled
+                      !browser.settled
                     }
                     aria-label={t('notifications.settings.enableSwitch')}
                   />

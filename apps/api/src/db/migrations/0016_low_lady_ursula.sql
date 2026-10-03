@@ -1,0 +1,1 @@
+ALTER TABLE "calendar_reminders_sent" ADD COLUMN "sent_at" timestamp with time zone;

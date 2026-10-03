@@ -314,7 +314,15 @@ export const calendarRemindersSent = pgTable(
     eventId: uuid('event_id').notNull(),
     /** The occurrence the reminder belonged to, by its original date. */
     originalDate: date('original_date', { mode: 'string' }).notNull(),
+    /** When a run claimed the occurrence; the idempotency's lease. */
     remindedAt: timestamp('reminded_at', { withTimezone: true }).notNull(),
+    /**
+     * When the reminder actually went out. Null, the claim is a live
+     * sender's lease — or a crashed one's, after the takeover window — and
+     * the reminder may still be sent; set, every other job for the
+     * occurrence answers quiet, however late it fires.
+     */
+    sentAt: timestamp('sent_at', { withTimezone: true }),
   },
   (table) => [
     unique('calendar_reminders_sent_occurrence_key').on(

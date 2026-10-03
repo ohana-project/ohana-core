@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncTypebox, TypeBoxTypeProvider } from '@fastify/type-provider-typebox'
 import { Type } from '@sinclair/typebox'
 import type { FastifyInstance } from 'fastify'
+import { notFound } from '../../platform/errors.ts'
 import {
   type AccessDeps,
   MemberHeadersSchema,
@@ -11,7 +12,10 @@ import {
   PushPublicKeyDtoSchema,
   PushSubscriptionBodySchema,
   PushSubscriptionDetailsBodySchema,
+  PushSubscriptionDtoSchema,
+  PushSubscriptionParamsSchema,
   PushUnsubscribeBodySchema,
+  PushUnsubscribeDtoSchema,
 } from './contracts.ts'
 import {
   ensureVapidKeys,
@@ -19,6 +23,7 @@ import {
   type NotificationsDeps,
   setNotifyDetails,
   subscribe,
+  subscriptionOf,
   unsubscribe,
 } from './service.ts'
 
@@ -82,6 +87,33 @@ export const notificationsRoutes: FastifyPluginAsyncTypebox<NotificationsRoutesO
       },
     )
 
+    // The actor's own row for the browser's endpoint: what this member's
+    // switches read, never another member's — one browser can hold several
+    // members, and the physical subscription is the browser's, not theirs.
+    scoped.get(
+      '/notifications/push/subscription',
+      {
+        schema: {
+          headers: MemberHeadersSchema,
+          querystring: PushSubscriptionParamsSchema,
+          response: { 200: PushSubscriptionDtoSchema },
+        },
+      },
+      async (request) => {
+        const actor: NotificationsActor = requireMemberActor(request)
+        const row = await subscriptionOf(opts.deps.db, actor, request.query.endpoint)
+        if (row === undefined) {
+          // Another member's device answers like any invisible resource
+          // (architecture.md, "Errors").
+          throw notFound(
+            'push_subscription_not_found',
+            `No push subscription for endpoint ${request.query.endpoint}`,
+          )
+        }
+        return { notifyDetails: row.notifyDetails }
+      },
+    )
+
     // The device's own opt-in to showing event details (ADR-0006).
     scoped.patch(
       '/notifications/push/subscription',
@@ -99,20 +131,26 @@ export const notificationsRoutes: FastifyPluginAsyncTypebox<NotificationsRoutesO
       },
     )
 
-    // The device's departure, after the browser's own unsubscribe.
+    // The member's row goes; the answer tells the page whether nobody
+    // holds the browser's physical subscription any more — another member
+    // of the same browser may still share it.
     scoped.delete(
       '/notifications/push/subscription',
       {
         schema: {
           headers: MemberHeadersSchema,
           body: PushUnsubscribeBodySchema,
-          response: { 204: Type.Null() },
+          response: { 200: PushUnsubscribeDtoSchema },
         },
       },
-      async (request, reply) => {
+      async (request) => {
         const actor: NotificationsActor = requireMemberActor(request)
-        await unsubscribe(opts.deps, actor, request.body.endpoint)
-        return reply.code(204).send(null)
+        const releaseBrowserSubscription = await unsubscribe(
+          opts.deps,
+          actor,
+          request.body.endpoint,
+        )
+        return { releaseBrowserSubscription }
       },
     )
   })

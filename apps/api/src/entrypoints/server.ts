@@ -10,6 +10,7 @@ import { createDb } from '../platform/db/index.ts'
 import type { QueueSetup } from '../platform/jobs/index.ts'
 import { startSendingJobQueue } from '../platform/jobs/pgboss.ts'
 import { createLogger } from '../platform/logging.ts'
+import { generateVapidKeys } from '../platform/push/webpush.ts'
 import { storageFromConfig } from '../platform/storage/s3.ts'
 
 /** Every queue the api's own use cases send to, across the sending
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
   // first start and persisted, so the public key a device signs up against
   // is the one this installation keeps answering with — the worker reads
   // the same row to sign what it sends.
-  await ensureVapidKeys({ db, clock: systemClock })
+  await ensureVapidKeys({ db, clock: systemClock, generateKeys: generateVapidKeys })
 
   const app = buildApp({
     db,
@@ -67,6 +68,7 @@ async function main(): Promise<void> {
     logger,
     jobs,
     mediaMaxUploadBytes: config.mediaMaxUploadBytes,
+    generateVapidKeys,
     webDist: config.webDist,
   })
   await app.listen({ port: config.port, host: '0.0.0.0' })

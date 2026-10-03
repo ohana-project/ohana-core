@@ -15,7 +15,8 @@ const ME = '**/api/v1/me'
 const REDEEM = '**/api/v1/access-codes/redeem'
 const SYNC = '**/api/v1/sync*'
 const PUBLIC_KEY = '**/api/v1/notifications/push/public-key'
-const SUBSCRIPTION = '**/api/v1/notifications/push/subscription'
+// The trailing * spans the GET's ?endpoint=… query.
+const SUBSCRIPTION = '**/api/v1/notifications/push/subscription*'
 const EVENTS = '**/api/v1/calendar/events'
 
 const ANYA_ID = '01900000-0000-7000-8000-000000000001'
@@ -168,23 +169,39 @@ async function mockNotificationsApi(page: Page): Promise<PushMock> {
     )
   })
 
+  // The member's own row for the device, as the GET reads it; the server
+  // is the truth the switches follow (one browser, possibly two members).
+  let storedNotifyDetails: boolean | undefined
+
   await page.route(SUBSCRIPTION, (route) => {
     if (route.request().headers()['x-ohana-member'] !== ANYA_ID) {
       return route.fulfill(json(401, {}))
     }
+    if (route.request().method() === 'GET') {
+      return storedNotifyDetails === undefined
+        ? route.fulfill(
+            json(404, {
+              error: { code: 'push_subscription_not_found', message: 'No subscription' },
+            }),
+          )
+        : route.fulfill(json(200, { notifyDetails: storedNotifyDetails }))
+    }
     if (route.request().method() === 'PUT') {
       const body = route.request().postDataJSON() as Record<string, unknown>
       mock.subscriptions.push(body)
+      storedNotifyDetails = body.notifyDetails === true
       return route.fulfill(json(204, undefined))
     }
     if (route.request().method() === 'PATCH') {
       const body = route.request().postDataJSON() as Record<string, unknown>
       mock.patchBodies.push(body)
+      storedNotifyDetails = body.notifyDetails === true
       return route.fulfill(json(204, undefined))
     }
     const body = route.request().postDataJSON() as { endpoint?: string }
     if (body.endpoint !== undefined) mock.deletedEndpoints.push(body.endpoint)
-    return route.fulfill(json(204, undefined))
+    storedNotifyDetails = undefined
+    return route.fulfill(json(200, { releaseBrowserSubscription: true }))
   })
 
   return mock
@@ -214,7 +231,10 @@ test('a member enables reminders on this device and flips the details opt-in', a
   const mock = await mockNotificationsApi(page)
 
   await signIn(page)
-  await page.goto('/notifications')
+  // The way the member reaches the screen: the user menu's entry.
+  await page.getByRole('button', { name: 'Меню пользователя' }).click()
+  await page.getByRole('menuitem', { name: 'Уведомления' }).click()
+  await expect(page).toHaveURL(/\/notifications$/)
 
   // The device starts unsubscribed; the enable action is the user gesture
   // the browser asks for.
@@ -305,7 +325,7 @@ test('the editor sends the reminder the member picked with its recipients', asyn
   await page.getByRole('link', { name: 'Событие' }).click()
   await page.getByLabel('Название').fill('Обед у бабушки')
 
-  // The reminder starts off; the lead defaults to half an hour.
+  // The reminder starts off; the lead defaults to the prototype's two hours.
   const reminderSwitch = page.getByRole('switch', { name: 'Напоминание' })
   await reminderSwitch.click()
   // The prototype's default: two hours.

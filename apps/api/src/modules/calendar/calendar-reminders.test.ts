@@ -360,6 +360,11 @@ describe('reminder config on the event (HTTP)', () => {
         headers: memberHeaders(anya),
       })
       expect(overridden.statusCode).toBe(200)
+      // The series' reminder rides the occurrence's answer too.
+      expect((overridden.json() as EventDto).reminder).toEqual({
+        leadMinutes: 30,
+        recipients: { everyone: true },
+      })
       const afterOverride = reminderJobs()
       expect(afterOverride.map((job) => job.data.originalDate)).toContain('2026-01-12')
       const movedJob = afterOverride.find((job) => job.data.originalDate === '2026-01-12')
@@ -398,6 +403,27 @@ describe('reminder config on the event (HTTP)', () => {
     })
   })
 
+  test('an occurrence that has already begun schedules no reminder', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const anya = await memberSession(app, adminCookie, space.id, 'Аня', 'owner')
+      resetJobLog()
+      // The harness clock stands at 2026-01-01; the event started hours
+      // ago. A back-filled past event is nobody's reminder.
+      const { status } = await createEvent(app, anya, {
+        title: 'Вчерашний обед',
+        allDay: false,
+        date: '2025-12-31',
+        startTime: '18:00',
+        endTime: '19:00',
+        reminder: { leadMinutes: 30, recipients: { everyone: true } },
+      })
+      expect(status).toBe(201)
+      expect(reminderJobs()).toHaveLength(0)
+    })
+  })
+
   test('a recurring series schedules its horizon of occurrence jobs', async () => {
     const space = await harness.createSpace()
     await withApp(async (app) => {
@@ -432,6 +458,12 @@ describe('reminder config on the event (HTTP)', () => {
 
 const push = recordingPushSender()
 
+/** The harness carries the app deps; the notifications service reads its
+ *  own port's name for the key generator. */
+function notificationsDeps() {
+  return { ...harness, generateKeys: harness.generateVapidKeys }
+}
+
 function reminderDeps(clock: FixedClock): CalendarReminderJobsDeps {
   return { db: harness.db, clock, jobs: harness.jobs, push, logger: createSilentLogger() }
 }
@@ -449,7 +481,7 @@ async function giveSubscription(
 ): Promise<void> {
   if (language !== undefined) await setLanguage(member.id, language)
   await subscribe(
-    harness,
+    notificationsDeps(),
     { memberId: member.id, spaceId: member.spaceId },
     {
       endpoint,
@@ -519,21 +551,56 @@ describe('sendDueCalendarReminder', () => {
     const byEndpoint = new Map(push.sends.map((send) => [send.credentials.endpoint, send.payload]))
     // The opted-in Russian device reads the event and its moment in the
     // event's zone.
+    const expectedTag = `reminder:${event.id}:2026-01-10`
+    const expectedUrl = `/calendar/${event.id}`
+    // The opted-in Russian device reads the event and its moment in the
+    // event's zone, the zone named (ADR-0006).
     expect(byEndpoint.get('https://push.example/anya-phone')).toEqual({
       title: 'Обед с бабушкой',
-      body: 'Начало — 10 января в 18:00',
+      body: 'Начало — 10 января в 18:00 UTC',
+      tag: expectedTag,
+      url: expectedUrl,
     })
     // The opted-out device gets the neutral wording, in its member's
-    // language, and no trace of the event.
+    // language, and no trace of the event — but the same tag and tap.
     expect(byEndpoint.get('https://push.example/anya-pad')).toEqual({
       title: 'Напоминание о событии',
       body: 'Скоро событие в вашем календаре',
+      tag: expectedTag,
+      url: expectedUrl,
     })
     // The English device reads its own language.
     expect(byEndpoint.get('https://push.example/boris-phone')).toEqual({
       title: 'Обед с бабушкой',
-      body: 'Starts January 10 at 06:00 PM',
+      body: 'Starts January 10 at 06:00 PM UTC',
+      tag: expectedTag,
+      url: expectedUrl,
     })
+  })
+
+  test('a reminder already sent stays quiet when a duplicate job fires hours later', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    const data = { spaceId: space.id, eventId: event.id, originalDate: '2026-01-10' }
+    const clock = fixedClock(new Date('2026-01-10T17:32:00.000Z'))
+    push.sends.length = 0
+    await runHandler(clock, data)
+    expect(push.sends).toHaveLength(1)
+
+    // The duplicate the design creates on purpose — an edit's reschedule,
+    // the sweep's extension — fires long after: the receipt answers it.
+    clock.advance(2 * 60 * 60 * 1000)
+    await runHandler(clock, data)
+    expect(push.sends).toHaveLength(1)
   })
 
   test('a not-yet-due reminder sends nothing', async () => {
@@ -673,7 +740,9 @@ describe('sendDueCalendarReminder', () => {
     expect(push.sends).toHaveLength(1)
     expect(push.sends[0]?.payload).toEqual({
       title: 'Йога у озера',
-      body: 'Начало — 20 января в 10:00',
+      body: 'Начало — 20 января в 10:00 UTC',
+      tag: `reminder:${event.id}:2026-01-19`,
+      url: `/calendar/${event.id}`,
     })
   })
 
@@ -698,6 +767,8 @@ describe('sendDueCalendarReminder', () => {
     expect(push.sends[0]?.payload).toEqual({
       title: 'День рождения бабушки',
       body: 'Начало — 1 марта',
+      tag: `reminder:${event.id}:2026-03-01`,
+      url: `/calendar/${event.id}`,
     })
   })
 
@@ -821,10 +892,12 @@ describe('extendReminderHorizons', () => {
     await extendReminderHorizons(deps)
     await extendReminderHorizons(deps)
 
-    const jobs = reminderJobs()
-    // The horizon reaches the same 62 days on both runs; the originals and
-    // the extension overlap by design — the claim keeps one send.
-    expect(jobs.length).toBeGreaterThanOrEqual(REMINDER_HORIZON_DAYS)
+    // The sweep walks every space that holds a reminder; this space's
+    // share adds only what newly entered the horizon — the fresh two days
+    // at its far edge, not the whole span again.
+    const jobs = reminderJobs().filter((job) => job.data.spaceId === space.id)
+    expect(jobs.length).toBeGreaterThanOrEqual(1)
+    expect(jobs.length).toBeLessThanOrEqual(4)
     const farthest = jobs.reduce(
       (latest, job) => (job.startAfter && job.startAfter > latest ? job.startAfter : latest),
       new Date(0),

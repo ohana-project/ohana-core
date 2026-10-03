@@ -41,6 +41,8 @@ export const ALL_DAY_REMINDER_WALL_TIME = '09:00'
  *  outside the window can still have its reminder land inside it. */
 const LEAD_LOOKBACK_MS = 31 * 24 * 60 * 60 * 1000
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 /**
  * The instant the reminder for the occurrence named by `originalDate` is
  * due, computed from the event's *current* state: an override replaces the
@@ -105,22 +107,38 @@ function morningInstant(dateKey: string, timezone: string): Date {
  * the replacement stands — their anchors ride along no matter where the
  * series' own walk lands them.
  */
+export interface ReminderJob {
+  originalDate: string
+  /** The occurrence's start; one that has passed is nobody's reminder. */
+  start: Date
+  sendAt: Date
+}
+
+/**
+ * The reminder jobs an event's current state schedules at `now`: the
+ * occurrences whose reminder falls in `[now − stale limit, now + horizon]`
+ * and that have not started yet — a back-filled past event, an all-day
+ * morning the worker slept through, is nobody's reminder. Each job carries
+ * the moment it should first run.
+ */
 export function reminderJobsBetween(
   event: CalendarEvent,
   exceptions: readonly CalendarEventException[],
   reminder: CalendarEventReminder,
   spaceTimezone: string,
-  from: Date,
-  to: Date,
-): Array<{ originalDate: string; sendAt: Date }> {
-  const jobs: Array<{ originalDate: string; sendAt: Date }> = []
+  now: Date,
+): ReminderJob[] {
+  const jobs: ReminderJob[] = []
+  const from = new Date(now.getTime() - REMINDER_STALE_LIMIT_MS)
+  const to = new Date(now.getTime() + REMINDER_HORIZON_DAYS * DAY_MS)
   const byDate = new Map(exceptions.map((exception) => [exception.originalDate, exception]))
   for (const originalDate of candidateDates(event, exceptions, from, to)) {
     const start = reminderInstantFor(event, byDate.get(originalDate), originalDate, spaceTimezone)
     if (start === undefined) continue
+    if (start.getTime() <= now.getTime()) continue
     const sendAt = new Date(start.getTime() - reminder.leadMinutes * 60_000)
     if (sendAt.getTime() < from.getTime() || sendAt.getTime() > to.getTime()) continue
-    jobs.push({ originalDate, sendAt })
+    jobs.push({ originalDate, start, sendAt })
   }
   return jobs
 }

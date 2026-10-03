@@ -20,6 +20,8 @@ vi.mock('web-push', () => ({
 const { createWebPushSender, generateVapidKeys } = await import('./webpush.ts')
 const { createSilentLogger } = await import('../logging.ts')
 
+const SUBJECT = 'mailto:push@example.com'
+
 const CREDENTIALS = {
   endpoint: 'https://push.example/endpoint/1',
   p256dh: 'p256dh-key',
@@ -36,6 +38,7 @@ describe('web push sender', () => {
     const sender = createWebPushSender(
       { publicKey: 'public-key', privateKey: 'private-key' },
       createSilentLogger(),
+      SUBJECT,
     )
     sendNotification.mockResolvedValueOnce(undefined)
     const result = await sender.send(CREDENTIALS, { title: 'Пора', body: 'Через 15 минут' })
@@ -58,6 +61,7 @@ describe('web push sender', () => {
     const sender = createWebPushSender(
       { publicKey: 'public-key', privateKey: 'private-key' },
       createSilentLogger(),
+      SUBJECT,
     )
     sendNotification.mockRejectedValueOnce(Object.assign(new Error('gone'), { statusCode: 404 }))
     sendNotification.mockRejectedValueOnce(Object.assign(new Error('gone'), { statusCode: 410 }))
@@ -69,6 +73,7 @@ describe('web push sender', () => {
     const sender = createWebPushSender(
       { publicKey: 'public-key', privateKey: 'private-key' },
       createSilentLogger(),
+      SUBJECT,
     )
     sendNotification.mockRejectedValueOnce(Object.assign(new Error('busy'), { statusCode: 429 }))
     sendNotification.mockRejectedValueOnce(new Error('socket hung up'))
@@ -82,6 +87,7 @@ describe('web push sender', () => {
     const sender = createWebPushSender(
       { publicKey: 'public-key', privateKey: 'private-key' },
       logger,
+      SUBJECT,
     )
     sendNotification.mockRejectedValueOnce(Object.assign(new Error('busy'), { statusCode: 429 }))
     await sender.send(CREDENTIALS, { title: 't', body: 'b' })

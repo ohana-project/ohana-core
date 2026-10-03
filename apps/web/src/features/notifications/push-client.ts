@@ -30,27 +30,6 @@ export interface PushSubscriptionLike {
   unsubscribe(): Promise<boolean>
 }
 
-/** Where the device's own opt-in to details is kept between visits: the
- *  server sends by it; the switch seeds from it. */
-const DETAILS_STORAGE_PREFIX = 'ohana.push.notifyDetails.'
-
-export function readStoredDetails(endpoint: string): boolean {
-  try {
-    return window.localStorage.getItem(DETAILS_STORAGE_PREFIX + endpoint) === '1'
-  } catch {
-    return false
-  }
-}
-
-export function storeDetails(endpoint: string, notifyDetails: boolean): void {
-  try {
-    window.localStorage.setItem(DETAILS_STORAGE_PREFIX + endpoint, notifyDetails ? '1' : '0')
-  } catch {
-    // A storage-less browser keeps the switch in memory only; the server's
-    // value is what reminders answer to either way.
-  }
-}
-
 /** The VAPID public key arrives base64url; the browser wants the bytes. */
 export function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)

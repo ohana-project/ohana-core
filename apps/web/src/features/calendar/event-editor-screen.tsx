@@ -138,7 +138,7 @@ export function EventEditorScreen({
   const occurrenceMode = occurrenceDate !== undefined
 
   // The reminder's effective fields: the member's edits, the stored
-  // reminder where nothing was touched, the sensible start (half an hour,
+  // reminder where nothing was touched, the prototype's start (two hours,
   // the whole space) for one being added now.
   const storedReminder = source?.reminder
   const reminderVisible = !occurrenceMode
@@ -533,9 +533,20 @@ export function EventEditorScreen({
                           value={String(effectiveReminderLead)}
                           onChange={(event) => setReminderLead(Number(event.target.value))}
                         >
-                          {REMINDER_LEAD_CHOICES.map((choice) => (
+                          {(REMINDER_LEAD_CHOICES.some(
+                            (choice) => choice.minutes === effectiveReminderLead,
+                          )
+                            ? REMINDER_LEAD_CHOICES
+                            : [
+                                {
+                                  minutes: effectiveReminderLead,
+                                  labelKey: 'calendar.reminderLeadCustom',
+                                },
+                                ...REMINDER_LEAD_CHOICES,
+                              ]
+                          ).map((choice) => (
                             <option key={choice.minutes} value={String(choice.minutes)}>
-                              {t(choice.labelKey)}
+                              {t(choice.labelKey, { minutes: choice.minutes })}
                             </option>
                           ))}
                         </Select>

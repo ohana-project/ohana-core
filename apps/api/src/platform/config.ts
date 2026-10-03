@@ -36,6 +36,13 @@ const ConfigSchema = Type.Object({
   // original is kept byte-for-byte (ADR-0008), so the limit bounds what one
   // phone photo costs in storage and memory.
   mediaMaxUploadBytes: Type.Integer({ default: 26_214_400, minimum: 1024, maximum: 262_144_000 }),
+  // The contact address the Web Push identity carries (issue #22): the
+  // push services use it to reach the operator about abuse. A real one
+  // keeps an installation deliverable; the default is a placeholder.
+  pushVapidSubject: Type.String({
+    default: 'mailto:ohana@example.com',
+    minLength: 1,
+  }),
   webDist: Type.Optional(Type.String({ minLength: 1 })),
   // The initial instance-administrator password (ADR-0005): used once to
   // provision the first administrator on first start. An administrator that
@@ -69,6 +76,7 @@ const configEnvironmentNames: Readonly<Record<string, string>> = {
   storageSecretKey: 'STORAGE_SECRET_KEY',
   storageBucket: 'STORAGE_BUCKET',
   mediaMaxUploadBytes: 'MEDIA_MAX_UPLOAD_BYTES',
+  pushVapidSubject: 'PUSH_VAPID_SUBJECT',
   webDist: 'WEB_DIST',
   adminInitialPassword: 'ADMIN_INITIAL_PASSWORD',
 }

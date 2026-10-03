@@ -37,6 +37,7 @@ import { healthRoutes } from '../platform/http/health.ts'
 import { createSpaFallback, registerStaticFiles } from '../platform/http/staticFiles.ts'
 import type { JobSender } from '../platform/jobs/index.ts'
 import type { Logger } from '../platform/logging.ts'
+import type { VapidKeys } from '../platform/push/index.ts'
 import type { ObjectStorage } from '../platform/storage/index.ts'
 import { registerErrorHandler } from './errorHandler.ts'
 
@@ -52,6 +53,12 @@ export interface AppDeps {
    * the service's streaming counter are one configuration value.
    */
   mediaMaxUploadBytes: number
+  /**
+   * The Web Push identity's generator (issue #22): the notifications
+   * service persists a pair on first start; the composition root supplies
+   * the platform's implementation.
+   */
+  generateVapidKeys: () => VapidKeys
   webDist?: string
 }
 
@@ -141,7 +148,7 @@ export function buildApp(deps: AppDeps) {
   // the routes carry the member session guard alone.
   app.register(notificationsRoutes, {
     prefix: '/api/v1',
-    deps: { db: deps.db, clock: deps.clock },
+    deps: { db: deps.db, clock: deps.clock, generateKeys: deps.generateVapidKeys },
     access: accessDeps,
   })
   // The calendar is a section module (ADR-0011) like the journal and the

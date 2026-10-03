@@ -893,7 +893,8 @@
     "reminderRecipients": "Получатели",
     "reminderLeadWeek": "За неделю",
     "reminderRecipientsHint": "Напоминание придёт только выбранным людям",
-    "reminderRecipientsRequired": "Выберите хотя бы одного получателя"
+    "reminderRecipientsRequired": "Выберите хотя бы одного получателя",
+    "reminderLeadCustom": "За {minutes} мин"
   },
   "notifications": {
     "menuItem": "Уведомления",

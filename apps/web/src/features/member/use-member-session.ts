@@ -12,6 +12,7 @@ import {
   setActiveMemberId,
 } from '@/data/session-registry.ts'
 import { forgetSync } from '@/data/sync-engine.ts'
+import { releasePushSubscription } from '@/features/notifications/use-push-subscription.ts'
 import { forgetFetchedImages, JOURNAL_PHOTO_CACHE } from '@/lib/photo-cache.ts'
 
 /*
@@ -228,6 +229,16 @@ export function useMemberSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (memberId: string): Promise<string> => {
+      // The device's reminder row goes with the sign-out (issue #22): a
+      // handed-over phone must not keep receiving this member's
+      // notifications. Best effort either way — a release that fails
+      // costs the expired-endpoint removal, never the sign-out.
+      try {
+        await releasePushSubscription(memberId)
+      } catch {
+        // The row outlives the session; the push service's own expiry
+        // removes it eventually.
+      }
       const response = await api.DELETE('/api/v1/me/session', {
         params: { header: { 'x-ohana-member': memberId } },
       })

@@ -343,6 +343,9 @@ describe('PATCH /api/v1/notifications/push/subscription', () => {
 describe('DELETE /api/v1/notifications/push/subscription', () => {
   test('removes the device and is quiet about an already-gone one', async () => {
     const space = await harness.createSpace()
+    // A fresh endpoint: the release answer counts the installation's rows,
+    // and other tests' subscriptions must not speak for this one.
+    const endpoint = 'https://push.example/endpoint/quiet'
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
       const anya = await memberSession(app, adminCookie, space.id, 'Аня')
@@ -350,7 +353,7 @@ describe('DELETE /api/v1/notifications/push/subscription', () => {
         method: 'PUT',
         url: '/api/v1/notifications/push/subscription',
         payload: {
-          endpoint: PHONE_ENDPOINT,
+          endpoint,
           keys: { p256dh: 'p256dh-phone', auth: 'auth-phone' },
           notifyDetails: false,
         },
@@ -359,18 +362,22 @@ describe('DELETE /api/v1/notifications/push/subscription', () => {
       const first = await app.inject({
         method: 'DELETE',
         url: '/api/v1/notifications/push/subscription',
-        payload: { endpoint: PHONE_ENDPOINT },
+        payload: { endpoint },
         headers: memberHeaders(anya),
       })
-      expect(first.statusCode).toBe(204)
+      expect(first.statusCode).toBe(200)
+      // Nobody holds the browser subscription any more: the page may call
+      // the browser's own unsubscribe.
+      expect(first.json()).toEqual({ releaseBrowserSubscription: true })
       expect(await rowsForMember(anya.memberId)).toHaveLength(0)
       const second = await app.inject({
         method: 'DELETE',
         url: '/api/v1/notifications/push/subscription',
-        payload: { endpoint: PHONE_ENDPOINT },
+        payload: { endpoint },
         headers: memberHeaders(anya),
       })
-      expect(second.statusCode).toBe(204)
+      expect(second.statusCode).toBe(200)
+      expect(second.json()).toEqual({ releaseBrowserSubscription: true })
     })
   })
 
@@ -397,9 +404,102 @@ describe('DELETE /api/v1/notifications/push/subscription', () => {
         payload: { endpoint: PHONE_ENDPOINT },
         headers: memberHeaders(anya),
       })
-      expect(response.statusCode).toBe(204)
+      expect(response.statusCode).toBe(200)
+      // Boris still holds the browser subscription: the page must not
+      // unsubscribe it out from under him.
+      expect(response.json()).toEqual({ releaseBrowserSubscription: false })
       // Quietly refused: Boris's subscription is untouched.
       expect(await rowsForMember(boris.memberId)).toHaveLength(1)
+    })
+  })
+})
+
+describe('GET /api/v1/notifications/push/subscription', () => {
+  test('answers the member’s own row, and a stranger’s endpoint stays invisible', async () => {
+    const ours = await harness.createSpace()
+    const theirs = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const anya = await memberSession(app, adminCookie, ours.id, 'Аня')
+      const boris = await memberSession(app, adminCookie, theirs.id, 'Борис')
+      await app.inject({
+        method: 'PUT',
+        url: '/api/v1/notifications/push/subscription',
+        payload: {
+          endpoint: PHONE_ENDPOINT,
+          keys: { p256dh: 'p256dh-anya', auth: 'auth-anya' },
+          notifyDetails: true,
+        },
+        headers: memberHeaders(anya),
+      })
+
+      const own = await app.inject({
+        method: 'GET',
+        url: `/api/v1/notifications/push/subscription?endpoint=${encodeURIComponent(PHONE_ENDPOINT)}`,
+        headers: memberHeaders(anya),
+      })
+      expect(own.statusCode).toBe(200)
+      expect(own.json()).toEqual({ notifyDetails: true })
+
+      // Boris's browser may hold the same physical subscription; his own
+      // row is absent, and Anya's is not his to read.
+      const stranger = await app.inject({
+        method: 'GET',
+        url: `/api/v1/notifications/push/subscription?endpoint=${encodeURIComponent(PHONE_ENDPOINT)}`,
+        headers: memberHeaders(boris),
+      })
+      expect(stranger.statusCode).toBe(404)
+      expect(stranger.json().error.code).toBe('push_subscription_not_found')
+    })
+  })
+})
+
+describe('endpoint validation', () => {
+  test('a non-https endpoint is refused', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const anya = await memberSession(app, adminCookie, space.id, 'Аня')
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/notifications/push/subscription',
+        payload: {
+          endpoint: 'http://push.example/endpoint',
+          keys: { p256dh: 'p256dh', auth: 'auth' },
+          notifyDetails: false,
+        },
+        headers: memberHeaders(anya),
+      })
+      expect(response.statusCode).toBe(400)
+      expect(response.json().error.code).toBe('validation_failed')
+      expect(await rowsForMember(anya.memberId)).toHaveLength(0)
+    })
+  })
+
+  test('a private address is refused — a reminder must not probe the network', async () => {
+    const space = await harness.createSpace()
+    await withApp(async (app) => {
+      const adminCookie = await signInAdmin(app)
+      const anya = await memberSession(app, adminCookie, space.id, 'Аня')
+      for (const endpoint of [
+        'https://192.168.1.1/fcm/send/1',
+        'https://localhost/fcm/send/1',
+        'https://nas.local:5001/push',
+      ]) {
+        const response = await app.inject({
+          method: 'PUT',
+          url: '/api/v1/notifications/push/subscription',
+          payload: {
+            endpoint,
+            keys: { p256dh: 'p256dh', auth: 'auth' },
+            notifyDetails: false,
+          },
+          headers: memberHeaders(anya),
+        })
+        expect(response.statusCode).toBe(400)
+        expect(response.json().error.code).toBe('invalid_push_endpoint')
+      }
+      expect(await rowsForMember(anya.memberId)).toHaveLength(0)
     })
   })
 })

@@ -2,8 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   type NotificationContainer,
   type PushRegistrar,
-  readStoredDetails,
-  storeDetails,
   subscribeOnDevice,
   urlBase64ToUint8Array,
 } from './push-client.ts'
@@ -136,23 +134,5 @@ describe('subscribeOnDevice', () => {
     const result = await subscribeOnDevice({ notification, registrar, publicKey: PUBLIC_KEY })
     expect(result).toEqual({ kind: 'denied' })
     expect(notification.requested).toBe(0)
-  })
-})
-
-describe('the device opt-in kept between visits', () => {
-  it('stores and reads back per endpoint', () => {
-    storeDetails('https://push.example/1', true)
-    storeDetails('https://push.example/2', false)
-    expect(readStoredDetails('https://push.example/1')).toBe(true)
-    expect(readStoredDetails('https://push.example/2')).toBe(false)
-    expect(readStoredDetails('https://push.example/3')).toBe(false)
-  })
-
-  it('answers false when storage refuses', () => {
-    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('blocked')
-    })
-    expect(readStoredDetails('https://push.example/1')).toBe(false)
-    expect(getItem).toHaveBeenCalled()
   })
 })

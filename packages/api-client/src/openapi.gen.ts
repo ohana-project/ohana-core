@@ -1977,7 +1977,32 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query: {
+                    endpoint: string;
+                };
+                header?: {
+                    "x-ohana-member"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            notifyDetails: boolean;
+                        };
+                    };
+                };
+            };
+        };
         put: {
             parameters: {
                 query?: never;
@@ -2028,11 +2053,15 @@ export interface paths {
             };
             responses: {
                 /** @description Default Response */
-                204: {
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            releaseBrowserSubscription: boolean;
+                        };
+                    };
                 };
             };
         };

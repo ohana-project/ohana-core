@@ -28,9 +28,6 @@ import type {
  */
 const PUSH_TTL_SECONDS = 6 * 60 * 60
 
-/** The VAPID subject identifies the installation to the push services. */
-const VAPID_SUBJECT = 'mailto:ohana@example.com'
-
 /** The VAPID key pair for a fresh installation: 256-bit P-256, the shape
  *  the Web Push protocol names. */
 export function generateVapidKeys(): VapidKeys {
@@ -38,9 +35,14 @@ export function generateVapidKeys(): VapidKeys {
   return { publicKey: keys.publicKey, privateKey: keys.privateKey }
 }
 
-export function createWebPushSender(vapid: VapidKeys, logger: Logger): PushSender {
+/**
+ * The sender bound to the installation's identity. The subject is the
+ * operator's contact the push services reach about abuse — configuration,
+ * not a constant, so a real address keeps an installation deliverable.
+ */
+export function createWebPushSender(vapid: VapidKeys, logger: Logger, subject: string): PushSender {
   const vapidDetails = {
-    subject: VAPID_SUBJECT,
+    subject,
     publicKey: vapid.publicKey,
     privateKey: vapid.privateKey,
   }

@@ -4161,6 +4161,7 @@
                   "endpoint": {
                     "minLength": 1,
                     "maxLength": 2048,
+                    "pattern": "^https://",
                     "type": "string"
                   },
                   "keys": {
@@ -4208,6 +4209,51 @@
           }
         }
       },
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^https://",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "endpoint",
+            "required": true
+          },
+          {
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "in": "header",
+            "name": "x-ohana-member",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "notifyDetails"
+                  ],
+                  "properties": {
+                    "notifyDetails": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "requestBody": {
           "required": true,
@@ -4224,6 +4270,7 @@
                   "endpoint": {
                     "minLength": 1,
                     "maxLength": 2048,
+                    "pattern": "^https://",
                     "type": "string"
                   },
                   "notifyDetails": {
@@ -4266,6 +4313,7 @@
                   "endpoint": {
                     "minLength": 1,
                     "maxLength": 2048,
+                    "pattern": "^https://",
                     "type": "string"
                   }
                 }
@@ -4285,8 +4333,24 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Default Response"
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "releaseBrowserSubscription"
+                  ],
+                  "properties": {
+                    "releaseBrowserSubscription": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

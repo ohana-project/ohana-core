@@ -29,6 +29,10 @@ const app = buildApp({
   logger: createSilentLogger(),
   jobs,
   mediaMaxUploadBytes: 26_214_400,
+  // No request runs, so the identity generator is never called.
+  generateVapidKeys: () => {
+    throw new Error('The OpenAPI document needs no VAPID keys')
+  },
 })
 await app.ready()
 const document = `${JSON.stringify(app.swagger(), null, 2)}\n`

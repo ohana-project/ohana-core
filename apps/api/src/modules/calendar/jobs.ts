@@ -1,5 +1,5 @@
 import { createI18n, type Locale } from '@ohana/i18n'
-import { type Clock, systemClock } from '../../platform/clock.ts'
+import type { Clock } from '../../platform/clock.ts'
 import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import type { JobSender } from '../../platform/jobs/index.ts'
@@ -7,8 +7,8 @@ import type { Logger } from '../../platform/logging.ts'
 import type { PushPayload, PushSender } from '../../platform/push/index.ts'
 import { listMembers, type Member } from '../members/index.ts'
 import {
-  listActiveSubscriptionsInTx,
-  removeExpiredSubscriptionInTx,
+  listSubscriptionsForMember,
+  removeSubscriptionsByEndpointAcrossSpaces,
 } from '../notifications/index.ts'
 import { getSpace, type Space, sectionVisibility } from '../spaces/index.ts'
 import {
@@ -25,6 +25,7 @@ import {
   listExceptionsForEvent,
   listReminderEventsInSpace,
   listSpacesWithReminderEventsAcrossSpaces,
+  markReminderSent,
 } from './repository.ts'
 import type { CalendarEvent, CalendarEventException, CalendarEventReminder } from './tables.ts'
 
@@ -122,6 +123,9 @@ export async function sendDueCalendarReminder(
   const exception = exceptions.find((candidate) => candidate.originalDate === data.originalDate)
   const start = reminderInstantFor(event, exception, data.originalDate, space.timezone)
   if (start === undefined) return
+  // An occurrence that has already begun is nobody's reminder: a
+  // back-filled past event, a morning the worker slept through.
+  if (start.getTime() <= now.getTime()) return
   const remindAt = start.getTime() - stored.reminder.leadMinutes * 60_000
   // Not due yet: the edit that moved the occurrence later has scheduled
   // this occurrence's reminder anew.
@@ -139,11 +143,11 @@ export async function sendDueCalendarReminder(
   })
   if (!claimed) return
 
-  const recipients = await resolveReminderRecipients(deps.db, data.spaceId, stored)
+  const recipients = await resolveReminderRecipients(deps, data.spaceId, stored)
   let delivered = 0
   let failed = 0
   for (const recipient of recipients) {
-    const subscriptions = await listActiveSubscriptionsInTx(deps.db, data.spaceId, recipient.id)
+    const subscriptions = await listSubscriptionsForMember(deps.db, data.spaceId, recipient.id)
     for (const subscription of subscriptions) {
       const payload = reminderPayload({
         locale: interfaceLocale(recipient),
@@ -152,6 +156,8 @@ export async function sendDueCalendarReminder(
         start,
         allDay: occurrenceIsAllDay(event, exception),
         timezone: occurrenceTimezone(event, exception, space.timezone),
+        tag: `reminder:${data.eventId}:${data.originalDate}`,
+        url: `/calendar/${data.eventId}`,
       })
       const result = await deps.push.send(
         { endpoint: subscription.endpoint, p256dh: subscription.p256dh, auth: subscription.auth },
@@ -165,11 +171,17 @@ export async function sendDueCalendarReminder(
         // The push service said the subscription is gone: the row goes too
         // (the acceptance criteria), wherever in the installation it sat.
         await deps.db.transaction(async (tx) => {
-          await removeExpiredSubscriptionInTx(tx, subscription.endpoint)
+          await removeSubscriptionsByEndpointAcrossSpaces(tx, subscription.endpoint)
         })
       }
     }
   }
+  // The receipt: every other job for this occurrence — the duplicates the
+  // design creates on purpose — answers quiet from here on, however late
+  // it fires.
+  await deps.db.transaction(async (tx) => {
+    await markReminderSent(tx, data.spaceId, data.eventId, data.originalDate, deps.clock.now())
+  })
   deps.logger.info(
     {
       spaceId: data.spaceId,
@@ -203,11 +215,11 @@ function spaceForReminder(
  * this read is the one place its exclusion hangs from.)
  */
 async function resolveReminderRecipients(
-  db: Db,
+  deps: CalendarReminderJobsDeps,
   spaceId: string,
   stored: { reminder: CalendarEventReminder; memberIds: string[] },
 ): Promise<Member[]> {
-  const members = await listMembers({ db, clock: systemClock }, spaceId)
+  const members = await listMembers({ db: deps.db, clock: deps.clock }, spaceId)
   if (stored.reminder.everyone) return members
   const named = new Set(stored.memberIds)
   return members.filter((member) => named.has(member.id))
@@ -232,12 +244,18 @@ export function reminderPayload(input: {
   start: Date
   allDay: boolean
   timezone: string
+  /** The device-side deduplication tag: duplicates collapse into one. */
+  tag: string
+  /** Where a tap lands: the event's own screen. */
+  url: string
 }): PushPayload {
   const i18n = createI18n({ locale: input.locale })
   if (!input.details) {
     return {
       title: i18n.t('notifications.push.neutralTitle'),
       body: i18n.t('notifications.push.neutralBody'),
+      tag: input.tag,
+      url: input.url,
     }
   }
   const formatted = input.allDay
@@ -254,10 +272,15 @@ export function reminderPayload(input: {
         month: 'long',
         hour: '2-digit',
         minute: '2-digit',
+        // The zone rides along (ADR-0006): a recipient in another zone
+        // reads the event's own wall time for what it is.
+        timeZoneName: 'short',
       }).format(input.start)
   return {
     title: input.title,
     body: i18n.t('notifications.push.detailsBody', { time: formatted }),
+    tag: input.tag,
+    url: input.url,
   }
 }
 
@@ -291,13 +314,17 @@ function occurrenceTimezone(
 
 /**
  * The horizon extension (the sweep): every space that holds a reminder
- * gets its events' upcoming occurrences scheduled again — duplicate jobs
- * are harmless by design, the claim keeps one send — and the claims that
+ * gets its events' upcoming occurrences scheduled again — the sweep only
+ * adds what newly entered the horizon, the overlap keeps a missed round
+ * covered, and the send-once claim keeps the seam honest. The claims that
  * outlived every job that could ask are pruned. One transaction per
  * space; one space's failure does not stop the others.
  */
 export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Promise<void> {
   const now = deps.clock.now()
+  // Two days of overlap: a missed round is covered, a healthy one adds
+  // only the two new days.
+  const horizonEdge = new Date(now.getTime() + (REMINDER_HORIZON_DAYS - 2) * DAY_MS)
   const spaceIds = await listSpacesWithReminderEventsAcrossSpaces(deps.db)
   const failures: Array<{ spaceId: string; cause: unknown }> = []
   for (const spaceId of spaceIds) {
@@ -306,8 +333,6 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
         const space = await spaceForReminder(deps, spaceId)
         if (space === undefined) return
         const events = await listReminderEventsInSpace(tx, spaceId)
-        const from = new Date(now.getTime() - REMINDER_STALE_LIMIT_MS)
-        const to = new Date(now.getTime() + REMINDER_HORIZON_DAYS * DAY_MS)
         for (const event of events) {
           const stored = await getReminderForEvent(tx, spaceId, event.id)
           if (stored === undefined) continue
@@ -317,9 +342,9 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
             exceptions,
             stored.reminder,
             space.timezone,
-            from,
-            to,
+            now,
           )) {
+            if (job.sendAt.getTime() < horizonEdge.getTime()) continue
             await deps.jobs.sendInTx(tx, {
               name: CALENDAR_REMINDER_JOB,
               data: {
