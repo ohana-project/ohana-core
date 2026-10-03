@@ -26,7 +26,8 @@ import {
   seriesRecurrence,
   seriesStartDate,
 } from './recurrence.ts'
-import { reminderJobsBetween } from './reminders.ts'
+import { REMINDER_HORIZON_DAYS, reminderJobsBetween } from './reminders.ts'
+
 import {
   deleteEvent,
   deleteEventExceptions,
@@ -48,6 +49,8 @@ import {
   upsertEventReminder,
 } from './repository.ts'
 import type { CalendarEvent, CalendarEventException, CalendarEventReminder } from './tables.ts'
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 export interface CalendarDeps {
   db: Db
@@ -537,6 +540,8 @@ async function writeEventReminder(
     memberIds,
     revision,
     now,
+    // The jobs below cover the whole span; the sweep's watermark starts here.
+    scheduledThrough: new Date(now.getTime() + REMINDER_HORIZON_DAYS * DAY_MS),
   })
   await scheduleReminderJobs(writeTx, deps, spaceId, event, exceptions, stored, now, spaceTimezone)
   return { reminder: stored, memberIds }

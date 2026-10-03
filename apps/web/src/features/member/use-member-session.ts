@@ -225,6 +225,10 @@ export function forgetMember(queryClient: QueryClient, memberId: string): void {
  * time the request goes out. A failed request keeps the entry so the
  * member can retry.
  */
+/** How long a sign-out waits for the push release before going on
+ *  without it (issue #22): the row outlives the session either way. */
+const SIGN_OUT_RELEASE_TIMEOUT_MS = 3000
+
 export function useMemberSignOut() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -233,8 +237,13 @@ export function useMemberSignOut() {
       // handed-over phone must not keep receiving this member's
       // notifications. Best effort either way — a release that fails
       // costs the expired-endpoint removal, never the sign-out.
+      // The release is bounded: the row outlives the session, and a
+      // sign-out must never hang on it.
       try {
-        await releasePushSubscription(memberId)
+        await Promise.race([
+          releasePushSubscription(memberId),
+          new Promise((resolve) => setTimeout(resolve, SIGN_OUT_RELEASE_TIMEOUT_MS)),
+        ])
       } catch {
         // The row outlives the session; the push service's own expiry
         // removes it eventually.

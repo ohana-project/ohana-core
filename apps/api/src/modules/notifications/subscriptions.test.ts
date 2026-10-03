@@ -99,8 +99,8 @@ function memberHeaders(session: MemberSession) {
   return { 'x-ohana-member': session.memberId, cookie: session.cookie }
 }
 
-const PHONE_ENDPOINT = 'https://push.example/endpoint/phone'
-const TABLET_ENDPOINT = 'https://push.example/endpoint/tablet'
+const PHONE_ENDPOINT = 'https://fcm.googleapis.com/fcm/send/endpoint/phone'
+const TABLET_ENDPOINT = 'https://fcm.googleapis.com/fcm/send/endpoint/tablet'
 
 async function rowsForMember(memberId: string) {
   return harness.db.select().from(pushSubscriptions).where(eq(pushSubscriptions.memberId, memberId))
@@ -345,7 +345,7 @@ describe('DELETE /api/v1/notifications/push/subscription', () => {
     const space = await harness.createSpace()
     // A fresh endpoint: the release answer counts the installation's rows,
     // and other tests' subscriptions must not speak for this one.
-    const endpoint = 'https://push.example/endpoint/quiet'
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/endpoint/quiet'
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
       const anya = await memberSession(app, adminCookie, space.id, 'Аня')
@@ -476,7 +476,7 @@ describe('endpoint validation', () => {
     })
   })
 
-  test('a private address is refused — a reminder must not probe the network', async () => {
+  test('only the public push services are accepted — a reminder must not probe the network', async () => {
     const space = await harness.createSpace()
     await withApp(async (app) => {
       const adminCookie = await signInAdmin(app)
@@ -484,7 +484,11 @@ describe('endpoint validation', () => {
       for (const endpoint of [
         'https://192.168.1.1/fcm/send/1',
         'https://localhost/fcm/send/1',
+        'https://localhost./fcm/send/1',
         'https://nas.local:5001/push',
+        'https://127.0.0.1.nip.io/fcm/send/1',
+        'https://evil.example/fcm/send/1',
+        'https://fcm.googleapis.com:8443/fcm/send/1',
       ]) {
         const response = await app.inject({
           method: 'PUT',
@@ -500,6 +504,29 @@ describe('endpoint validation', () => {
         expect(response.json().error.code).toBe('invalid_push_endpoint')
       }
       expect(await rowsForMember(anya.memberId)).toHaveLength(0)
+      // The real services pass, a trailing root dot included.
+      for (const endpoint of [
+        'https://fcm.googleapis.com/fcm/send/1',
+        'https://web.push.apple.com/2',
+        'https://updates.push.services.mozilla.com/wpush/v2/3',
+      ]) {
+        const response = await app.inject({
+          method: 'PUT',
+          url: '/api/v1/notifications/push/subscription',
+          payload: {
+            endpoint,
+            keys: { p256dh: 'p256dh', auth: 'auth' },
+            notifyDetails: false,
+          },
+          headers: memberHeaders(anya),
+        })
+        expect(response.statusCode).toBe(204)
+      }
+      expect((await rowsForMember(anya.memberId)).map((row) => row.endpoint)).toEqual([
+        'https://fcm.googleapis.com/fcm/send/1',
+        'https://web.push.apple.com/2',
+        'https://updates.push.services.mozilla.com/wpush/v2/3',
+      ])
     })
   })
 })

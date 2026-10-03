@@ -342,6 +342,8 @@ export interface NewCalendarEventReminder {
   memberIds: readonly string[]
   revision: bigint
   now: Date
+  /** How far the write has just scheduled: the sweep's watermark. */
+  scheduledThrough: Date
 }
 
 /**
@@ -362,6 +364,7 @@ export async function upsertEventReminder(
       eventId,
       leadMinutes: data.leadMinutes,
       everyone: data.everyone,
+      scheduledThrough: data.scheduledThrough,
       revision: data.revision,
       createdAt: data.now,
       updatedAt: data.now,
@@ -371,6 +374,7 @@ export async function upsertEventReminder(
       set: {
         leadMinutes: data.leadMinutes,
         everyone: data.everyone,
+        scheduledThrough: data.scheduledThrough,
         revision: data.revision,
         updatedAt: data.now,
       },
@@ -419,6 +423,21 @@ export async function deleteEventReminder(tx: Tx, spaceId: string, eventId: stri
 export interface EventReminderWithRecipients {
   reminder: CalendarEventReminder
   memberIds: string[]
+}
+
+/** The sweep's watermark moves in the round that filled the gap. */
+export async function advanceReminderWatermark(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+  scheduledThrough: Date,
+): Promise<void> {
+  await tx
+    .update(calendarEventReminders)
+    .set({ scheduledThrough })
+    .where(
+      and(eq(calendarEventReminders.spaceId, spaceId), eq(calendarEventReminders.eventId, eventId)),
+    )
 }
 
 export async function getReminderForEvent(
@@ -529,48 +548,76 @@ export async function listReminderEventsInSpace(
 export const REMINDER_CLAIM_TAKEOVER_MS = 5 * 60 * 1000
 
 /**
- * Claims the occurrence's reminder: true, this run sends; false, a live
- * claim stands — a recent sender's lease, or a finished one. The
- * conditional upsert is the whole protocol — concurrent duplicates of the
- * same job agree on one winner without a lock.
+ * Claims the occurrence's reminder for the start it computed: true, this
+ * run sends; false, a live claim stands — a recent sender's lease, a
+ * finished receipt for the same start, or a newer receipt for a start the
+ * creator has since moved the occurrence to. The conditional upsert is
+ * the whole protocol — concurrent duplicates of the same job agree on one
+ * winner without a lock.
  */
 export async function claimReminder(
   tx: Tx,
   spaceId: string,
   eventId: string,
   originalDate: string,
+  start: Date,
   now: Date,
 ): Promise<boolean> {
   const inserted = await tx
     .insert(calendarRemindersSent)
-    .values({ spaceId, eventId, originalDate, remindedAt: now })
+    .values({ spaceId, eventId, originalDate, startAt: start, remindedAt: now })
     .onConflictDoUpdate({
       target: [
         calendarRemindersSent.spaceId,
         calendarRemindersSent.eventId,
         calendarRemindersSent.originalDate,
       ],
-      set: { remindedAt: now },
-      // Only an unsent claim past the takeover window — a crashed sender's
-      // — is taken over; a sent reminder is never sent again.
-      where: sql`${calendarRemindersSent.sentAt} is null and ${calendarRemindersSent.remindedAt} <= ${new Date(now.getTime() - REMINDER_CLAIM_TAKEOVER_MS)}`,
+      set: { startAt: start, remindedAt: now, sentAt: null },
+      // A receipt answers only for the start it names: the same start is
+      // never reminded twice, an unsent lease past the takeover window is
+      // a crashed sender's and is taken over, and a *different* start —
+      // the occurrence was moved — is a new reminder's to send.
+      where: sql`(${calendarRemindersSent.sentAt} is not null and ${calendarRemindersSent.startAt} is distinct from ${start})
+        or (${calendarRemindersSent.sentAt} is null and ${calendarRemindersSent.remindedAt} <= ${new Date(now.getTime() - REMINDER_CLAIM_TAKEOVER_MS)})`,
     })
     .returning({ id: calendarRemindersSent.id })
   return inserted.length > 0
 }
 
-/** The claim becomes the receipt: every other job for the occurrence —
- *  the duplicates the design creates on purpose — answers quiet. */
+/** The claim becomes the receipt, for the start it sent: every other job
+ *  for this occurrence and start — the duplicates the design creates on
+ *  purpose — answers quiet. */
 export async function markReminderSent(
   tx: Tx,
   spaceId: string,
   eventId: string,
   originalDate: string,
+  start: Date,
   now: Date,
 ): Promise<void> {
   await tx
     .update(calendarRemindersSent)
     .set({ sentAt: now })
+    .where(
+      and(
+        eq(calendarRemindersSent.spaceId, spaceId),
+        eq(calendarRemindersSent.eventId, eventId),
+        eq(calendarRemindersSent.originalDate, originalDate),
+        eq(calendarRemindersSent.startAt, start),
+      ),
+    )
+}
+
+/** A run that could not deliver anywhere lets the occurrence go: the claim
+ *  row goes too, so the queue's retry sends from scratch. */
+export async function releaseReminderClaim(
+  tx: Tx,
+  spaceId: string,
+  eventId: string,
+  originalDate: string,
+): Promise<void> {
+  await tx
+    .delete(calendarRemindersSent)
     .where(
       and(
         eq(calendarRemindersSent.spaceId, spaceId),

@@ -147,28 +147,41 @@ export async function unsubscribe(
 }
 
 /**
- * The endpoint is where the worker's sends go: an https URL on a public
- * push service. A private address would turn every reminder into a
- * request at the installation's own network, so literal IPs and the
- * local names are refused at the door.
+ * The push services a browser's subscription can name: the allowlist is
+ * the SSRF answer, not a blocklist — a blocklist fights the whole space
+ * of odd hostnames (trailing dots, DNS names that resolve inward). The
+ * worker POSTs every reminder to whatever endpoint a row carries, so
+ * only these hosts, on their default port, are accepted.
+ */
+const PUSH_SERVICE_HOSTS = [
+  'fcm.googleapis.com', // Chrome / Android (Firebase Cloud Messaging).
+  'updates.push.services.mozilla.com', // Firefox.
+  'web.push.apple.com', // Safari, including Home Screen web apps on iOS.
+  'push.services.mozilla.com', // Firefox's legacy host.
+  'aws.notify.windows.com', // Edge / Windows.
+] as const
+
+/**
+ * The endpoint is where the worker's sends go: an https URL on one of the
+ * public push services. Anything else is refused at the door.
  */
 function assertRoutableEndpoint(endpoint: string): void {
-  let host: string
+  let url: URL
   try {
-    host = new URL(endpoint).hostname
+    url = new URL(endpoint)
   } catch {
     throw new DomainError('invalid_push_endpoint', `“${endpoint}” is not a URL`, 400)
   }
-  const local =
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.local') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.home.arpa') ||
-    host.includes(':') ||
-    // An IPv4 literal: four dot-separated numbers.
-    /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
-  if (local) {
+  if (url.protocol !== 'https:' || (url.port !== '' && url.port !== '443')) {
+    throw new DomainError(
+      'invalid_push_endpoint',
+      `“${endpoint}” is not an https endpoint on a public push service`,
+      400,
+    )
+  }
+  // A trailing dot is the root's own spelling of the same host.
+  const host = url.hostname.replace(/\.$/, '')
+  if (!(PUSH_SERVICE_HOSTS as readonly string[]).includes(host)) {
     throw new DomainError(
       'invalid_push_endpoint',
       `“${endpoint}” does not name a public push service`,

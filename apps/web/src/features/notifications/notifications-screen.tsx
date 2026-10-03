@@ -69,7 +69,8 @@ export function NotificationsScreen() {
   const notification = notificationContainer()
 
   const browser = useBrowserSubscription(registrar)
-  const mine = useMySubscription(browser.subscription, browser.refresh)
+  const memberId = getActiveMemberId()
+  const mine = useMySubscription(memberId, browser.subscription, browser.refresh)
   const enable = useEnablePush(notification ?? rejectedNotification, registrar ?? emptyRegistrar)
   const disable = useDisablePush()
   const setDetails = useSetNotifyDetails()
@@ -83,9 +84,11 @@ export function NotificationsScreen() {
   const busy = enable.isPending || disable.isPending || setDetails.isPending || mine.isFetching
 
   const toggleSubscription = (next: boolean) => {
+    console.log('TOGGLE-DBG', next, memberId)
     if (next) {
+      if (memberId === undefined) return
       enable.mutate(
-        { notifyDetails },
+        { memberId, notifyDetails },
         {
           onSuccess: () => {
             toast(t('notifications.settings.enabledToast'))
@@ -104,7 +107,6 @@ export function NotificationsScreen() {
       return
     }
     const browserSubscription = browser.subscription
-    const memberId = getActiveMemberId()
     if (browserSubscription === null || memberId === undefined) return
     disable.mutate(
       { memberId, subscription: browserSubscription },
@@ -120,9 +122,9 @@ export function NotificationsScreen() {
 
   const toggleDetails = (next: boolean) => {
     const endpoint = browser.subscription?.endpoint
-    if (endpoint === undefined) return
+    if (endpoint === undefined || memberId === undefined) return
     setDetails.mutate(
-      { endpoint, notifyDetails: next },
+      { memberId, endpoint, notifyDetails: next },
       {
         onSuccess: () => {
           toast(t('notifications.settings.detailsSavedToast'))

@@ -20,6 +20,14 @@ async function main(): Promise<void> {
   // first start and persisted, so every subscription the browsers minted
   // against the public key keeps answering this sender's signature.
   const vapid = await ensureVapidKeys({ db, clock: systemClock, generateKeys: generateVapidKeys })
+  if (config.pushVapidSubject === 'mailto:ohana@example.com') {
+    // Deliverable, not deliverable-to: the placeholder survives, the push
+    // services have nobody to reach about abuse. The deployment answers
+    // with PUSH_VAPID_SUBJECT.
+    logger.warn(
+      'PUSH_VAPID_SUBJECT is still the placeholder; set a real mailto: or https:// contact in the deployment configuration.',
+    )
+  }
   const push = createWebPushSender(vapid, logger, config.pushVapidSubject)
   const boss = await startJobQueue(config.databaseUrl, logger)
   const worker = buildWorker({ db, clock: systemClock, logger, storage, push, boss })

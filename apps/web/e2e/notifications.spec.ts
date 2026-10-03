@@ -12,8 +12,21 @@ import { expect, type Page, test } from '@playwright/test'
  */
 
 const ME = '**/api/v1/me'
+
+/** The fake browser's call counters, read by the tests through the page. */
+interface PushDebug {
+  subscribeCalls: number
+  unsubscribeCalls: number
+}
+
+declare global {
+  interface Window {
+    __push?: PushDebug
+  }
+}
 const REDEEM = '**/api/v1/access-codes/redeem'
 const SYNC = '**/api/v1/sync*'
+const ME_SESSION = '**/api/v1/me/session*'
 const PUBLIC_KEY = '**/api/v1/notifications/push/public-key'
 // The trailing * spans the GET's ?endpoint=… query.
 const SUBSCRIPTION = '**/api/v1/notifications/push/subscription*'
@@ -94,11 +107,17 @@ async function fakePushBrowser(page: Page) {
         endpoint: subscription.endpoint,
         keys: { p256dh: 'p256dh-e2e', auth: 'auth-e2e' },
       }),
-      unsubscribe: async () => true,
+      unsubscribe: async () => {
+        if (window.__push) window.__push.unsubscribeCalls++
+        subscription.registered = false
+        return true
+      },
       registered: false,
     }
+    window.__push = { subscribeCalls: 0, unsubscribeCalls: 0 }
     const pushManager = {
       subscribe: async (options: unknown) => {
+        if (window.__push) window.__push.subscribeCalls++
         subscription.registered = true
         void options
         return subscription
@@ -107,7 +126,10 @@ async function fakePushBrowser(page: Page) {
     }
     Object.defineProperty(Navigator.prototype, 'serviceWorker', {
       configurable: true,
-      value: { ready: Promise.resolve({ pushManager }) },
+      value: {
+        ready: Promise.resolve({ pushManager }),
+        getRegistration: async () => ({ pushManager }),
+      },
     })
   })
 }
@@ -116,6 +138,8 @@ interface PushMock {
   subscriptions: Array<Record<string, unknown>>
   patchBodies: Array<Record<string, unknown>>
   deletedEndpoints: string[]
+  /** What DELETE answers about the browser's shared subscription. */
+  releaseBrowserSubscription: boolean
 }
 
 /**
@@ -124,7 +148,15 @@ interface PushMock {
  */
 async function mockNotificationsApi(page: Page): Promise<PushMock> {
   await page.clock.setFixedTime(new Date('2026-10-01T09:00:00.000Z'))
-  const mock: PushMock = { subscriptions: [], patchBodies: [], deletedEndpoints: [] }
+  const mock: PushMock = {
+    subscriptions: [],
+    patchBodies: [],
+    deletedEndpoints: [],
+    releaseBrowserSubscription: true,
+  }
+  // The member's own row for the device, as the GET reads it; the server
+  // is the truth the switches follow (one browser, possibly two members).
+  let storedNotifyDetails: boolean | undefined
   const revision = 7
 
   await page.route(REDEEM, (route) =>
@@ -157,6 +189,10 @@ async function mockNotificationsApi(page: Page): Promise<PushMock> {
     )
   })
 
+  await page.route(ME_SESSION, (route) =>
+    route.fulfill({ status: 204, contentType: 'application/json', body: '' }),
+  )
+
   await page.route(PUBLIC_KEY, (route) => {
     if (route.request().headers()['x-ohana-member'] !== ANYA_ID) {
       return route.fulfill(json(401, {}))
@@ -168,10 +204,6 @@ async function mockNotificationsApi(page: Page): Promise<PushMock> {
       }),
     )
   })
-
-  // The member's own row for the device, as the GET reads it; the server
-  // is the truth the switches follow (one browser, possibly two members).
-  let storedNotifyDetails: boolean | undefined
 
   await page.route(SUBSCRIPTION, (route) => {
     if (route.request().headers()['x-ohana-member'] !== ANYA_ID) {
@@ -201,7 +233,7 @@ async function mockNotificationsApi(page: Page): Promise<PushMock> {
     const body = route.request().postDataJSON() as { endpoint?: string }
     if (body.endpoint !== undefined) mock.deletedEndpoints.push(body.endpoint)
     storedNotifyDetails = undefined
-    return route.fulfill(json(200, { releaseBrowserSubscription: true }))
+    return route.fulfill(json(200, { releaseBrowserSubscription: mock.releaseBrowserSubscription }))
   })
 
   return mock
@@ -255,6 +287,95 @@ test('a member enables reminders on this device and flips the details opt-in', a
   await page.getByRole('switch', { name: 'Показывать подробности события' }).click()
   await expect(mock.patchBodies).toEqual([{ endpoint: ENDPOINT, notifyDetails: true }])
   await expect(page.getByText('Сохранено')).toBeVisible()
+})
+
+test('a browser subscription still held elsewhere is not unsubscribed', async ({ page }) => {
+  await fakePushBrowser(page)
+  const mock = await mockNotificationsApi(page)
+  mock.releaseBrowserSubscription = false
+
+  await signIn(page)
+  await page.goto('/notifications')
+  await page.getByRole('button', { name: 'Включить' }).click()
+  await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
+
+  // The device goes for this member; the physical subscription stays —
+  // another member of this browser still holds it.
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
+  await expect(page.getByText('Напоминания отключены на этом устройстве')).toBeVisible()
+  expect(mock.deletedEndpoints).toEqual([ENDPOINT])
+  expect(await page.evaluate(() => window.__push?.unsubscribeCalls)).toBe(0)
+  // The member's own row is gone: the switches read off again.
+  await expect(page.getByRole('button', { name: 'Включить' })).toBeVisible()
+})
+
+test('enabling twice subscribes the browser once', async ({ page }) => {
+  await fakePushBrowser(page)
+  const mock = await mockNotificationsApi(page)
+
+  await signIn(page)
+  await page.goto('/notifications')
+  await page.getByRole('button', { name: 'Включить' }).click()
+  await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
+
+  // Off, then on again: the browser's physical subscription already
+  // exists, so no second subscribe call is made.
+  mock.releaseBrowserSubscription = false
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
+  await expect(page.getByText('Напоминания отключены на этом устройстве')).toBeVisible()
+  await page.getByRole('button', { name: 'Включить' }).click()
+  // The switch follows the member's row, not the first toast still on
+  // screen: checked again means the second registration has settled.
+  await expect(
+    page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }),
+  ).toBeChecked()
+  expect(await page.evaluate(() => window.__push?.subscribeCalls)).toBe(1)
+  // The second PUT carries the same endpoint: the browser's subscription,
+  // reused, registered once.
+  expect(mock.subscriptions.map((row) => row.endpoint)).toEqual([ENDPOINT, ENDPOINT])
+})
+
+test('signing out releases the device, and a failed release still signs out', async ({ page }) => {
+  await fakePushBrowser(page)
+  const mock = await mockNotificationsApi(page)
+  const requestOrder: string[] = []
+  await page.on('request', (request) => {
+    const url = request.url()
+    // The GETs are the screen's reads; the order that matters is the
+    // release before the session's delete.
+    if (url.includes('/notifications/push/subscription') && request.method() !== 'GET') {
+      requestOrder.push(`subscription:${request.method()}`)
+    }
+    if (url.includes('/me/session')) requestOrder.push('session:DELETE')
+  })
+
+  await signIn(page)
+  await page.goto('/notifications')
+  await page.getByRole('button', { name: 'Включить' }).click()
+  await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
+  requestOrder.length = 0
+
+  // The user menu's sign-out releases this member's row on the way out.
+  await page.getByRole('button', { name: 'Меню пользователя' }).click()
+  await page.getByRole('menuitem', { name: 'Выйти' }).click()
+  await expect(page).toHaveURL(/\/signin$/)
+  expect(requestOrder).toEqual(['subscription:DELETE', 'session:DELETE'])
+  expect(mock.deletedEndpoints).toEqual([ENDPOINT])
+
+  // A release the server refuses must not keep the member signed in.
+  await page.route(SUBSCRIPTION, (route) => {
+    if (route.request().method() === 'DELETE') {
+      return route.fulfill(json(500, { error: { code: 'unexpected', message: 'No' } }))
+    }
+    return route.fallback()
+  })
+  await signIn(page)
+  await page.goto('/notifications')
+  await page.getByRole('button', { name: 'Включить' }).click()
+  await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
+  await page.getByRole('button', { name: 'Меню пользователя' }).click()
+  await page.getByRole('menuitem', { name: 'Выйти' }).click()
+  await expect(page).toHaveURL(/\/signin$/)
 })
 
 // The iPhone signature the feature detects; the e2e browser claims to be
@@ -328,7 +449,6 @@ test('the editor sends the reminder the member picked with its recipients', asyn
   // The reminder starts off; the lead defaults to the prototype's two hours.
   const reminderSwitch = page.getByRole('switch', { name: 'Напоминание' })
   await reminderSwitch.click()
-  // The prototype's default: two hours.
   await expect(page.getByLabel('За сколько напомнить')).toHaveValue('120')
 
   // An hour before, for everyone.

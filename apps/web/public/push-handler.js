@@ -39,9 +39,16 @@ self.addEventListener('notificationclick', (event) => {
       }
       const known = clients.find((client) => 'focus' in client)
       if (known !== undefined) {
-        // An installed app opens where the member left it; a deep link
-        // would fight the router on a cold start.
-        return known.focus()
+        // An open app follows the notification: focus it, then send it to
+        // the notification's screen. The router takes a plain navigate.
+        await known.focus()
+        try {
+          await known.navigate(url)
+        } catch {
+          // A navigation the browser refuses (a cross-origin client)
+          // leaves the app where the member left it.
+        }
+        return
       }
       await self.clients.openWindow(url)
     })(),

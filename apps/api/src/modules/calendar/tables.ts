@@ -221,6 +221,13 @@ export const calendarEventReminders = pgTable(
     /** How many minutes before the occurrence the reminder is due. */
     leadMinutes: integer('lead_minutes').notNull(),
     /**
+     * How far the per-occurrence jobs have been scheduled: the sweep's
+     * watermark (issue #22). A round missed for any reason fills exactly
+     * the gap between this and the horizon, and a create or edit — which
+     * schedules the whole span itself — sets it to that horizon.
+     */
+    scheduledThrough: timestamp('scheduled_through', { withTimezone: true }),
+    /**
      * Everyone in the space, read when the reminder sends. The named
      * alternative stands in the recipients table below.
      */
@@ -316,6 +323,12 @@ export const calendarRemindersSent = pgTable(
     originalDate: date('original_date', { mode: 'string' }).notNull(),
     /** When a run claimed the occurrence; the idempotency's lease. */
     remindedAt: timestamp('reminded_at', { withTimezone: true }).notNull(),
+    /**
+     * The occurrence's start the receipt answers for: a reminder that went
+     * out for the 18:00 start is not one for the 20:00 the creator moved
+     * it to — that one goes out too (issue #22).
+     */
+    startAt: timestamp('start_at', { withTimezone: true }),
     /**
      * When the reminder actually went out. Null, the claim is a live
      * sender's lease — or a crashed one's, after the takeover window — and

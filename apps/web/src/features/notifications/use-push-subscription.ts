@@ -78,18 +78,25 @@ export function useBrowserSubscription(registrar: PushRegistrar | undefined) {
  * same browser has. The 404 is the answer for absent, not an error.
  */
 export function useMySubscription(
+  memberId: string | undefined,
   browserSubscription: PushSubscriptionLike | null,
   refreshBrowser: () => Promise<void>,
 ) {
   const queryClient = useQueryClient()
   const endpoint = browserSubscription?.endpoint
+  // The row is one member's: the query is keyed by member and the request
+  // names its member, so a switch between members of one device never
+  // reads another's switches (architecture.md, web rules).
   const query = useQuery({
-    queryKey: ['push-subscription', endpoint],
-    enabled: endpoint !== undefined,
+    queryKey: ['member', memberId, 'push-subscription', endpoint],
+    enabled: memberId !== undefined && endpoint !== undefined,
     queryFn: async (): Promise<{ notifyDetails: boolean } | null> => {
-      if (endpoint === undefined) return null
+      if (memberId === undefined || endpoint === undefined) return null
       const response = await api.GET('/api/v1/notifications/push/subscription', {
-        params: { query: { endpoint } },
+        params: {
+          query: { endpoint },
+          header: { 'x-ohana-member': memberId },
+        },
       })
       if (responseStatus(response) === 404) return null
       await assertOk(response)
@@ -99,8 +106,8 @@ export function useMySubscription(
   })
   const refresh = useCallback(() => {
     void refreshBrowser()
-    return queryClient.invalidateQueries({ queryKey: ['push-subscription'] })
-  }, [queryClient, refreshBrowser])
+    return queryClient.invalidateQueries({ queryKey: ['member', memberId, 'push-subscription'] })
+  }, [queryClient, memberId, refreshBrowser])
   return { ...query, refresh }
 }
 
@@ -108,7 +115,7 @@ export function useMySubscription(
 export function useEnablePush(notification: NotificationContainer, registrar: PushRegistrar) {
   const publicKey = usePushPublicKey()
   return useMutation({
-    mutationFn: async (input: { notifyDetails: boolean }): Promise<string> => {
+    mutationFn: async (input: { memberId: string; notifyDetails: boolean }): Promise<string> => {
       const key = await publicKey.refetch()
       const endpointPublicKey = key.data
       if (endpointPublicKey === undefined) throw new ApiError('unexpected')
@@ -125,6 +132,7 @@ export function useEnablePush(notification: NotificationContainer, registrar: Pu
             })
       if (result.kind !== 'subscribed') throw new PushPermissionDeniedError()
       const response = await api.PUT('/api/v1/notifications/push/subscription', {
+        params: { header: { 'x-ohana-member': input.memberId } },
         body: {
           endpoint: result.endpoint,
           keys: { p256dh: result.p256dh, auth: result.auth },
@@ -179,8 +187,13 @@ export function useDisablePush() {
 /** PATCH /api/v1/notifications/push/subscription — the device's opt-in. */
 export function useSetNotifyDetails() {
   return useMutation({
-    mutationFn: async (input: { endpoint: string; notifyDetails: boolean }): Promise<void> => {
+    mutationFn: async (input: {
+      memberId: string
+      endpoint: string
+      notifyDetails: boolean
+    }): Promise<void> => {
       const response = await api.PATCH('/api/v1/notifications/push/subscription', {
+        params: { header: { 'x-ohana-member': input.memberId } },
         body: { endpoint: input.endpoint, notifyDetails: input.notifyDetails },
       })
       await assertOk(response)

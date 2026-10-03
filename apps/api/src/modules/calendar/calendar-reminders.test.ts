@@ -525,9 +525,9 @@ describe('sendDueCalendarReminder', () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
     const boris = await harness.createMember(space.id, { name: 'Борис' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
-    await giveSubscription(anya, 'https://push.example/anya-pad', false, 'ru')
-    await giveSubscription(boris, 'https://push.example/boris-phone', true, 'en')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-pad', false, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', true, 'en')
 
     const event = await createEventWithReminder(space, anya, {
       title: 'Обед с бабушкой',
@@ -555,7 +555,7 @@ describe('sendDueCalendarReminder', () => {
     const expectedUrl = `/calendar/${event.id}`
     // The opted-in Russian device reads the event and its moment in the
     // event's zone, the zone named (ADR-0006).
-    expect(byEndpoint.get('https://push.example/anya-phone')).toEqual({
+    expect(byEndpoint.get('https://fcm.googleapis.com/fcm/send/anya-phone')).toEqual({
       title: 'Обед с бабушкой',
       body: 'Начало — 10 января в 18:00 UTC',
       tag: expectedTag,
@@ -563,14 +563,14 @@ describe('sendDueCalendarReminder', () => {
     })
     // The opted-out device gets the neutral wording, in its member's
     // language, and no trace of the event — but the same tag and tap.
-    expect(byEndpoint.get('https://push.example/anya-pad')).toEqual({
+    expect(byEndpoint.get('https://fcm.googleapis.com/fcm/send/anya-pad')).toEqual({
       title: 'Напоминание о событии',
       body: 'Скоро событие в вашем календаре',
       tag: expectedTag,
       url: expectedUrl,
     })
     // The English device reads its own language.
-    expect(byEndpoint.get('https://push.example/boris-phone')).toEqual({
+    expect(byEndpoint.get('https://fcm.googleapis.com/fcm/send/boris-phone')).toEqual({
       title: 'Обед с бабушкой',
       body: 'Starts January 10 at 06:00 PM UTC',
       tag: expectedTag,
@@ -581,7 +581,7 @@ describe('sendDueCalendarReminder', () => {
   test('a reminder already sent stays quiet when a duplicate job fires hours later', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Обед',
       allDay: false,
@@ -603,10 +603,51 @@ describe('sendDueCalendarReminder', () => {
     expect(push.sends).toHaveLength(1)
   })
 
+  test('an occurrence moved to a later time earns its own reminder', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    const data = { spaceId: space.id, eventId: event.id, originalDate: '2026-01-10' }
+    const clock = fixedClock(new Date('2026-01-10T17:32:00.000Z'))
+    push.sends.length = 0
+    await runHandler(clock, data)
+    expect(push.sends).toHaveLength(1)
+    expect(push.sends[0]?.payload.body).toContain('18:00')
+
+    // The creator moves the event to 20:00; the fresh job carries the new
+    // reminder — the old receipt answered only for the old start.
+    const { editEvent } = await import('./service.ts')
+    await editEvent(
+      { db: harness.db, clock, jobs: harness.jobs },
+      { memberId: anya.id, spaceId: space.id, role: 'owner' },
+      event.id,
+      {
+        title: 'Обед',
+        allDay: false,
+        date: '2026-01-10',
+        startTime: '20:00',
+        endTime: '21:00',
+        reminder: { leadMinutes: 30, recipients: { everyone: true } },
+      } as never,
+    )
+    clock.advance(2 * 60 * 60 * 1000)
+    await runHandler(clock, data)
+    expect(push.sends).toHaveLength(2)
+    expect(push.sends[1]?.payload.body).toContain('20:00')
+  })
+
   test('a not-yet-due reminder sends nothing', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Поздний обед',
       allDay: false,
@@ -627,7 +668,7 @@ describe('sendDueCalendarReminder', () => {
   test('a reminder stale beyond recall sends nothing', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Давний обед',
       allDay: false,
@@ -648,7 +689,7 @@ describe('sendDueCalendarReminder', () => {
   test('everyone is read at send time: a member added after the event is in', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Кино',
       allDay: false,
@@ -660,7 +701,7 @@ describe('sendDueCalendarReminder', () => {
     // Boris and his device arrive after the event was created: the "yes"
     // was never spelled as a list, so he is in without an edit.
     const boris = await harness.createMember(space.id, { name: 'Борис' })
-    await giveSubscription(boris, 'https://push.example/boris-phone', false, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', false, 'ru')
 
     push.sends.length = 0
     await runHandler(fixedClock(new Date('2026-01-10T19:01:00.000Z')), {
@@ -669,15 +710,15 @@ describe('sendDueCalendarReminder', () => {
       originalDate: '2026-01-10',
     })
     expect(push.sends.map((send) => send.credentials.endpoint)).toEqual([
-      'https://push.example/anya-phone',
-      'https://push.example/boris-phone',
+      'https://fcm.googleapis.com/fcm/send/anya-phone',
+      'https://fcm.googleapis.com/fcm/send/boris-phone',
     ])
   })
 
   test('a hidden calendar section sends nothing', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Тихий обед',
       allDay: false,
@@ -703,7 +744,7 @@ describe('sendDueCalendarReminder', () => {
   test('a cancelled occurrence sends nothing; an override answers for its own moment', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Йога',
       allDay: false,
@@ -749,7 +790,7 @@ describe('sendDueCalendarReminder', () => {
   test('an all-day occurrence reminds at the morning anchor minus the lead, with the date as its detail', async () => {
     const space = await harness.createSpace({ timezone: 'Europe/Moscow' })
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'День рождения бабушки',
       allDay: true,
@@ -775,8 +816,8 @@ describe('sendDueCalendarReminder', () => {
   test('a subscription the push service rejected as expired is removed', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
-    await giveSubscription(anya, 'https://push.example/anya-pad', false, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-pad', false, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Обед',
       allDay: false,
@@ -787,7 +828,9 @@ describe('sendDueCalendarReminder', () => {
     })
     // The phone's endpoint is gone; the pad's is fine.
     push.respondWith((credentials) =>
-      credentials.endpoint === 'https://push.example/anya-phone' ? 'expired' : 'delivered',
+      credentials.endpoint === 'https://fcm.googleapis.com/fcm/send/anya-phone'
+        ? 'expired'
+        : 'delivered',
     )
 
     push.sends.length = 0
@@ -801,14 +844,16 @@ describe('sendDueCalendarReminder', () => {
       .select()
       .from(pushSubscriptions)
       .where(eq(pushSubscriptions.memberId, anya.id))
-    expect(remaining.map((row) => row.endpoint)).toEqual(['https://push.example/anya-pad'])
+    expect(remaining.map((row) => row.endpoint)).toEqual([
+      'https://fcm.googleapis.com/fcm/send/anya-pad',
+    ])
     push.respondWith('delivered')
   })
 
   test("a crashed sender's stale claim is taken over; a live one is not", async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Ужин',
       allDay: false,
@@ -823,7 +868,14 @@ describe('sendDueCalendarReminder', () => {
     // A sender claimed the occurrence and died before sending.
     await harness.db.transaction(async (tx) => {
       const { claimReminder } = await import('./repository.ts')
-      await claimReminder(tx, space.id, event.id, '2026-01-10', clock.now())
+      await claimReminder(
+        tx,
+        space.id,
+        event.id,
+        '2026-01-10',
+        new Date('2026-01-10T19:00:00.000Z'),
+        clock.now(),
+      )
     })
     push.sends.length = 0
     await sendDueCalendarReminder(deps, {
@@ -844,10 +896,84 @@ describe('sendDueCalendarReminder', () => {
     expect(push.sends).toHaveLength(1)
   })
 
+  test('sweep rounds missed for days fill exactly the gap they left', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Зарядка',
+      allDay: false,
+      date: '2026-01-01',
+      startTime: '07:00',
+      endTime: '07:30',
+      recurrence: { frequency: 'daily' },
+      reminder: { leadMinutes: 10, recipients: { everyone: true } },
+    })
+    const deps = reminderDeps(fixedClock(new Date('2026-02-01T00:00:00.000Z')))
+    resetJobLog()
+    await extendReminderHorizons(deps)
+    const firstRound = reminderJobs().filter((job) => job.data.spaceId === space.id)
+    expect(firstRound.length).toBeGreaterThanOrEqual(1)
+
+    // The worker disappears for five days: the next round fills the five
+    // days the missed rounds would have covered, every occurrence of the
+    // horizon holding a job.
+    resetJobLog()
+    const laterDeps = reminderDeps(fixedClock(new Date('2026-02-06T00:00:00.000Z')))
+    await extendReminderHorizons(laterDeps)
+    const gapRound = reminderJobs().filter((job) => job.data.spaceId === space.id)
+    const gapDays = new Set(gapRound.map((job) => job.data.originalDate))
+    // The old horizon ended 2026-04-04; the new one ends 2026-04-09 — the
+    // gap is 2026-04-04 through 2026-04-08, and nothing else.
+    expect(gapDays).toEqual(
+      new Set(['2026-04-04', '2026-04-05', '2026-04-06', '2026-04-07', '2026-04-08']),
+    )
+    void event
+  })
+
+  test('a reminder that reached no device releases its claim for the retry', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    const data = { spaceId: space.id, eventId: event.id, originalDate: '2026-01-10' }
+    const clock = fixedClock(new Date('2026-01-10T17:32:00.000Z'))
+    const deps = reminderDeps(clock)
+
+    // Every send fails transiently: the run answers loudly, the claim row
+    // goes, and the queue's retry sends from scratch.
+    push.respondWith('failed')
+    await expect(sendDueCalendarReminder(deps, data)).rejects.toThrow(/reached no device/)
+    const claims = await harness.db
+      .select()
+      .from(calendarRemindersSent)
+      .where(eq(calendarRemindersSent.eventId, event.id))
+    expect(claims).toHaveLength(0)
+
+    // The retry, with the push service healthy again: one delivery, and
+    // the receipt stands.
+    push.respondWith('delivered')
+    push.sends.length = 0
+    await sendDueCalendarReminder(deps, data)
+    expect(push.sends).toHaveLength(1)
+    const receipted = await harness.db
+      .select()
+      .from(calendarRemindersSent)
+      .where(eq(calendarRemindersSent.eventId, event.id))
+    expect(receipted).toHaveLength(1)
+    push.respondWith('delivered')
+  })
+
   test('a deleted event and a dropped reminder answer quietly', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
-    await giveSubscription(anya, 'https://push.example/anya-phone', true, 'ru')
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', true, 'ru')
     const event = await createEventWithReminder(space, anya, {
       title: 'Прошлое событие',
       allDay: false,
@@ -896,19 +1022,27 @@ describe('extendReminderHorizons', () => {
     // share adds only what newly entered the horizon — the fresh two days
     // at its far edge, not the whole span again.
     const jobs = reminderJobs().filter((job) => job.data.spaceId === space.id)
-    expect(jobs.length).toBeGreaterThanOrEqual(1)
-    expect(jobs.length).toBeLessThanOrEqual(4)
+    // The create scheduled through 2026-03-04; the sweep extends to
+    // 2026-04-04 — exactly the days since, every one of them.
+    expect(jobs).toHaveLength(31)
     const farthest = jobs.reduce(
       (latest, job) => (job.startAfter && job.startAfter > latest ? job.startAfter : latest),
       new Date(0),
     )
-    expect(farthest.getTime()).toBeGreaterThan(new Date('2026-04-01T00:00:00.000Z').getTime())
+    expect(farthest.toISOString()).toBe('2026-04-03T06:50:00.000Z')
 
     // The prune: a claim older than the retention is gone, a fresh one
     // stays.
     await harness.db.transaction(async (tx) => {
       const { claimReminder } = await import('./repository.ts')
-      await claimReminder(tx, space.id, event.id, '2026-01-01', clock.now())
+      await claimReminder(
+        tx,
+        space.id,
+        event.id,
+        '2026-01-01',
+        new Date('2026-01-01T07:00:00.000Z'),
+        clock.now(),
+      )
     })
     await harness.db.transaction(async (tx) => {
       const old = await tx
