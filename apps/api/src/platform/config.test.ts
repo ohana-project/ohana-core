@@ -28,12 +28,18 @@ describe('pushVapidSubject', () => {
     expect(config.pushVapidSubject).toBe('mailto:operator@example.com')
   })
 
-  test('an https: contact passes', async () => {
+  test('an https: contact passes, a path included', async () => {
     const config = await loadConfig({
       ...VALID_ENVIRONMENT,
       PUSH_VAPID_SUBJECT: 'https://ohana.example/contact',
     })
     expect(config.pushVapidSubject).toBe('https://ohana.example/contact')
+  })
+
+  test('trailing junk after an https host is refused', async () => {
+    await expect(
+      loadConfig({ ...VALID_ENVIRONMENT, PUSH_VAPID_SUBJECT: 'https://ohana.example junk' }),
+    ).rejects.toThrow(ConfigError)
   })
 
   test('a bare word is refused — every push would fail at send time', async () => {

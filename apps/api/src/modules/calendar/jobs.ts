@@ -81,9 +81,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export const CALENDAR_QUEUE_SETUPS = [
   {
     name: CALENDAR_REMINDER_JOB,
-    // The first retry comes after a minute: short enough to matter for
-    // the shortest leads, long enough to sit out one live send.
-    options: { retryLimit: 3, retryDelay: 60, retryBackoff: true },
+    // The first retry lands 15–30 s out (pg-boss backs off at
+    // delay * 2^(n-1) * (1 + random())), and the five retries wait at
+    // least 465 s in sum — past the claim's takeover window, and soon
+    // enough to matter for the shortest leads.
+    options: { retryLimit: 5, retryDelay: 15, retryBackoff: true },
   },
   { name: CALENDAR_REMINDER_SWEEP_JOB },
 ] as const
@@ -240,8 +242,9 @@ export async function sendDueCalendarReminder(
   }
   // The receipt, for this start: every other job for the occurrence and
   // start — the duplicates the design creates on purpose — answers quiet.
-  // It lands BEFORE the expired-endpoint cleanup: a cleanup failure costs
-  // the removal its retry (idempotent), never a duplicate send.
+  // It lands BEFORE the expired-endpoint cleanup: a cleanup failure must
+  // never fail the job past its receipt — the retry would answer quiet
+  // and the removal is idempotent anyway, so it is best-effort here.
   await deps.db.transaction(async (tx) => {
     await markReminderSent(
       tx,
@@ -253,9 +256,16 @@ export async function sendDueCalendarReminder(
     )
   })
   for (const endpoint of expiredEndpoints) {
-    await deps.db.transaction(async (tx) => {
-      await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
-    })
+    try {
+      await deps.db.transaction(async (tx) => {
+        await removeSubscriptionsByEndpointAcrossSpaces(tx, endpoint)
+      })
+    } catch (error) {
+      deps.logger.warn(
+        { err: error, endpoint },
+        'Expired push subscription not removed; the next send to it retires it',
+      )
+    }
   }
   deps.logger.info(
     {
@@ -427,9 +437,11 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
           // and a healthy one adds only the days since.
           // A watermark beyond the horizon is a forward clock jump's
           // poison (a bad NTP step, a VM restore): treat it as unset and
-          // let the duplicates — safe by design — wash it out.
+          // let the duplicates — safe by design — wash it out. One
+          // threshold for both sides of the comparison.
+          const watermarkResetAbove = new Date(horizonEnd.getTime() + DAY_MS)
           let watermark = stored.reminder.scheduledThrough ?? new Date(0)
-          if (watermark.getTime() > horizonEnd.getTime() + DAY_MS) watermark = new Date(0)
+          if (watermark.getTime() > watermarkResetAbove.getTime()) watermark = new Date(0)
           if (watermark.getTime() >= horizonEnd.getTime()) continue
           for (const job of reminderJobsBetween(
             event,
@@ -449,13 +461,7 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
               startAfter: job.sendAt,
             })
           }
-          await advanceReminderWatermark(
-            tx,
-            spaceId,
-            event.id,
-            horizonEnd,
-            new Date(horizonEnd.getTime() + DAY_MS),
-          )
+          await advanceReminderWatermark(tx, spaceId, event.id, horizonEnd, watermarkResetAbove)
         }
       })
     } catch (cause) {
@@ -463,10 +469,15 @@ export async function extendReminderHorizons(deps: CalendarReminderJobsDeps): Pr
     }
   }
   // The prune covers the installation: one pass, not one per space under
-  // each space's lock.
-  await deps.db.transaction(async (tx) => {
-    await deleteReminderClaimsBefore(tx, new Date(now.getTime() - REMINDER_CLAIM_RETENTION_MS))
-  })
+  // each space's lock. Its own failure rides the aggregate, beside the
+  // spaces' — it never masks them.
+  try {
+    await deps.db.transaction(async (tx) => {
+      await deleteReminderClaimsBefore(tx, new Date(now.getTime() - REMINDER_CLAIM_RETENTION_MS))
+    })
+  } catch (cause) {
+    failures.push({ spaceId: '(claim prune)', cause })
+  }
   if (failures.length > 0) {
     throw new AggregateError(
       failures.map((failure) => failure.cause),
