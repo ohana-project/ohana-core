@@ -28,6 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Lint the install script
+        run: |
+          # deploy/install.sh is attached to every release (issue #49);
+          # ordinary pushes lint the checkout's copy, the release workflow
+          # checks the copy it ships with the version baked in.
+          shellcheck -s sh deploy/install.sh
+          sh -n deploy/install.sh
+
       - name: Build application image
         run: docker build -t ohana:smoke .
 

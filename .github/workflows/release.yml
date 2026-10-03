@@ -2,10 +2,12 @@
 # as v1.2.0 (ADR-0018): the Ohana image is built natively for linux/amd64 and
 # linux/arm64 on GitHub-hosted runners, pushed to GHCR as one
 # multi-architecture image, and verified to start from the pulled image on
-# both architectures, with Caddy enabled and disabled. Only then does the
-# image receive the version tag, and the release carry generated notes plus
-# a Compose file pinned to that version and the environment example, so
-# operators never build anything and never pull `latest`.
+# both architectures, with Caddy enabled, disabled, and installed through the
+# release's own install script. Only then does the image receive the version
+# tag, and the release carry generated notes with a Quick start block plus
+# three assets: a Compose file pinned to that version, the environment
+# example, and the install script with the version baked in — so operators
+# never build anything and never pull `latest`.
 
 name: Release
 
@@ -80,6 +82,23 @@ jobs:
               exit 1
             fi
           done
+
+          # The installer is shipped with the version baked in, so the
+          # downloaded copy installs exactly its own release's files. The
+          # rewrite targets the assignment line only; the checks keep a
+          # broken script from ever reaching a release page. shellcheck is
+          # preinstalled on the runner.
+          sed -e "s|^OHANA_INSTALL_VERSION=.*|OHANA_INSTALL_VERSION='${tag}'|" deploy/install.sh > release/install.sh
+          if grep -q "^OHANA_INSTALL_VERSION=''" release/install.sh; then
+            echo "::error::the release install script does not carry the ${tag} version"
+            exit 1
+          fi
+          if ! grep -qF "OHANA_INSTALL_VERSION='${tag}'" release/install.sh; then
+            echo "::error::the release install script does not carry the ${tag} version"
+            exit 1
+          fi
+          shellcheck -s sh release/install.sh
+          sh -n release/install.sh
 
           # The placeholders only satisfy interpolation; the check is about
           # the file being a valid, fully pinned Compose file.
@@ -178,6 +197,12 @@ jobs:
           - runner: ubuntu-24.04-arm
             platform: linux/arm64
             caddy: true
+          # The installer leg (issue #49): the stack comes up through
+          # deploy/install.sh itself, the way an operator's one-liner runs
+          # it, instead of through hand-assembled files.
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            install_script: true
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     permissions:
@@ -236,6 +261,7 @@ jobs:
           fi
 
       - name: Start the stack
+        if: matrix.install_script != true
         working-directory: release
         env:
           CADDY: ${{ matrix.caddy == true }}
@@ -251,6 +277,35 @@ jobs:
             docker compose up -d --wait
           fi
 
+      - name: Start the stack with the release install script
+        if: matrix.install_script == true
+        working-directory: release
+        env:
+          RELEASE_DIR: ${{ github.workspace }}/release
+        run: |
+          # The installer downloads its files from the release assets, which
+          # do not exist yet — the release is created only after the smoke
+          # passes (ADR-0018). A curl shim in front of PATH serves the
+          # digest-pinned compose.yaml locally, so the script's own logic
+          # runs end to end against the same images the other legs verified.
+          mkdir shim
+          cat > shim/curl <<'SHIM'
+          #!/usr/bin/env bash
+          args=()
+          for arg in "$@"; do
+            case "$arg" in
+              *releases/*download/*) arg="file://${RELEASE_DIR}/compose.yaml" ;;
+            esac
+            args+=("$arg")
+          done
+          exec /usr/bin/curl "${args[@]}"
+          SHIM
+          chmod +x shim/curl
+          export PATH="$GITHUB_WORKSPACE/shim:$PATH"
+          mkdir install
+          cd install
+          sh ../install.sh --no-domain
+
       - uses: ./.github/actions/check-serving
         with:
           base-url: ${{ matrix.caddy == true && 'https://localhost:8443' || 'http://localhost:3000' }}
@@ -260,7 +315,7 @@ jobs:
       # image is published (issue #17, ADR-0008): the decode runs through
       # the shipped `heif-dec` and the worker's own code path.
       - name: Verify HEIC decoding in this image
-        working-directory: release
+        working-directory: ${{ matrix.install_script == true && 'release/install' || 'release' }}
         run: |
           docker compose exec -T worker node scripts/verify-heic.ts
 
@@ -274,7 +329,7 @@ jobs:
           fi
 
       - name: Stop the stack
-        working-directory: release
+        working-directory: ${{ matrix.install_script == true && 'release/install' || 'release' }}
         run: docker compose --profile caddy down --volumes
 
   merge:
@@ -348,8 +403,28 @@ jobs:
           if [[ "$PRERELEASE" == "true" ]]; then
             args+=(--prerelease)
           fi
+
+          # The Quick start block (issue #49) carries this release's exact
+          # one-liner and is prepended to the generated notes (--notes-file
+          # is the body; with --generate-notes GitHub appends the generated
+          # part). Piping to bash stays honest: the script is short enough
+          # to read first, and the notes say so.
+          sed -e "s|@VERSION@|${VERSION}|g" -e "s|@REPO@|${GITHUB_REPOSITORY}|g" > notes.md <<'NOTES'
+          ## Quick start
+
+          On a server with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin:
+
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | bash -s -- --domain ohana.example.com
+
+          serves `https://ohana.example.com` with automatic Let's Encrypt HTTPS, and
+
+              curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | bash -s -- --no-domain
+
+          serves plain HTTP on port 3000 of the machine itself. The script downloads this release's `compose.yaml`, generates the secrets into `.env`, and starts the stack; it prints the address and the generated administrator password when done. It is short — read it before running it (`curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh -o install.sh`, then `sh install.sh`), or read `deploy/install.sh` in the repository.
+          NOTES
+
           # --repo keeps gh from looking for a git checkout, which this job
           # does not have.
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" \
-            --generate-notes "${args[@]}" \
-            release/compose.yaml release/env.production.example
+            --generate-notes --notes-file notes.md "${args[@]}" \
+            release/compose.yaml release/env.production.example release/install.sh

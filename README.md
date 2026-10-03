@@ -8,6 +8,16 @@ The project is under active development toward version 1.0; see the [roadmap](RO
 
 You need a Linux machine on `amd64` or `arm64` (a Raspberry Pi 5 works) with [Docker](https://docs.docker.com/engine/install/) and the Compose plugin. Installing builds nothing: releases carry prebuilt multi-architecture images.
 
+One command installs Ohana: the release's install script downloads the release's `compose.yaml`, generates the secrets into `.env`, starts the stack, and prints the address and the generated administrator password.
+
+```sh
+curl -fsSL https://github.com/ohana-project/ohana-core/releases/latest/download/install.sh | bash -s -- --domain ohana.example.com
+```
+
+Point a domain's DNS at the machine for automatic Let's Encrypt HTTPS, or use `--no-domain` to serve plain HTTP on `http://localhost:3000` instead. The script is short — read it before running it (`curl -fsSL <the url> -o install.sh`, then `sh install.sh`) if you prefer not to pipe it.
+
+Or set it up by hand:
+
 1. Download `compose.yaml` and `env.production.example` from the [latest release](https://github.com/ohana-project/ohana-core/releases/latest) into one directory, and rename the latter to `.env`.
 2. Fill in the required values in `.env`. Every setting is documented in the file itself.
 3. Start the stack:
@@ -44,7 +54,7 @@ Your data lives in the named volumes `postgres-data` and `rustfs-data`, which up
 
 ## Releasing
 
-Pushing a semantic version tag such as `v1.2.0` (prereleases like `v1.2.0-rc.1` are marked as such; `+build` metadata is not supported) publishes a release: the workflow runs the quality gate, builds the image natively for amd64 and arm64, verifies on both architectures that the pulled images start — with Caddy enabled and disabled — and only then tags the multi-architecture image and creates the GitHub Release with generated notes, a Compose file pinned to the release version, and the environment example attached. Nothing else publishes: ordinary pushes run CI only.
+Pushing a semantic version tag such as `v1.2.0` (prereleases like `v1.2.0-rc.1` are marked as such; `+build` metadata is not supported) publishes a release: the workflow runs the quality gate, builds the image natively for amd64 and arm64, verifies on both architectures that the pulled images start — with Caddy enabled, disabled, and installed through the release's own install script — and only then tags the multi-architecture image and creates the GitHub Release with generated notes (a Quick start block with that release's install one-liner on top) and three assets attached: a Compose file pinned to the release version, the environment example, and the install script with the version baked in. Nothing else publishes: ordinary pushes run CI only.
 
 One-time, at the first release: the `ghcr.io/ohana-project/ohana-core` package is created private by the first push; make it public in its package settings (Danger Zone → Change visibility) so operators can pull without credentials. The release smoke pulls anonymously, so it fails until this is done.
 
