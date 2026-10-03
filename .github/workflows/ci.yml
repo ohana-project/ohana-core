@@ -223,12 +223,13 @@ jobs:
           # runs it, so the answers must come from the terminal and not
           # from stdin. The failing curl shim of the step above ends each
           # run at the download, after the wizard has settled the mode and
-          # before anything is written.
+          # before anything is written. Every run is expected to fail there,
+          # hence the `|| true`.
           mkdir "$RUNNER_TEMP/wizard"
           cd "$RUNNER_TEMP/wizard"
           wizard() {
             printf "$1" | PATH="$RUNNER_TEMP/shim:$PATH" \
-              script -qec "cat '$GITHUB_WORKSPACE/deploy/install.sh' | sh${2:+ -s -- $2}" /dev/null | tr -d '\r'
+              script -qec "cat '$GITHUB_WORKSPACE/deploy/install.sh' | sh${2:+ -s -- $2}" /dev/null | tr -d '\r' || true
           }
           expect() {
             printf '%s\n' "$out" | grep -qF "$1" ||
@@ -255,6 +256,14 @@ jobs:
           done
           [ -z "$(ls -A)" ] ||
             { echo '::error::the wizard runs left files behind'; exit 1; }
+          # An existing installation is refused before any question.
+          touch .env
+          out=$(wizard '')
+          expect 'refusing to overwrite'
+          if printf '%s\n' "$out" | grep -q 'Enable Caddy'; then
+            echo '::error::the wizard asked before refusing to overwrite'
+            exit 1
+          fi
 
       - name: --force keeps an installation's secrets
         working-directory: deploy/install

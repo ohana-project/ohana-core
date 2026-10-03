@@ -80,7 +80,10 @@ Options:
                   --external-network modes (default: 3000); in
                   --external-network mode it is bound to 127.0.0.1, because
                   the proxy reaches the api over the shared network
-  -y, --yes       ask nothing: install the default mode without the wizard
+  -y, --yes       ask nothing: skip the wizard and install the default
+                  mode (or the mode a flag names); pass it in automation
+                  that runs with a terminal attached (ssh -t, a CI system
+                  that allocates one), where the wizard would wait
   --force         overwrite an existing .env, compose.yaml, and
                   compose.override.yaml; keeps the previous secrets
                   (POSTGRES_PASSWORD, the storage keys, and
@@ -272,7 +275,7 @@ fi
 # the same way it does for every later docker compose call. Compose
 # rejects names that are not already normalised, and the value ends up in
 # the label filter and in .env, so it is checked here — before the
-# operator answers any prompt and before anything else runs.
+# wizard asks anything and before anything else runs.
 if [ -n "$COMPOSE_PROJECT_NAME" ]; then
 	case "$COMPOSE_PROJECT_NAME" in
 	[!a-z0-9]* | *[!a-z0-9_-]*)
@@ -281,66 +284,10 @@ if [ -n "$COMPOSE_PROJECT_NAME" ]; then
 	esac
 fi
 
-# The wizard (issue #51). It runs when no flag has already chosen the
-# shape and a terminal can both show the questions and answer them: the
-# answers come from /dev/tty, not stdin, so `curl ... | sh` is asked too.
-# Without a terminal — CI, cron, output captured or redirected — the
-# default is installed without asking. New questions belong here.
-if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ "$port_set" -eq 0 ] &&
-	[ "$assume_yes" -eq 0 ] && [ -t 1 ] && (: < /dev/tty) 2> /dev/null; then
-	say 'Ohana installer'
-	say ''
-	say 'The bundled Caddy web server can serve Ohana on a domain name with'
-	say "automatic Let's Encrypt HTTPS. Without it, Ohana answers plain HTTP on"
-	say "port ${port} of this machine."
-	say ''
-	while :; do
-		ask 'Enable Caddy? [y/N]: '
-		case "$ask_reply" in
-		[Yy] | [Yy][Ee][Ss])
-			domain_set=1
-			break
-			;;
-		'' | [Nn] | [Nn][Oo])
-			break
-			;;
-		*)
-			say 'Please answer y or n.'
-			;;
-		esac
-	done
-	if [ "$domain_set" -eq 1 ]; then
-		say ''
-		say "Point the domain's DNS at this machine first: Caddy obtains the"
-		say 'certificate as soon as it starts.'
-		while :; do
-			ask 'Domain name (example: ohana.example.com): '
-			domain=$(normalize_domain "$ask_reply")
-			if valid_domain "$domain"; then
-				break
-			fi
-			say "'${ask_reply}' does not look like a domain name."
-		done
-		say ''
-		say "Caddy will serve https://${domain}."
-	else
-		say ''
-		say "Caddy stays off: plain HTTP on port ${port}."
-	fi
-	say ''
-fi
-
-# An explicit --port 3000 is rejected here too.
+# An explicit --port 3000 is rejected here too. (The wizard never gets
+# here with a port: --port skips it.)
 if [ "$domain_set" -eq 1 ] && [ "$port_set" -eq 1 ]; then
 	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
-fi
-
-if [ "$domain_set" -eq 1 ]; then
-	shape=caddy
-elif [ "$network_set" -eq 1 ]; then
-	shape=external
-else
-	shape=bare
 fi
 
 command -v docker > /dev/null 2>&1 ||
@@ -351,14 +298,6 @@ docker compose version > /dev/null 2>&1 ||
 
 docker info > /dev/null 2>&1 ||
 	die 'Docker is installed but not running. Start it (for example: sudo systemctl start docker)'
-
-if [ "$shape" = external ]; then
-	# `external: true` in the generated compose.override.yaml makes Compose
-	# refuse to start when the network is missing; checking here — before
-	# any file is written — says what to do instead.
-	docker network inspect "$external_network" > /dev/null 2>&1 ||
-		die "the Docker network '${external_network}' does not exist on this machine; create it (docker network create ${external_network}) or check the name (docker network ls)"
-fi
 
 # A --force rewrite of an existing installation keeps its secrets: the
 # postgres and rustfs volumes still hold data keyed by them, and fresh
@@ -465,6 +404,74 @@ for file in .env compose.yaml compose.override.yaml; do
 		die "$file already exists here; refusing to overwrite it (run with --force to overwrite, or install elsewhere)"
 	fi
 done
+
+# The wizard (issue #51). It runs when no flag has already chosen the
+# shape and a terminal can both show the questions and answer them: the
+# answers come from /dev/tty, not stdin, so `curl ... | sh` is asked too.
+# Without a terminal — CI, cron, output captured or redirected — the
+# default is installed without asking. It comes after every refusal that
+# does not depend on its answers (Docker missing, an existing installation
+# without --force), so nobody answers questions only to be turned away.
+# New questions belong here.
+if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ "$port_set" -eq 0 ] &&
+	[ "$assume_yes" -eq 0 ] && [ -t 1 ] && (: < /dev/tty) 2> /dev/null; then
+	say 'Ohana installer'
+	say ''
+	say 'The bundled Caddy web server can serve Ohana on a domain name with'
+	say "automatic Let's Encrypt HTTPS. Without it, Ohana answers plain HTTP on"
+	say "port ${port} of this machine."
+	say ''
+	while :; do
+		ask 'Enable Caddy? [y/N]: '
+		case "$ask_reply" in
+		[Yy] | [Yy][Ee][Ss])
+			domain_set=1
+			break
+			;;
+		'' | [Nn] | [Nn][Oo])
+			break
+			;;
+		*)
+			say 'Please answer y or n.'
+			;;
+		esac
+	done
+	if [ "$domain_set" -eq 1 ]; then
+		say ''
+		say "Point the domain's DNS at this machine first: Caddy obtains the"
+		say 'certificate as soon as it starts.'
+		while :; do
+			ask 'Domain name (example: ohana.example.com): '
+			domain=$(normalize_domain "$ask_reply")
+			if valid_domain "$domain"; then
+				break
+			fi
+			say "'${ask_reply}' does not look like a domain name."
+		done
+		say ''
+		say "Caddy will serve https://${domain}."
+	else
+		say ''
+		say "Caddy stays off: plain HTTP on port ${port}."
+	fi
+	say ''
+fi
+
+if [ "$domain_set" -eq 1 ]; then
+	shape=caddy
+elif [ "$network_set" -eq 1 ]; then
+	shape=external
+else
+	shape=bare
+fi
+
+if [ "$shape" = external ]; then
+	# `external: true` in the generated compose.override.yaml makes Compose
+	# refuse to start when the network is missing; checking here — before
+	# any file is written — says what to do instead.
+	docker network inspect "$external_network" > /dev/null 2>&1 ||
+		die "the Docker network '${external_network}' does not exist on this machine; create it (docker network create ${external_network}) or check the name (docker network ls)"
+fi
 
 if [ -z "$OHANA_INSTALL_VERSION" ]; then
 	assets_base="https://github.com/${OHANA_INSTALL_REPO}/releases/latest/download"
