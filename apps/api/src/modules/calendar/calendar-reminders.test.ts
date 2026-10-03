@@ -564,8 +564,6 @@ describe('sendDueCalendarReminder', () => {
     })
 
     expect(push.sends).toHaveLength(3)
-    // The three sends above were verified below; the same fixture is the
-    // run-twice case that stands past the takeover window further down.
     const byEndpoint = new Map(push.sends.map((send) => [send.credentials.endpoint, send.payload]))
     // The opted-in Russian device reads the event and its moment in the
     // event's zone.
@@ -1321,6 +1319,70 @@ describe("the delivery run's failure ordering", () => {
     push.respondWith('delivered')
   })
 
+  test('a total failure releases its claim before a failing cleanup', async () => {
+    const space = await harness.createSpace()
+    const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
+    const boris = await harness.createMember(space.id, { name: 'Борис' })
+    await giveSubscription(anya, 'https://fcm.googleapis.com/fcm/send/anya-phone', false, 'ru')
+    await giveSubscription(boris, 'https://fcm.googleapis.com/fcm/send/boris-phone', false, 'ru')
+    const event = await createEventWithReminder(space, anya, {
+      title: 'Обед',
+      allDay: false,
+      date: '2026-01-10',
+      startTime: '18:00',
+      endTime: '19:00',
+      reminder: { leadMinutes: 30, recipients: { everyone: true } },
+    })
+    // Anya's endpoint is expired, Boris's push service hiccups, and the
+    // claim release is transaction 2 — the cleanup's would-be transaction
+    // is 3 and fails on demand.
+    push.respondWith((credentials) =>
+      credentials.endpoint.includes('anya') ? 'expired' : 'failed',
+    )
+    const failing = dbFailingOnNthTransaction(harness.db, 3)
+    const clock = fixedClock(new Date('2026-01-10T17:32:00.000Z'))
+    const deps = { ...reminderDeps(clock), db: failing }
+    await expect(
+      sendDueCalendarReminder(deps, {
+        spaceId: space.id,
+        eventId: event.id,
+        originalDate: '2026-01-10',
+      }),
+    ).rejects.toThrow(/reached no device/)
+
+    // The release landed before the failing cleanup could matter: the
+    // claim is gone, so the retry that comes within the takeover window
+    // sends from scratch instead of meeting a live claim.
+    const claims = await harness.db
+      .select()
+      .from(calendarRemindersSent)
+      .where(eq(calendarRemindersSent.eventId, event.id))
+    expect(claims).toHaveLength(0)
+    // Both rows stand: the cleanup is the failing transaction here, and
+    // best-effort means its failure costs the removal, never the release.
+    const rows = await harness.db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.memberId, anya.id))
+    expect(rows).toHaveLength(1)
+    const borisRows = await harness.db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.memberId, boris.id))
+    expect(borisRows).toHaveLength(1)
+
+    // The retry — inside the takeover window — delivers. Both rows stand
+    // (the cleanup failed best-effort), so both devices are reached now.
+    push.respondWith('delivered')
+    push.sends.length = 0
+    await sendDueCalendarReminder(reminderDeps(clock), {
+      spaceId: space.id,
+      eventId: event.id,
+      originalDate: '2026-01-10',
+    })
+    expect(push.sends).toHaveLength(2)
+  })
+
   test('a receipt whose cleanup failed still keeps the duplicate quiet', async () => {
     const space = await harness.createSpace()
     const anya = await harness.createMember(space.id, { name: 'Аня', role: 'owner' })
@@ -1338,17 +1400,20 @@ describe("the delivery run's failure ordering", () => {
     push.respondWith((credentials) =>
       credentials.endpoint.includes('anya') ? 'expired' : 'delivered',
     )
+    const clock = fixedClock(new Date('2026-01-10T17:32:00.000Z'))
     const failing = dbFailingOnNthTransaction(harness.db, 3)
-    const deps = { ...reminderDeps(fixedClock(new Date('2026-01-10T17:32:00.000Z'))), db: failing }
+    const deps = { ...reminderDeps(clock), db: failing }
     await sendDueCalendarReminder(deps, {
       spaceId: space.id,
       eventId: event.id,
       originalDate: '2026-01-10',
     })
 
-    // The same job, redelivered: the receipt answers before any send —
-    // even one for a row the failed cleanup left behind. Her subscription
-    // retires at the next occurrence's reminder instead.
+    // The same job, redelivered past the takeover window — the lease is
+    // long gone, so the receipt is what answers before any send. Even one
+    // for a row the failed cleanup left behind: her subscription retires
+    // at the next occurrence's reminder instead.
+    clock.advance(REMINDER_CLAIM_TAKEOVER_MS + 60_000)
     push.sends.length = 0
     push.respondWith((credentials) =>
       credentials.endpoint.includes('anya') ? 'expired' : 'delivered',
@@ -1360,6 +1425,24 @@ describe("the delivery run's failure ordering", () => {
     })
     expect(push.sends).toHaveLength(0)
     push.respondWith('delivered')
+  })
+})
+
+describe("the sweep's failures ride the aggregate", () => {
+  test("a failing claims prune does not mask the spaces' failures", async () => {
+    // Every transaction from the sweep's second one fails: whichever
+    // spaces the shared database holds, the first space's work passes and
+    // the prune always fails — its entry rides the aggregate beside them.
+    const deps = {
+      ...reminderDeps(fixedClock(new Date('2026-02-01T00:00:00.000Z'))),
+      db: dbFailingOnNthTransaction(harness.db, 2, 'from'),
+    }
+    resetJobLog()
+    // Whichever spaces the shared database holds, and in whichever order
+    // they are visited, the prune's own entry rides the aggregate beside
+    // theirs: the assertion is order-independent because the prune always
+    // runs — and always fails here — after the first space's work.
+    await expect(extendReminderHorizons(deps as never)).rejects.toThrow(/claim prune/)
   })
 })
 

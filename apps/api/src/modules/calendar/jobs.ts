@@ -4,7 +4,12 @@ import type { Db } from '../../platform/db/index.ts'
 import { DomainError } from '../../platform/errors.ts'
 import type { JobSender, QueueSetup } from '../../platform/jobs/index.ts'
 import type { Logger } from '../../platform/logging.ts'
-import { endpointHost, type PushPayload, type PushSender } from '../../platform/push/index.ts'
+import {
+  endpointHost,
+  type PushPayload,
+  type PushSender,
+  pushLogError,
+} from '../../platform/push/index.ts'
 import { listMembers, type Member } from '../members/index.ts'
 import {
   listSubscriptionsForMember,
@@ -292,7 +297,7 @@ async function retireExpiredEndpoints(
       })
     } catch (error) {
       deps.logger.warn(
-        { err: error, endpointHost: endpointHost(endpoint) },
+        { err: pushLogError(error), endpointHost: endpointHost(endpoint) },
         'Expired push subscription not removed; the next send to it retires it',
       )
     }

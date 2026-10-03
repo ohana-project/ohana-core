@@ -59,3 +59,28 @@ export function endpointHost(endpoint: string): string {
     return '<unparseable>'
   }
 }
+
+/**
+ * The error as the logs may tell it: push endpoints work like capability
+ * URLs, and the errors the push stack raises carry the whole endpoint —
+ * web-push's own error objects keep it as a property, and a failed
+ * removal keeps it among its query parameters — so only these narrowed
+ * fields travel to the logs, never the raw error object.
+ */
+export function pushLogError(error: unknown): {
+  name?: string
+  statusCode?: unknown
+  code?: unknown
+} {
+  const candidate = error as {
+    name?: string
+    statusCode?: unknown
+    code?: unknown
+    cause?: { code?: unknown }
+  }
+  return {
+    name: candidate?.name,
+    statusCode: candidate?.statusCode,
+    code: candidate?.code ?? candidate?.cause?.code,
+  }
+}

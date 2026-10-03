@@ -89,7 +89,11 @@ export interface RecordingPushSender extends PushSender {
  * failure ordering (the receipt before the cleanup, the prune riding the
  * aggregate) without mocking the queries inside those transactions.
  */
-export function dbFailingOnNthTransaction(db: Db, n: number): Db {
+export function dbFailingOnNthTransaction(
+  db: Db,
+  n: number,
+  mode: 'exactly' | 'from' = 'exactly',
+): Db {
   let calls = 0
   const failing = {
     transaction: <T>(
@@ -97,7 +101,8 @@ export function dbFailingOnNthTransaction(db: Db, n: number): Db {
       config?: Parameters<Db['transaction']>[1],
     ): Promise<T> => {
       calls += 1
-      if (calls === n) {
+      const fails = mode === 'exactly' ? calls === n : calls >= n
+      if (fails) {
         return Promise.reject(new Error(`transaction ${calls} failed on demand`))
       }
       return db.transaction(callback as never, config) as Promise<T>
