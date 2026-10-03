@@ -362,7 +362,7 @@ fi
 # a matched pair, and comments after a space are valid to Compose but
 # never appear in a label. A value Compose itself would reject is refused
 # here — it would only fail later, after the files have been rewritten.
-# (A name glued to its comment, install"#pinned, is refused although
+# (A name glued to its comment, "install"#pinned, is refused although
 # Compose accepts it; the safe side of the two.)
 old_project_lookup=$(printf '%s' "$old_compose_project_name" | sed 's/^[[:space:]]*//; s/[[:space:]]* #.*//; s/[[:space:]]*$//; s/^"\(.*\)"$/\1/; s/^'\''\(.*\)'\''$/\1/')
 case "$old_project_lookup" in
@@ -403,10 +403,12 @@ if [ -n "$locked_volume" ]; then
 $(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)
 EOF
 	if [ "$has_foreign" -eq 1 ]; then
-		if [ -n "$COMPOSE_PROJECT_NAME" ] && [ "$COMPOSE_PROJECT_NAME" = "$old_project_lookup" ]; then
+		if [ -n "$COMPOSE_PROJECT_NAME" ] && [ "$COMPOSE_PROJECT_NAME" != "$previous_project" ]; then
+			remedy='choose a different COMPOSE_PROJECT_NAME (or unset it)'
+		elif [ -n "$COMPOSE_PROJECT_NAME" ] && [ -n "$old_project_lookup" ]; then
 			remedy='change the COMPOSE_PROJECT_NAME line in .env and the COMPOSE_PROJECT_NAME in the environment'
 		elif [ -n "$COMPOSE_PROJECT_NAME" ]; then
-			remedy='choose a different COMPOSE_PROJECT_NAME (or unset it)'
+			remedy='choose a different COMPOSE_PROJECT_NAME (unsetting it is not enough: this directory name yields the same project)'
 		elif [ -n "$old_project_lookup" ]; then
 			remedy='change the COMPOSE_PROJECT_NAME line in .env'
 		else

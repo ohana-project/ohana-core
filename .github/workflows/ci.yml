@@ -166,9 +166,12 @@ jobs:
             exit 1
           fi
           ls -A > "$RUNNER_TEMP/ls-after-refusal"
-          cmp "$RUNNER_TEMP/ls-before-refusal" "$RUNNER_TEMP/ls-after-refusal"
-          cmp .env "$RUNNER_TEMP/env-before-refusal"
-          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
+          cmp "$RUNNER_TEMP/ls-before-refusal" "$RUNNER_TEMP/ls-after-refusal" ||
+            { echo '::error::the refusal created or removed files'; exit 1; }
+          cmp .env "$RUNNER_TEMP/env-before-refusal" ||
+            { echo '::error::the refusal changed .env'; exit 1; }
+          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal" ||
+            { echo '::error::the refusal changed compose.yaml'; exit 1; }
 
       - name: A failed download leaves the directory untouched
         working-directory: deploy/install
@@ -190,9 +193,12 @@ jobs:
             exit 1
           fi
           ls -A > "$RUNNER_TEMP/ls-after-fail"
-          cmp "$RUNNER_TEMP/ls-before-fail" "$RUNNER_TEMP/ls-after-fail"
-          cmp .env "$RUNNER_TEMP/env-before-fail"
-          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
+          cmp "$RUNNER_TEMP/ls-before-fail" "$RUNNER_TEMP/ls-after-fail" ||
+            { echo '::error::the failed download created or removed files'; exit 1; }
+          cmp .env "$RUNNER_TEMP/env-before-fail" ||
+            { echo '::error::the failed download changed .env'; exit 1; }
+          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal" ||
+            { echo '::error::compose.yaml differs from the refusal step'; exit 1; }
           # The relaxed mismatch rule: a .env without a pin plus a
           # differing environment name must proceed — here it reaches the
           # (failing) download instead of the project-mismatch refusal.
@@ -246,7 +252,8 @@ jobs:
             echo '::error::the mismatch refusal did not say what points where'
             exit 1
           fi
-          cmp .env "$RUNNER_TEMP/env-before-mismatch"
+          cmp .env "$RUNNER_TEMP/env-before-mismatch" ||
+            { echo '::error::the mismatch refusal changed .env'; exit 1; }
           # An unnormalised name from the environment is refused before
           # anything runs.
           if out=$(COMPOSE_PROJECT_NAME=Bad_Name sh ../../deploy/install.sh --port 3210 2>&1); then
@@ -261,6 +268,8 @@ jobs:
           # leave everything untouched (no backup, no rewrite).
           cp .env "$RUNNER_TEMP/env-before-badpin"
           printf 'COMPOSE_PROJECT_NAME=Bad_Name\n' >> .env
+          cp .env "$RUNNER_TEMP/env-with-badpin"
+          ls -A > "$RUNNER_TEMP/ls-before-badpin"
           if out=$(sh ../../deploy/install.sh --force --port 3210 2>&1); then
             echo '::error::an unusable COMPOSE_PROJECT_NAME in .env was accepted'
             exit 1
@@ -269,9 +278,9 @@ jobs:
             echo '::error::the carried-name refusal did not name the value and source'
             exit 1
           fi
-          cmp .env "$RUNNER_TEMP/env-before-badpin"
-          [ "$(ls .env.bak.* 2> /dev/null | wc -l)" = "1" ] ||
-            { echo '::error::the carried-name refusal wrote files'; exit 1; }
+          same .env "$RUNNER_TEMP/env-with-badpin" "the carried-name refusal changed .env"
+          ls -A > "$RUNNER_TEMP/ls-after-badpin"
+          same "$RUNNER_TEMP/ls-before-badpin" "$RUNNER_TEMP/ls-after-badpin" "the carried-name refusal wrote files"
           cp "$RUNNER_TEMP/env-before-badpin" .env
           env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
           [ "$env_val" = "$real_pw" ] ||
@@ -379,9 +388,10 @@ jobs:
           fi
           expect 'must not be erased from here'
           expect 'change the COMPOSE_PROJECT_NAME line in .env'
+          forbid 'in the environment'
           forbid 'down --volumes'
-          rm "$RUNNER_TEMP/other-install/.env"
           # ... and from the directory name alone.
+          rm "$RUNNER_TEMP/other-install/.env"
           mkdir -p "$RUNNER_TEMP/elsewhere/install"
           if out=$(cd "$RUNNER_TEMP/elsewhere/install" && sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
             echo '::error::a foreign directory could reinstall over the project'
@@ -389,6 +399,15 @@ jobs:
           fi
           expect 'must not be erased from here'
           expect 'install into a differently named directory'
+          forbid 'down --volumes'
+          # The environment agreeing with the foreign .env pin would loop:
+          # both must change.
+          if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          expect 'and the COMPOSE_PROJECT_NAME in the environment'
+          forbid 'or unset it'
           forbid 'down --volumes'
 
           # The ours-remedy, executed exactly as the message prints it —
@@ -418,26 +437,27 @@ jobs:
           volume=$(printf '%s\n' "$out" | sed -n 's/.*docker volume rm \([^ ,]*\).*/\1/p')
           docker volume inspect "$volume" > /dev/null ||
             { echo '::error::the printed volume does not exist'; exit 1; }
-          docker volume rm "$volume" > /dev/null
-          # With that volume erased, the guard names the remaining one.
-          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
-            echo '::error::reinstalling succeeded with a data volume left'
-            exit 1
-          fi
-          expect 'rustfs-data'
-          forbid "$volume"
           # A .env that kept the database password and only one storage
-          # key must hit the media-volume branch: the missing secret key
-          # is what the second arm of the guard's condition catches. With
-          # the containers down this flows through the unknown arm, whose
-          # message names the media volume all the same.
+          # key must hit the media-volume branch while both volumes exist:
+          # the missing secret key is what the second arm of the guard's
+          # condition catches, and the password keeps the data volume out
+          # of the message.
           printf 'POSTGRES_PASSWORD=x\nSTORAGE_ACCESS_KEY=x\n' > .env
           if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
             echo '::error::the media-volume branch did not refuse'
             exit 1
           fi
           expect 'rustfs-data'
+          forbid 'postgres-data'
           rm .env
+          # The named volume erased, the guard names the remaining one.
+          docker volume rm "$volume" > /dev/null
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling succeeded with a data volume left'
+            exit 1
+          fi
+          expect 'rustfs-data'
+          forbid "$volume"
           # Nothing was left behind for the next step.
           docker volume rm $(docker volume ls -q --filter label=com.docker.compose.project=install) > /dev/null
           [ -z "$(docker volume ls -q --filter label=com.docker.compose.project=install)" ] ||
