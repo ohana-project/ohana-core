@@ -215,6 +215,47 @@ jobs:
             exit 1
           fi
 
+      - name: On a terminal the installer is a wizard
+        run: |
+          # The wizard (issue #51) only runs on a terminal, which a CI step
+          # does not have; script(1) lends it a pseudo-terminal and types
+          # the answers. The script is piped into sh, the way the one-liner
+          # runs it, so the answers must come from the terminal and not
+          # from stdin. The failing curl shim of the step above ends each
+          # run at the download, after the wizard has settled the mode and
+          # before anything is written.
+          mkdir "$RUNNER_TEMP/wizard"
+          cd "$RUNNER_TEMP/wizard"
+          wizard() {
+            printf "$1" | PATH="$RUNNER_TEMP/shim:$PATH" \
+              script -qec "cat '$GITHUB_WORKSPACE/deploy/install.sh' | sh${2:+ -s -- $2}" /dev/null | tr -d '\r'
+          }
+          expect() {
+            printf '%s\n' "$out" | grep -qF "$1" ||
+              { echo "::error::the wizard's output lacks: $1"; printf '%s\n' "$out"; exit 1; }
+          }
+          # Unusable answers are asked again; a pasted URL is a domain.
+          out=$(wizard 'maybe\ny\nnot a domain\nhttps://ohana.example.com/\n')
+          expect 'Please answer y or n.'
+          expect "'not a domain' does not look like a domain name."
+          expect 'Caddy will serve https://ohana.example.com.'
+          expect 'downloading compose.yaml failed'
+          # Enter alone takes the default.
+          out=$(wizard '\n')
+          expect 'Caddy stays off: plain HTTP on port 3000.'
+          expect 'downloading compose.yaml failed'
+          # --yes and a mode flag ask nothing, terminal or not.
+          for flags in --yes '--port 3210' '--caddy-domain ohana.example.com'; do
+            out=$(wizard '' "$flags")
+            expect 'downloading compose.yaml failed'
+            if printf '%s\n' "$out" | grep -q 'Enable Caddy'; then
+              echo "::error::the wizard asked despite ${flags}"
+              exit 1
+            fi
+          done
+          [ -z "$(ls -A)" ] ||
+            { echo '::error::the wizard runs left files behind'; exit 1; }
+
       - name: --force keeps an installation's secrets
         working-directory: deploy/install
         run: |

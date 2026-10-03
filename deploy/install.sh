@@ -14,6 +14,12 @@
 #                            it, through a generated compose.override.yaml
 #                            — the release's compose.yaml is never edited.
 #
+# Run on a terminal without a mode flag, the script is a small wizard
+# (issue #51): it asks whether to enable the bundled Caddy and installs
+# accordingly. It talks to the terminal itself, so it asks under
+# `curl ... | sh` too; without a terminal, or with --yes, nothing is asked
+# and the default shape is installed.
+#
 # The release workflow rewrites OHANA_INSTALL_VERSION and
 # OHANA_INSTALL_REPO below to the release's tag and repository and attaches
 # this script to the release, so the downloaded copy installs exactly its
@@ -53,7 +59,7 @@ die() {
 usage() {
 	cat <<'USAGE'
 Usage: sh install.sh [--caddy-domain <domain> | --external-network <network>]
-                     [--port <port>] [--force]
+                     [--port <port>] [--yes] [--force]
 
 Modes, mutually exclusive:
 
@@ -74,6 +80,7 @@ Options:
                   --external-network modes (default: 3000); in
                   --external-network mode it is bound to 127.0.0.1, because
                   the proxy reaches the api over the shared network
+  -y, --yes       ask nothing: install the default mode without the wizard
   --force         overwrite an existing .env, compose.yaml, and
                   compose.override.yaml; keeps the previous secrets
                   (POSTGRES_PASSWORD, the storage keys, and
@@ -91,9 +98,11 @@ Environment:
                          already in the previous .env survives a --force
                          rewrite
 
-Without a mode flag and run on a terminal, the script asks which mode to
-use. Without a terminal — piping this script to sh, for example — it uses
-the default mode, so the one-liner needs no flags.
+Run on a terminal without --caddy-domain, --external-network, --port, or
+--yes, the script is a wizard: it asks whether to enable the bundled Caddy
+and, if so, for the domain. It asks on the terminal itself, so piping the
+script to sh still gets the questions. Without a terminal (CI, cron, output
+redirected to a file) it installs the default mode without asking.
 
 The script downloads the release's compose.yaml, generates the secrets
 into .env, and starts the stack with `docker compose up -d --wait`. The
@@ -118,13 +127,15 @@ random_secret() {
 }
 
 # ask <prompt>: read the answer from the terminal, never from stdin — a
-# script piped into sh must not consume its own stdin, and an operator
-# session without a terminal gets the flag advice instead of a hang.
+# script piped into sh must not consume its own stdin. A terminal that
+# stops answering (it was closed, or end-of-file was typed) gets the flag
+# advice instead of a hang.
 ask() {
 	printf '%s' "$1"
 	ask_reply=
 	if ! read -r ask_reply < /dev/tty; then
-		die 'no terminal to answer; run again with --caddy-domain <domain> or --external-network <network>'
+		say ''
+		die 'no answer from the terminal; run again with --caddy-domain <domain>, or with --yes to install the default mode without questions'
 	fi
 }
 
@@ -137,12 +148,15 @@ normalize_domain() {
 	printf '%s\n' "$normalized"
 }
 
-check_domain() {
+valid_domain() {
 	case "$1" in
-	'' | *[!A-Za-z0-9.-]* | [!A-Za-z0-9]*)
-		die "'$1' does not look like a domain name (example: ohana.example.com)"
-		;;
+	'' | *[!A-Za-z0-9.-]* | [!A-Za-z0-9]*) return 1 ;;
 	esac
+}
+
+check_domain() {
+	valid_domain "$1" ||
+		die "'$1' does not look like a domain name (example: ohana.example.com)"
 }
 
 check_port() {
@@ -172,6 +186,7 @@ external_network=
 network_set=0
 port=3000
 port_set=0
+assume_yes=0
 force=0
 # A Compose project name set in the caller's environment pins the project
 # the same way it does for every later docker compose call.
@@ -222,6 +237,10 @@ while [ "$#" -gt 0 ]; do
 		port_set=1
 		shift
 		;;
+	-y | --yes)
+		assume_yes=1
+		shift
+		;;
 	--force)
 		force=1
 		shift
@@ -262,46 +281,56 @@ if [ -n "$COMPOSE_PROJECT_NAME" ]; then
 	esac
 fi
 
-# The deployment shape. Interactive only when a terminal is on stdin:
-# piped (curl | sh) or redirected runs take the default without asking,
-# so the one-liner stays a one-liner.
-if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ -t 0 ]; then
-	say 'How should Ohana be reached?'
-	say '  1. Plain HTTP on a port of this machine (the default)'
-	say "  2. A domain name of this machine (HTTPS through the bundled Caddy, Let's Encrypt)"
-	say '  3. Behind my own reverse proxy in another Compose project (a shared Docker network)'
-	ask 'Choose 1, 2, or 3 [1]: '
-	case "$ask_reply" in
-	1 | '')
-		ask "Port to publish Ohana on [${port}]: "
-		if [ -n "$ask_reply" ]; then
-			port=$ask_reply
-			check_port "$port"
-		fi
-		;;
-	2)
-		# Checked before asking, so a rejected --port does not cost the
-		# operator a typed domain.
-		[ "$port_set" -eq 0 ] || die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
-		ask 'Domain name (example: ohana.example.com): '
-		domain=$(normalize_domain "$ask_reply")
-		check_domain "$domain"
-		domain_set=1
-		;;
-	3)
-		ask 'Name of the Docker network shared with your reverse proxy: '
-		check_network_name "$ask_reply"
-		external_network=$ask_reply
-		network_set=1
-		;;
-	*)
-		die 'please answer 1, 2, or 3 (or run again with --caddy-domain <domain> or --external-network <network>)'
-		;;
-	esac
+# The wizard (issue #51). It runs when no flag has already chosen the
+# shape and a terminal can both show the questions and answer them: the
+# answers come from /dev/tty, not stdin, so `curl ... | sh` is asked too.
+# Without a terminal — CI, cron, output captured or redirected — the
+# default is installed without asking. New questions belong here.
+if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ "$port_set" -eq 0 ] &&
+	[ "$assume_yes" -eq 0 ] && [ -t 1 ] && (: < /dev/tty) 2> /dev/null; then
+	say 'Ohana installer'
+	say ''
+	say 'The bundled Caddy web server can serve Ohana on a domain name with'
+	say "automatic Let's Encrypt HTTPS. Without it, Ohana answers plain HTTP on"
+	say "port ${port} of this machine."
+	say ''
+	while :; do
+		ask 'Enable Caddy? [y/N]: '
+		case "$ask_reply" in
+		[Yy] | [Yy][Ee][Ss])
+			domain_set=1
+			break
+			;;
+		'' | [Nn] | [Nn][Oo])
+			break
+			;;
+		*)
+			say 'Please answer y or n.'
+			;;
+		esac
+	done
+	if [ "$domain_set" -eq 1 ]; then
+		say ''
+		say "Point the domain's DNS at this machine first: Caddy obtains the"
+		say 'certificate as soon as it starts.'
+		while :; do
+			ask 'Domain name (example: ohana.example.com): '
+			domain=$(normalize_domain "$ask_reply")
+			if valid_domain "$domain"; then
+				break
+			fi
+			say "'${ask_reply}' does not look like a domain name."
+		done
+		say ''
+		say "Caddy will serve https://${domain}."
+	else
+		say ''
+		say "Caddy stays off: plain HTTP on port ${port}."
+	fi
+	say ''
 fi
 
-# The prompt's Caddy branch checks this itself before asking; this is for
-# the flag path, and rejects an explicit --port 3000 there too.
+# An explicit --port 3000 is rejected here too.
 if [ "$domain_set" -eq 1 ] && [ "$port_set" -eq 1 ]; then
 	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
 fi

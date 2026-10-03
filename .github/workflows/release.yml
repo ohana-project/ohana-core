@@ -495,7 +495,7 @@ jobs:
 
               curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh
 
-          serves plain HTTP on port 3000 of the machine itself — the default; no reverse proxy is involved. Signing in sets Secure cookies, so a browser on another machine needs HTTPS: reach Ohana from the machine itself, or use one of the two HTTPS modes below. For automatic Let's Encrypt HTTPS on a domain through the bundled Caddy:
+          Run on a terminal, the script asks whether to enable the bundled Caddy, which serves a domain with automatic Let's Encrypt HTTPS (point the domain's DNS at the machine first). Answer no — or run it without a terminal, or with `| sh -s -- --yes` — and it serves plain HTTP on port 3000 of the machine itself; no reverse proxy is involved. Signing in sets Secure cookies, so a browser on another machine needs HTTPS: reach Ohana from the machine itself, or use one of the two HTTPS modes. To choose Caddy and its domain without the question:
 
               curl -fsSL https://github.com/@REPO@/releases/download/@VERSION@/install.sh | sh -s -- --caddy-domain ohana.example.com
 
