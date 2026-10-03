@@ -28,7 +28,7 @@ RUN pnpm --filter @ohana/web build
 # imports them.
 RUN pnpm --filter @ohana/api deploy --prod --legacy /app && \
     pnpm --filter @ohana/i18n deploy --prod --legacy /app/vendor/i18n && \
-    find /app/vendor/i18n -name '*.test.*' -not -path '*/node_modules/*' -delete && \
+    find /app/vendor/i18n -type f -name '*.test.*' -not -path '*/node_modules/*' -delete && \
     rm /app/node_modules/@ohana/i18n && \
     ln -s /app/vendor/i18n /app/node_modules/@ohana/i18n
 
