@@ -235,13 +235,12 @@ export function removeSubscriptionsByEndpointAcrossSpaces(tx: Tx, endpoint: stri
  * The member's subscriptions inside a caller's transaction (issue #23):
  * the archiving takes them, because the archived member's devices cannot
  * unsubscribe themselves — their sessions are gone — and a later restore
- * must not remind a signed-out device. The rows come back so the caller
- * knows what it removed.
+ * must not remind a signed-out device.
  */
-export function deleteMemberSubscriptionsInTx(
+export async function deleteMemberSubscriptionsInTx(
   tx: Tx,
   spaceId: string,
   memberId: string,
-): Promise<PushSubscription[]> {
-  return deletePushSubscriptionsForMember(tx, spaceId, memberId)
+): Promise<void> {
+  await deletePushSubscriptionsForMember(tx, spaceId, memberId)
 }

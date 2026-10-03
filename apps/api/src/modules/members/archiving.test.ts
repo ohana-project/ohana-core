@@ -367,6 +367,7 @@ interface SyncResponse {
     entity: string
     member?: { id: string; archivedAt?: string }
     wish?: { id: string }
+    entry?: { id: string }
   }>
   tombstones: Array<{ entity: string; entityId: string; audience: string; memberId?: string }>
 }

@@ -11,6 +11,7 @@ import {
   countActiveOwnersInSpace,
   getMemberInSpace,
   insertMember,
+  listActiveMembersInSpace,
   listArchivedMemberIdsInSpace,
   listMemberIdsInSpace,
   listMembersInSpace,
@@ -213,8 +214,7 @@ export async function listMembers(deps: MembersDeps, spaceId: string): Promise<M
  */
 export async function listActiveMembers(deps: MembersDeps, spaceId: string): Promise<Member[]> {
   await getSpace(deps, spaceId)
-  const members = await listMembersInSpace(deps.db, spaceId)
-  return members.filter((member) => member.archivedAt === null)
+  return listActiveMembersInSpace(deps.db, spaceId)
 }
 
 /**
@@ -383,7 +383,11 @@ export async function restoreArchivedMemberInTx(
       writes: async (writeTx, revision) => {
         restored = await updateMemberRestored(writeTx, spaceId, memberId, revision, now)
         await wishlist.restampWishesInTx(writeTx, spaceId, memberId, revision, now)
+        // The session a racing redemption may have left goes too, and with
+        // it the subscription such a device could still hold — the new
+        // code being issued is the only way back in, on a fresh device.
         await revokeMemberSessionsInTx(writeTx, spaceId, memberId)
+        await deleteMemberSubscriptionsInTx(writeTx, spaceId, memberId)
       },
     },
     now,

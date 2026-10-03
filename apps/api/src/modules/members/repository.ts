@@ -125,6 +125,22 @@ export async function listMembersDueForPrivateStatePurgeAcrossSpaces(
     .orderBy(asc(members.archivedAt), asc(members.id))
 }
 
+/**
+ * The space's active membership, one query (issue #23): the reads that act
+ * on the space's living membership — the calendar's reminder recipients,
+ * for one — ask for it through the module's surface.
+ */
+export async function listActiveMembersInSpace(
+  executor: Executor,
+  spaceId: string,
+): Promise<Member[]> {
+  return executor
+    .select()
+    .from(members)
+    .where(and(eq(members.spaceId, spaceId), isNull(members.archivedAt)))
+    .orderBy(asc(members.createdAt), asc(members.id))
+}
+
 /** The space's archived member ids — the audience the wishlist's policy hides wishes from. */
 export async function listArchivedMemberIdsInSpace(
   executor: Executor,
@@ -213,8 +229,8 @@ export async function updateMemberArchived(
       and(
         eq(members.spaceId, spaceId),
         eq(members.id, memberId),
-        // The guard keeps a future caller that forgot the space row lock
-        // from archiving loudly instead of silently.
+        // The guard makes a caller that forgot the space row lock fail
+        // loudly instead of re-archiving silently.
         isNull(members.archivedAt),
       ),
     )
@@ -245,15 +261,16 @@ export async function updateMemberRestored(
       and(
         eq(members.spaceId, spaceId),
         eq(members.id, memberId),
-        // Only an archived row restores; anything else is a lost race the
-        // guard turns loud.
+        // Only a still-archived, unpurged row restores: anything else is a
+        // lost race the guard turns loud.
+        isNotNull(members.archivedAt),
         isNull(members.privateStatePurgedAt),
       ),
     )
     .returning()
   const row = updated[0]
   if (!row) {
-    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+    throw new Error(`Member ${memberId} in space ${spaceId} cannot be restored in its state`)
   }
   return row
 }
@@ -277,15 +294,17 @@ export async function markMemberPrivateStatePurged(
       and(
         eq(members.spaceId, spaceId),
         eq(members.id, memberId),
-        // Only a still-archived row purges; a restore that won the race
-        // must not be stamped.
+        // Only a still-archived, unpurged row purges: a restore that won
+        // the race must not be stamped, and the guard turns a lost race
+        // loud instead of stamping silently.
+        isNotNull(members.archivedAt),
         isNull(members.privateStatePurgedAt),
       ),
     )
     .returning()
   const row = updated[0]
   if (!row) {
-    throw notFound('member_not_found', `Member ${memberId} does not exist in space ${spaceId}`)
+    throw new Error(`Member ${memberId} in space ${spaceId} cannot be purged in its state`)
   }
   return row
 }
