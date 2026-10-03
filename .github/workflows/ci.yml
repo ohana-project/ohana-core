@@ -154,13 +154,18 @@ jobs:
           # The refusal happens before any download, so no shim is needed.
           # Assert the reason, not just the non-zero exit, and that the
           # directory is untouched.
-          cp .env /tmp/env-before-refusal
+          ls -A > "$RUNNER_TEMP/ls-before-refusal"
+          cp .env "$RUNNER_TEMP/env-before-refusal"
+          cp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
           if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
             echo '::error::the installer overwrote an existing installation without --force'
             exit 1
           fi
           printf '%s\n' "$out" | grep -q 'refusing to overwrite'
-          cmp .env /tmp/env-before-refusal
+          ls -A > "$RUNNER_TEMP/ls-after-refusal"
+          cmp "$RUNNER_TEMP/ls-before-refusal" "$RUNNER_TEMP/ls-after-refusal"
+          cmp .env "$RUNNER_TEMP/env-before-refusal"
+          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
 
       - name: --force keeps an installation's secrets
         working-directory: deploy/install
@@ -171,21 +176,46 @@ jobs:
           # --force rewrite must keep — and up --wait below only passes if
           # migrate and the api still authenticate with it.
           real_pw=$(grep '^POSTGRES_PASSWORD=' .env | tail -n 1)
+          real_access=$(grep '^STORAGE_ACCESS_KEY=' .env | tail -n 1)
+          real_secret=$(grep '^STORAGE_SECRET_KEY=' .env | tail -n 1)
           real_admin=$(grep '^ADMIN_INITIAL_PASSWORD=' .env | tail -n 1)
           sed -i '1i POSTGRES_PASSWORD=' .env
+          cp .env "$RUNNER_TEMP/env-before-force"
           export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
           sh ../../deploy/install.sh --force --port 3210
           [ "$(grep '^POSTGRES_PASSWORD=' .env | tail -n 1)" = "$real_pw" ] ||
             { echo '::error::--force regenerated POSTGRES_PASSWORD'; exit 1; }
+          [ "$(grep '^STORAGE_ACCESS_KEY=' .env | tail -n 1)" = "$real_access" ] ||
+            { echo '::error::--force regenerated STORAGE_ACCESS_KEY'; exit 1; }
+          [ "$(grep '^STORAGE_SECRET_KEY=' .env | tail -n 1)" = "$real_secret" ] ||
+            { echo '::error::--force regenerated STORAGE_SECRET_KEY'; exit 1; }
           [ "$(grep '^ADMIN_INITIAL_PASSWORD=' .env | tail -n 1)" = "$real_admin" ] ||
             { echo '::error::--force regenerated ADMIN_INITIAL_PASSWORD'; exit 1; }
           [ -f .env.bak ] || { echo '::error::--force left no .env.bak'; exit 1; }
+          cmp .env.bak "$RUNNER_TEMP/env-before-force" ||
+            { echo '::error::.env.bak is not the previous .env'; exit 1; }
           [ "$(stat -c %a .env)" = "600" ] || { echo '::error::.env is not owner-only'; exit 1; }
           [ "$(stat -c %a .env.bak)" = "600" ] || { echo '::error::.env.bak is not owner-only'; exit 1; }
 
       - uses: ./.github/actions/check-serving
         with:
           base-url: http://localhost:3210
+
+      - name: Reinstalling without the volume's secrets refuses
+        working-directory: deploy/install
+        run: |
+          # The guard runs before any download, so no shim is needed. The
+          # .env is the only file removed: a realistic operator deletes
+          # exactly the file that holds the secrets. The stack of the
+          # --force step above is still up, so its data volume exists.
+          mv .env "$RUNNER_TEMP/kept-env"
+          if out=$(sh ../../deploy/install.sh --port 3210 2>&1); then
+            echo '::error::reinstalling over a data volume without its secrets succeeded'
+            exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'postgres-data volume'
+          [ ! -e .env ] && [ -f compose.yaml ]
+          mv "$RUNNER_TEMP/kept-env" .env
 
       - name: Install through the script onto an external proxy network
         working-directory: deploy

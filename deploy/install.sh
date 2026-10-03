@@ -69,10 +69,12 @@ Options:
                   --external-network modes (default: 3000); in
                   --external-network mode it is bound to 127.0.0.1, because
                   the proxy reaches the api over the shared network
-  --force         overwrite an existing .env, compose.yaml, or
-                  compose.override.yaml; keeps the previous database and
-                  storage secrets (the data volumes are keyed by them) and
-                  leaves the previous .env as .env.bak
+  --force         overwrite an existing .env, compose.yaml, and
+                  compose.override.yaml; keeps the previous secrets
+                  (POSTGRES_PASSWORD, the storage keys, and
+                  ADMIN_INITIAL_PASSWORD — the data volumes are keyed by
+                  the first two) and leaves the previous .env as a .env.bak
+                  copy; every other setting must be copied back from there
 
 Without a mode flag and run on a terminal, the script asks which mode to
 use. Without a terminal — piping this script to sh, for example — it uses
@@ -154,6 +156,7 @@ domain_set=0
 external_network=
 network_set=0
 port=3000
+port_set=0
 force=0
 
 while [ "$#" -gt 0 ]; do
@@ -192,11 +195,13 @@ while [ "$#" -gt 0 ]; do
 		[ "$#" -ge 2 ] || die '--port needs a value'
 		port=$2
 		check_port "$port"
+		port_set=1
 		shift 2
 		;;
 	--port=*)
 		port=${1#*=}
 		check_port "$port"
+		port_set=1
 		shift
 		;;
 	--force)
@@ -244,6 +249,9 @@ if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ -t 0 ]; then
 		fi
 		;;
 	2)
+		# Checked before asking, so a rejected --port does not cost the
+		# operator a typed domain.
+		[ "$port_set" -eq 0 ] || die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
 		ask 'Domain name (example: ohana.example.com): '
 		domain=$(normalize_domain "$ask_reply")
 		check_domain "$domain"
@@ -261,9 +269,9 @@ if [ "$domain_set" -eq 0 ] && [ "$network_set" -eq 0 ] && [ -t 0 ]; then
 	esac
 fi
 
-# Checked after the prompt, so --port given with a chosen Caddy mode is
-# rejected instead of silently discarded.
-if [ "$domain_set" -eq 1 ] && [ "$port" != 3000 ]; then
+# The prompt's Caddy branch checks this itself before asking; this is for
+# the flag path, and rejects an explicit --port 3000 there too.
+if [ "$domain_set" -eq 1 ] && [ "$port_set" -eq 1 ]; then
 	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
 fi
 
@@ -292,17 +300,54 @@ if [ "$shape" = external ]; then
 		die "the Docker network '${external_network}' does not exist on this machine; create it (docker network create ${external_network}) or check the name (docker network ls)"
 fi
 
+# A --force rewrite of an existing installation keeps its secrets: the
+# postgres and rustfs volumes still hold data keyed by them, and fresh
+# ones would lock the stack out of its own data.
+had_env=0
+old_postgres_password=
+old_storage_access_key=
+old_storage_secret_key=
+old_admin_password=
+if [ -e .env ]; then
+	had_env=1
+	# The last occurrence wins, the way Compose reads an env file — a
+	# file assembled by appending real values to the example starts with
+	# an empty assignment of the same name. Leading whitespace and an
+	# export prefix are Compose-valid too.
+	old_postgres_password=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | sed -n '$p')
+	old_storage_access_key=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}STORAGE_ACCESS_KEY=//p' .env | sed -n '$p')
+	old_storage_secret_key=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}STORAGE_SECRET_KEY=//p' .env | sed -n '$p')
+	old_admin_password=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}ADMIN_INITIAL_PASSWORD=//p' .env | sed -n '$p')
+fi
+
+# Installing with fresh secrets while a data volume of this directory
+# survives — its .env was deleted, or never held the password — would lock
+# that data away forever: Postgres keeps the password it was initialised
+# with. There is no override short of erasing the volume, so this comes
+# before the overwrite refusal below.
+project=${COMPOSE_PROJECT_NAME:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')}
+volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=postgres-data' | sed -n '1p')
+if [ -n "$volume" ] && [ -z "$old_postgres_password" ]; then
+	die "a postgres-data volume of an installation in this directory (${volume}) still exists, but its POSTGRES_PASSWORD is not available here; installing would lock that data away — restore the old .env (or just its POSTGRES_PASSWORD line), or erase the volume: docker volume rm ${volume}"
+fi
+
 for file in .env compose.yaml compose.override.yaml; do
 	if [ -e "$file" ] && [ "$force" -ne 1 ]; then
 		die "$file already exists here; refusing to overwrite it (run with --force to overwrite, or install elsewhere)"
 	fi
 done
 
-# Reinstalling in a directory whose data volume survives — the .env was
-# deleted rather than --force-rewritten — would generate fresh secrets and
-# lock the existing data away behind them.
-if [ "$force" -ne 1 ] && docker volume inspect "$(basename "$(pwd)")_postgres-data" > /dev/null 2>&1; then
-	die "the postgres-data volume of an installation in this directory still exists; installing with fresh secrets would lock its data away (restore the old .env, remove the volume with docker volume rm $(basename "$(pwd)")_postgres-data, or run with --force to accept this)"
+# Only reached on a real rewrite: keep the previous .env as a backup —
+# only the secrets are carried over; other operator-written settings must
+# be copied back from it by hand. A second rewrite must not destroy the
+# first backup, so an existing one gets a timestamped name.
+if [ "$had_env" -eq 1 ]; then
+	backup=.env.bak
+	if [ -e "$backup" ]; then
+		backup=".env.bak.$(date +%Y%m%d%H%M%S)"
+	fi
+	cp .env "$backup"
+	say "Only the secrets are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there."
 fi
 
 if [ -z "$OHANA_INSTALL_VERSION" ]; then
@@ -343,29 +388,6 @@ trap - EXIT
 if [ "$shape" != external ] && [ "$force" -eq 1 ] && [ -e compose.override.yaml ]; then
 	rm compose.override.yaml
 	say 'Removed the compose.override.yaml of an earlier external-network install.'
-fi
-
-# A --force rewrite of an existing installation keeps its secrets: the
-# postgres and rustfs volumes still hold data keyed by them, and fresh
-# ones would lock the stack out of its own data. The previous .env stays
-# behind as .env.bak — only the secrets are carried over; other
-# operator-written settings must be copied back from there by hand.
-had_env=0
-old_postgres_password=
-old_storage_access_key=
-old_storage_secret_key=
-old_admin_password=
-if [ -e .env ]; then
-	had_env=1
-	# The last occurrence wins, the way Compose reads an env file — a
-	# file assembled by appending real values to the example starts with
-	# an empty assignment of the same name.
-	old_postgres_password=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env | sed -n '$p')
-	old_storage_access_key=$(sed -n 's/^STORAGE_ACCESS_KEY=//p' .env | sed -n '$p')
-	old_storage_secret_key=$(sed -n 's/^STORAGE_SECRET_KEY=//p' .env | sed -n '$p')
-	old_admin_password=$(sed -n 's/^ADMIN_INITIAL_PASSWORD=//p' .env | sed -n '$p')
-	cp .env .env.bak
-	say 'Only the secrets are carried over from the previous .env; its unmodified copy is kept as .env.bak — copy any other settings you had back from there.'
 fi
 
 postgres_password=${old_postgres_password:-$(random_secret)}
@@ -514,11 +536,11 @@ fi
 
 if [ "$had_env" -eq 1 ]; then
 	say ''
-	say 'The api uses ADMIN_INITIAL_PASSWORD only while no administrator'
-	say 'exists yet; if one already exists, your previous password stands.'
+	say '  This initial password is used only while no administrator exists'
+	say '  yet; if one already exists, sign in with the password you set then.'
+else
+	say ''
+	say 'The password above is for the first sign-in. Change it in the'
+	say 'administrative area; after that the ADMIN_INITIAL_PASSWORD line in'
+	say '.env is safe to remove.'
 fi
-
-say ''
-say 'The password above is for the first sign-in. Change it in the'
-say 'administrative area; after that the ADMIN_INITIAL_PASSWORD line in'
-say '.env is safe to remove.'
