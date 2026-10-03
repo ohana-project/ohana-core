@@ -73,9 +73,10 @@ Options:
                   compose.override.yaml; keeps the previous secrets
                   (POSTGRES_PASSWORD, the storage keys, and
                   ADMIN_INITIAL_PASSWORD — the data volumes are keyed by
-                  the first two) and leaves the previous .env as a .env.bak
-                  copy (.env.bak.<timestamp> when one already exists);
-                  every other setting must be copied back from there
+                  the first two) and the Compose project name, and leaves
+                  the previous .env as a .env.bak copy
+                  (.env.bak.<timestamp> when one already exists); every
+                  other setting must be copied back from there
 
 Without a mode flag and run on a terminal, the script asks which mode to
 use. Without a terminal — piping this script to sh, for example — it uses
@@ -279,6 +280,18 @@ if [ "$domain_set" -eq 1 ] && [ "$port_set" -eq 1 ]; then
 	die '--port does not apply to --caddy-domain; Caddy publishes OHANA_HTTP_PORT and OHANA_HTTPS_PORT instead'
 fi
 
+# A Compose project name set in the caller's environment pins the project
+# the same way it does for every later docker compose call. Compose
+# rejects names that are not already normalised, and the value ends up in
+# the label filter and in .env, so it is checked before anything runs.
+if [ -n "$COMPOSE_PROJECT_NAME" ]; then
+	case "$COMPOSE_PROJECT_NAME" in
+	[!a-z0-9]* | *[!a-z0-9_-]*)
+		die "COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}' is not a usable Compose project name (lowercase letters, digits, '-' and '_', starting with a letter or digit)"
+		;;
+	esac
+fi
+
 if [ "$domain_set" -eq 1 ]; then
 	shape=caddy
 elif [ "$network_set" -eq 1 ]; then
@@ -339,7 +352,12 @@ old_project_lookup=${old_project_lookup#\'}
 old_project_lookup=${old_project_lookup%\"}
 old_project_lookup=${old_project_lookup%\'}
 old_project_lookup=$(printf '%s' "$old_project_lookup" | tr '[:upper:]' '[:lower:]')
-project=${COMPOSE_PROJECT_NAME:-${old_project_lookup:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')}}
+case "$old_project_lookup" in
+'' | [!a-z0-9]* | *[!a-z0-9_-]*) old_project_lookup= ;;
+esac
+dir_project=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-' | sed 's/^[_-]*//')
+previous_project=${old_project_lookup:-$dir_project}
+project=${COMPOSE_PROJECT_NAME:-$previous_project}
 data_volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=postgres-data' | sed -n '1p')
 media_volume=$(docker volume ls -q --filter "label=com.docker.compose.project=${project}" --filter 'label=com.docker.compose.volume=rustfs-data' | sed -n '1p')
 locked_volume=
@@ -350,12 +368,37 @@ elif [ -n "$media_volume" ] && { [ -z "$old_storage_access_key" ] || [ -z "$old_
 fi
 if [ -n "$locked_volume" ]; then
 	# The same project name can be claimed by an installation in another
-	# directory; the erase remedy below must never reach that one.
-	owner_dir=$(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Label "com.docker.compose.project.working_dir"}}' | sed -n '1p')
-	if [ -n "$owner_dir" ] && [ "$owner_dir" != "$(pwd)" ]; then
-		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project belongs to an installation in ${owner_dir}, so it must not be erased from here; install into a differently named directory, set COMPOSE_PROJECT_NAME, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
+	# directory; the erase advice must never reach that one. Ownership is
+	# read off the project's containers; with none, nothing attributes
+	# the volume to this directory and no erase command is printed.
+	here_logical=$PWD
+	here=$(pwd -P)
+	has_ours=0
+	has_foreign=0
+	while IFS= read -r owner_dir; do
+		[ -z "$owner_dir" ] && continue
+		if [ "$owner_dir" = "$here" ] || [ "$owner_dir" = "$here_logical" ]; then
+			has_ours=1
+		else
+			has_foreign=1
+		fi
+	done <<EOF
+$(docker ps -a --filter "label=com.docker.compose.project=${project}" --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)
+EOF
+	if [ "$has_foreign" -eq 1 ]; then
+		die "a data volume of the Compose project '${project}' still exists, but its secret is not available here — and that project also belongs to an installation in another directory, so it must not be erased from here; install into a differently named directory, unset COMPOSE_PROJECT_NAME, or restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines)"
 	fi
-	die "a data volume of the Compose project '${project}' (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
+	if [ "$has_ours" -eq 1 ]; then
+		die "a data volume of the Compose project '${project}' (${locked_volume}) still exists, but its secret is not available here; installing would lock that data away — restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines), or erase this installation's data for good (this also stops its containers): docker compose -p ${project} down --volumes"
+	fi
+	die "a data volume of the Compose project '${project}' (${locked_volume}) still exists, but its secret is not available here, and with the project's containers gone this script cannot tell whether that volume is this directory's — restore the old .env (at least its POSTGRES_PASSWORD, STORAGE_ACCESS_KEY, and STORAGE_SECRET_KEY lines), or, only if you are certain the Compose project '${project}' belongs to this directory, inspect and erase the volume yourself: docker volume inspect ${locked_volume}, then docker volume rm ${locked_volume}"
+fi
+
+# A --force rewrite under a different project name than the previous
+# installation's would leave it untouched and come up on empty volumes —
+# or clash with its ports.
+if [ "$had_env" -eq 1 ] && [ -n "$COMPOSE_PROJECT_NAME" ] && [ "$COMPOSE_PROJECT_NAME" != "$previous_project" ]; then
+	die "this installation's Compose project is '${previous_project}', but the environment says COMPOSE_PROJECT_NAME='${COMPOSE_PROJECT_NAME}'; running would move it to a different, empty set of volumes — unset COMPOSE_PROJECT_NAME, or install elsewhere"
 fi
 
 for file in .env compose.yaml compose.override.yaml; do
@@ -406,7 +449,7 @@ if [ "$had_env" -eq 1 ]; then
 		backup=".env.bak.$(date +%Y%m%d%H%M%S)"
 	fi
 	cp .env "$backup"
-	say "Only the secrets are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there (STORAGE_ENDPOINT and STORAGE_BUCKET in particular, if you used external object storage)."
+	say "Only the secrets and the Compose project name are carried over from the previous .env; its unmodified copy is kept as ${backup} — copy any other settings you had back from there (STORAGE_ENDPOINT and STORAGE_BUCKET in particular, if you used external object storage)."
 fi
 
 # A compose.override.yaml left behind by an earlier --external-network

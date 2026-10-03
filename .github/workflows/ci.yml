@@ -173,18 +173,20 @@ jobs:
           # A curl shim that fails stands in for a network error: even a
           # --force rewrite must not leave a .env.bak behind on one, so
           # the backup can only exist after the download succeeded.
+          ls -A > "$RUNNER_TEMP/ls-before-fail"
           cp .env "$RUNNER_TEMP/env-before-fail"
-          mkdir shim
-          printf '#!/bin/sh\nexit 22\n' > shim/curl
-          chmod +x shim/curl
-          if out=$(PATH="$PWD/shim:$PATH" sh ../../deploy/install.sh --force --port 3210 2>&1); then
+          mkdir "$RUNNER_TEMP/shim"
+          printf '#!/bin/sh\nexit 22\n' > "$RUNNER_TEMP/shim/curl"
+          chmod +x "$RUNNER_TEMP/shim/curl"
+          if out=$(PATH="$RUNNER_TEMP/shim:$PATH" sh ../../deploy/install.sh --force --port 3210 2>&1); then
             echo '::error::the installer succeeded despite a failed download'
             exit 1
           fi
           printf '%s\n' "$out" | grep -q 'downloading compose.yaml failed'
-          [ ! -e .env.bak ] || { echo '::error::a failed download left a .env.bak behind'; exit 1; }
+          ls -A > "$RUNNER_TEMP/ls-after-fail"
+          cmp "$RUNNER_TEMP/ls-before-fail" "$RUNNER_TEMP/ls-after-fail"
           cmp .env "$RUNNER_TEMP/env-before-fail"
-          rm -rf shim
+          cmp compose.yaml "$RUNNER_TEMP/compose-before-refusal"
 
       - name: --force keeps an installation's secrets
         working-directory: deploy/install
@@ -202,14 +204,15 @@ jobs:
           sed -i '1i POSTGRES_PASSWORD=' .env
           sed -i "s|^POSTGRES_PASSWORD=${real_pw}|  export POSTGRES_PASSWORD=${real_pw}|" .env
           # A project name in .env must survive the rewrite: the volumes
-          # were created under it (here: the same name the directory yields).
-          printf 'COMPOSE_PROJECT_NAME=install\n' >> .env
+          # were created under it (here: the same name the directory
+          # yields). The quoted, commented form pins the normalisation.
+          printf 'COMPOSE_PROJECT_NAME="install" # pinned\n' >> .env
           cp .env "$RUNNER_TEMP/env-before-force"
           export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
           sh ../../deploy/install.sh --force --port 3210
           # A second rewrite must keep the first backup, not clobber it.
           sh ../../deploy/install.sh --force --port 3210
-          [ "$(grep -cx 'COMPOSE_PROJECT_NAME=install' .env)" = "1" ] ||
+          [ "$(grep -Fx 'COMPOSE_PROJECT_NAME="install" # pinned' .env)" ] ||
             { echo '::error::--force dropped COMPOSE_PROJECT_NAME'; exit 1; }
           env_val=$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}POSTGRES_PASSWORD=//p' .env | tr -d '\r' | sed -n '$p')
           [ "$env_val" = "$real_pw" ] ||
@@ -261,9 +264,19 @@ jobs:
           cmp "$RUNNER_TEMP/ls-before-guard" "$RUNNER_TEMP/ls-after-guard"
           [ ! -e .env ]
           [ -f compose.yaml ]
-          # A .env that kept the database password but lost the storage
-          # keys must hit the media-volume branch of the guard.
-          printf 'POSTGRES_PASSWORD=x\n' > .env
+          # A project living in another directory must not be erasable
+          # from here: the refusal names no erase command.
+          mkdir -p "$RUNNER_TEMP/other-install"
+          if out=$(cd "$RUNNER_TEMP/other-install" && COMPOSE_PROJECT_NAME=install sh "$GITHUB_WORKSPACE/deploy/install.sh" --port 3210 2>&1); then
+            echo '::error::a foreign directory could reinstall over the project'
+            exit 1
+          fi
+          printf '%s\n' "$out" | grep -q 'must not be erased from here'
+          printf '%s\n' "$out" | grep -q 'down --volumes' && exit 1 || true
+          # A .env that kept the database password and only one storage
+          # key must hit the media-volume branch: the missing secret key
+          # is what the second arm of the guard's condition catches.
+          printf 'POSTGRES_PASSWORD=x\nSTORAGE_ACCESS_KEY=x\n' > .env
           out=$(sh ../../deploy/install.sh --port 3210 2>&1) || true
           printf '%s\n' "$out" | grep -q 'rustfs-data'
           rm .env
@@ -284,7 +297,11 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/deploy/shim:$PATH"
           mkdir install-external
           cd install-external
-          sh ../../deploy/install.sh --external-network ci-proxy --port 3211
+          COMPOSE_PROJECT_NAME=ohana-ext sh ../../deploy/install.sh --external-network ci-proxy --port 3211
+          # A project name from the environment is pinned into .env, so
+          # the next plain docker compose call addresses the same project.
+          grep -qx 'COMPOSE_PROJECT_NAME=ohana-ext' .env ||
+            { echo '::error::the environment project name was not pinned into .env'; exit 1; }
 
       - uses: ./.github/actions/check-serving
         with:
