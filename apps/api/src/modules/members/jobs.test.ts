@@ -179,7 +179,9 @@ describe('the private-state purge (issue #23)', () => {
     expect(drafts).toHaveLength(1)
     const rows = await harness.db.select().from(members).where(eq(members.id, arranged.memberId))
     expect(rows[0]?.privateStatePurgedAt).toBeNull()
-    // The subscription straggler waits with everything else private.
+    // The subscription straggler waits with everything else private. This
+    // is a control for the purge test below, not a requirement in itself —
+    // closing the subscribe race would remove the straggler entirely.
     expect(await subscriptionRowsForMember(arranged.memberId)).toHaveLength(1)
   })
 

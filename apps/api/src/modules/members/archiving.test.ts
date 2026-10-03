@@ -600,6 +600,9 @@ describe('the archiving in sync (issue #23)', () => {
       const { code } = issued.json() as { code: string }
       const authorSession = await signInMember(app, code)
       const authorFresh = await sync(app, authorSession, '0')
+      // The same response carries the author's own wishes: the absences
+      // below are the rule, not a dead cursor or an empty scope.
+      expect(authorFresh.changes.some((change) => change.wish?.id === wish.id)).toBe(true)
       expect(
         authorFresh.changes.filter(
           (change) =>
