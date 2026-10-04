@@ -21,6 +21,8 @@ async function openDesign(page: Page, options: { theme?: string; locale?: string
   const title = options.locale === 'en' ? 'Ohana design system' : 'Дизайн-система Ohana'
   await page.goto(DESIGN)
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  // every measuring spec reads metrics, so wait out the webfonts
+  await page.evaluate(() => document.fonts.ready)
 }
 
 /**
@@ -591,8 +593,10 @@ test.describe('overlay parity (issue #59)', () => {
       const confirm = footer?.querySelectorAll('button')[1]
       if (!confirm) return null
       confirm.textContent = 'Перевыпустить'
-      // measure in Golos Text, not the fallback the runner was born with
+      // fonts.ready waits out the load but also accepts a failed face;
+      // the family check pins the measurement to Golos Text
       await document.fonts.ready
+      const golos = getComputedStyle(confirm).fontFamily.includes('Golos')
       const range = document.createRange()
       range.selectNodeContents(confirm)
       const text = range.getBoundingClientRect()
@@ -601,13 +605,16 @@ test.describe('overlay parity (issue #59)', () => {
         button.getBoundingClientRect(),
       )
       return {
+        golos,
         equalWidth: Math.abs(boxes[0].width - boxes[1].width) <= 1,
-        slackLeft: Math.round((text.left - box.left) * 10) / 10,
-        slackRight: Math.round((box.right - text.right) * 10) / 10,
+        slackLeft: text.left - box.left,
+        slackRight: box.right - text.right,
       }
     })
     expect(row, 'the confirm button renders').not.toBeNull()
-    expect(row?.equalWidth).toBe(true)
+    expect(row?.golos, 'the button measures in Golos Text').toBe(true)
+    expect(row?.equalWidth, JSON.stringify(row)).toBe(true)
+    // exact comparison: the word may sit in the padding, never spill
     expect(row?.slackLeft, JSON.stringify(row)).toBeGreaterThanOrEqual(0)
     expect(row?.slackRight, JSON.stringify(row)).toBeGreaterThanOrEqual(0)
     await page.keyboard.press('Escape')
