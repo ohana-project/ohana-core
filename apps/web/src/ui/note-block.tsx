@@ -7,8 +7,9 @@ import { Icon, type IconName } from '@/ui/icon.tsx'
  * Ohana note block (`.venue-note` in the prototype, issue #61): the
  * soft-accent box with a 22% accent hairline, a 20px accent icon and
  * `sm` body text, used on Home, the wishlist screens and the invite
- * screen. The icon is a sized-icon context (issue #55): callers pass
- * no size, the block dictates 20px, and an explicit size still wins.
+ * screen. The block renders its own icon and dictates the context's
+ * 20px accent size (issue #55's icon-context rule); the size guard
+ * keeps an explicit size winning, like every other sized-icon context.
  */
 export interface NoteBlockProps extends React.ComponentProps<'div'> {
   icon: IconName
@@ -26,7 +27,9 @@ export function NoteBlock({ icon, className, children, ...props }: NoteBlockProp
       {...props}
     >
       <Icon name={icon} />
-      <div className="flex min-w-0 flex-1 flex-col text-sm">{children}</div>
+      {/* a plain block, like the prototype's inner div: paragraphs and
+          links keep their natural flow inside it */}
+      <div className="min-w-0 flex-1 text-sm">{children}</div>
     </div>
   )
 }

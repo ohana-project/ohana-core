@@ -610,6 +610,11 @@ test.describe('shared pieces (issue #61)', () => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await openDesign(page)
     await expect(demoShell(page).locator('[data-slot="action-bar"]')).toBeHidden()
+    // the desktop reserve ignores the bar: the has-data rule outranks
+    // the plain desktop padding on specificity, so dropping that class
+    // would leave the mobile 144px reserve on desktop with nothing
+    // failing but this
+    await expect(demoShell(page).locator('main')).toHaveCSS('padding-bottom', '48px')
   })
 
   test('mounting the action bar grows the shell bottom reserve', async ({ page }) => {

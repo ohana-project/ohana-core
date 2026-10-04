@@ -11,8 +11,9 @@ import { TopBar } from '@/ui/top-bar.tsx'
  * below 920px, a solid 232px sidebar from 920px up, the top bar on
  * both. Content is centred and reserves room for the tab bar and the
  * FAB — and, when a screen mounts the shared action bar (issue #61),
- * for the bar itself: its 64px plus a 16px gap on top of the tab bar
- * reserve and the safe-area inset the bar clears. One visible section
+ * for the bar itself: its `--action-bar-h` (64px) plus a 16px gap on
+ * top of the tab bar reserve and the safe-area inset the bar clears.
+ * One visible section
  * must hold on its own — hidden sections simply disappear from the
  * navigation.
  */
@@ -72,7 +73,7 @@ export function MemberLayout({
         />
         <main
           className={cn(
-            'mx-auto w-full px-(--pad) pb-[calc(var(--tabbar-h)+28px)] has-data-[slot=fab]:pb-[calc(var(--tabbar-h)+96px)] has-data-[slot=action-bar]:pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+80px)] desktop:pb-12 desktop:has-data-[slot=fab]:pb-12 desktop:has-data-[slot=action-bar]:pb-12',
+            'mx-auto w-full px-(--pad) pb-[calc(var(--tabbar-h)+28px)] has-data-[slot=fab]:pb-[calc(var(--tabbar-h)+96px)] has-data-[slot=action-bar]:pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+var(--action-bar-h)+16px)] desktop:pb-12 desktop:has-data-[slot=fab]:pb-12 desktop:has-data-[slot=action-bar]:pb-12',
             width === 'default' && 'max-w-[var(--content-w)]',
             width === 'narrow' && 'max-w-[var(--content-w-narrow)]',
             width === 'wide' && 'max-w-[var(--content-w-wide)]',

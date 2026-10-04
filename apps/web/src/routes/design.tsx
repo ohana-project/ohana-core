@@ -1008,7 +1008,7 @@ function PiecesSection() {
             <p className="mt-0.5 text-muted-foreground">{t('designPreview.pieces.noteText')}</p>
             <a
               href="#pieces"
-              className="mt-2 w-fit font-medium text-primary underline-offset-3 hover:underline"
+              className="mt-2 inline-flex w-fit font-medium text-primary underline-offset-3 hover:underline"
             >
               {t('designPreview.pieces.noteLink')}
             </a>
@@ -1091,12 +1091,13 @@ function LayoutsSection() {
           ))}
         </ToggleGroup>
         {/* the switch renders a button, so a wrapping label would not
-            activate it — the text is its visible caption instead */}
+            activate it — the text is its visible caption, and the
+            accessible name is that same text (WCAG 2.5.3) */}
         <span className="flex items-center gap-3 text-sm font-medium">
           <Switch
             checked={withActionBar}
             onCheckedChange={setWithActionBar}
-            aria-label={t('designPreview.pieces.actionBar')}
+            aria-label={t('designPreview.pieces.actionBarToggle')}
           />
           {t('designPreview.pieces.actionBarToggle')}
         </span>

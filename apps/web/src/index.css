@@ -143,6 +143,24 @@
   }
 }
 
+/*
+ * The mobile action bar (issue #61) and the toast viewport share the
+ * bottom of a phone screen; a screen that mounts the bar lifts the
+ * toasts above it by the bar's height and the safe-area inset, the
+ * same measure the member layout reserves. The viewport reads the
+ * lift through its own bottom offset — on desktop it sits at its
+ * bottom-6 and the variable is out of the picture.
+ */
+:root {
+  --toast-lift: 0px;
+}
+
+@media (width < 57.5rem) {
+  html:has([data-slot="action-bar"]) {
+    --toast-lift: calc(env(safe-area-inset-bottom) + var(--action-bar-h));
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

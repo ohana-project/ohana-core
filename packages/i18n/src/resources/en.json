@@ -815,15 +815,12 @@
       "giftIdeas": "Gift ideas"
     },
     "pieces": {
-      "note": "Note block",
       "noteHint": "The soft accent fill, a 22% accent hairline, the 18px radius, 16px padding, a 14px gap and a 20px accent icon",
       "noteTitle": "Three weeks until Люда's birthday",
       "noteText": "Her list already has four ideas. Reserve a gift secretly before someone else claims it.",
       "noteLink": "Open wishlists",
       "notePlainLead": "Share the code in person",
       "notePlainRest": " — a group chat can be read by strangers. The code burns after the first sign-in. Re-issuing cancels the old code and creates a new one.",
-      "actionBar": "Action bar",
-      "actionBarHint": "The glass bar sitting directly above the tab bar below 920px, clear of the bottom safe area; from 920px the same actions live in the top bar, and the shell reserves the bar's space.",
       "actionBarToggle": "Action bar in the shell demo",
       "barCancel": "Cancel",
       "barSave": "Save",

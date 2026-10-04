@@ -23,6 +23,18 @@ describe('ActionBar', () => {
     expect(bar.className).toContain('glass-bar')
     expect(bar.className).toContain('fixed')
     expect(bar.className).toContain('inset-x-0')
+    // the bar's height floor is the token the layout's bottom reserve
+    // and the toast viewport's lift read, so the three cannot drift
+    expect(bar.className).toContain('min-h-(--action-bar-h)')
+  })
+
+  it('is a group of actions', () => {
+    renderWithProviders(
+      <ActionBar data-testid="bar">
+        <button type="button">Сохранить</button>
+      </ActionBar>,
+    )
+    expect(screen.getByTestId('bar')).toHaveAttribute('role', 'group')
   })
 
   it('sits above the tab bar and respects the bottom safe area', () => {
