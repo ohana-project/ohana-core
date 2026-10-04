@@ -60,12 +60,16 @@ describe('SyncStatus', () => {
 
   it('leaves the 430px text hiding to the top bar', () => {
     // the full form keeps its words at every width everywhere else
-    // (.topbar .sync .sync-text is the prototype's only hiding rule)
+    // (.topbar .sync .sync-text is the prototype's only hiding rule):
+    // neither the root nor the label carries any hiding class, whatever
+    // spelling the top bar's rule takes
     for (const state of STATES) {
       const { container, unmount } = renderWithProviders(<SyncStatus state={state} />)
       const root = container.querySelector('[data-slot="sync-status"]')
-      expect(root?.className, state).not.toContain('max-[430px]')
-      expect(container.querySelector('[data-slot="sync-status-label"]'), state).not.toBeNull()
+      expect(root?.className, state).not.toMatch(/430px|sr-only/)
+      const label = container.querySelector('[data-slot="sync-status-label"]')
+      expect(label, state).not.toBeNull()
+      expect(label?.className, state).not.toMatch(/sr-only/)
       unmount()
     }
   })

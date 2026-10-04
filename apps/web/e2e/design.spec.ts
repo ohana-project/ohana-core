@@ -513,19 +513,20 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     const buttons = page.locator('#buttons [data-slot="button"]')
 
     // .btn 15px, .btn-sm 14px, .btn-lg 16.5px — the prototype's own
-    // values, not type-scale steps
+    // values, not type-scale steps. Exact text: «Маленькая ссылка»
+    // contains «Ссылка», and only strict matching picks the right button
     const fontSizeOf = async (name: string) => {
-      const button = buttons.filter({ hasText: name }).first()
-      await expect(button).toBeVisible()
-      return button.evaluate((el) => getComputedStyle(el).fontSize)
+      const button = buttons.filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) })
+      await expect(button).toHaveCount(1)
+      return button.first().evaluate((el) => getComputedStyle(el).fontSize)
     }
     await expect(fontSizeOf('Главная')).resolves.toBe('15px')
     await expect(fontSizeOf('Маленькая')).resolves.toBe('14px')
     await expect(fontSizeOf('Большая')).resolves.toBe('16.5px')
 
     // .btn-link: 8px of side padding — the size's 20px must not win
-    const link = buttons.filter({ hasText: 'Ссылка' }).first()
-    await expect(link).toBeVisible()
+    const link = buttons.filter({ hasText: /^\s*Ссылка\s*$/ })
+    await expect(link).toHaveCount(1)
     const linkPadding = await link.evaluate((el) => {
       const s = getComputedStyle(el)
       return [s.paddingLeft, s.paddingRight]
@@ -534,8 +535,8 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
 
     // a small link is an sm button first (.btn-sm follows .btn-link):
     // 36px tall, 6px of vertical and 14px of side padding
-    const linkSm = buttons.filter({ hasText: 'Маленькая ссылка' }).first()
-    await expect(linkSm).toBeVisible()
+    const linkSm = buttons.filter({ hasText: /^\s*Маленькая ссылка\s*$/ })
+    await expect(linkSm).toHaveCount(1)
     const linkSmShape = await linkSm.evaluate((el) => {
       const rect = el.getBoundingClientRect()
       const s = getComputedStyle(el)
@@ -759,6 +760,6 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
       },
       [TARGET],
     )
-    expect(radius, 'the focused plain link').toBe('8px')
+    expect(radius, 'the link is :focus-visible and rounds to 8px').toBe('8px')
   })
 })

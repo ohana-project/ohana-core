@@ -47,6 +47,10 @@ describe('Button', () => {
     expect(classes(<Button variant="link" />)).not.toContain('px-5')
     expect(classes(<Button variant="link" size="lg" />)).toContain('px-2')
     expect(classes(<Button variant="link" size="lg" />)).not.toContain('px-5')
+    // the large size carries the base 10px of vertical padding for every
+    // variant, so a link+lg keeps it too
+    expect(classes(<Button size="lg" />)).toContain('py-2.5')
+    expect(classes(<Button variant="link" size="lg" />)).toContain('py-2.5')
   })
 
   it('a small link stays an sm button: the size keeps its own padding', () => {
