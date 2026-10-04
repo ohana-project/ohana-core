@@ -8,7 +8,7 @@ import { Button } from '@/ui/button.tsx'
  * 14px small, 16.5px large; the default and large link buttons keep
  * 8px side padding whatever the merge does, while a small link stays
  * an sm button (.btn-sm comes after .btn-link in the prototype sheet —
- * the update banner's action is that combination); the icon buttons
+ * the app's update banner ships that combination); the icon buttons
  * are round, 44px and 36px. The computed pixels are asserted in
  * e2e/design.spec.ts.
  */
@@ -46,6 +46,7 @@ describe('Button', () => {
     expect(classes(<Button variant="link" />)).toContain('px-2')
     expect(classes(<Button variant="link" />)).not.toContain('px-5')
     expect(classes(<Button variant="link" size="lg" />)).toContain('px-2')
+    expect(classes(<Button variant="link" size="lg" />)).not.toContain('px-5')
   })
 
   it('a small link stays an sm button: the size keeps its own padding', () => {

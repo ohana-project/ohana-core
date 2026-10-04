@@ -30,7 +30,7 @@ const buttonVariants = cva(
       size: {
         default: 'min-h-11 px-5 py-2.5',
         sm: 'min-h-9 px-3.5 py-1.5 text-[14px]',
-        lg: 'w-full min-h-[52px] px-5 text-[16.5px]',
+        lg: 'w-full min-h-[52px] px-5 py-2.5 text-[16.5px]',
         icon: 'size-11 rounded-full p-0',
         'icon-sm': 'size-9 rounded-full p-0',
       },
@@ -39,7 +39,7 @@ const buttonVariants = cva(
       // after the size classes, so the default and large link keep their
       // 8px sides (.btn-link); the size keeps its own vertical padding,
       // because .btn-sm comes after .btn-link in the prototype — a small
-      // link is a 36px sm button, as the update banner's action is
+      // link is a 36px sm button (the app's update banner ships one)
       { variant: 'link', size: ['default', 'lg'], class: 'px-2' },
     ],
     defaultVariants: {

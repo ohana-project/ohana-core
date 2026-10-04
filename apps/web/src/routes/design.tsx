@@ -309,6 +309,11 @@ function ButtonsSection() {
         <Button variant="ghost">{t('designPreview.buttons.ghost')}</Button>
         <Button variant="destructive">{t('designPreview.buttons.destructive')}</Button>
         <Button variant="link">{t('designPreview.buttons.link')}</Button>
+        {/* a small link stays an sm button (.btn-sm follows .btn-link) —
+            the app's update banner ships that combination */}
+        <Button variant="link" size="sm">
+          {t('designPreview.buttons.linkSm')}
+        </Button>
         <Button disabled>{t('designPreview.buttons.disabled')}</Button>
       </div>
       <div className="flex flex-wrap items-center gap-3">

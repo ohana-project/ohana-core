@@ -532,6 +532,21 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     })
     expect(linkPadding).toEqual(['8px', '8px'])
 
+    // a small link is an sm button first (.btn-sm follows .btn-link):
+    // 36px tall, 6px of vertical and 14px of side padding
+    const linkSm = buttons.filter({ hasText: 'Маленькая ссылка' }).first()
+    await expect(linkSm).toBeVisible()
+    const linkSmShape = await linkSm.evaluate((el) => {
+      const rect = el.getBoundingClientRect()
+      const s = getComputedStyle(el)
+      return {
+        height: rect.height,
+        padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft],
+      }
+    })
+    expect(linkSmShape.height).toBeCloseTo(36, 5)
+    expect(linkSmShape.padding).toEqual(['6px', '14px', '6px', '14px'])
+
     // .btn-icon 44px round, .btn-icon.btn-sm 36px round
     const shapeOf = async (label: string) => {
       const button = page.getByRole('button', { name: label, exact: true }).first()
@@ -723,24 +738,27 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
 
     // and a keyboard-focused element without a radius of its own rounds
     // to it: walk to the lists demo's section-header link, a plain <a>
+    const TARGET = '#lists [data-slot="section-header"] a[href="#lists"]'
     await page.keyboard.press('Tab')
+    let onTarget = false
     for (let step = 0; step < 150; step += 1) {
-      const onTarget = await page.evaluate(() => {
-        const el = document.activeElement
-        const wanted = document.querySelector(
-          '#lists [data-slot="section-header"] a[href="#lists"]',
-        )
-        return el instanceof HTMLElement && el === wanted
-      })
+      onTarget = await page.evaluate(
+        ([selector]) => document.activeElement?.matches(selector) ?? false,
+        [TARGET],
+      )
       if (onTarget) break
       await page.keyboard.press('Tab')
     }
-    const radius = await page.evaluate(() => {
-      const wanted = document.querySelector('#lists [data-slot="section-header"] a[href="#lists"]')
-      return wanted instanceof HTMLElement && wanted.matches(':focus-visible')
-        ? getComputedStyle(wanted).borderRadius
-        : null
-    })
+    expect(onTarget, 'tabbed to the section-header link').toBe(true)
+    const radius = await page.evaluate(
+      ([selector]) => {
+        const wanted = document.querySelector(selector)
+        return wanted instanceof HTMLElement && wanted.matches(':focus-visible')
+          ? getComputedStyle(wanted).borderRadius
+          : null
+      },
+      [TARGET],
+    )
     expect(radius, 'the focused plain link').toBe('8px')
   })
 })
