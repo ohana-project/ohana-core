@@ -33,13 +33,18 @@ const textColourUses = token('text-accent')
  *  fill the spec prescribes is the soft accent tint, named primary-soft. */
 const restingFillUses = token('bg-accent')
 
+/** Utilities that would colour anything else with the hover fill: icon
+ *  fills and strokes, hairlines, rings, underlines, carets. */
+const otherColourUses = token('(?:fill|stroke|border|ring|outline|decoration|caret)-accent')
+
 /** Any utility on the non-existent accent-soft colour. A word character
  *  before the colour (`bg-accent-soft`) is required, so the CSS token's
  *  own name (`'--accent-soft'`, named by the preview route's swatch list)
  *  does not read as a class. */
 const softAccentUses = /(?<![\w-])((?:[\w\-/[\]=.]+:)*)[\w]+-accent-soft(?![\w-])/g
 
-/** The variants behind which the hover fill may appear. */
+/** The variants behind which the hover fill may appear; a named scope
+ *  (`group-hover/row:`) counts by its name before the slash. */
 const interactionVariants = new Set([
   'hover',
   'focus',
@@ -57,7 +62,7 @@ function walk(dir: string): string[] {
   return entries.flatMap((entry) => {
     const path = join(dir, entry.name)
     if (entry.isDirectory()) return walk(path)
-    return entry.name.endsWith('.tsx') ? [path] : []
+    return /\.tsx?$/.test(entry.name) ? [path] : []
   })
 }
 
@@ -90,12 +95,22 @@ describe('the hover-fill accent role in feature code', () => {
     const found = sources.flatMap(({ path, source }) =>
       violationsOf(source, restingFillUses, (match) => {
         const variants = (match[1] ?? '').split(':').filter(Boolean)
-        return !variants.some((variant) => interactionVariants.has(variant))
+        return !variants.some((variant) => interactionVariants.has(variant.split('/')[0] ?? variant))
       }).map((at) => `${path}:${at}`),
     )
     expect(
       found,
       'a resting grey fill reads as a disabled tile: use the brand accent (bg-primary) or its soft tint (bg-primary-soft)',
+    ).toEqual([])
+  })
+
+  it('colours nothing else with the hover fill', () => {
+    const found = sources.flatMap(({ path, source }) =>
+      violationsOf(source, otherColourUses, () => true).map((at) => `${path}:${at}`),
+    )
+    expect(
+      found,
+      'icon fills, strokes, hairlines, rings, underlines and carets take a token colour, not the hover-fill role',
     ).toEqual([])
   })
 
