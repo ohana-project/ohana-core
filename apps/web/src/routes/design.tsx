@@ -1008,7 +1008,7 @@ function PiecesSection() {
             <p className="mt-0.5 text-muted-foreground">{t('designPreview.pieces.noteText')}</p>
             <a
               href="#pieces"
-              className="mt-2 inline-flex w-fit font-medium text-primary underline-offset-3 hover:underline"
+              className="mt-2 inline-flex font-medium text-primary underline-offset-3 hover:underline"
             >
               {t('designPreview.pieces.noteLink')}
             </a>
@@ -1103,7 +1103,11 @@ function LayoutsSection() {
         </span>
       </div>
       {/* the transform turns the demo box into the containing block for the
-          fixed tab bar and FAB, so they stay inside the demo */}
+          fixed tab bar and FAB, so they stay inside the demo. The demo
+          bar is still real to `html:has`, so while it is up the app's
+          own toast viewport lifts above it — exactly what a screen
+          mounting the bar gets; leaving the switch on therefore shows
+          toasts 64px higher than the default */}
       <div className="overflow-hidden rounded-lg border border-border [transform:translateZ(0)]">
         <MemberLayout
           space={space}

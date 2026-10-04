@@ -589,10 +589,15 @@ test.describe('shared pieces (issue #61)', () => {
         tuck: barBox.bottom - tabBox.top,
         buttonBottom: button?.bottom,
         tabTop: tabBox.top,
+        barHeight: Math.round(barBox.height),
         sameBleed: barBox.left === tabBox.left && barBox.right === tabBox.right,
       }
     })
     expect(geometry, 'the demo shell renders at 390px').not.toBeNull()
+    // the bar renders at the token's 64px: a shorter button row leaves
+    // the min-height to hold it, and a taller one must be a conscious
+    // change to the token the reserve and the toast lift read
+    expect(geometry?.barHeight).toBe(64)
     // the bar's lowest 3px tuck under the tab bar's glass — the 64px
     // reserve is 3px less than the rendered 67px bar — so the two sit
     // flush, and the tab bar, later in the shell, paints over the tuck
@@ -630,5 +635,26 @@ test.describe('shared pieces (issue #61)', () => {
     expect(await paddingBottom()).toBe('92px')
     await page.locator('#layouts').getByRole('switch').click()
     expect(await paddingBottom()).toBe('144px')
+  })
+
+  test('toasts lift above a mounted action bar', async ({ page }) => {
+    const viewport = page.locator('[data-slot="toast-viewport"]')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page, { locale: 'en' })
+    // fire a real toast, so the assertion is about the pill's actual
+    // position, not a stylesheet reading (the viewport element stays
+    // mounted after the toast hides, its bottom offset does not move)
+    await page.locator('#feedback').getByRole('button', { name: 'OK', exact: true }).click()
+    // bar mounted by default: the reserve's own measure — tab bar (64)
+    // + safe area (0) + the bar's 64px, over the 16px gap
+    await expect(viewport).toHaveCSS('bottom', '144px')
+    await page.locator('#layouts').getByRole('switch').click()
+    // bar unmounted: the plain tab-bar-plus-gap offset returns
+    await expect(viewport).toHaveCSS('bottom', '80px')
+    await page.locator('#layouts').getByRole('switch').click()
+    await expect(viewport).toHaveCSS('bottom', '144px')
+    // from 920px the bar is gone and the viewport sits at its own 24px
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(viewport).toHaveCSS('bottom', '24px')
   })
 })

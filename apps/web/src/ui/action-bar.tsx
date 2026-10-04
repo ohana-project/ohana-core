@@ -11,18 +11,16 @@ import { cn } from '@/lib/cn'
  * safe-area inset the tab bar pads itself with, so it never covers
  * the tab bar; a screen that mounts it gets the bottom space reserved
  * by the member layout. Its minimum height is the `--action-bar-h`
- * token the layout's reserve and the toast viewport's lift read, so
- * the three cannot drift apart. Being `fixed`, it positions against
- * the viewport unless an ancestor is transformed (the design route's
- * shell demo uses that to pin the bar inside the demo box) — a screen
- * keeps its ancestors transform-free.
+ * token the layout's reserve and the toast viewport's lift read — a
+ * bar taller than the token eats into the reserve's 16px gap. Being
+ * `fixed`, it positions against the viewport unless an ancestor is
+ * transformed (the design route's shell demo uses that to pin the bar
+ * inside the demo box) — a screen keeps its ancestors transform-free.
  */
 export function ActionBar({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: the bar groups a screen's buttons, it is not a form field set — a fieldset would drag in form semantics and the browser's own box; its accessible name is the caller's aria-label
     <div
       data-slot="action-bar"
-      role="group"
       className={cn(
         'glass-bar fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] min-h-(--action-bar-h) z-30 flex items-center gap-2.5 rounded-none border-0 px-3.5 py-2.5 desktop:hidden',
         className,

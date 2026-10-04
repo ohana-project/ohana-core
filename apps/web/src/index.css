@@ -148,13 +148,11 @@
  * bottom of a phone screen; a screen that mounts the bar lifts the
  * toasts above it by the bar's height and the safe-area inset, the
  * same measure the member layout reserves. The viewport reads the
- * lift through its own bottom offset — on desktop it sits at its
- * bottom-6 and the variable is out of the picture.
+ * lift through its own bottom offset (which carries a 0px fallback);
+ * on desktop it sits at its bottom-6 and the variable is out of the
+ * picture. The media query restates the one layout breakpoint — media
+ * queries cannot read custom properties.
  */
-:root {
-  --toast-lift: 0px;
-}
-
 @media (width < 57.5rem) {
   html:has([data-slot="action-bar"]) {
     --toast-lift: calc(env(safe-area-inset-bottom) + var(--action-bar-h));
