@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu.tsx'
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import {
   Item,
@@ -84,12 +84,12 @@ export function JournalDraftsScreen() {
               </EmptyMedia>
               <EmptyTitle>{t('journal.draftsEmptyTitle')}</EmptyTitle>
               <EmptyDescription>{t('journal.draftsEmptyText')}</EmptyDescription>
-              <EmptyMedia className="mt-3">
+              <EmptyContent>
                 <Button variant="secondary" onClick={() => void navigate({ to: '/journal/new' })}>
                   <Icon name="plus" />
                   {t('journal.newEntry')}
                 </Button>
-              </EmptyMedia>
+              </EmptyContent>
             </Empty>
           </Card>
         ) : (
@@ -138,7 +138,7 @@ function DraftRow({
   const [confirmTrash, setConfirmTrash] = useState(false)
   return (
     <Item size="lg">
-      <ItemMedia>
+      <ItemMedia variant="icon">
         <Icon name="file-text" />
       </ItemMedia>
       <ItemContent>

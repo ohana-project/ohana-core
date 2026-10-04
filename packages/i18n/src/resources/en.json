@@ -797,7 +797,20 @@
       "dima": "Дима",
       "misha": "Миша",
       "luda": "бабушка Люда",
-      "linkRow2": "External link"
+      "linkRow2": "External link",
+      "cardForms": "Card forms",
+      "paddedTitle": "Grandma Lyuda's list",
+      "paddedText": "Her list already has four ideas. Reserve a gift in secret before someone else takes it.",
+      "paddedAction": "Open the list",
+      "paddedHint": "20px padding on all sides, no forced gaps — the content sets its own rhythm",
+      "listHint": "No padding: rows flush, hairlines between them, the corners clip them",
+      "rowHeights": "Row heights",
+      "rowSize": "{size} · {pixels}",
+      "leadingBare": "bare icon",
+      "leadingTile": "icon in a 38px tile",
+      "leadingTone": "icon in the accent colour",
+      "leadingAvatar": "avatar, no tile behind",
+      "giftIdeas": "Gift ideas"
     },
     "layouts": {
       "member": "Member: tab bar below 920px, sidebar above",
