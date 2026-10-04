@@ -93,6 +93,17 @@ describe('Icon', () => {
     expect(svg?.getAttribute('class')).toContain('size-7')
     expect(svg?.getAttribute('class')).not.toContain('h-[1em]')
   })
+
+  it('lets separate width and height classes override the em default', () => {
+    // the tab bar's 40×28 plate is one svg with h-7 w-10; the merge must
+    // be deterministic, never stylesheet order
+    const { container } = render(<Icon name="home" className="h-7 w-10" />)
+    const svg = container.querySelector('svg')
+    expect(svg?.getAttribute('class')).toContain('h-7')
+    expect(svg?.getAttribute('class')).toContain('w-10')
+    expect(svg?.getAttribute('class')).not.toContain('h-[1em]')
+    expect(svg?.getAttribute('class')).not.toContain('w-[1em]')
+  })
 })
 
 describe('Logo', () => {

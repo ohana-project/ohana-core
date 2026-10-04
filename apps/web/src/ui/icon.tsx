@@ -135,7 +135,7 @@ export function Icon({ name, size, className, style, ...rest }: IconProps) {
       icon={icons[name]}
       aria-hidden="true"
       size={size}
-      className={cn(!size && 'h-[1em] w-[1em]', 'shrink-0', className)}
+      className={cn(size === undefined && 'h-[1em] w-[1em]', 'shrink-0', className)}
       style={size === undefined ? style : { width: size, height: size, ...style }}
       {...rest}
       strokeWidth={1.5}

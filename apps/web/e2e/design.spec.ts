@@ -201,6 +201,7 @@ test.describe('icon sizes (issue #55)', () => {
         pickCheck: boxes('[data-slot="pick-row"] > svg'),
         emptyPlate: boxes('[data-slot="empty-icon"] svg'),
         pill: boxes('[data-slot="badge"] svg'),
+        sidebarChevron: boxes('[data-slot="side-space"] > svg'),
       }
     })
 
@@ -211,6 +212,7 @@ test.describe('icon sizes (issue #55)', () => {
       pickCheck: [20, 20],
       emptyPlate: [28, 28],
       pill: [12, 12],
+      sidebarChevron: [20, 20],
     } as const
     for (const [context, boxes] of Object.entries(sizes)) {
       expect(boxes.length, `${context}: the preview shows the context`).toBeGreaterThan(0)
@@ -232,6 +234,7 @@ test.describe('icon sizes (issue #55)', () => {
         return [rect.width, rect.height]
       }),
     )
+    expect(boxes).toHaveLength(4)
     for (const box of boxes) expect(box).toEqual([18, 18])
     await page.keyboard.press('Escape')
   })
@@ -240,7 +243,8 @@ test.describe('icon sizes (issue #55)', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page)
 
-    const measured = await page.evaluate(() => {
+    const px = (value: string) => Number.parseFloat(value)
+    const measured = await page.evaluate((px) => {
       const box = (el: Element | null) => {
         if (!el) return null
         const rect = el.getBoundingClientRect()
@@ -253,12 +257,12 @@ test.describe('icon sizes (issue #55)', () => {
       return {
         plate: [rect.width, rect.height],
         glyph: [
-          rect.width - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight),
-          rect.height - Number.parseFloat(style.paddingTop) - Number.parseFloat(style.paddingBottom),
+          rect.width - px(style.paddingLeft) - px(style.paddingRight),
+          rect.height - px(style.paddingTop) - px(style.paddingBottom),
         ],
         fab: box(document.querySelector('[data-slot="fab"] svg')),
       }
-    })
+    }, px)
     expect(measured, 'the mobile shell renders inside the preview').not.toBeNull()
     expect(measured?.plate).toEqual([40, 28])
     expect(measured?.glyph).toEqual([24, 24])

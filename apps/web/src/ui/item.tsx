@@ -161,7 +161,7 @@ function ItemActions({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="item-actions"
       className={cn(
-        "ml-auto flex shrink-0 items-center gap-2 text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px]",
+        "ml-auto flex shrink-0 items-center gap-2 text-muted-foreground [&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-[18px]",
         className,
       )}
       {...props}

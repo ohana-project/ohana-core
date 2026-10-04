@@ -188,7 +188,7 @@ export function AccountsScreen() {
                   <ItemDescription>{entry.spaceName}</ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Icon name="chevron-right" className="size-4 text-muted-foreground" />
+                  <Icon name="chevron-right" className="text-muted-foreground" />
                 </ItemActions>
               </Item>
             )
@@ -198,12 +198,12 @@ export function AccountsScreen() {
 
       <div className="mt-5 flex flex-col gap-2.5">
         <Button variant="secondary" size="lg" render={<Link to="/signin" />}>
-          <Icon name="plus" className="size-4" />
+          <Icon name="plus" />
           {t('accounts.addByCode')}
         </Button>
         {active !== undefined ? (
           <Button variant="ghost" className="text-destructive" onClick={() => setSignOutOpen(true)}>
-            <Icon name="log-out" className="size-4" />
+            <Icon name="log-out" />
             {t('accounts.signOut', { space: active.spaceName })}
           </Button>
         ) : null}
@@ -252,7 +252,7 @@ export function AccountsScreen() {
                         aria-label={t('accounts.devices.revoke')}
                         onClick={() => setRevoking(row)}
                       >
-                        <Icon name="log-out" className="size-4" />
+                        <Icon name="log-out" />
                       </Button>
                     </ItemActions>
                   </Item>
