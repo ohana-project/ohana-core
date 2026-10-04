@@ -10,17 +10,23 @@ import { describe, expect, it } from 'vitest'
  * code the hover-fill role may appear only as a background behind hover,
  * focus or active — never as a text colour, a resting background, or any
  * other utility colour (icon fills, strokes, hairlines, rings, outlines,
- * underlines, carets, gradient stops). The design system itself (src/ui)
- * is exempt where the README prescribes an fg-soft fill at rest (the
- * count badge, the switch's off track); state highlights such as
- * data-[state=open] or aria-selected belong there too.
+ * underlines, carets, gradient stops). A variant chain qualifies when any
+ * of its variants is an interaction state, so `hover:not-focus:bg-accent`
+ * is allowed too. The design system itself (src/ui) is exempt where the
+ * README prescribes an fg-soft fill at rest (the count badge, the
+ * switch's off track); state highlights such as data-[state=open] or
+ * aria-selected belong there too.
  *
  * The same scan refuses `-accent-soft` utilities: `accent-soft` is a CSS
  * token, not a Tailwind colour, so `bg-accent-soft` compiles to nothing
  * and silently drops the fill — the soft accent tint's utility is
- * `bg-primary-soft`. The scan reads whitespace-separated words, so prose
- * or identifiers that happen to end in `-accent` are refused as well,
- * and it is refused from the safe side on anything it cannot parse.
+ * `bg-primary-soft`. The scan reads whitespace-separated words as class
+ * tokens once their attribute or object-key syntax is stripped, so a
+ * bare identifier that ends in `-accent` — a test id, a map key — is
+ * refused too. A token whose utility sits inside a closing bracket
+ * (`cn(['text-accent'])`) is still read; the one escape is a word that
+ * ends inside an arbitrary opacity modifier's brackets, which the parser
+ * cannot see and lets through.
  */
 
 /** The directories whose code renders screens (architecture.md, web layout). */
@@ -57,10 +63,11 @@ function segmentsOf(cls: string): string[] {
   return segments
 }
 
-/** The utility shape: a name, an optional opacity modifier, an optional
- *  important mark on either side. Anything else (a prose word, a URL, a
- *  CSS custom property, an attribute value) is not read as a class. */
-const utilityShape = /^!?[a-z][\w-]*(?:\/[\d.%]+)?!?$/
+/** The utility shape: a name, an optional opacity modifier — plain,
+ *  arbitrary-bracketed or function form — and an important mark on
+ *  either side. Anything else (a prose word, a URL, a CSS custom
+ *  property, an attribute value) is not read as a class. */
+const utilityShape = /^!?[a-z][\w-]*(?:\/(?:[\d.%]+|\[[^\]]*\]|\([^()]*\)))?!?$/
 
 /** Whether one class token breaks the rule. The hover-fill colour is
  *  `bg-accent` behind an interaction variant and nothing else: every
@@ -85,18 +92,42 @@ function breaksRule(cls: string): boolean {
 }
 
 /** Syntax around a class token in source: the attribute or object-key
- *  punctuation. */
-const edgePrefix = /^[a-zA-Z-]+={0,2}["'`{]+|^["'`{]+/
-const edgeSuffix = /["'`},:]+$/
+ *  punctuation, and everything that can follow a class but never close
+ *  an arbitrary modifier (a closer bracket or paren is handled by
+ *  balance in tokenOf, so `bg-accent/[0.5]` and `bg-accent/(--o)` keep
+ *  their modifiers). */
+const attributePrefix = /^[a-zA-Z-]+={1,2}/
+const leadingJunk = /^[^a-z0-9_.!(/%-]+/i
+const trailingJunk = /["'`}{,:;>+]+$/
+
+/** The class token a source word holds, with its syntax stripped. A
+ *  trailing `)` or `]` is stripped only when it closes a bracket the
+ *  utility is not inside (`cn(['text-accent'])`), never when it closes
+ *  an arbitrary modifier (`bg-accent/[0.5]`). */
+function tokenOf(word: string): string {
+  let token = word.replace(attributePrefix, '').replace(leadingJunk, '')
+  for (;;) {
+    const last = token.slice(-1)
+    if (last === ')' || last === ']') {
+      const opener = last === ')' ? '(' : '['
+      if (token.slice(0, -1).includes(opener)) return token
+      token = token.slice(0, -1)
+      continue
+    }
+    const stripped = token.replace(trailingJunk, '')
+    if (stripped === token) return token
+    token = stripped
+  }
+}
 
 /** line:token pairs for every class token in the source that breaks the
- *  rule — the file scan and the class-table tests below read the same
- *  logic, so a parsing regression cannot stay green. */
+ *  rule — the file scan and the tables below read the same logic, so a
+ *  parsing regression cannot stay green. */
 function violations(source: string): string[] {
   const found: string[] = []
   source.split('\n').forEach((line, index) => {
     for (const word of line.split(/\s+/)) {
-      const cls = word.replace(edgePrefix, '').replace(edgeSuffix, '')
+      const cls = tokenOf(word)
       if (cls !== '' && breaksRule(cls)) found.push(`${index + 1}:${cls}`)
     }
   })
@@ -138,17 +169,23 @@ describe('the hover-fill accent role in feature code', () => {
     { cls: 'dark:focus-visible:bg-accent', allowed: true },
     { cls: 'md:hover:bg-accent', allowed: true },
     { cls: 'hover:bg-accent/50', allowed: true },
+    { cls: 'hover:bg-accent/[0.5]', allowed: true },
+    { cls: 'group-data-[x="y"]:hover:bg-accent', allowed: true },
     { cls: 'bg-accent-strong', allowed: true },
     { cls: 'text-accent-foreground', allowed: true },
     { cls: "'--accent'", allowed: true },
+    { cls: "'--accent-soft'", allowed: true },
     { cls: 'var(--color-accent)', allowed: true },
     { cls: 'bg-accent', allowed: false },
     { cls: 'md:bg-accent', allowed: false },
     { cls: 'bg-accent/50', allowed: false },
+    { cls: 'bg-accent/[0.5]', allowed: false },
+    { cls: 'bg-accent/(--o)', allowed: false },
     { cls: '!bg-accent', allowed: false },
     { cls: 'bg-accent!', allowed: false },
     { cls: 'text-accent', allowed: false },
     { cls: 'hover:text-accent', allowed: false },
+    { cls: 'text-accent/[0.5]', allowed: false },
     { cls: 'fill-accent', allowed: false },
     { cls: 'border-b-accent', allowed: false },
     { cls: 'divide-accent', allowed: false },
@@ -158,10 +195,12 @@ describe('the hover-fill accent role in feature code', () => {
     { cls: 'hover:bg-sidebar-accent', allowed: false },
     { cls: 'not-hover:bg-accent', allowed: false },
     { cls: 'data-[state=open]:bg-accent', allowed: false },
+    { cls: 'data-[state="open"]:bg-accent', allowed: false },
     { cls: '[&:hover]:bg-accent', allowed: false },
     { cls: 'has-[:focus]:bg-accent', allowed: false },
     { cls: 'not-[:hover:focus]:bg-accent', allowed: false },
     { cls: 'has-[:hover:focus]:bg-accent', allowed: false },
+    { cls: 'swatch-accent', allowed: false },
   ])('the class $cls', ({ cls, allowed }) => {
     const source = `className="${cls}"`
     if (allowed) {
@@ -169,5 +208,24 @@ describe('the hover-fill accent role in feature code', () => {
     } else {
       it('is refused', () => expect(violations(source)).not.toEqual([]))
     }
+  })
+
+  describe.each([
+    { line: `className="mt-0.5 size-4 text-accent" />` },
+    { line: `<p className="text-sm text-accent">` },
+    { line: `className={\`size-5 \${on ? 'fill-current text-accent' : ''}\`}` },
+    { line: `cn('flex', on && 'text-accent')` },
+    { line: `['bg-accent', 'flex']` },
+    { line: `{ 'text-accent': on }` },
+    { line: `cn(['flex', 'text-accent'])` },
+    { line: `className="text-accent">` },
+  ])('the source line $line', ({ line }) => {
+    it('refuses the accent token it holds', () => {
+      expect(violations(line)).not.toEqual([])
+    })
+  })
+
+  it('the source line with only the interaction background is accepted', () => {
+    expect(violations('className="flex hover:bg-accent">')).toEqual([])
   })
 })
