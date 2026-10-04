@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 
+import { tokenFill } from './tokens.js'
+
 /*
  * Specs against the /design preview route (issue #6): both themes,
  * both languages, no horizontal overflow, visible focus, overlay
@@ -234,7 +236,8 @@ test.describe('card forms and list rows (issue #58)', () => {
     const heightsCard = page
       .locator('[data-slot="card"][data-variant="list"]')
       .filter({ has: page.locator('[data-slot="item"][data-size="xl"]') })
-    const row = heightsCard.locator('[data-slot="item"][data-size="sm"]').first()
+    await expect(heightsCard).toHaveCount(1)
+    const row = heightsCard.locator('[data-slot="item"][data-size="sm"]')
     await expect(row).toBeVisible()
     const shape = await row.evaluate((el) => {
       const s = getComputedStyle(el)
@@ -262,15 +265,10 @@ test.describe('card forms and list rows (issue #58)', () => {
     const description = row.locator('[data-slot="item-description"]')
     await expect(description).toBeVisible()
     expect(await description.evaluate((el) => getComputedStyle(el).fontSize)).toBe('13.5px')
-    // the hover rests on the second surface, read from the token itself
-    const surface2 = await page.evaluate(() => {
-      const probe = document.createElement('span')
-      probe.style.color = 'var(--surface-2)'
-      document.body.append(probe)
-      const colour = getComputedStyle(probe).color
-      probe.remove()
-      return colour
-    })
+    // the hover rests on the second surface; a token that stopped
+    // resolving would read transparent, so guard the probe
+    const surface2 = await tokenFill(page, '--surface-2')
+    expect(surface2).not.toBe('rgba(0, 0, 0, 0)')
     await row.hover()
     await expect(row).toHaveCSS('background-color', surface2)
   })
@@ -305,14 +303,8 @@ test.describe('card forms and list rows (issue #58)', () => {
       .first()
     await expect(tile).toBeVisible()
     expect(await tile.evaluate((el) => getComputedStyle(el).width)).toBe('38px')
-    const warnFill = await page.evaluate(() => {
-      const probe = document.createElement('span')
-      probe.style.backgroundColor = 'var(--warn-fill)'
-      document.body.append(probe)
-      const colour = getComputedStyle(probe).backgroundColor
-      probe.remove()
-      return colour
-    })
+    const warnFill = await tokenFill(page, '--warn-fill')
+    expect(warnFill).not.toBe('rgba(0, 0, 0, 0)')
     expect(await tile.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(warnFill)
     // a tone on a bare icon colours it without a tile, like the
     // prototype's accent heart
@@ -331,8 +323,7 @@ test.describe('card forms and list rows (issue #58)', () => {
     expect(await tonedBare.evaluate((el) => getComputedStyle(el).color)).toBe(accent)
     expect(await tonedBare.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
       'rgba(0, 0, 0, 0)',
-    )
-  })
+    )  })
 
   test('the empty state stands alone with its action outside the icon plate', async ({ page }) => {
     await openDesign(page)
