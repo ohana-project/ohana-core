@@ -7,10 +7,12 @@ import type * as React from 'react'
 import { Separator } from '@/ui/separator'
 
 /*
- * Ohana list row (`.list-row` in the prototype): a leading 38px icon
- * tile with a tone, title and subtitle, trailing content; rows are
- * divided by hairlines, and the min-height comes from the size
- * variants instead of the prototype's inline pixel values.
+ * Ohana list row (`.list-row` in the prototype): a leading icon —
+ * bare by default, or in the 38px tinted tile that `variant="icon"`
+ * opts into —, title and subtitle, trailing content; rows are divided
+ * by hairlines. The size variants carry the heights the prototypes
+ * use inline (52, 56, 60, 64, 68px) instead of one-off pixel values
+ * (issue #58).
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
@@ -40,7 +42,9 @@ const itemVariants = cva(
       size: {
         sm: 'min-h-[52px]',
         default: 'min-h-14',
+        md: 'min-h-15',
         lg: 'min-h-16',
+        xl: 'min-h-17',
       },
     },
     defaultVariants: {
@@ -74,26 +78,37 @@ function Item({
   })
 }
 
+type ItemMediaTone = 'neutral' | 'primary' | 'ok' | 'warn' | 'danger'
+
+/*
+ * The tone colours the leading icon everywhere; the 38px tile adds the
+ * matching tint on top (compound variants below). A tone on a bare
+ * icon therefore colours it without a square behind it, like the
+ * prototype's accent heart in the wishlists row.
+ */
 const itemMediaVariants = cva(
-  "flex shrink-0 items-center justify-center rounded-md [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5",
+  "flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5",
   {
     variants: {
       variant: {
-        default: '',
-        icon: 'size-[38px]',
+        default: 'text-muted-foreground',
+        icon: 'size-[38px] rounded-md',
       },
       tone: {
-        neutral: 'bg-surface-2 text-muted-foreground',
-        primary: 'bg-primary-soft text-primary',
-        ok: 'bg-(--ok-fill) text-ok',
-        warn: 'bg-(--warn-fill) text-warn',
-        danger: 'bg-(--danger-fill) text-destructive',
+        neutral: '',
+        primary: 'text-primary',
+        ok: 'text-ok',
+        warn: 'text-warn',
+        danger: 'text-destructive',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-      tone: 'neutral',
-    },
+    compoundVariants: [
+      { variant: 'icon', tone: 'neutral', className: 'bg-surface-2 text-muted-foreground' },
+      { variant: 'icon', tone: 'primary', className: 'bg-primary-soft' },
+      { variant: 'icon', tone: 'ok', className: 'bg-(--ok-fill)' },
+      { variant: 'icon', tone: 'warn', className: 'bg-(--warn-fill)' },
+      { variant: 'icon', tone: 'danger', className: 'bg-(--danger-fill)' },
+    ],
   },
 )
 
@@ -102,16 +117,22 @@ function ItemMedia({
   variant = 'default',
   tone,
   ...props
-}: React.ComponentProps<'div'> &
-  VariantProps<typeof itemMediaVariants> & {
-    tone?: 'neutral' | 'primary' | 'ok' | 'warn' | 'danger'
-  }) {
+}: React.ComponentProps<'div'> & {
+  variant?: 'default' | 'icon'
+  tone?: ItemMediaTone
+}) {
+  // A bare icon is the default, like the prototype's `.leading`; the
+  // 38px tinted tile is opt-in through `variant="icon"`, its tint
+  // coming from the tone. An avatar therefore never sits on a tinted
+  // square (issue #58).
+  const tiled = variant === 'icon'
+  const activeTone = tone ?? (tiled ? 'neutral' : undefined)
   return (
     <div
       data-slot="item-media"
       data-variant={variant}
-      data-tone={tone}
-      className={cn(itemMediaVariants({ variant, tone, className }))}
+      data-tone={activeTone}
+      className={cn(itemMediaVariants({ variant, tone: activeTone }), className)}
       {...props}
     />
   )

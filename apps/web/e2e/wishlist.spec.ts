@@ -373,8 +373,21 @@ test.describe('the wishlist', () => {
     await expect(page).toHaveURL(/\/wishlist\/mine$/)
     await expect(page.getByText('Здесь пока ничего нет')).toBeVisible()
 
+    // The empty state shows without the action sitting in the round
+    // icon plate — the button lives in the empty state's content slot
+    // (issue #58). Scoped to the empty state: the top bar's action and
+    // the mobile FAB carry the same name.
+    const empty = page.locator('[data-slot="empty"]').first()
+    await expect(empty).toBeVisible()
+    const addButton = empty.getByRole('button', { name: 'Добавить желание' })
+    await expect(addButton).toBeVisible()
+    expect(await addButton.evaluate((el) => el.closest('[data-slot="empty-icon"]'))).toBeNull()
+    expect(
+      await addButton.evaluate((el) => el.closest('[data-slot="empty-content"]')),
+    ).not.toBeNull()
+
     // A wish is added through the sheet, and the list shows it.
-    await page.getByRole('button', { name: 'Добавить желание' }).first().click()
+    await addButton.click()
     await page.getByLabel('Название').fill('Набор для вышивания «Маки»')
     await page.getByLabel('Подсказка').fill('Размер 30×40, канва Aida 16')
     await page.getByLabel('Ссылка').fill('https://www.wildberries.ru/search?q=вышивание')

@@ -3,23 +3,40 @@ import type * as React from 'react'
 
 /*
  * Ohana card (`.card` in the prototype): surface, hairline border,
- * shadow-1, 18px radius, 20px padding. `hoverable` is the link-card
- * lift: shadow-2, −1px, a stronger border (README "Components").
+ * shadow-1, 18px radius. Three forms beside each other (issue #58):
+ * the `default` the first screens were built on — vertical padding, a
+ * gap between blocks, side padding coming from the header and content
+ * slots —, the prototype's padded card (`.card-pad`: 20px on all
+ * sides, no forced gap, the content sets its own rhythm), and the list
+ * card (`.card.list`: no padding, rows flush, the corners clip them).
+ * The padded form takes plain children — the slots' own side padding
+ * would double it —, and the list form takes rows only.
+ * `hoverable` is the link-card lift: shadow-2, −1px, a stronger
+ * border (README "Components").
  */
 
 function Card({
   className,
+  variant = 'default',
   size = 'default',
   hoverable = false,
   ...props
-}: React.ComponentProps<'div'> & { size?: 'default' | 'sm'; hoverable?: boolean }) {
+}: React.ComponentProps<'div'> & {
+  variant?: 'default' | 'padded' | 'list'
+  size?: 'default' | 'sm'
+  hoverable?: boolean
+}) {
   return (
     <div
       data-slot="card"
+      data-variant={variant}
       data-size={size}
       data-hoverable={hoverable || undefined}
       className={cn(
-        'group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-lg border border-border bg-card py-(--card-spacing) text-body text-card-foreground shadow-1 [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg',
+        'group/card flex flex-col overflow-hidden rounded-lg border border-border bg-card text-body text-card-foreground shadow-1 [--card-spacing:--spacing(5)] data-[size=sm]:[--card-spacing:--spacing(4)] *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg',
+        variant === 'default' &&
+          'gap-(--card-spacing) py-(--card-spacing) has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:has-data-[slot=card-footer]:pb-0',
+        variant === 'padded' && 'p-(--card-spacing)',
         hoverable &&
           'transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) hover:-translate-y-px hover:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] hover:shadow-2',
         className,

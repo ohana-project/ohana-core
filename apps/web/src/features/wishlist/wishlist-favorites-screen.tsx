@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { StoredGiftFavorite } from '@/data/local-store.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
@@ -61,9 +61,9 @@ export function WishlistFavoritesScreen() {
             </EmptyMedia>
             <EmptyTitle>{t('wishlist.favoritesEmptyTitle')}</EmptyTitle>
             <EmptyDescription>{t('wishlist.favoritesEmptyText')}</EmptyDescription>
-            <EmptyMedia className="mt-3">
+            <EmptyContent>
               <Button render={<Link to="/wishlist" />}>{t('wishlist.favoritesEmptyAction')}</Button>
-            </EmptyMedia>
+            </EmptyContent>
           </Empty>
         </Card>
       ) : (
