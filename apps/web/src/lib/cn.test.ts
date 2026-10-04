@@ -83,26 +83,13 @@ describe('text colours still conflict with each other', () => {
   })
 })
 
-describe('every component merges classes through the taught merger', () => {
-  // the bare package export still ships the default merger; one file
-  // importing it directly would reintroduce the silent deletion (#56)
-  it('no source file imports the unconfigured cn package', async () => {
-    const { readdir, readFile } = await import('node:fs/promises')
-    const root = resolvePath('src')
-    const offenders: string[] = []
-    async function walk(dir: string) {
-      for (const entry of await readdir(dir, { withFileTypes: true })) {
-        const path = resolvePath(dir, entry.name)
-        if (entry.isDirectory()) await walk(path)
-        else if (/\.tsx?$/.test(entry.name)) {
-          const src = await readFile(path, 'utf8')
-          if (/from '(?:)?cn'/.test(src) || /from "(?:)?cn"/.test(src)) {
-            offenders.push(path.slice(root.length + 1))
-          }
-        }
-      }
-    }
-    await walk(root)
-    expect(offenders).toEqual([])
+describe('steps and line heights', () => {
+  it('a line height after the step survives; one before yields', () => {
+    // the standard tailwind-merge direction — a size answers for its own
+    // line height. meta and micro carry none, so a caller's custom
+    // leading goes after the step, never before.
+    expect(cn('text-micro', 'leading-none')).toBe('text-micro leading-none')
+    expect(cn('leading-none', 'text-micro')).toBe('text-micro')
+    expect(cn('text-meta', 'leading-4')).toBe('text-meta leading-4')
   })
 })

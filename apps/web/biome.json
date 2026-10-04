@@ -6,6 +6,23 @@
       "tailwindDirectives": true
     }
   },
+  "linter": {
+    "rules": {
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "cn": "merge classes through @/lib/cn — the app's merger knows the type scale (issue #56)",
+              "cn/lite": "merge classes through @/lib/cn — the app's merger knows the type scale (issue #56)",
+              "cn/engine": "merge classes through @/lib/cn — the app's merger knows the type scale (issue #56)",
+              "cn/config": "only src/lib/cn.ts may configure the merger"
+            }
+          }
+        }
+      }
+    }
+  },
   "overrides": [
     {
       "includes": ["**/public/**/*.svg"],
@@ -14,6 +31,14 @@
           "a11y": {
             "noSvgWithoutTitle": "off"
           }
+        }
+      }
+    },
+    {
+      "includes": ["**/src/lib/cn.ts"],
+      "linter": {
+        "rules": {
+          "style": { "noRestrictedImports": "off" }
         }
       }
     }

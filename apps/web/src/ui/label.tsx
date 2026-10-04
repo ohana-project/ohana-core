@@ -1,5 +1,5 @@
-import { cn } from '@/lib/cn'
 import type * as React from 'react'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana field label: 13.5px, muted (`.field > label` in the prototype).

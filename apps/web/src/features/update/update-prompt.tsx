@@ -1,7 +1,7 @@
-import { cn } from '@/lib/cn'
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { applyAppUpdate, isAppUpdateReady, subscribeToAppUpdate } from '@/lib/app-update.ts'
+import { cn } from '@/lib/cn'
 import { Banner } from '@/ui/banner.tsx'
 import { Button } from '@/ui/button.tsx'
 

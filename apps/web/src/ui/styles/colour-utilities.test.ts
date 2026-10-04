@@ -18,7 +18,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 const webRoot = process.cwd()
 
-/** Source files ship in the client; tests and the test harness do not. */
+/** The files that ship in the client; tests and the test harness do not. */
 function sourceFiles(): string[] {
   const files: string[] = []
   const walk = (dir: string): void => {
@@ -32,7 +32,6 @@ function sourceFiles(): string[] {
     }
   }
   walk(resolvePath(webRoot, 'src'))
-  walk(resolvePath(webRoot, 'e2e'))
   return files
 }
 
@@ -47,6 +46,7 @@ const COLOUR_PROPS: readonly string[] = [
   'accent',
   'border',
   'divide',
+  'shadow',
   'stroke',
   'caret',
   'ring',
@@ -58,18 +58,22 @@ const COLOUR_PROPS: readonly string[] = [
   'to',
 ]
 
-/** Known non-colour values per prefix: widths, alignments, styles, sizes. */
+/**
+ * Known non-colour values per prefix, anchored so a future colour whose
+ * name merely starts the same way still gets checked. Widths and numeric
+ * positions (`border-2`, `from-10%`, `ring-offset-2`, `shadow-1`) are
+ * never colours and are skipped before this table.
+ */
 const NON_COLOUR: Record<string, RegExp> = {
-  text: /^(?:base|xs|sm|md|lg|xl|[2-9]xl|display(?:-lg)?|h[1-3]|body|meta|micro|left|center|right|justify|start|end|balance|pretty|wrap|nowrap|truncate|transform|capitalize|uppercase|lowercase|italic|underline|line-through|no-underline|ellipsis|clip)/,
-  border:
-    /^(?:\d|(?:t|r|b|l|x|y|s|e)(?:-|$)|solid|dashed|dotted|double|hidden|none|collapse|separate|spacing)/,
-  decoration: /^(?:\d|auto|from-font|clone|slice|solid|dashed|dotted|double|none)/,
-  outline: /^(?:\d|none|hidden|dashed|dotted|double)/,
-  ring: /^(?:\d|offset|inset)/,
-  shadow: /^(?:\d|none|inner)/,
-  divide: /^(?:x|y|reverse|\d)/,
-  bg: /^(?:fixed|local|scroll|contain|cover|none|clip|origin|repeat|space|gradient|bottom|top|left|right|center|no-repeat|repeat-(?:x|y))/,
-  accent: /^auto/,
+  text: /^(?:base|xs|sm|md|lg|xl|[2-9]xl|display(?:-lg)?|h[1-3]|body|meta|micro|left|center|right|justify|start|end|balance|pretty|wrap|nowrap|truncate|transform|capitalize|uppercase|lowercase|italic|underline|line-through|no-underline|ellipsis|clip)(?:-|$)/,
+  border: /^(?:solid|dashed|dotted|double|hidden|none|collapse|separate|spacing)(?:-|$)/,
+  decoration: /^(?:auto|from-font|clone|slice|solid|dashed|dotted|double|none)(?:-|$)/,
+  outline: /^(?:offset|none|hidden|dashed|dotted|double)(?:-|$)/,
+  ring: /^(?:inset)(?:-|$)/,
+  shadow: /^(?:none|inner)(?:-|$)/,
+  divide: /^(?:x|y|reverse)(?:-|$)/,
+  bg: /^(?:fixed|local|scroll|contain|cover|none|clip|origin|repeat|space|linear|radial|conic|bottom|top|left|right|center|no-repeat|repeat-(?:x|y))(?:-|$)/,
+  accent: /^auto(?:-|$)/,
   from: /^[\d.]/,
   via: /^[\d.]/,
   to: /^[\d.]/,
@@ -146,6 +150,18 @@ function colourCandidates(): ColourCandidate[] {
     if (!prop || !value) continue
     // arbitrary and CSS-variable values always generate their rule
     if (value.startsWith('[') || value.startsWith('(')) continue
+    // a side prefix picks the border's edge; the remainder names the
+    // colour, so border-b-bg is checked exactly like border-bg
+    if (prop === 'border') {
+      const side = value.match(/^(?:t|r|b|l|x|y|s|e)(?:-|$)/)
+      if (side) {
+        value = value.slice(side[0].length)
+        if (!value) continue
+      }
+    }
+    // widths and numeric positions (border-2, from-10%, ring-offset-4,
+    // the shadow-1/2/3 steps) are never colour names
+    if (/^\d/.test(value) || /^[\d.]+%$/.test(value)) continue
     if (NON_COLOUR[prop]?.test(value)) continue
     if (!found.has(candidate)) found.set(candidate, { candidate, name: value })
   }

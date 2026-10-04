@@ -1,6 +1,6 @@
-import { cn } from '@/lib/cn'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Avatar } from '@/ui/avatar.tsx'
 import { AvatarStack } from '@/ui/avatar-stack.tsx'

@@ -1,6 +1,6 @@
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { cn } from '@/lib/cn'
 import type * as React from 'react'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana popover (docs/design/README.md, "Overlays"): 12px radius, fast

@@ -77,7 +77,7 @@ All three are self-hosted with Cyrillic, Cyrillic Extended, Latin, and Latin Ext
 | `body` | 15.5px | line-height 1.55 |
 | `sm` | 13.5px | secondary text, hints |
 | `meta` | 12.5px | JetBrains Mono, `muted`, tracking 0.01em |
-| `micro` | 11.5px | tab bar labels (`font-medium`), count badges, calendar day numbers |
+| `micro` | 11.5px | tab bar labels (`font-medium`), count badges |
 
 Numbers and dates use tabular figures. Headings use `text-wrap: balance`, paragraphs `text-wrap: pretty`, and long Russian words in running text `hyphens: auto`. Navigation items and buttons never wrap; shorten the wording instead.
 

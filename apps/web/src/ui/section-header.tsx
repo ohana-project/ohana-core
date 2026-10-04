@@ -1,5 +1,5 @@
-import { cn } from '@/lib/cn'
 import type * as React from 'react'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana section header (`.sec-head` in the prototype): an h2 with an
