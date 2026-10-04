@@ -580,16 +580,19 @@ test.describe('overlay parity (issue #59)', () => {
   test('a single long word stays inside its button at the 360px floor', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 900 })
     await openDesign(page)
+    await freezeMotion(page)
     await page.getByRole('button', { name: 'Диалог с длинным действием' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     // «Перевыпустить» cannot wrap: with min-w-0 its button stays equal
     // and the word runs into the padding without leaving the button
-    const row = await page.evaluate(() => {
+    const row = await page.evaluate(async () => {
       const footer = document.querySelector('[data-slot="dialog-footer"]')
       const confirm = footer?.querySelectorAll('button')[1]
       if (!confirm) return null
       confirm.textContent = 'Перевыпустить'
+      // measure in Golos Text, not the fallback the runner was born with
+      await document.fonts.ready
       const range = document.createRange()
       range.selectNodeContents(confirm)
       const text = range.getBoundingClientRect()
@@ -599,12 +602,14 @@ test.describe('overlay parity (issue #59)', () => {
       )
       return {
         equalWidth: Math.abs(boxes[0].width - boxes[1].width) <= 1,
-        textInsideButton: text.left >= box.left && text.right <= box.right,
+        slackLeft: Math.round((text.left - box.left) * 10) / 10,
+        slackRight: Math.round((box.right - text.right) * 10) / 10,
       }
     })
     expect(row, 'the confirm button renders').not.toBeNull()
     expect(row?.equalWidth).toBe(true)
-    expect(row?.textInsideButton, JSON.stringify(row)).toBe(true)
+    expect(row?.slackLeft, JSON.stringify(row)).toBeGreaterThanOrEqual(0)
+    expect(row?.slackRight, JSON.stringify(row)).toBeGreaterThanOrEqual(0)
     await page.keyboard.press('Escape')
   })
 
