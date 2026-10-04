@@ -42,7 +42,9 @@ describe('AdminTrashSettings', () => {
     renderWithProviders(<AdminTrashSettings />)
 
     const select = (await screen.findByLabelText('Хранить удалённые записи')) as HTMLSelectElement
-    expect(select.value).toBe('30')
+    // the saved value arrives with the settings query; the select's
+    // placeholder choice is on screen first
+    await waitFor(() => expect(select.value).toBe('30'))
     const options = [...select.options].map((option) => option.text)
     expect(options).toEqual(['7 дней', '14 дней', '30 дней', '90 дней'])
   })
@@ -104,7 +106,7 @@ describe('AdminTrashSettings', () => {
     renderWithProviders(<AdminTrashSettings />)
 
     const select = (await screen.findByLabelText('Хранить удалённые записи')) as HTMLSelectElement
-    expect(select.value).toBe('45')
+    await waitFor(() => expect(select.value).toBe('45'))
     const options = [...select.options].map((option) => Number(option.value))
     expect(options).toEqual([7, 14, 30, 45, 90])
     // Picking a prototype choice must not erase the saved one from the
