@@ -191,8 +191,8 @@ test.describe('overlays', () => {
 test.describe('icon sizes (issue #55)', () => {
   /**
    * Every context sizes its own icons (docs/design/README.md
-   * "Components" and the prototype's `svg` rules); the caller never
-   * passes a size, so the rendered pixels pin the design language.
+   * "Components" and the prototype's `svg` rules); the preview passes
+   * no size, so the rendered pixels pin the design language.
    */
   test('each context dictates its icon size at 1280px', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
@@ -239,17 +239,23 @@ test.describe('icon sizes (issue #55)', () => {
     await openDesign(page)
     await freezeMotion(page)
     await page.getByRole('button', { name: 'Меню', exact: true }).click()
-    // the menu mounts in a portal after the click
-    const items = page.getByRole('menuitem')
-    await expect(items).toHaveCount(4)
-    const boxes = await page.evaluate(() =>
-      [...document.querySelectorAll('[role="menuitem"] svg')].map((el) => {
-        const rect = el.getBoundingClientRect()
-        return [rect.width, rect.height]
-      }),
-    )
-    expect(boxes).toHaveLength(4)
-    for (const box of boxes) expect(box).toEqual([18, 18])
+    // the menu mounts in a portal after the click; the poll rides out
+    // the tail of its opening transition before the boxes are read
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[role="menuitem"] svg')].map((el) => {
+            const rect = el.getBoundingClientRect()
+            return [rect.width, rect.height]
+          }),
+        ),
+      )
+      .toEqual([
+        [18, 18],
+        [18, 18],
+        [18, 18],
+        [18, 18],
+      ])
     await page.keyboard.press('Escape')
   })
 

@@ -673,7 +673,7 @@ function FeedbackSection() {
             label does not shift when the action resolves (issue #55) */}
         <Button variant="secondary" disabled>
           <Spinner />
-          {t('designPreview.feedback.spinner')}
+          {t('designPreview.feedback.emptyAction')}
         </Button>
       </div>
 

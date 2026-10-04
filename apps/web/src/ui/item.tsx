@@ -13,7 +13,7 @@ import { Separator } from '@/ui/separator'
  * variants instead of the prototype's inline pixel values. A leading
  * icon in the tile is 20px (`.list-row .leading svg`), a trailing
  * icon 18px (`.list-row .trailing svg`) — the icons pick their sizes
- * up from the row, callers never pass one.
+ * up from the row, callers do not need to pass one.
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
