@@ -58,7 +58,15 @@ import { Fab } from '@/ui/fab.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon, type IconName } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/ui/item.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -521,7 +529,10 @@ function BadgesSection() {
     <PreviewSection id="badges" title={t('designPreview.sections.badges')}>
       <div className="flex flex-wrap items-center gap-3">
         <Badge>{t('designPreview.badges.primary')}</Badge>
-        <Badge variant="ok">{t('designPreview.badges.ok')}</Badge>
+        <Badge variant="ok">
+          <Icon name="check" />
+          {t('designPreview.badges.ok')}
+        </Badge>
         <Badge variant="warn">{t('designPreview.badges.warn')}</Badge>
         <Badge variant="danger">{t('designPreview.badges.danger')}</Badge>
         <Badge variant="neutral">{t('designPreview.badges.neutral')}</Badge>
@@ -675,6 +686,12 @@ function FeedbackSection() {
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           {t('designPreview.feedback.spinner')} <Spinner />
         </span>
+        {/* a pending button's spinner takes the button's 18px, so the
+            label does not shift when the action resolves (issue #55) */}
+        <Button variant="secondary" disabled>
+          <Spinner />
+          {t('designPreview.feedback.emptyAction')}
+        </Button>
       </div>
 
       <Banner>{t('designPreview.feedback.banner')}</Banner>
@@ -810,6 +827,15 @@ function ListsSection() {
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.dangerRow')}</ItemTitle>
                 </ItemContent>
+                {/* the actions slot sizes its own icon and leaves the
+                    pill's icon to the pill (issue #55) */}
+                <ItemActions>
+                  <Badge variant="danger">
+                    <Icon name="alert" />
+                    {t('designPreview.badges.danger')}
+                  </Badge>
+                  <Icon name="chevron-right" />
+                </ItemActions>
               </Item>
               <Item size="sm" render={<a href="#lists" />}>
                 <ItemMedia variant="icon">
@@ -1115,7 +1141,7 @@ function LayoutsSection() {
 
       <h3 className="text-h3">{t('designPreview.layouts.auth')}</h3>
       <div className="overflow-hidden rounded-lg border border-border">
-        <AuthFrame footer={t('designPreview.demo.demoNote')}>
+        <AuthFrame footer={t('designPreview.layouts.demoNote')}>
           <div className="flex flex-col gap-4">
             <h3 className="text-h2 text-center">{t('designPreview.layouts.authHeading')}</h3>
             <p className="text-sm text-muted-foreground">{t('designPreview.layouts.authText')}</p>

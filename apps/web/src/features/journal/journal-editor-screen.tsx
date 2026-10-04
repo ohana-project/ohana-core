@@ -272,7 +272,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 disabled={pending || textBlank}
                 onClick={() => save(existing?.state !== 'published')}
               >
-                {pending ? <Spinner className="size-4" /> : <Icon name="send" />}
+                {pending ? <Spinner /> : <Icon name="send" />}
                 {existing?.state === 'published' ? t('journal.save') : t('journal.publish')}
               </Button>
             </div>

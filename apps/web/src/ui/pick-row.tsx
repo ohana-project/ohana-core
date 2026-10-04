@@ -32,7 +32,7 @@ export function PickRow({
         props.onClick?.(event)
       }}
       className={cn(
-        'flex w-full min-h-[52px] items-center gap-3 px-3.5 py-2.5 text-left transition-colors duration-(--t-fast) ease-(--ease) border-b border-border last:border-b-0 hover:bg-surface-2 focus-visible:bg-surface-2 aria-pressed:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]',
+        "flex w-full min-h-[52px] items-center gap-3 px-3.5 py-2.5 text-left transition-colors duration-(--t-fast) ease-(--ease) border-b border-border last:border-b-0 hover:bg-surface-2 focus-visible:bg-surface-2 aria-pressed:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] [&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-5",
         className,
       )}
       {...props}

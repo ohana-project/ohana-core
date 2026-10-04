@@ -58,7 +58,7 @@ export function MembersScreen() {
           </div>
           {isOwner ? (
             <Button render={<Link to="/members/invite" />}>
-              <Icon name="plus" className="size-4" />
+              <Icon name="plus" />
               {t('space.members.invite')}
             </Button>
           ) : null}
@@ -120,7 +120,7 @@ export function MembersScreen() {
                             ? t('admin.space.ownerPill')
                             : t('admin.space.regularPill')}
                         </Badge>
-                        <Icon name="chevron-right" className="size-4 text-muted-foreground" />
+                        <Icon name="chevron-right" className="text-muted-foreground" />
                       </ItemActions>
                     </Item>
                   )
@@ -166,7 +166,7 @@ export function MembersScreen() {
                           </ItemContent>
                           <ItemActions>
                             <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
-                            <Icon name="chevron-right" className="size-4 text-muted-foreground" />
+                            <Icon name="chevron-right" className="text-muted-foreground" />
                           </ItemActions>
                         </Item>
                       )

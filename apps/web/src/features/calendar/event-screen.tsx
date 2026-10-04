@@ -223,7 +223,7 @@ export function EventScreen({
               {t('calendar.cancel')}
             </Button>
             <Button variant="destructive" disabled={removeEvent.isPending} onClick={onDeleteSeries}>
-              {removeEvent.isPending ? <Spinner className="size-4" /> : <Icon name="trash" />}
+              {removeEvent.isPending ? <Spinner /> : <Icon name="trash" />}
               {t('calendar.delete')}
             </Button>
           </DialogFooter>

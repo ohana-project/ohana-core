@@ -157,7 +157,7 @@ export function InviteMemberScreen() {
               </Card>
               <div className="flex flex-col gap-2.5">
                 <Button onClick={() => issue(provisioned.memberId)} disabled={issueCode.isPending}>
-                  <Icon name="repeat" className="size-4" />
+                  <Icon name="repeat" />
                   {t('space.invite.retryIssue')}
                 </Button>
                 <Button variant="secondary" onClick={() => void navigate({ to: '/members' })}>
@@ -177,7 +177,7 @@ export function InviteMemberScreen() {
               </p>
               <div className="flex flex-col gap-2.5">
                 <Button variant="secondary" onClick={() => setRerollOpen(true)}>
-                  <Icon name="repeat" className="size-4" />
+                  <Icon name="repeat" />
                   {t('space.invite.reroll')}
                 </Button>
                 <Button size="lg" onClick={() => void navigate({ to: '/members' })}>
@@ -331,9 +331,7 @@ export function InviteMemberScreen() {
             size="lg"
             disabled={provisionMember.isPending || issueCode.isPending}
           >
-            {provisionMember.isPending || issueCode.isPending ? (
-              <Spinner className="size-4" />
-            ) : null}
+            {provisionMember.isPending || issueCode.isPending ? <Spinner /> : null}
             {t('space.invite.submit')}
           </Button>
           <FieldDescription>{t('space.invite.shownOnce')}</FieldDescription>

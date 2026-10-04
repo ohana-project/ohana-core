@@ -12,7 +12,10 @@ import { Separator } from '@/ui/separator'
  * opts into —, title and subtitle, trailing content; rows are divided
  * by hairlines. The size variants carry the heights the prototypes
  * use inline (52, 56, 60, 64, 68px) instead of one-off pixel values
- * (issue #58).
+ * (issue #58). A leading icon is 20px (`.list-row .leading svg`), a
+ * trailing icon 18px (`.list-row .trailing svg`) — the icons pick
+ * their sizes up from the row, callers do not need to pass one
+ * (issue #55).
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
@@ -31,7 +34,7 @@ function ItemSeparator({ className, ...props }: React.ComponentProps<typeof Sepa
 }
 
 const itemVariants = cva(
-  'group/item flex w-full flex-wrap items-center gap-3.5 px-3.5 py-2.5 text-body text-left transition-colors duration-(--t-fast) ease-(--ease) border-b border-border last:border-b-0 [a]:transition-colors hover:bg-surface-2',
+  "group/item flex w-full flex-wrap items-center gap-3.5 px-3.5 py-2.5 text-body text-left transition-colors duration-(--t-fast) ease-(--ease) border-b border-border last:border-b-0 [a]:transition-colors hover:bg-surface-2 [&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-[18px]",
   {
     variants: {
       variant: {
@@ -178,7 +181,10 @@ function ItemActions({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="item-actions"
-      className={cn('ml-auto flex shrink-0 items-center gap-2 text-muted-foreground', className)}
+      className={cn(
+        "ml-auto flex shrink-0 items-center gap-2 text-muted-foreground [&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-[18px]",
+        className,
+      )}
       {...props}
     />
   )

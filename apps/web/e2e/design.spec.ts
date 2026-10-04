@@ -23,6 +23,16 @@ async function openDesign(page: Page, options: { theme?: string; locale?: string
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
 }
 
+/**
+ * Measures must see the static layout: the app's own reduced-motion
+ * reset (src/index.css) stops every animation, so the pending button's
+ * spinner is caught unrotated instead of mid-spin, and the emulation
+ * survives any navigation.
+ */
+async function freezeMotion(page: Page) {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+}
+
 test.describe('themes and languages', () => {
   for (const theme of ['light', 'dark']) {
     for (const locale of ['ru', 'en'] as const) {
@@ -177,6 +187,109 @@ test.describe('overlays', () => {
       await expect(check).toBeVisible()
       await expect(check).toHaveCSS('color', accent)
     }
+  })
+})
+
+test.describe('icon sizes (issue #55)', () => {
+  /**
+   * Every context sizes its own icons (docs/design/README.md
+   * "Components" and the prototype's `svg` rules); the preview passes
+   * no size, so the rendered pixels pin the design language.
+   */
+  test('each context dictates its icon size at 1280px', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openDesign(page)
+    await freezeMotion(page)
+
+    const sizes = await page.evaluate(() => {
+      const boxes = (selector: string) =>
+        [...document.querySelectorAll(selector)].map((el) => {
+          const rect = el.getBoundingClientRect()
+          return [rect.width, rect.height]
+        })
+      return {
+        button: boxes('[data-slot="button"] svg'),
+        listRowLeading: boxes('[data-slot="item-media"][data-variant="icon"] svg'),
+        listRowTrailing: boxes('[data-slot="item"] > svg'),
+        listRowActions: boxes('[data-slot="item-actions"] > svg'),
+        pickCheck: boxes('[data-slot="pick-row"] > svg'),
+        emptyPlate: boxes('[data-slot="empty-icon"] > svg'),
+        pill: boxes('[data-slot="badge"] svg'),
+        sidebarChevron: boxes('[data-slot="side-space"] > svg'),
+      }
+    })
+
+    const expected = {
+      button: [18, 18],
+      listRowLeading: [20, 20],
+      listRowTrailing: [18, 18],
+      listRowActions: [18, 18],
+      pickCheck: [20, 20],
+      emptyPlate: [28, 28],
+      pill: [12, 12],
+      sidebarChevron: [20, 20],
+    } as const
+    for (const [context, boxes] of Object.entries(sizes)) {
+      expect(boxes.length, `${context}: the preview shows the context`).toBeGreaterThan(0)
+      for (const box of boxes) {
+        expect(box, context).toEqual(expected[context as keyof typeof expected])
+      }
+    }
+  })
+
+  test('menu items dictate 18px once a menu is open', async ({ page }) => {
+    await openDesign(page)
+    await freezeMotion(page)
+    await page.getByRole('button', { name: 'Меню', exact: true }).click()
+    // the menu mounts in a portal after the click; the poll rides out
+    // the tail of its opening transition before the boxes are read
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[role="menuitem"] svg')].map((el) => {
+            const rect = el.getBoundingClientRect()
+            return [rect.width, rect.height]
+          }),
+        ),
+      )
+      .toEqual([
+        [18, 18],
+        [18, 18],
+        [18, 18],
+        [18, 18],
+      ])
+    await page.keyboard.press('Escape')
+  })
+
+  test('the tab bar keeps its 40×28 plate with a 24px glyph at 390px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    await freezeMotion(page)
+
+    const measured = await page.evaluate(() => {
+      const px = (value: string) => Number.parseFloat(value)
+      const box = (el: Element | null) => {
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return [rect.width, rect.height]
+      }
+      const tabSvg = document.querySelector('[data-slot="tab"] svg')
+      if (!tabSvg) return null
+      const rect = tabSvg.getBoundingClientRect()
+      const style = getComputedStyle(tabSvg)
+      return {
+        plate: [rect.width, rect.height],
+        glyph: [
+          rect.width - px(style.paddingLeft) - px(style.paddingRight),
+          rect.height - px(style.paddingTop) - px(style.paddingBottom),
+        ],
+        fab: box(document.querySelector('[data-slot="fab"] svg')),
+      }
+    })
+    expect(measured, 'the mobile shell renders inside the preview').not.toBeNull()
+    expect(measured?.plate).toEqual([40, 28])
+    expect(measured?.glyph).toEqual([24, 24])
+    expect(measured?.fab).toEqual([24, 24])
   })
 })
 
