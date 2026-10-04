@@ -7,10 +7,11 @@ import type * as React from 'react'
 import { Separator } from '@/ui/separator'
 
 /*
- * Ohana list row (`.list-row` in the prototype): a leading 38px icon
- * tile with a tone, title and subtitle, trailing content; rows are
- * divided by hairlines, and the min-height comes from the size
- * variants instead of the prototype's inline pixel values.
+ * Ohana list row (`.list-row` in the prototype): a leading icon —
+ * bare by default, or in the 38px tile a tone opts into —, title and
+ * subtitle, trailing content; rows are divided by hairlines. The size
+ * variants carry the heights the prototypes use inline (52, 56, 60,
+ * 64, 68px) instead of one-off pixel values (issue #58).
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
@@ -40,7 +41,9 @@ const itemVariants = cva(
       size: {
         sm: 'min-h-[52px]',
         default: 'min-h-14',
+        md: 'min-h-15',
         lg: 'min-h-16',
+        xl: 'min-h-17',
       },
     },
     defaultVariants: {
@@ -74,13 +77,15 @@ function Item({
   })
 }
 
+export type ItemMediaTone = 'neutral' | 'primary' | 'ok' | 'warn' | 'danger'
+
 const itemMediaVariants = cva(
-  "flex shrink-0 items-center justify-center rounded-md [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5",
+  "flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5",
   {
     variants: {
       variant: {
-        default: '',
-        icon: 'size-[38px]',
+        bare: 'text-muted-foreground',
+        icon: 'size-[38px] rounded-md',
       },
       tone: {
         neutral: 'bg-surface-2 text-muted-foreground',
@@ -90,10 +95,6 @@ const itemMediaVariants = cva(
         danger: 'bg-(--danger-fill) text-destructive',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-      tone: 'neutral',
-    },
   },
 )
 
@@ -102,16 +103,27 @@ function ItemMedia({
   variant = 'default',
   tone,
   ...props
-}: React.ComponentProps<'div'> &
-  VariantProps<typeof itemMediaVariants> & {
-    tone?: 'neutral' | 'primary' | 'ok' | 'warn' | 'danger'
-  }) {
+}: React.ComponentProps<'div'> & {
+  variant?: 'default' | 'icon'
+  tone?: ItemMediaTone
+}) {
+  // A bare icon is the default, like the prototype's `.leading`; the
+  // 38px tile arrives through `variant="icon"` or through any tone at
+  // all — a tone without the tile would have nothing to tint. An
+  // avatar therefore never sits on a tinted square (issue #58).
+  const tiled = variant === 'icon' || tone !== undefined
   return (
     <div
       data-slot="item-media"
-      data-variant={variant}
-      data-tone={tone}
-      className={cn(itemMediaVariants({ variant, tone, className }))}
+      data-variant={tiled ? 'icon' : 'default'}
+      data-tone={tiled ? (tone ?? 'neutral') : undefined}
+      className={cn(
+        itemMediaVariants({
+          variant: tiled ? 'icon' : 'bare',
+          tone: tiled ? (tone ?? 'neutral') : undefined,
+        }),
+        className,
+      )}
       {...props}
     />
   )

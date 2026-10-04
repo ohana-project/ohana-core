@@ -90,6 +90,15 @@ function demoDate(language: string): string {
   )
 }
 
+/* The row heights the prototypes use inline, as size variants (issue #58). */
+const ROW_HEIGHTS = [
+  { size: 'sm', pixels: '52px', icon: 'cake', titleKey: 'designPreview.lists.eventOne' },
+  { size: 'default', pixels: '56px', icon: 'clock', titleKey: 'designPreview.lists.eventTwo' },
+  { size: 'md', pixels: '60px', icon: 'calendar', titleKey: 'designPreview.lists.eventThree' },
+  { size: 'lg', pixels: '64px', icon: 'gift', titleKey: 'designPreview.lists.giftIdeas' },
+  { size: 'xl', pixels: '68px', icon: 'heart', titleKey: 'designPreview.lists.paddedTitle' },
+] as const
+
 export const Route = createFileRoute('/design')({ component: DesignPreview })
 
 /* The «Наша семья» demo world: every preview string and mark. */
@@ -851,6 +860,111 @@ function ListsSection() {
           </Card>
         </div>
       </div>
+
+      <h3 className="text-h3">{t('designPreview.lists.cardForms')}</h3>
+      <div className="grid gap-8 desktop:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          {/* the padded form: 20px on all sides, no forced gap — the
+              content sets its own rhythm (issue #58) */}
+          <Card variant="padded">
+            <h3 className="text-h3">{t('designPreview.lists.paddedTitle')}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('designPreview.lists.paddedText')}
+            </p>
+            <div className="mt-4">
+              <Button size="sm" variant="secondary">
+                <Icon name="heart" />
+                {t('designPreview.lists.paddedAction')}
+              </Button>
+            </div>
+          </Card>
+          <p className="text-sm text-muted-foreground">{t('designPreview.lists.paddedHint')}</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          {/* the list form: no padding, rows flush, the corners clip
+              them; a bare leading icon by default, the 38px tinted
+              tile opt-in through a tone, an avatar never on a tile */}
+          <Card variant="list">
+            <ItemGroup>
+              <Item size="sm">
+                <ItemMedia>
+                  <Icon name="book" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.cardTitle')}</ItemTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t('designPreview.lists.leadingBare')}
+                  </p>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia variant="icon">
+                  <Icon name="clock" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.eventTwo')}</ItemTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t('designPreview.lists.leadingTile')}
+                  </p>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia variant="icon" tone="warn">
+                  <Icon name="cake" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.eventOne')}</ItemTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t('designPreview.lists.leadingTile')}
+                  </p>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia tone="primary">
+                  <Icon name="gift" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.giftIdeas')}</ItemTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t('designPreview.lists.leadingTile')}
+                  </p>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia>
+                  <Avatar hue={HUES.anya}>А</Avatar>
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.anya')}</ItemTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t('designPreview.lists.leadingAvatar')}
+                  </p>
+                </ItemContent>
+              </Item>
+            </ItemGroup>
+          </Card>
+          <p className="text-sm text-muted-foreground">{t('designPreview.lists.listHint')}</p>
+        </div>
+      </div>
+
+      <h3 className="text-h3">{t('designPreview.lists.rowHeights')}</h3>
+      <Card variant="list" className="max-w-xl">
+        <ItemGroup>
+          {ROW_HEIGHTS.map(({ size, pixels, icon, titleKey }) => (
+            <Item key={size} size={size}>
+              <ItemMedia>
+                <Icon name={icon} />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t(titleKey)}</ItemTitle>
+                <p className="text-sm text-muted-foreground">
+                  {t('designPreview.lists.rowSize', { size, pixels })}
+                </p>
+              </ItemContent>
+            </Item>
+          ))}
+        </ItemGroup>
+      </Card>
     </PreviewSection>
   )
 }

@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { CountBadge } from '@/ui/count-badge.tsx'
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Fab } from '@/ui/fab.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
@@ -93,12 +93,12 @@ export function JournalScreen() {
                 </EmptyMedia>
                 <EmptyTitle>{t('journal.feedEmptyTitle')}</EmptyTitle>
                 <EmptyDescription>{t('journal.feedEmptyText')}</EmptyDescription>
-                <EmptyMedia className="mt-3">
+                <EmptyContent>
                   <Button onClick={() => void navigate({ to: '/journal/new' })}>
                     <Icon name="plus" />
                     {t('journal.writeFirst')}
                   </Button>
-                </EmptyMedia>
+                </EmptyContent>
               </Empty>
             </Card>
           ) : (

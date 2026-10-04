@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog.tsx'
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Fab } from '@/ui/fab.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
@@ -109,12 +109,12 @@ export function WishlistMineScreen() {
               </EmptyMedia>
               <EmptyTitle>{t('wishlist.mineEmptyTitle')}</EmptyTitle>
               <EmptyDescription>{t('wishlist.mineEmptyText')}</EmptyDescription>
-              <EmptyMedia className="mt-3">
+              <EmptyContent>
                 <Button onClick={() => setEditingId('new')}>
                   <Icon name="plus" />
                   {t('wishlist.addWish')}
                 </Button>
-              </EmptyMedia>
+              </EmptyContent>
             </Empty>
           </Card>
         ) : (

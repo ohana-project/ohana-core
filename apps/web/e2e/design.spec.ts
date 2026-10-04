@@ -189,3 +189,85 @@ test.describe('access code input', () => {
     await expect(input).toHaveValue('A1B2-C3D4')
   })
 })
+
+test.describe('card forms and list rows (issue #58)', () => {
+  test('the padded and list card forms carry the prototype values', async ({ page }) => {
+    await openDesign(page)
+    const padding = (el: Element) => {
+      const s = getComputedStyle(el)
+      return [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft]
+    }
+    // the padded card: 20px on all sides
+    const padded = page.locator('[data-slot="card"][data-variant="padded"]').first()
+    await expect(padded).toBeVisible()
+    expect(await padded.evaluate(padding)).toEqual(['20px', '20px', '20px', '20px'])
+    // the list card: no padding, the corners clip the rows
+    const list = page.locator('[data-slot="card"][data-variant="list"]').first()
+    await expect(list).toBeVisible()
+    expect(await list.evaluate(padding)).toEqual(['0px', '0px', '0px', '0px'])
+    expect(await list.evaluate((el) => getComputedStyle(el).overflow)).toBe('hidden')
+    // the default card is still beside them, unchanged
+    const def = page.locator('[data-slot="card"][data-variant="default"]').first()
+    await expect(def).toBeVisible()
+  })
+
+  test('list rows offer every height the prototypes use', async ({ page }) => {
+    await openDesign(page)
+    for (const [size, height] of [
+      ['sm', '52px'],
+      ['default', '56px'],
+      ['md', '60px'],
+      ['lg', '64px'],
+      ['xl', '68px'],
+    ]) {
+      const row = page.locator(`[data-slot="item"][data-size="${size}"]`).first()
+      await expect(row).toBeVisible()
+      expect(await row.evaluate((el) => getComputedStyle(el).minHeight), `size ${size}`).toBe(
+        height,
+      )
+    }
+  })
+
+  test('a leading icon is bare and an avatar has no tinted square behind it', async ({ page }) => {
+    await openDesign(page)
+    // a bare leading icon: no tile background, muted colour
+    const bare = page
+      .locator('[data-slot="item-media"][data-variant="default"]')
+      .filter({ has: page.locator('svg') })
+      .first()
+    await expect(bare).toBeVisible()
+    expect(await bare.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+      'rgba(0, 0, 0, 0)',
+    )
+    // an avatar as leading content sits on nothing: its media has no
+    // background and no 38px tile
+    const avatarRow = page
+      .locator('[data-slot="item"]')
+      .filter({ has: page.locator('[data-slot="avatar"]') })
+      .first()
+    await expect(avatarRow).toBeVisible()
+    const avatarMedia = avatarRow.locator('[data-slot="item-media"]')
+    expect(await avatarMedia.getAttribute('data-variant')).toBe('default')
+    expect(await avatarMedia.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+      'rgba(0, 0, 0, 0)',
+    )
+    // the 38px tinted tile stays available where a tone opts in
+    const tile = page
+      .locator('[data-slot="item-media"][data-variant="icon"][data-tone="warn"]')
+      .first()
+    await expect(tile).toBeVisible()
+    expect(await tile.evaluate((el) => getComputedStyle(el).width)).toBe('38px')
+  })
+
+  test('the empty state stands alone with its action outside the icon plate', async ({ page }) => {
+    await openDesign(page)
+    const empty = page.locator('[data-slot="empty"]').first()
+    await expect(empty).toBeVisible()
+    // not inside a card
+    expect(await empty.evaluate((el) => el.closest('[data-slot="card"]'))).toBeNull()
+    // the action button is not the round icon plate
+    const button = empty.getByRole('button')
+    await expect(button).toBeVisible()
+    expect(await button.evaluate((el) => el.closest('[data-slot="empty-icon"]'))).toBeNull()
+  })
+})
