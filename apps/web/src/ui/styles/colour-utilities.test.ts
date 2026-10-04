@@ -67,10 +67,10 @@ const COLOUR_PROPS: readonly string[] = [
 const NON_COLOUR: Record<string, RegExp> = {
   text: /^(?:base|xs|sm|md|lg|xl|[2-9]xl|display(?:-lg)?|h[1-3]|body|meta|micro|left|center|right|justify|start|end|balance|pretty|wrap|nowrap|truncate|transform|capitalize|uppercase|lowercase|italic|underline|line-through|no-underline|ellipsis|clip)(?:-|$)/,
   border: /^(?:solid|dashed|dotted|double|hidden|none|collapse|separate|spacing)(?:-|$)/,
-  decoration: /^(?:auto|from-font|clone|slice|solid|dashed|dotted|double|none)(?:-|$)/,
+  decoration: /^(?:auto|from-font|clone|slice|solid|dashed|dotted|double|wavy|none)(?:-|$)/,
   outline: /^(?:offset|none|hidden|solid|dashed|dotted|double)(?:-|$)/,
   ring: /^(?:inset)(?:-|$)/,
-  shadow: /^(?:none|inner|xs|2xs|sm|md|lg|xl|2xl)(?:-|$)/,
+  shadow: /^(?:none|inner|xs|sm|md|lg|xl)(?:-|$)/,
   'inset-shadow': /^(?:none|xs|sm)(?:-|$)/,
   divide: /^(?:x|y|reverse|solid|dashed|dotted|double|none)(?:-|$)/,
   fill: /^(?:none)(?:-|$)/,
@@ -256,5 +256,15 @@ describe('every colour utility used by the client resolves to a generated rule',
       (name) => !alwaysKnown.has(name) && !themeNames.has(name),
     )
     expect(unknown, 'colour names with no --color-* token in src/index.css').toEqual([])
+  })
+
+  it('the client uses none of Tailwind’s default shadow steps', () => {
+    // the README allows exactly the three --shadow-* steps; the default
+    // scale sits in the non-colour filter, so it would otherwise slip
+    // through uncounted
+    const offenders = candidates
+      .filter((c) => /(?:^|:)shadow-(?:2xs|xs|sm|md|lg|xl|2xl)$/.test(c.candidate))
+      .map((c) => c.candidate)
+    expect(offenders, 'candidates from the default shadow scale').toEqual([])
   })
 })

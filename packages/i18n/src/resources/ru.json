@@ -741,7 +741,8 @@
       "viewMenu": "Вид ленты",
       "newestFirst": "Сначала новые",
       "oldestFirst": "Сначала старые",
-      "withPhotos": "Только с фото"
+      "withPhotos": "Только с фото",
+      "order": "Порядок"
     },
     "badges": {
       "primary": "Актуально",

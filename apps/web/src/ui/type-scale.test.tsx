@@ -55,8 +55,8 @@ describe('components keep their type-scale step beside their colour', () => {
       const { container, unmount } = renderWithProviders(<Avatar size={size} hue={60} />)
       const avatar = container.querySelector('[data-slot=avatar]')
       expect(avatar, size).not.toBeNull()
-      // the hue ink, not the classes that carry it: a light-theme
-      // fallback to the page's fg is the regression this pins
+      // the light-theme ink class must survive beside the size step; the
+      // computed colour it produces is asserted in e2e/design.spec.ts
       expect(avatar?.classList.contains('text-[oklch(38%_0.08_var(--hue))]'), size).toBe(true)
       expect(avatar?.classList.contains(step), size).toBe(true)
       unmount()

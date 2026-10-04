@@ -14,6 +14,10 @@
           "options": {
             "patterns": [
               {
+                "group": ["cn/config"],
+                "message": "only src/lib/cn.ts may configure the merger"
+              },
+              {
                 "group": ["cn", "cn/*"],
                 "message": "merge classes through @/lib/cn — the app's merger knows the type scale (issue #56)"
               }
