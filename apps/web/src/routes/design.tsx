@@ -6,6 +6,7 @@ import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { type ThemeChoice, useTheme } from '@/app/theme.tsx'
 import { LanguageSwitcher } from '@/features/language/language-switcher.tsx'
 import { AccessCodeInput } from '@/ui/access-code-input.tsx'
+import { ActionBar } from '@/ui/action-bar.tsx'
 import { AuthFrame } from '@/ui/auth-frame.tsx'
 import { Avatar } from '@/ui/avatar.tsx'
 import { AvatarStack } from '@/ui/avatar-stack.tsx'
@@ -68,6 +69,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
+import { NoteBlock } from '@/ui/note-block.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -143,6 +145,7 @@ function DesignPreview() {
         <ControlsSection />
         <FeedbackSection />
         <ListsSection />
+        <PiecesSection />
         <LayoutsSection />
       </div>
     </TooltipProvider>
@@ -990,12 +993,52 @@ function ListsSection() {
   )
 }
 
+/* ── shared pieces (issue #61) ──────────────────────────────────── */
+
+function PiecesSection() {
+  const { t } = useTranslation()
+
+  return (
+    <PreviewSection id="pieces" title={t('designPreview.sections.pieces')}>
+      <div className="grid gap-8 desktop:grid-cols-2">
+        {/* the Home form: title, text and the accent link */}
+        <div className="flex flex-col gap-3">
+          <NoteBlock icon="gift">
+            <p className="font-semibold text-foreground">{t('designPreview.pieces.noteTitle')}</p>
+            <p className="mt-0.5 text-muted-foreground">{t('designPreview.pieces.noteText')}</p>
+            <a
+              href="#pieces"
+              className="mt-2 w-fit font-medium text-primary underline-offset-3 hover:underline"
+            >
+              {t('designPreview.pieces.noteLink')}
+            </a>
+          </NoteBlock>
+          <p className="text-sm text-muted-foreground">{t('designPreview.pieces.noteHint')}</p>
+        </div>
+        {/* the invite form: one rich paragraph after the icon */}
+        <div className="flex flex-col gap-3">
+          <NoteBlock icon="shield">
+            <p>
+              <b>{t('designPreview.pieces.notePlainLead')}</b>
+              {t('designPreview.pieces.notePlainRest')}
+            </p>
+          </NoteBlock>
+          <p className="text-sm text-muted-foreground">
+            {t('designPreview.pieces.actionBarInLayouts')}
+          </p>
+        </div>
+      </div>
+    </PreviewSection>
+  )
+}
+
 /* ── shells ─────────────────────────────────────────────────────── */
 
 function LayoutsSection() {
   const { t, i18n } = useTranslation()
   const [activeId, setActiveId] = useState('home')
   const [sectionCount, setSectionCount] = useState(4)
+  const [withActionBar, setWithActionBar] = useState(true)
   const date = demoDate(i18n.language)
 
   const sections: { id: string; label: string; icon: IconName }[] = [
@@ -1047,6 +1090,16 @@ function LayoutsSection() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        {/* the switch renders a button, so a wrapping label would not
+            activate it — the text is its visible caption instead */}
+        <span className="flex items-center gap-3 text-sm font-medium">
+          <Switch
+            checked={withActionBar}
+            onCheckedChange={setWithActionBar}
+            aria-label={t('designPreview.pieces.actionBar')}
+          />
+          {t('designPreview.pieces.actionBarToggle')}
+        </span>
       </div>
       {/* the transform turns the demo box into the containing block for the
           fixed tab bar and FAB, so they stay inside the demo */}
@@ -1103,6 +1156,17 @@ function LayoutsSection() {
               </CardContent>
             </Card>
           </div>
+          {withActionBar && (
+            /* a screen's main actions ride the shared action bar
+                (issue #61); mounted as part of the screen, the layout
+                reserves the bar's bottom space while it is up */
+            <ActionBar>
+              <Button variant="secondary" className="min-w-0 flex-1">
+                {t('designPreview.pieces.barCancel')}
+              </Button>
+              <Button className="min-w-0 flex-1">{t('designPreview.pieces.barSave')}</Button>
+            </ActionBar>
+          )}
         </MemberLayout>
       </div>
 
@@ -1153,10 +1217,15 @@ function LayoutsSection() {
         </AuthFrame>
       </div>
 
-      <Fab
-        aria-label={t('designPreview.feedback.emptyAction')}
-        onClick={() => toast(t('designPreview.feedback.toastOk'))}
-      />
+      {/* the FAB demo floats over the page; the screens that mount the
+          action bar never carry a FAB, so the demo hides it while the
+          bar is up instead of letting the two overlap */}
+      {!withActionBar && (
+        <Fab
+          aria-label={t('designPreview.feedback.emptyAction')}
+          onClick={() => toast(t('designPreview.feedback.toastOk'))}
+        />
+      )}
     </PreviewSection>
   )
 }
