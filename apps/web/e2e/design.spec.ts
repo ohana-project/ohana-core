@@ -309,14 +309,7 @@ test.describe('card forms and list rows (issue #58)', () => {
       .locator('[data-slot="item-media"][data-variant="default"][data-tone="primary"]')
       .first()
     await expect(tonedBare).toBeVisible()
-    const accent = await page.evaluate(() => {
-      const probe = document.createElement('span')
-      probe.style.color = 'var(--accent)'
-      document.body.append(probe)
-      const colour = getComputedStyle(probe).color
-      probe.remove()
-      return colour
-    })
+    const accent = await tokenFill(page, '--accent')
     expect(await tonedBare.evaluate((el) => getComputedStyle(el).color)).toBe(accent)
     expect(await tonedBare.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
       'rgba(0, 0, 0, 0)',

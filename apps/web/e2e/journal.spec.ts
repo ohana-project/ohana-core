@@ -458,7 +458,6 @@ test.describe('the journal', () => {
     // danger-tinted for trash (docs/design/screens/diary.html:85,95).
     const surface2 = await tokenFill(page, '--surface-2')
     const dangerFill = await tokenFill(page, '--danger-fill')
-    // the trash tile must differ from the drafts tile
     expect(dangerFill).not.toBe(surface2)
     const draftsMedia = page
       .getByRole('link', { name: /Мои черновики/ })
