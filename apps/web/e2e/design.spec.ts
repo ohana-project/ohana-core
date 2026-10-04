@@ -189,3 +189,41 @@ test.describe('access code input', () => {
     await expect(input).toHaveValue('A1B2-C3D4')
   })
 })
+
+test.describe('type scale survives class merging', () => {
+  // the merger knows the Ohana steps (issue #56); these pin the rendered
+  // sizes the ticket names, computed from the real stylesheet
+  test('tab labels, hints, badges and tooltips keep their size', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+
+    const tab = page.locator('[data-slot=tab]').first()
+    await expect(tab).toHaveCSS('font-size', '11.5px')
+    await expect(tab).toHaveCSS('font-weight', '500')
+
+    await expect(page.locator('[data-slot=field-description]').first()).toHaveCSS(
+      'font-size',
+      '12.5px',
+    )
+    await expect(page.locator('[data-slot=count-badge]').first()).toHaveCSS('font-size', '11.5px')
+
+    const trigger = page.locator('[data-slot=tooltip-trigger]').first()
+    await trigger.hover()
+    await expect(page.locator('[data-slot=tooltip-content]')).toHaveCSS('font-size', '12.5px')
+  })
+
+  test('avatar monograms keep their hue ink at every size in both themes', async ({ page }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      await openDesign(page, { theme })
+      const avatars = page.locator('[data-slot=avatar]')
+      const count = await avatars.count()
+      expect(count, theme).toBeGreaterThan(0)
+      // light ink is 0.08 chroma, dark ink 0.06 — never the page's fg
+      const ink = theme === 'light' ? /0\.08/ : /0\.06/
+      for (let i = 0; i < count; i += 1) {
+        const colour = await avatars.nth(i).evaluate((el) => getComputedStyle(el).color)
+        expect(colour, `avatar ${i} (${theme})`).toMatch(ink)
+      }
+    }
+  })
+})
