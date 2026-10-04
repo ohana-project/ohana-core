@@ -58,7 +58,7 @@ import { Fab } from '@/ui/fab.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon, type IconName } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
-import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -669,6 +669,11 @@ function FeedbackSection() {
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           {t('designPreview.feedback.spinner')} <Spinner />
         </span>
+        {/* a pending button's spinner takes the button's 18px, so the
+            label does not shift when the action resolves (issue #55) */}
+        <Button variant="secondary" disabled aria-label={t('designPreview.feedback.spinner')}>
+          <Spinner />
+        </Button>
       </div>
 
       <Banner>{t('designPreview.feedback.banner')}</Banner>
@@ -804,6 +809,12 @@ function ListsSection() {
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.dangerRow')}</ItemTitle>
                 </ItemContent>
+                {/* the actions slot sizes its own icon and leaves the
+                    pill's check to the pill (issue #55) */}
+                <ItemActions>
+                  <Badge variant="danger">{t('designPreview.badges.danger')}</Badge>
+                  <Icon name="chevron-right" />
+                </ItemActions>
               </Item>
               <Item size="sm" render={<a href="#lists" />}>
                 <ItemMedia variant="icon">

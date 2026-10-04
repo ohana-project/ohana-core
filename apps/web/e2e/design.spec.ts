@@ -198,8 +198,9 @@ test.describe('icon sizes (issue #55)', () => {
         button: boxes('[data-slot="button"] svg'),
         listRowLeading: boxes('[data-slot="item-media"][data-variant="icon"] svg'),
         listRowTrailing: boxes('[data-slot="item"] > svg'),
+        listRowActions: boxes('[data-slot="item-actions"] > svg'),
         pickCheck: boxes('[data-slot="pick-row"] > svg'),
-        emptyPlate: boxes('[data-slot="empty-icon"] svg'),
+        emptyPlate: boxes('[data-slot="empty-icon"] > svg'),
         pill: boxes('[data-slot="badge"] svg'),
         sidebarChevron: boxes('[data-slot="side-space"] > svg'),
       }
@@ -209,6 +210,7 @@ test.describe('icon sizes (issue #55)', () => {
       button: [18, 18],
       listRowLeading: [20, 20],
       listRowTrailing: [18, 18],
+      listRowActions: [18, 18],
       pickCheck: [20, 20],
       emptyPlate: [28, 28],
       pill: [12, 12],
@@ -243,8 +245,8 @@ test.describe('icon sizes (issue #55)', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page)
 
-    const px = (value: string) => Number.parseFloat(value)
-    const measured = await page.evaluate((px) => {
+    const measured = await page.evaluate(() => {
+      const px = (value: string) => Number.parseFloat(value)
       const box = (el: Element | null) => {
         if (!el) return null
         const rect = el.getBoundingClientRect()
@@ -262,7 +264,7 @@ test.describe('icon sizes (issue #55)', () => {
         ],
         fab: box(document.querySelector('[data-slot="fab"] svg')),
       }
-    }, px)
+    })
     expect(measured, 'the mobile shell renders inside the preview').not.toBeNull()
     expect(measured?.plate).toEqual([40, 28])
     expect(measured?.glyph).toEqual([24, 24])
