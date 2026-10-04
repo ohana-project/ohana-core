@@ -74,9 +74,24 @@ describe('Icon', () => {
 
   it('sizes by the size prop or the parent font size', () => {
     const { container: sized } = render(<Icon name="check" size={18} />)
-    expect(sized.querySelector('svg')).toHaveAttribute('width', '18')
+    const sizedSvg = sized.querySelector('svg')
+    expect(sizedSvg).toHaveAttribute('width', '18')
+    // the inline style beats a context's sizing rule, so an explicit
+    // size wins wherever the icon is placed
+    expect(sizedSvg).toHaveStyle({ width: '18px', height: '18px' })
     const { container: em } = render(<Icon name="check" />)
-    expect(em.querySelector('svg')?.getAttribute('class')).toContain('size-[1em]')
+    const emSvg = em.querySelector('svg')
+    // the 1em default must not match the containers' [class*='size-']
+    // exclusion, or their sizing rules would never apply (issue #55)
+    expect(emSvg?.getAttribute('class')).toContain('h-[1em]')
+    expect(emSvg?.getAttribute('class')).not.toContain('size-')
+  })
+
+  it('lets an explicit sizing class override the em default', () => {
+    const { container } = render(<Icon name="check" className="size-7" />)
+    const svg = container.querySelector('svg')
+    expect(svg?.getAttribute('class')).toContain('size-7')
+    expect(svg?.getAttribute('class')).not.toContain('h-[1em]')
   })
 })
 

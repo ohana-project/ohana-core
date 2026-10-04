@@ -512,7 +512,10 @@ function BadgesSection() {
     <PreviewSection id="badges" title={t('designPreview.sections.badges')}>
       <div className="flex flex-wrap items-center gap-3">
         <Badge>{t('designPreview.badges.primary')}</Badge>
-        <Badge variant="ok">{t('designPreview.badges.ok')}</Badge>
+        <Badge variant="ok">
+          <Icon name="check" />
+          {t('designPreview.badges.ok')}
+        </Badge>
         <Badge variant="warn">{t('designPreview.badges.warn')}</Badge>
         <Badge variant="danger">{t('designPreview.badges.danger')}</Badge>
         <Badge variant="neutral">{t('designPreview.badges.neutral')}</Badge>
@@ -1008,7 +1011,7 @@ function LayoutsSection() {
 
       <h3 className="text-h3">{t('designPreview.layouts.auth')}</h3>
       <div className="overflow-hidden rounded-lg border border-border">
-        <AuthFrame footer={t('designPreview.demo.demoNote')}>
+        <AuthFrame footer={t('designPreview.layouts.demoNote')}>
           <div className="flex flex-col gap-4">
             <h3 className="text-h2 text-center">{t('designPreview.layouts.authHeading')}</h3>
             <p className="text-sm text-muted-foreground">{t('designPreview.layouts.authText')}</p>

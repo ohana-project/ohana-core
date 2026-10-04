@@ -120,17 +120,23 @@ export type IconName = keyof typeof icons
 
 interface IconProps extends Omit<React.ComponentProps<'svg'>, 'name' | 'children' | 'strokeWidth'> {
   name: IconName
-  /** Rendered size in px; defaults to the parent's font size (1em). */
+  /**
+   * Rendered size in px. Omitted, the icon takes the size its context
+   * dictates: a container's `[&_svg:not([class*='size-'])]` sizing
+   * rule where one exists (button, menu item, list row media, pill,
+   * empty-state plate…), the parent's font size (1em) otherwise.
+   */
   size?: number
 }
 
-export function Icon({ name, size, className, ...rest }: IconProps) {
+export function Icon({ name, size, className, style, ...rest }: IconProps) {
   return (
     <HugeiconsIcon
       icon={icons[name]}
       aria-hidden="true"
       size={size}
-      className={cn(!size && 'size-[1em] shrink-0', className)}
+      className={cn(!size && 'h-[1em] w-[1em]', 'shrink-0', className)}
+      style={size === undefined ? style : { width: size, height: size, ...style }}
       {...rest}
       strokeWidth={1.5}
     />

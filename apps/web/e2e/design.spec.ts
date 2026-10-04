@@ -178,6 +178,94 @@ test.describe('overlays', () => {
   })
 })
 
+test.describe('icon sizes (issue #55)', () => {
+  /**
+   * Every context sizes its own icons (docs/design/README.md
+   * "Components" and the prototype's `svg` rules); the caller never
+   * passes a size, so the rendered pixels pin the design language.
+   */
+  test('each context dictates its icon size at 1280px', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openDesign(page)
+
+    const sizes = await page.evaluate(() => {
+      const boxes = (selector: string) =>
+        [...document.querySelectorAll(selector)].map((el) => {
+          const rect = el.getBoundingClientRect()
+          return [rect.width, rect.height]
+        })
+      return {
+        button: boxes('[data-slot="button"] svg'),
+        listRowLeading: boxes('[data-slot="item-media"][data-variant="icon"] svg'),
+        listRowTrailing: boxes('[data-slot="item"] > svg'),
+        pickCheck: boxes('[data-slot="pick-row"] > svg'),
+        emptyPlate: boxes('[data-slot="empty-icon"] svg'),
+        pill: boxes('[data-slot="badge"] svg'),
+      }
+    })
+
+    const expected = {
+      button: [18, 18],
+      listRowLeading: [20, 20],
+      listRowTrailing: [18, 18],
+      pickCheck: [20, 20],
+      emptyPlate: [28, 28],
+      pill: [12, 12],
+    } as const
+    for (const [context, boxes] of Object.entries(sizes)) {
+      expect(boxes.length, `${context}: the preview shows the context`).toBeGreaterThan(0)
+      for (const box of boxes) {
+        expect(box, context).toEqual(expected[context as keyof typeof expected])
+      }
+    }
+  })
+
+  test('menu items dictate 18px once a menu is open', async ({ page }) => {
+    await openDesign(page)
+    await page.getByRole('button', { name: 'Меню', exact: true }).click()
+    // the menu mounts in a portal after the click
+    const items = page.getByRole('menuitem')
+    await expect(items).toHaveCount(4)
+    const boxes = await page.evaluate(() =>
+      [...document.querySelectorAll('[role="menuitem"] svg')].map((el) => {
+        const rect = el.getBoundingClientRect()
+        return [rect.width, rect.height]
+      }),
+    )
+    for (const box of boxes) expect(box).toEqual([18, 18])
+    await page.keyboard.press('Escape')
+  })
+
+  test('the tab bar keeps its 40×28 plate with a 24px glyph at 390px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+
+    const measured = await page.evaluate(() => {
+      const box = (el: Element | null) => {
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return [rect.width, rect.height]
+      }
+      const tabSvg = document.querySelector('[data-slot="tab"] svg')
+      if (!tabSvg) return null
+      const rect = tabSvg.getBoundingClientRect()
+      const style = getComputedStyle(tabSvg)
+      return {
+        plate: [rect.width, rect.height],
+        glyph: [
+          rect.width - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight),
+          rect.height - Number.parseFloat(style.paddingTop) - Number.parseFloat(style.paddingBottom),
+        ],
+        fab: box(document.querySelector('[data-slot="fab"] svg')),
+      }
+    })
+    expect(measured, 'the mobile shell renders inside the preview').not.toBeNull()
+    expect(measured?.plate).toEqual([40, 28])
+    expect(measured?.glyph).toEqual([24, 24])
+    expect(measured?.fab).toEqual([24, 24])
+  })
+})
+
 test.describe('access code input', () => {
   test('formats a pasted code with junk characters', async ({ page }) => {
     await openDesign(page)

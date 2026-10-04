@@ -10,7 +10,10 @@ import { Separator } from '@/ui/separator'
  * Ohana list row (`.list-row` in the prototype): a leading 38px icon
  * tile with a tone, title and subtitle, trailing content; rows are
  * divided by hairlines, and the min-height comes from the size
- * variants instead of the prototype's inline pixel values.
+ * variants instead of the prototype's inline pixel values. A leading
+ * icon in the tile is 20px (`.list-row .leading svg`), a trailing
+ * icon 18px (`.list-row .trailing svg`) — the icons pick their sizes
+ * up from the row, callers never pass one.
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
@@ -29,7 +32,7 @@ function ItemSeparator({ className, ...props }: React.ComponentProps<typeof Sepa
 }
 
 const itemVariants = cva(
-  'group/item flex w-full flex-wrap items-center gap-3.5 px-3.5 py-2.5 text-body text-left transition-colors duration-(--t-fast) ease-(--ease) border-b border-border last:border-b-0 [a]:transition-colors hover:bg-surface-2',
+  "group/item flex w-full flex-wrap items-center gap-3.5 px-3.5 py-2.5 text-body text-left transition-colors duration-(--t-fast) ease-(--ease) border-b border-border last:border-b-0 [a]:transition-colors hover:bg-surface-2 [&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-[18px]",
   {
     variants: {
       variant: {
@@ -157,7 +160,10 @@ function ItemActions({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="item-actions"
-      className={cn('ml-auto flex shrink-0 items-center gap-2 text-muted-foreground', className)}
+      className={cn(
+        "ml-auto flex shrink-0 items-center gap-2 text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px]",
+        className,
+      )}
       {...props}
     />
   )

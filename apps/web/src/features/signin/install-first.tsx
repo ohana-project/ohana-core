@@ -37,7 +37,8 @@ function Steps({ platform }: { platform: 'ios' | 'android' }) {
               {step.icon !== undefined && (
                 <>
                   {' '}
-                  <Icon name={step.icon} size={13} className="inline-block align-[-2px]" />
+                  {/* unsized: the icon follows the surrounding text-sm */}
+                  <Icon name={step.icon} className="inline-block align-[-2px]" />
                 </>
               )}
             </span>
