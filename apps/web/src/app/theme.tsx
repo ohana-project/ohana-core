@@ -48,6 +48,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolved
+    // The browser chrome follows the choice too: index.html's two
+    // media-keyed metas only know the system scheme, so once the
+    // provider runs they collapse onto the resolved theme's colour —
+    // the sRGB fallbacks of docs/design/README.md, "Colour" (≈ bg in
+    // the light theme, ≈ accent in the dark).
+    const color = resolved === 'dark' ? 'rgb(117 34 49)' : 'rgb(246 241 238)'
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+      meta.removeAttribute('media')
+      meta.content = color
+    }
   }, [resolved])
 
   useEffect(() => {

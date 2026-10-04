@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { AuthLayout } from './auth-layout.tsx'
 
@@ -10,6 +10,12 @@ import { AuthLayout } from './auth-layout.tsx'
  * code entry, install-first, onboarding, accounts, and the admin sign-in
  * share this one layout, so they all get it here.
  */
+
+// A press stores the choice per device; the leak would flip the tests
+// that follow this file's order.
+afterEach(() => {
+  window.localStorage.clear()
+})
 
 describe('AuthLayout', () => {
   it('pins the round theme toggle at the top right of the viewport', () => {

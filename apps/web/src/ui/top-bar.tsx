@@ -107,6 +107,7 @@ function UserMenu({ items }: { items: ShellUserMenuItem[] }) {
             {item.separatorBefore && <DropdownMenuSeparator />}
             <DropdownMenuItem
               variant={item.danger ? 'destructive' : 'default'}
+              aria-label={item.ariaLabel}
               onClick={item.onSelect}
             >
               <Icon name={item.icon} />

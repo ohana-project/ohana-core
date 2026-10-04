@@ -29,8 +29,6 @@ export function ThemeToggle({
       variant="ghost"
       size={size}
       className={className}
-      // The glyph and the name both follow the theme a press leads to.
-      data-icon={dark ? 'sun' : 'moon'}
       aria-label={dark ? t('layout.theme.light') : t('layout.theme.dark')}
       onClick={() => setTheme(dark ? 'light' : 'dark')}
     >

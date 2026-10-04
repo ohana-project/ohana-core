@@ -128,11 +128,12 @@ test.describe('theme toggle', () => {
 
     await expect(page.getByRole('heading', { name: /Аня Смирнова/ })).toBeVisible()
 
-    // The menu's pair sits between the prototype's separators.
+    // The menu's pair sits between the prototype's separators; the theme
+    // item announces the theme it leads to — the dark one while light,
+    // like the prototype's `data-action="theme"` buttons.
     await page.getByRole('button', { name: 'Меню пользователя' }).click()
-    const themeItem = page.getByRole('menuitem', { name: 'Тема' })
+    const themeItem = page.getByRole('menuitem', { name: 'Тёмная тема' })
     await expect(page.getByRole('menuitem', { name: 'Сменить пространство' })).toBeAttached()
-    // The glyph follows the theme one tap away: the moon in the light theme.
     await expect(themeItem).toBeVisible()
 
     await themeItem.click()

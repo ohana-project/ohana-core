@@ -133,7 +133,7 @@ Easing is `cubic-bezier(0.2, 0.8, 0.2, 1)`. Sheets rise 40px without overshoot, 
 
 Shared components live in `apps/web/src/ui`. The class names below refer to `assets/ohana.css`.
 
-- **Button** (`.btn`): primary (accent; hover darkens 12%, lightens 10% in dark), secondary (surface, border, `shadow-1`), ghost (hover `fg-soft`), danger (`danger` 12% over `surface`, 16% on hover), link. Sizes: default 44px, `lg` 52px full width, `sm` 36px, `icon` 44px round.
+- **Button** (`.btn`): primary (accent; hover darkens 12%, lightens 10% in dark), secondary (surface, border, `shadow-1`), ghost (hover `fg-soft`), danger (`danger` 12% over `surface`, 16% on hover), link. Sizes: default 44px, `lg` 52px full width, `sm` 36px, `icon` 44px round, `icon-sm` 36px round — the administrative bar's theme toggle, the one deliberate exception to the 44px touch-target rule.
 - **Input and textarea** (`.input`, `.textarea`): 46px, border darkens on hover, accent border and 3px `accent-soft` ring on focus. The textarea is at least 110px.
 - **Field** (`.field`): label in `sm`/`muted`, hint in `meta`. When invalid, the border and ring turn `danger`, an error line with an icon appears under the field and is linked with `aria-describedby`, and the input shakes once.
 - **Access-code input** (`.code-input`): 68px, JetBrains Mono 30px, tracking 0.18em, centred, uppercase; formats to `XXXX-XXXX` while typing (Latin letters and digits only). **Code display** (`.code-display`): a code shown once, mono, dashed accent border over `accent-soft`, selectable in one tap.

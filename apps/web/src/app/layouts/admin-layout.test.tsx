@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { AdminLayout } from './admin-layout.tsx'
 
@@ -10,6 +10,12 @@ import { AdminLayout } from './admin-layout.tsx'
  * of the bar, after the caller's actions — and its press switches the
  * theme in place, exactly like everywhere else.
  */
+
+// A press stores the choice per device; the leak would flip the tests
+// that follow this file's order.
+afterEach(() => {
+  window.localStorage.clear()
+})
 
 describe('AdminLayout', () => {
   it('ends the bar with a 36px round theme toggle', () => {
@@ -31,7 +37,9 @@ describe('AdminLayout', () => {
 
     const bar = screen.getByRole('banner')
     expect(bar.textContent).toContain('Настройки')
-    expect(screen.getByRole('button', { name: 'Тёмная тема' })).toBeInTheDocument()
+    // The toggle closes the bar: it is the banner's last button.
+    const buttons = within(bar).getAllByRole('button')
+    expect(buttons.at(-1)).toHaveAccessibleName('Тёмная тема')
   })
 
   it('switches the theme from the administrative bar', async () => {

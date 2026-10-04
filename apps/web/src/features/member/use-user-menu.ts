@@ -55,9 +55,11 @@ export function useMemberUserMenu(): ShellUserMenuItem[] {
       {
         id: 'theme',
         label: t('layout.theme.item'),
-        // The glyph shows the theme one tap away, like the prototype's
-        // «Тема» item: the moon in the light theme, the sun in the dark.
+        // The glyph and the accessible name both show the theme one tap
+        // away, like the prototype's «Тема» item: the moon in the light
+        // theme, the sun in the dark, and the name names that theme.
         icon: dark ? 'sun' : 'moon',
+        ariaLabel: dark ? t('layout.theme.light') : t('layout.theme.dark'),
         separatorBefore: true,
         onSelect: () => setTheme(dark ? 'light' : 'dark'),
       },

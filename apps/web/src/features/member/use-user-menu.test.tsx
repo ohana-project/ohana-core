@@ -46,6 +46,7 @@ function Probe() {
             {item.separatorBefore ? ' |—' : ''}
           </button>
           <span data-testid={`icon-${item.id}`}>{item.icon}</span>
+          {item.ariaLabel && <span data-testid={`aria-${item.id}`}>{item.ariaLabel}</span>}
         </li>
       ))}
     </ul>
@@ -104,6 +105,9 @@ describe('useMemberUserMenu', () => {
     expect(screen.getByTestId('menu-theme').textContent).toContain('Тема')
     expect(screen.getByTestId('menu-theme').textContent).toContain('|—')
     expect(screen.getByTestId('icon-theme').textContent).toBe('moon')
+    // The accessible name names the theme the press leads to, like the
+    // prototype's `data-action="theme"` buttons.
+    expect(screen.getByTestId('aria-theme').textContent).toBe('Тёмная тема')
     expect(screen.getByTestId('menu-switch-space').textContent).toContain('Сменить пространство')
     expect(screen.getByTestId('icon-switch-space').textContent).toBe('repeat')
     expect(screen.getByTestId('menu-switch-space').textContent).not.toContain('|—')
@@ -137,6 +141,7 @@ describe('useMemberUserMenu', () => {
     expect(navigate).not.toHaveBeenCalled()
     // The icon follows the theme it now offers.
     expect(screen.getByTestId('icon-theme').textContent).toBe('sun')
+    expect(screen.getByTestId('aria-theme').textContent).toBe('Светлая тема')
   })
 
   it('«Сменить пространство» opens the accounts screen', async () => {
@@ -158,5 +163,6 @@ describe('useMemberUserMenu', () => {
     expect(await screen.findByText('Участники')).toBeInTheDocument()
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(screen.getByTestId('icon-theme').textContent).toBe('sun')
+    expect(screen.getByTestId('aria-theme').textContent).toBe('Светлая тема')
   })
 })

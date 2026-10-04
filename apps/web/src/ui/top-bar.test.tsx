@@ -30,7 +30,13 @@ describe('TopBar user menu', () => {
     const user = userEvent.setup()
     renderTopBar([
       { id: 'profile', label: 'Профиль', icon: 'user' },
-      { id: 'theme', label: 'Тема', icon: 'moon', separatorBefore: true },
+      {
+        id: 'theme',
+        label: 'Тема',
+        icon: 'moon',
+        ariaLabel: 'Тёмная тема',
+        separatorBefore: true,
+      },
       { id: 'switch-space', label: 'Сменить пространство', icon: 'repeat' },
       { id: 'sign-out', label: 'Выйти', icon: 'log-out', separatorBefore: true },
     ])
@@ -55,7 +61,9 @@ describe('TopBar user menu', () => {
       'dropdown-menu-separator',
       'dropdown-menu-item',
     ])
-    expect(screen.getByRole('menuitem', { name: 'Тема' })).toBeInTheDocument()
+    // An item's aria-label becomes its accessible name (the theme item
+    // names the theme it leads to); the visible label is unchanged.
+    expect(screen.getByRole('menuitem', { name: 'Тёмная тема' })).toHaveTextContent('Тема')
     expect(screen.getByRole('menuitem', { name: 'Сменить пространство' })).toBeInTheDocument()
   })
 

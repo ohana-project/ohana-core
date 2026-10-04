@@ -14,6 +14,11 @@ import { ThemeToggle } from './theme-toggle.tsx'
 
 afterEach(() => {
   window.localStorage.clear()
+  // The browser-chrome test injects index.html's metas into jsdom's
+  // shared document.
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.remove()
+  })
 })
 
 describe('ThemeToggle', () => {
@@ -21,16 +26,15 @@ describe('ThemeToggle', () => {
     const user = userEvent.setup()
     renderWithProviders(<ThemeToggle />)
 
-    const toggle = screen.getByRole('button', { name: 'Тёмная тема' })
-    expect(toggle).toHaveAttribute('data-icon', 'moon')
+    expect(screen.getByRole('button', { name: 'Тёмная тема' })).toBeInTheDocument()
     expect(document.documentElement.dataset.theme).toBe('light')
 
-    await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Тёмная тема' }))
 
     expect(document.documentElement.dataset.theme).toBe('dark')
     // The choice is stored per device, so the next visit opens dark.
     expect(window.localStorage.getItem('ohana.theme')).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Светлая тема' })).toHaveAttribute('data-icon', 'sun')
+    expect(screen.getByRole('button', { name: 'Светлая тема' })).toBeInTheDocument()
   })
 
   it('opens on a stored choice and offers the way back', () => {
@@ -38,7 +42,7 @@ describe('ThemeToggle', () => {
     renderWithProviders(<ThemeToggle />)
 
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Светлая тема' })).toHaveAttribute('data-icon', 'sun')
+    expect(screen.getByRole('button', { name: 'Светлая тема' })).toBeInTheDocument()
   })
 
   it('names the themes in English (en)', () => {
@@ -46,5 +50,28 @@ describe('ThemeToggle', () => {
     renderWithProviders(<ThemeToggle />)
 
     expect(screen.getByRole('button', { name: 'Dark theme' })).toBeInTheDocument()
+  })
+
+  it('follows the choice in the browser-chrome colour too', async () => {
+    const user = userEvent.setup()
+    // index.html's two media-keyed metas; the provider collapses them
+    // onto the resolved theme's colour (app/theme.tsx).
+    for (const scheme of ['light', 'dark'] as const) {
+      const meta = document.createElement('meta')
+      meta.setAttribute('name', 'theme-color')
+      meta.setAttribute('media', `(prefers-color-scheme: ${scheme})`)
+      meta.setAttribute('content', scheme === 'dark' ? 'rgb(117 34 49)' : 'rgb(246 241 238)')
+      document.head.appendChild(meta)
+    }
+    renderWithProviders(<ThemeToggle />)
+
+    await user.click(screen.getByRole('button', { name: 'Тёмная тема' }))
+
+    const metas = [...document.querySelectorAll('meta[name="theme-color"]')]
+    expect(metas.map((meta) => meta.getAttribute('content'))).toEqual([
+      'rgb(117 34 49)',
+      'rgb(117 34 49)',
+    ])
+    expect(metas[0]).not.toHaveAttribute('media')
   })
 })
