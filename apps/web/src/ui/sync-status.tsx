@@ -10,8 +10,8 @@ import { Icon, type IconName } from '@/ui/icon.tsx'
  * the label stays muted until a settled state colours it — while the
  * settled states carry their semantic colours, and the two failure
  * states offer a retry link. Compact chip by default, full form via
- * size="lg"; hiding the text below 430px is the top bar's own trick
- * (`.topbar .sync .sync-text`), not the component's.
+ * size="lg"; hiding the text at 430px and below is the top bar's own
+ * trick (`.topbar .sync .sync-text`), not the component's.
  */
 
 export type SyncState = 'first' | 'updating' | 'synced' | 'offline' | 'unreachable' | 'error'

@@ -596,21 +596,31 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
 
     // wherever the stack sits — free-standing (badges) and inside a
     // list row's media (the admin demo) — the geometry is the same
-    for (const place of [0, 1]) {
-      const stack = page.locator('[data-slot="avatar-stack"]').nth(place)
+    const stacks = [
+      page.locator('#badges [data-slot="avatar-stack"]'),
+      page.locator('#layouts [data-slot="item-media"] [data-slot="avatar-stack"]'),
+    ]
+    for (const [place, stack] of stacks.entries()) {
       await expect(stack).toBeVisible()
       const shape = await stack.evaluate((el) => {
         const avatars = [...el.querySelectorAll('[data-slot="avatar"]')]
         const boxes = avatars.map((a) => a.getBoundingClientRect())
         return {
+          firstMargin: getComputedStyle(avatars[0]).marginLeft,
           travel: boxes.slice(1).map((box, i) => box.left - boxes[i].left),
+          restMargins: avatars.slice(1).map((a) => getComputedStyle(a).marginLeft),
           rims: avatars.slice(1).map((a) => {
             const s = getComputedStyle(a)
             return [s.borderTopWidth, s.borderTopColor]
           }),
         }
       })
-      // 32px avatars 24px apart: 8px of overlap after the first
+      // the first avatar carries no pull of its own, the rest sit 8px
+      // into it (32px avatars 24px apart), behind the 2px page rim
+      expect(shape.firstMargin, `stack ${place} first avatar`).toBe('0px')
+      expect(shape.restMargins, `stack ${place} rest`).toEqual(
+        new Array(shape.rims.length).fill('-8px'),
+      )
       expect(shape.travel, `stack ${place}`).toEqual(new Array(shape.rims.length).fill(24))
       for (const rim of shape.rims) {
         expect(rim, `stack ${place} rim`).toEqual(['2px', bg])
@@ -648,7 +658,7 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     expect(synced.root).toBe(muted)
   })
 
-  test('the sync text hides below 430px only in the top bar', async ({ page }) => {
+  test('the sync text hides at 430px and below only in the top bar', async ({ page }) => {
     // sr-only works on the label through a descendant rule, so the
     // hiding is read off the computed position, not the class list
     const labelHidden = () =>
@@ -666,19 +676,29 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     await openDesign(page)
     await expect.poll(labelHidden).toEqual({ chip: true, full: false })
 
+    // 430px itself is inside the prototype's max-width: 430px — a real
+    // device width, so the boundary is pinned exactly
+    await page.setViewportSize({ width: 430, height: 844 })
+    await expect.poll(labelHidden).toEqual({ chip: true, full: false })
+
     await page.setViewportSize({ width: 431, height: 844 })
     await expect.poll(labelHidden).toEqual({ chip: false, full: false })
   })
 
   test('the focus ring rounds to the small radius', async ({ page }) => {
     await openDesign(page)
-    // the global rule carries the small radius; it lives inside the
-    // base layer, so the walk descends through grouping rules
+    // the app's one global :focus-visible rule carries the small
+    // radius; it lives inside the base layer, so the walk descends
+    // through grouping rules
     const rule = await page.evaluate(() => {
       const find = (rules: CSSRuleList): string | null => {
         for (const style of rules) {
-          if (style instanceof CSSStyleRule && style.selectorText.includes(':focus-visible')) {
-            if (style.style.borderRadius) return style.style.borderRadius
+          if (
+            style instanceof CSSStyleRule &&
+            style.selectorText.trim() === ':focus-visible' &&
+            style.style.borderRadius
+          ) {
+            return style.style.borderRadius
           }
           if (
             style instanceof CSSLayerBlockRule ||
@@ -702,19 +722,25 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     expect(['8px', 'var(--radius-sm)'], 'the :focus-visible rule').toContain(rule)
 
     // and a keyboard-focused element without a radius of its own rounds
-    // to it: walk to the layouts demo's trailing link
+    // to it: walk to the lists demo's section-header link, a plain <a>
     await page.keyboard.press('Tab')
     for (let step = 0; step < 150; step += 1) {
-      const focused = await page.evaluate(() => document.activeElement?.tagName ?? '')
-      if (focused === 'A') break
+      const onTarget = await page.evaluate(() => {
+        const el = document.activeElement
+        const wanted = document.querySelector(
+          '#lists [data-slot="section-header"] a[href="#lists"]',
+        )
+        return el instanceof HTMLElement && el === wanted
+      })
+      if (onTarget) break
       await page.keyboard.press('Tab')
     }
     const radius = await page.evaluate(() => {
-      const el = document.activeElement
-      return el instanceof HTMLElement && el.matches(':focus-visible')
-        ? getComputedStyle(el).borderRadius
+      const wanted = document.querySelector('#lists [data-slot="section-header"] a[href="#lists"]')
+      return wanted instanceof HTMLElement && wanted.matches(':focus-visible')
+        ? getComputedStyle(wanted).borderRadius
         : null
     })
-    expect(radius, 'a focused plain link').toBe('8px')
+    expect(radius, 'the focused plain link').toBe('8px')
   })
 })

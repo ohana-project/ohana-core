@@ -7,8 +7,10 @@ import { cn } from '@/lib/cn'
  * primary per viewport, press moves it down 1px. Focus uses the global
  * :focus-visible outline. The text sizes are the prototype's own values
  * (15px, sm 14px, lg 16.5px — .btn/.btn-sm/.btn-lg), not type-scale
- * steps; the link's 8px side padding rides a compound variant so it
- * lands after the size's padding and wins the merge (.btn-link); the
+ * steps; the link's 8px side padding rides a size-scoped compound
+ * variant so it lands after the default and large sizes' padding and
+ * wins the merge (.btn-link — while a small link stays an sm button,
+ * since .btn-sm comes after .btn-link in the prototype sheet); the
  * round icon buttons come in 44px (icon) and 36px (icon-sm,
  * .btn-icon.btn-sm).
  */
@@ -34,8 +36,11 @@ const buttonVariants = cva(
       },
     },
     compoundVariants: [
-      // after the size classes, so the link keeps its 8px sides (.btn-link)
-      { variant: 'link', class: 'px-2 py-2.5' },
+      // after the size classes, so the default and large link keep their
+      // 8px sides (.btn-link); the size keeps its own vertical padding,
+      // because .btn-sm comes after .btn-link in the prototype — a small
+      // link is a 36px sm button, as the update banner's action is
+      { variant: 'link', size: ['default', 'lg'], class: 'px-2' },
     ],
     defaultVariants: {
       variant: 'primary',

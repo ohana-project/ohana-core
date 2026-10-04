@@ -5,9 +5,12 @@ import { Button } from '@/ui/button.tsx'
 /*
  * The button's type sizes and paddings are the prototype's own values,
  * not type-scale steps (issue #60): 15px text at the default size,
- * 14px small, 16.5px large; the link button's 8px side padding survives
- * whatever size it is combined with; the icon buttons are round, 44px
- * and 36px. The computed pixels are asserted in e2e/design.spec.ts.
+ * 14px small, 16.5px large; the default and large link buttons keep
+ * 8px side padding whatever the merge does, while a small link stays
+ * an sm button (.btn-sm comes after .btn-link in the prototype sheet —
+ * the update banner's action is that combination); the icon buttons
+ * are round, 44px and 36px. The computed pixels are asserted in
+ * e2e/design.spec.ts.
  */
 
 function classes(ui: React.ReactElement) {
@@ -39,9 +42,24 @@ describe('Button', () => {
     expect(icon).toContain('p-0')
   })
 
-  it('keeps the link button at 8px of side padding beside any size', () => {
+  it('keeps the default and large link at 8px of side padding', () => {
     expect(classes(<Button variant="link" />)).toContain('px-2')
-    expect(classes(<Button variant="link" size="sm" />)).toContain('px-2')
     expect(classes(<Button variant="link" />)).not.toContain('px-5')
+    expect(classes(<Button variant="link" size="lg" />)).toContain('px-2')
+  })
+
+  it('a small link stays an sm button: the size keeps its own padding', () => {
+    const sm = classes(<Button variant="link" size="sm" />)
+    expect(sm).toContain('min-h-9')
+    expect(sm).toContain('px-3.5')
+    expect(sm).toContain('py-1.5')
+    expect(sm).not.toContain('px-2')
+    expect(sm).not.toContain('py-2.5')
+  })
+
+  it('a link never pads an icon button', () => {
+    const icon = classes(<Button variant="link" size="icon" aria-label="Ссылка" />)
+    expect(icon).toContain('p-0')
+    expect(icon).not.toContain('px-2')
   })
 })

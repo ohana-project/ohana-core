@@ -72,10 +72,12 @@ export function TopBar({
         {title}
       </span>
       {sync && (
-        // the chip goes icon-only below 430px here and only here
-        // (.topbar .sync .sync-text); sr-only keeps the words for screen
+        // the chip goes icon-only at 430px and below here and only here
+        // (.topbar .sync .sync-text) — 431px, because Tailwind's max-*
+        // compiles to a strict width<431px and the prototype hides at
+        // max-width: 430px inclusive; sr-only keeps the words for screen
         // readers, where the prototype's display:none dropped them
-        <span className="shrink-0 desktop:hidden max-[430px]:[&_[data-slot=sync-status-label]]:sr-only">
+        <span className="shrink-0 desktop:hidden max-[431px]:[&_[data-slot=sync-status-label]]:sr-only">
           <SyncStatus {...sync} />
         </span>
       )}
