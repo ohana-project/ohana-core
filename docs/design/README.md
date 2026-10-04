@@ -101,7 +101,7 @@ There are no other shadows.
 
 Spacing sits on a 4px grid. Page padding is `clamp(16px, 4vw, 24px)`, card padding 16–22px (default 20px), gaps between blocks 12, 28, and 40px. List rows are at least 52px tall (event rows 64px). Touch targets are at least 44px.
 
-Shell sizes: sidebar 232px, top bar 56px, tab bar 64px (the reserve `--tabbar-h`; the rendered bar is 67px — the prototype's 68px less the 1px hairline it drops, see Glass). Content width is 1104px, narrow 760px, wide 1280px; the administrative area uses 960px.
+Shell sizes: sidebar 232px, top bar 56px, tab bar 64px (the reserve `--tabbar-h`; the rendered bar is 67px — the prototype's 68px less the 1px hairline the implementation drops, see Glass). Content width is 1104px, narrow 760px, wide 1280px; the administrative area uses 960px.
 
 ## Glass
 

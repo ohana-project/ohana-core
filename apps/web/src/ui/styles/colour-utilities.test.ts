@@ -268,9 +268,11 @@ describe('every colour utility used by the client resolves to a generated rule',
     // scale is dropped by the non-colour filter before classification,
     // so this reads the raw scanner output the classification starts
     // from
-    const offenders = rawCandidates
-      .map((c) => (splitVariants(c).at(-1) ?? '').replace(/^!/, ''))
-      .filter((u) => /^shadow-(?:2xs|xs|sm|md|lg|xl|2xl)(?:\/|$)/.test(u))
+    const offenders = rawCandidates.filter((c) =>
+      /^shadow-(?:2xs|xs|sm|md|lg|xl|2xl)(?:\/|$)/.test(
+        (splitVariants(c).at(-1) ?? '').replace(/^!|!$/g, ''),
+      ),
+    )
     expect(offenders, 'candidates from the default shadow scale').toEqual([])
   })
 })
