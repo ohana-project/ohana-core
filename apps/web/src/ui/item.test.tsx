@@ -8,10 +8,10 @@ import { Item, ItemContent, ItemMedia, ItemTitle } from '@/ui/item.tsx'
 /*
  * The list row against the prototype (issue #58): the heights the
  * prototypes use inline (52, 56, 60, 64, 68px) as size variants, a
- * bare leading icon by default, and the 38px tinted tile only when a
- * tone opts into it — so an avatar never sits on a tinted square. The
- * min-height values are asserted against computed styles in
- * e2e/design.spec.ts.
+ * bare leading icon by default, and the 38px tinted tile only when
+ * `variant="icon"` opts into it — so an avatar never sits on a tinted
+ * square. The min-height values are asserted against computed styles
+ * in e2e/design.spec.ts.
  */
 const SIZES = ['sm', 'default', 'md', 'lg', 'xl'] as const
 
@@ -67,10 +67,10 @@ describe('ItemMedia', () => {
     expect(media.className).not.toContain('size-[38px]')
   })
 
-  it('the 38px tinted tile is opt-in through a tone', () => {
+  it('the 38px tinted tile is opt-in through variant icon, tinted by the tone', () => {
     renderWithProviders(
       <Item>
-        <ItemMedia tone="warn" data-testid="media">
+        <ItemMedia variant="icon" tone="warn" data-testid="media">
           <Icon name="cake" />
         </ItemMedia>
       </Item>,
@@ -80,6 +80,22 @@ describe('ItemMedia', () => {
     expect(media).toHaveAttribute('data-tone', 'warn')
     expect(media.className).toContain('size-[38px]')
     expect(media.className).toContain('bg-(--warn-fill)')
+  })
+
+  it('a tone on a bare icon colours it without a tile behind it', () => {
+    renderWithProviders(
+      <Item>
+        <ItemMedia tone="primary" data-testid="media">
+          <Icon name="heart" />
+        </ItemMedia>
+      </Item>,
+    )
+    const media = screen.getByTestId('media')
+    expect(media).toHaveAttribute('data-variant', 'default')
+    expect(media).toHaveAttribute('data-tone', 'primary')
+    expect(media.className).toContain('text-primary')
+    expect(media.className).not.toContain('size-[38px]')
+    expect(media.className).not.toContain('bg-')
   })
 
   it('keeps the neutral tile for variant icon without a tone', () => {

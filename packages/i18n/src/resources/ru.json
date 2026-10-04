@@ -808,6 +808,7 @@
       "rowSize": "{size} · {pixels}",
       "leadingBare": "иконка без плитки",
       "leadingTile": "иконка в плитке 38px",
+      "leadingTone": "иконка в цвет акцента",
       "leadingAvatar": "аватар без подложки",
       "giftIdeas": "Идеи для подарка"
     },

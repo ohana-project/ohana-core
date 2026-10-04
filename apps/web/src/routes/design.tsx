@@ -58,7 +58,7 @@ import { Fab } from '@/ui/fab.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon, type IconName } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
-import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -892,9 +892,7 @@ function ListsSection() {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.cardTitle')}</ItemTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t('designPreview.lists.leadingBare')}
-                  </p>
+                  <ItemDescription>{t('designPreview.lists.leadingBare')}</ItemDescription>
                 </ItemContent>
               </Item>
               <Item size="sm">
@@ -903,9 +901,7 @@ function ListsSection() {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.eventTwo')}</ItemTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t('designPreview.lists.leadingTile')}
-                  </p>
+                  <ItemDescription>{t('designPreview.lists.leadingTile')}</ItemDescription>
                 </ItemContent>
               </Item>
               <Item size="sm">
@@ -914,20 +910,18 @@ function ListsSection() {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.eventOne')}</ItemTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t('designPreview.lists.leadingTile')}
-                  </p>
+                  <ItemDescription>{t('designPreview.lists.leadingTile')}</ItemDescription>
                 </ItemContent>
               </Item>
               <Item size="sm">
+                {/* the tone alone colours a bare icon, like the
+                    prototype's accent heart in the wishlists row */}
                 <ItemMedia tone="primary">
                   <Icon name="gift" />
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.giftIdeas')}</ItemTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t('designPreview.lists.leadingTile')}
-                  </p>
+                  <ItemDescription>{t('designPreview.lists.leadingTone')}</ItemDescription>
                 </ItemContent>
               </Item>
               <Item size="sm">
@@ -936,9 +930,7 @@ function ListsSection() {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.anya')}</ItemTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {t('designPreview.lists.leadingAvatar')}
-                  </p>
+                  <ItemDescription>{t('designPreview.lists.leadingAvatar')}</ItemDescription>
                 </ItemContent>
               </Item>
             </ItemGroup>
@@ -957,9 +949,9 @@ function ListsSection() {
               </ItemMedia>
               <ItemContent>
                 <ItemTitle>{t(titleKey)}</ItemTitle>
-                <p className="text-sm text-muted-foreground">
+                <ItemDescription>
                   {t('designPreview.lists.rowSize', { size, pixels })}
-                </p>
+                </ItemDescription>
               </ItemContent>
             </Item>
           ))}

@@ -228,6 +228,42 @@ test.describe('card forms and list rows (issue #58)', () => {
     }
   })
 
+  test('a row carries the prototype padding, gap, type sizes and hover', async ({ page }) => {
+    await openDesign(page)
+    // the row-heights demo rows use the shared description slot; the
+    // older preview rows predate it
+    const row = page
+      .locator('[data-slot="item"][data-size="sm"]')
+      .filter({ has: page.locator('[data-slot="item-description"]') })
+      .first()
+    await expect(row).toBeVisible()
+    const shape = await row.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { paddingTop: s.paddingTop, paddingLeft: s.paddingLeft, columnGap: s.columnGap }
+    })
+    expect(shape).toEqual({ paddingTop: '10px', paddingLeft: '14px', columnGap: '14px' })
+    const title = row.locator('[data-slot="item-title"]')
+    const titleStyle = await title.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { fontSize: s.fontSize, fontWeight: s.fontWeight }
+    })
+    expect(titleStyle).toEqual({ fontSize: '15.5px', fontWeight: '500' })
+    const description = row.locator('[data-slot="item-description"]')
+    await expect(description).toBeVisible()
+    expect(await description.evaluate((el) => getComputedStyle(el).fontSize)).toBe('13.5px')
+    // the hover rests on the second surface, read from the token itself
+    const surface2 = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--surface-2)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).color
+      probe.remove()
+      return colour
+    })
+    await row.hover()
+    await expect(row).toHaveCSS('background-color', surface2)
+  })
+
   test('a leading icon is bare and an avatar has no tinted square behind it', async ({ page }) => {
     await openDesign(page)
     // a bare leading icon: no tile background, muted colour

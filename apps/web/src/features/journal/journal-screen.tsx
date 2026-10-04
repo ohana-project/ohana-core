@@ -130,7 +130,7 @@ export function JournalScreen() {
               <ItemGroup>
                 {drafts.length > 0 && (
                   <Item size="lg" render={<Link to="/journal/drafts" />}>
-                    <ItemMedia>
+                    <ItemMedia variant="icon">
                       <Icon name="file-text" />
                     </ItemMedia>
                     <ItemContent>
@@ -147,7 +147,7 @@ export function JournalScreen() {
                   </Item>
                 )}
                 <Item size="lg" render={<Link to="/journal/trash" />}>
-                  <ItemMedia>
+                  <ItemMedia variant="icon" tone="danger">
                     <Icon name="trash" />
                   </ItemMedia>
                   <ItemContent>

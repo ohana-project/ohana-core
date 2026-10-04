@@ -138,7 +138,7 @@ function DraftRow({
   const [confirmTrash, setConfirmTrash] = useState(false)
   return (
     <Item size="lg">
-      <ItemMedia>
+      <ItemMedia variant="icon">
         <Icon name="file-text" />
       </ItemMedia>
       <ItemContent>

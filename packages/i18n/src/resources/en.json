@@ -808,6 +808,7 @@
       "rowSize": "{size} · {pixels}",
       "leadingBare": "bare icon",
       "leadingTile": "icon in a 38px tile",
+      "leadingTone": "icon in the accent colour",
       "leadingAvatar": "avatar, no tile behind",
       "giftIdeas": "Gift ideas"
     },
