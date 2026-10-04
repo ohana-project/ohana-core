@@ -110,7 +110,7 @@ test.describe('keyboard focus', () => {
 test.describe('overlays', () => {
   test('the dialog traps focus and closes on Escape', async ({ page }) => {
     await openDesign(page)
-    await page.getByRole('button', { name: 'Диалог' }).click()
+    await page.getByRole('button', { name: 'Диалог', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
 
@@ -512,7 +512,7 @@ test.describe('overlay parity (issue #59)', () => {
     await openDesign(page)
     await freezeMotion(page)
 
-    await page.getByRole('button', { name: 'Диалог' }).click()
+    await page.getByRole('button', { name: 'Диалог', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     // the old X carried an sr-only «Закрыть»; the prototype has none —
@@ -530,6 +530,88 @@ test.describe('overlay parity (issue #59)', () => {
     await expect(sheet).toBeHidden()
   })
 
+  test('the mobile sheet closes on a tap above it', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    await page.getByRole('button', { name: 'Шторка' }).click()
+    const sheet = page.getByRole('dialog')
+    await expect(sheet).toBeVisible()
+    // the drawer fills the bottom; the strip above it is the scrim
+    await page.mouse.click(195, 40)
+    await expect(sheet).toBeHidden()
+  })
+
+  test('the long-label confirm keeps equal buttons at every width', async ({ page }) => {
+    for (const width of [390, 360]) {
+      await page.setViewportSize({ width, height: 900 })
+      await openDesign(page)
+      await freezeMotion(page)
+      await page.getByRole('button', { name: 'Диалог с длинным действием' }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+
+      const row = await page.evaluate(() => {
+        const footer = document.querySelector('[data-slot="dialog-footer"]')
+        const buttons = [...(footer?.querySelectorAll('button') ?? [])]
+        const boxes = buttons.map((button) => button.getBoundingClientRect())
+        return {
+          labels: buttons.map((button) => button.textContent?.trim()),
+          sameRow: boxes.length === 2 && Math.abs(boxes[0].top - boxes[1].top) <= 1,
+          equalWidth: boxes.length === 2 && Math.abs(boxes[0].width - boxes[1].width) <= 1,
+          cancelLeft: boxes.length === 2 && boxes[0].left < boxes[1].left,
+          // «Сделать владельцем» wraps inside its half; nothing may
+          // overflow the button or the footer
+          buttonsFit:
+            boxes.length === 2 &&
+            buttons.every((button) => button.scrollWidth <= button.clientWidth),
+          footerFits: !!footer && footer.scrollWidth <= footer.clientWidth,
+        }
+      })
+      expect(row.labels, JSON.stringify(row)).toEqual(['Отмена', 'Сделать владельцем'])
+      expect(row.sameRow, JSON.stringify(row)).toBe(true)
+      expect(row.equalWidth, JSON.stringify(row)).toBe(true)
+      expect(row.cancelLeft, JSON.stringify(row)).toBe(true)
+      expect(row.buttonsFit, JSON.stringify(row)).toBe(true)
+      expect(row.footerFits, JSON.stringify(row)).toBe(true)
+      await page.keyboard.press('Escape')
+    }
+  })
+
+  test('a tall sheet keeps its bottom padding while the popup scrolls', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 600 })
+    await openDesign(page)
+    await freezeMotion(page)
+    await page.getByRole('button', { name: 'Шторка' }).click()
+    const sheet = page.getByRole('dialog')
+    await expect(sheet).toBeVisible()
+
+    // grow the body past the 86dvh cap, then read the geometry at the
+    // bottom of the scroll
+    const gap = await page.evaluate(() => {
+      const popup = document.querySelector('[data-slot="sheet-content"]')
+      const body = document.querySelector('[data-slot="sheet-body"]')
+      if (!popup || !body) return null
+      const spacer = document.createElement('div')
+      spacer.style.height = '900px'
+      body.append(spacer)
+      popup.scrollTop = popup.scrollHeight
+      const popupRect = popup.getBoundingClientRect()
+      const last = body.lastElementChild
+      if (!last) return null
+      // the popup's own padding sits under the last child
+      const padding = Number.parseFloat(getComputedStyle(popup).paddingBottom)
+      return {
+        padding,
+        gap: popupRect.bottom - last.getBoundingClientRect().bottom,
+        scrolls: popup.scrollHeight > popup.clientHeight,
+      }
+    })
+    expect(gap?.scrolls, 'the injected content makes the sheet scroll').toBe(true)
+    expect(gap?.padding, 'the sheet declares its 20px bottom padding').toBeCloseTo(20, 0)
+    expect(gap?.gap, JSON.stringify(gap)).toBeGreaterThanOrEqual(18)
+    await page.keyboard.press('Escape')
+  })
+
   for (const theme of ['light', 'dark'] as const) {
     for (const width of WIDTHS) {
       test(`the confirm dialog keeps its row at ${width}px in the ${theme} theme`, async ({
@@ -538,7 +620,7 @@ test.describe('overlay parity (issue #59)', () => {
         await page.setViewportSize({ width, height: 900 })
         await openDesign(page, { theme })
         await freezeMotion(page)
-        await page.getByRole('button', { name: 'Диалог' }).click()
+        await page.getByRole('button', { name: 'Диалог', exact: true }).click()
         const dialog = page.getByRole('dialog')
         await expect(dialog).toBeVisible()
 
@@ -575,7 +657,7 @@ test.describe('overlay parity (issue #59)', () => {
   test('the confirm dialog reads Cancel in English', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 })
     await openDesign(page, { locale: 'en' })
-    await page.getByRole('button', { name: 'Dialog' }).click()
+    await page.getByRole('button', { name: 'Dialog', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     const labels = await page

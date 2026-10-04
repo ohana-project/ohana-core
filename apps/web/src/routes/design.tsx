@@ -422,6 +422,24 @@ function OverlaysSection() {
           </DialogContent>
         </Dialog>
 
+        {/* the long-label case (issue #59): the row keeps both buttons
+            exactly equal and the long action wraps */}
+        <Dialog>
+          <DialogTrigger
+            render={<Button variant="secondary">{t('designPreview.overlays.dialogLong')}</Button>}
+          />
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('designPreview.overlays.dialogOwnerTitle')}</DialogTitle>
+              <DialogDescription>{t('designPreview.overlays.dialogOwnerText')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose render={<Button variant="secondary" />}>{t('ui.cancel')}</DialogClose>
+              <DialogClose render={<Button />}>{t('designPreview.overlays.makeOwner')}</DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Sheet>
           <SheetTrigger
             render={<Button variant="secondary">{t('designPreview.overlays.sheet')}</Button>}

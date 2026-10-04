@@ -744,7 +744,11 @@
       "withPhotos": "Only with photos",
       "order": "Order",
       "done": "Done",
-      "popoverText": "A quick action beside the button"
+      "popoverText": "A quick action beside the button",
+      "dialogLong": "Long-action dialog",
+      "dialogOwnerTitle": "Make Дима the owner?",
+      "dialogOwnerText": "Дима will be able to invite members, hide sections, and archive people.",
+      "makeOwner": "Make owner"
     },
     "badges": {
       "primary": "Up to date",

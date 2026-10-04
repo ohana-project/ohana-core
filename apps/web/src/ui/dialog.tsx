@@ -69,12 +69,18 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
  * every width, each grown to an equal width, 10px apart, 18px below
  * the text — the content grid adds 16px, this footer adds 2. A single
  * button grows to the full width, like the prototype's form sheets.
+ * min-w-0 drops each button's content floor, so the pair stays exactly
+ * equal however long the labels are; a label too long for its half
+ * wraps instead of squeezing its neighbour.
  */
 function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn('mt-0.5 flex gap-2.5 [&>*]:flex-1', className)}
+      className={cn(
+        'mt-0.5 flex gap-2.5 [&>*]:min-w-0 [&>*]:flex-1 [&>*]:whitespace-normal',
+        className,
+      )}
       {...props}
     >
       {children}

@@ -19,7 +19,7 @@ describe('DropdownMenu', () => {
     const { getByRole } = renderWithProviders(
       <DropdownMenu open>
         <DropdownMenuTrigger render={<button type="button" />} />
-        <DropdownMenuItem data-testid="item">Профиль</DropdownMenuItem>
+        <DropdownMenuItem>Профиль</DropdownMenuItem>
       </DropdownMenu>,
     )
     const item = getByRole('menuitem')
