@@ -22,14 +22,13 @@ async function openDesign(page: Page, options: { theme?: string; locale?: string
 }
 
 /**
- * Stops every animation and transition, so the measured boxes are the
- * static layout — the pending button's spinner would otherwise be
- * caught mid-rotation, its bounding box grown by the transform.
+ * Measures must see the static layout: the app's own reduced-motion
+ * reset (src/index.css) stops every animation, so the pending button's
+ * spinner is caught unrotated instead of mid-spin, and the emulation
+ * survives any navigation.
  */
 async function freezeMotion(page: Page) {
-  await page.addStyleTag({
-    content: '*, *::before, *::after { animation: none !important; transition: none !important }',
-  })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
 }
 
 test.describe('themes and languages', () => {

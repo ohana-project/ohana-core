@@ -671,8 +671,9 @@ function FeedbackSection() {
         </span>
         {/* a pending button's spinner takes the button's 18px, so the
             label does not shift when the action resolves (issue #55) */}
-        <Button variant="secondary" disabled aria-label={t('designPreview.feedback.spinner')}>
+        <Button variant="secondary" disabled>
           <Spinner />
+          {t('designPreview.feedback.spinner')}
         </Button>
       </div>
 
@@ -810,9 +811,12 @@ function ListsSection() {
                   <ItemTitle>{t('designPreview.lists.dangerRow')}</ItemTitle>
                 </ItemContent>
                 {/* the actions slot sizes its own icon and leaves the
-                    pill's check to the pill (issue #55) */}
+                    pill's icon to the pill (issue #55) */}
                 <ItemActions>
-                  <Badge variant="danger">{t('designPreview.badges.danger')}</Badge>
+                  <Badge variant="danger">
+                    <Icon name="alert" />
+                    {t('designPreview.badges.danger')}
+                  </Badge>
                   <Icon name="chevron-right" />
                 </ItemActions>
               </Item>
