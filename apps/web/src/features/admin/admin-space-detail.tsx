@@ -129,7 +129,7 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
           </div>
         </div>
         <Button variant="secondary" size="sm" onClick={() => setSettingsOpen(true)}>
-          <Icon name="settings" className="size-4" />
+          <Icon name="settings" />
           {t('admin.space.settings')}
         </Button>
       </header>
@@ -139,7 +139,7 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
           title={t('admin.space.members')}
           action={
             <Button size="sm" onClick={() => setProvisionOpen(true)}>
-              <Icon name="plus" className="size-4" />
+              <Icon name="plus" />
               {t('admin.space.addMember')}
             </Button>
           }
@@ -284,7 +284,7 @@ function MemberRow({
             aria-label={t('admin.space.makeOwner')}
             onClick={() => setConfirmRole('owner')}
           >
-            <Icon name="crown" className="size-4" />
+            <Icon name="crown" />
           </Button>
         ) : canDemote ? (
           <Button
@@ -293,7 +293,7 @@ function MemberRow({
             aria-label={t('admin.space.makeRegular')}
             onClick={() => setConfirmRole('regular')}
           >
-            <Icon name="user" className="size-4" />
+            <Icon name="user" />
           </Button>
         ) : null}
         <Button
@@ -303,7 +303,7 @@ function MemberRow({
           aria-label={t('space.card.archiveRow', { name: member.name })}
           onClick={() => setConfirmArchive(true)}
         >
-          <Icon name="archive" className="size-4" />
+          <Icon name="archive" />
         </Button>
       </ItemActions>
       {confirmArchive ? (
@@ -874,7 +874,7 @@ function AccessCodesSection({
         title={t('admin.codes.title')}
         action={
           <Button size="sm" onClick={() => setIssueOpen(true)} disabled={members.length === 0}>
-            <Icon name="plus" className="size-4" />
+            <Icon name="plus" />
             {t('admin.codes.issue')}
           </Button>
         }

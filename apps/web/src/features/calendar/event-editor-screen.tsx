@@ -601,7 +601,7 @@ export function EventEditorScreen({
                   {t('calendar.cancel')}
                 </Button>
                 <Button className="flex-1 lg:flex-none" disabled={pending} onClick={save}>
-                  {pending ? <Spinner className="size-4" /> : <Icon name="check" />}
+                  {pending ? <Spinner /> : <Icon name="check" />}
                   {t('calendar.save')}
                 </Button>
               </div>

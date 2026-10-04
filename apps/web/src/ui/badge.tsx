@@ -9,7 +9,7 @@ import { cn } from '@/lib/cn'
  * --*-fill tokens the contrast test measures.
  */
 const badgeVariants = cva(
-  'inline-flex w-fit shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 py-[3px] font-mono text-[11px] tracking-[0.04em] uppercase whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:size-3 [&_svg]:shrink-0',
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 py-[3px] font-mono text-[11px] tracking-[0.04em] uppercase whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
   {
     variants: {
       variant: {

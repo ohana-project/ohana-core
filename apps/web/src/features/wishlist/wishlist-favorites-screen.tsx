@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { StoredGiftFavorite } from '@/data/local-store.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
-import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
@@ -61,9 +61,9 @@ export function WishlistFavoritesScreen() {
             </EmptyMedia>
             <EmptyTitle>{t('wishlist.favoritesEmptyTitle')}</EmptyTitle>
             <EmptyDescription>{t('wishlist.favoritesEmptyText')}</EmptyDescription>
-            <EmptyMedia className="mt-3">
+            <EmptyContent>
               <Button render={<Link to="/wishlist" />}>{t('wishlist.favoritesEmptyAction')}</Button>
-            </EmptyMedia>
+            </EmptyContent>
           </Empty>
         </Card>
       ) : (
@@ -78,7 +78,7 @@ export function WishlistFavoritesScreen() {
               return (
                 <Card key={favorite.id} className="gap-0 py-0" hoverable>
                   <div className="flex items-start gap-3 px-5 py-4">
-                    <Icon name="heart" className="mt-1 size-5 shrink-0 fill-current text-accent" />
+                    <Icon name="heart" className="mt-1 size-5 shrink-0 fill-current text-primary" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <Link
                         to="/wishlist/$memberId"

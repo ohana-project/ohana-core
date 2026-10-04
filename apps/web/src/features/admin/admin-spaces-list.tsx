@@ -61,7 +61,7 @@ export function AdminSpacesList() {
           ) : null}
         </div>
         <Button onClick={() => setCreateOpen(true)}>
-          <Icon name="plus" className="size-4" />
+          <Icon name="plus" />
           {t('admin.spaces.new')}
         </Button>
       </header>
@@ -126,7 +126,7 @@ function SpaceRow({
         <Badge variant={isEmpty ? 'neutral' : 'ok'}>
           {t(isEmpty ? 'admin.spaces.empty' : 'admin.spaces.active')}
         </Badge>
-        <Icon name="chevron-right" className="size-4 text-muted-foreground" />
+        <Icon name="chevron-right" className="text-muted-foreground" />
       </ItemActions>
     </Item>
   )

@@ -30,12 +30,12 @@ function EmptyHeader({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 const emptyMediaVariants = cva(
-  'mb-2.5 flex shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'mb-2.5 flex shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground [&>svg]:pointer-events-none [&>svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: "size-16 [&_svg:not([class*='size-'])]:size-7",
-        sm: "size-10 [&_svg:not([class*='size-'])]:size-5",
+        default: "size-16 [&>svg:not([class*='size-'])]:size-7",
+        sm: "size-10 [&>svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

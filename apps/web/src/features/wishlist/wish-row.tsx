@@ -77,7 +77,7 @@ export function WishRow({
               // The full target on hover: the chip shows only the
               // hostname, or the raw link when there is none.
               title={wish.link}
-              className="inline-flex w-fit max-w-full items-start gap-1.5 text-sm text-accent hover:underline"
+              className="inline-flex w-fit max-w-full items-start gap-1.5 text-sm text-primary hover:underline"
             >
               <Icon name="globe" className="mt-0.5 size-4 shrink-0" />
               {/* break-all: a hostname has no space in it, so the whole
@@ -100,10 +100,12 @@ export function WishRow({
               onClick={favorite.onToggle}
             >
               {/* fill-current: the pressed heart is the filled one the
-                  prototype draws; the stroke holds at 1.5 either way. */}
+                  prototype draws; the stroke holds at 1.5 either way. The
+                  brand accent is the primary role — shadcn's accent is the
+                  hover fill (issue #57). */}
               <Icon
                 name="heart"
-                className={`size-5 ${favorite.on ? 'fill-current text-accent' : ''}`}
+                className={`size-5 ${favorite.on ? 'fill-current text-primary' : ''}`}
               />
             </Button>
           )}

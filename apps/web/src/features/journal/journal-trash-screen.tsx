@@ -102,7 +102,7 @@ function TrashRow({
 
   return (
     <Item size="lg">
-      <ItemMedia>
+      <ItemMedia variant="icon">
         <Icon name={row.previousState === 'published' ? 'book' : 'file-text'} />
       </ItemMedia>
       <ItemContent>

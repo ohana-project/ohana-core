@@ -301,7 +301,7 @@ function OwnerSections({
           title={t('space.card.accessTitle')}
           action={
             <Button size="sm" variant="secondary" onClick={() => setIssueOpen(true)}>
-              <Icon name="plus" className="size-4" />
+              <Icon name="plus" />
               {t('space.card.issueCode')}
             </Button>
           }
@@ -771,7 +771,7 @@ function ArchivedOwnerSections({
       ) : (
         <section>
           <Button size="lg" className="w-full" onClick={() => setConfirmRestore(true)}>
-            <Icon name="restore" className="size-4" />
+            <Icon name="restore" />
             {t('space.card.restoreButton')}
           </Button>
           <p className="mt-2.5 px-1 text-center text-sm text-muted-foreground">

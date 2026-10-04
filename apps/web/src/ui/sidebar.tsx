@@ -46,7 +46,7 @@ export function Sidebar({
         type="button"
         data-slot="side-space"
         onClick={onSpaceClick}
-        className="flex w-full items-center gap-2.5 px-3.5 pt-3.5 pb-2.5 text-left transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent"
+        className="flex w-full items-center gap-2.5 px-3.5 pt-3.5 pb-2.5 text-left transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent [&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-5"
       >
         <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (

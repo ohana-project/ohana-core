@@ -172,7 +172,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
           {/* The surprise rule (the prototype's venue-note): the author of
               these wishes sees neither reservations nor anyone's favorites. */}
           <div className="flex items-start gap-2.5 rounded-md border border-border px-4 py-3">
-            <Icon name="eye-off" className="mt-0.5 size-4 shrink-0 text-accent" />
+            <Icon name="eye-off" className="mt-0.5 size-4 shrink-0 text-primary" />
             <p className="text-sm break-words text-muted-foreground">
               {t('wishlist.personSurpriseNote', { name })}
             </p>

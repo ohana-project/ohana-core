@@ -59,7 +59,15 @@ import { Fab } from '@/ui/fab.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon, type IconName } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
-import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/ui/item.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -90,6 +98,15 @@ function demoDate(language: string): string {
     new Date(2026, 8, 28),
   )
 }
+
+/* The row heights the prototypes use inline, as size variants (issue #58). */
+const ROW_HEIGHTS = [
+  { size: 'sm', pixels: '52px', icon: 'cake', titleKey: 'designPreview.lists.eventOne' },
+  { size: 'default', pixels: '56px', icon: 'clock', titleKey: 'designPreview.lists.eventTwo' },
+  { size: 'md', pixels: '60px', icon: 'calendar', titleKey: 'designPreview.lists.eventThree' },
+  { size: 'lg', pixels: '64px', icon: 'gift', titleKey: 'designPreview.lists.giftIdeas' },
+  { size: 'xl', pixels: '68px', icon: 'heart', titleKey: 'designPreview.lists.paddedTitle' },
+] as const
 
 export const Route = createFileRoute('/design')({ component: DesignPreview })
 
@@ -514,7 +531,10 @@ function BadgesSection() {
     <PreviewSection id="badges" title={t('designPreview.sections.badges')}>
       <div className="flex flex-wrap items-center gap-3">
         <Badge>{t('designPreview.badges.primary')}</Badge>
-        <Badge variant="ok">{t('designPreview.badges.ok')}</Badge>
+        <Badge variant="ok">
+          <Icon name="check" />
+          {t('designPreview.badges.ok')}
+        </Badge>
         <Badge variant="warn">{t('designPreview.badges.warn')}</Badge>
         <Badge variant="danger">{t('designPreview.badges.danger')}</Badge>
         <Badge variant="neutral">{t('designPreview.badges.neutral')}</Badge>
@@ -668,6 +688,12 @@ function FeedbackSection() {
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           {t('designPreview.feedback.spinner')} <Spinner />
         </span>
+        {/* a pending button's spinner takes the button's 18px, so the
+            label does not shift when the action resolves (issue #55) */}
+        <Button variant="secondary" disabled>
+          <Spinner />
+          {t('designPreview.feedback.emptyAction')}
+        </Button>
       </div>
 
       <Banner>{t('designPreview.feedback.banner')}</Banner>
@@ -803,6 +829,15 @@ function ListsSection() {
                 <ItemContent>
                   <ItemTitle>{t('designPreview.lists.dangerRow')}</ItemTitle>
                 </ItemContent>
+                {/* the actions slot sizes its own icon and leaves the
+                    pill's icon to the pill (issue #55) */}
+                <ItemActions>
+                  <Badge variant="danger">
+                    <Icon name="alert" />
+                    {t('designPreview.badges.danger')}
+                  </Badge>
+                  <Icon name="chevron-right" />
+                </ItemActions>
               </Item>
               <Item size="sm" render={<a href="#lists" />}>
                 <ItemMedia variant="icon">
@@ -853,6 +888,104 @@ function ListsSection() {
           </Card>
         </div>
       </div>
+
+      <h3 className="text-h3">{t('designPreview.lists.cardForms')}</h3>
+      <div className="grid gap-8 desktop:grid-cols-2">
+        <div className="flex flex-col gap-3">
+          {/* the padded form: 20px on all sides, no forced gap — the
+              content sets its own rhythm (issue #58) */}
+          <Card variant="padded">
+            <h3 className="text-h3">{t('designPreview.lists.paddedTitle')}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('designPreview.lists.paddedText')}
+            </p>
+            <div className="mt-4">
+              <Button size="sm" variant="secondary">
+                <Icon name="heart" />
+                {t('designPreview.lists.paddedAction')}
+              </Button>
+            </div>
+          </Card>
+          <p className="text-sm text-muted-foreground">{t('designPreview.lists.paddedHint')}</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          {/* the list form: no padding, rows flush, the corners clip
+              them; a bare leading icon by default, the 38px tinted
+              tile opt-in through variant="icon" — a tone alone only
+              colours the icon —, an avatar never on a tile */}
+          <Card variant="list">
+            <ItemGroup>
+              <Item size="sm">
+                <ItemMedia>
+                  <Icon name="book" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.cardTitle')}</ItemTitle>
+                  <ItemDescription>{t('designPreview.lists.leadingBare')}</ItemDescription>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia variant="icon">
+                  <Icon name="clock" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.eventTwo')}</ItemTitle>
+                  <ItemDescription>{t('designPreview.lists.leadingTile')}</ItemDescription>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia variant="icon" tone="warn">
+                  <Icon name="cake" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.eventOne')}</ItemTitle>
+                  <ItemDescription>{t('designPreview.lists.leadingTile')}</ItemDescription>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                {/* the tone alone colours a bare icon, like the
+                    prototype's accent heart in the wishlists row */}
+                <ItemMedia tone="primary">
+                  <Icon name="gift" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.giftIdeas')}</ItemTitle>
+                  <ItemDescription>{t('designPreview.lists.leadingTone')}</ItemDescription>
+                </ItemContent>
+              </Item>
+              <Item size="sm">
+                <ItemMedia>
+                  <Avatar hue={HUES.anya}>А</Avatar>
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('designPreview.lists.anya')}</ItemTitle>
+                  <ItemDescription>{t('designPreview.lists.leadingAvatar')}</ItemDescription>
+                </ItemContent>
+              </Item>
+            </ItemGroup>
+          </Card>
+          <p className="text-sm text-muted-foreground">{t('designPreview.lists.listHint')}</p>
+        </div>
+      </div>
+
+      <h3 className="text-h3">{t('designPreview.lists.rowHeights')}</h3>
+      <Card variant="list" className="max-w-xl">
+        <ItemGroup>
+          {ROW_HEIGHTS.map(({ size, pixels, icon, titleKey }) => (
+            <Item key={size} size={size}>
+              <ItemMedia>
+                <Icon name={icon} />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t(titleKey)}</ItemTitle>
+                <ItemDescription>
+                  {t('designPreview.lists.rowSize', { size, pixels })}
+                </ItemDescription>
+              </ItemContent>
+            </Item>
+          ))}
+        </ItemGroup>
+      </Card>
     </PreviewSection>
   )
 }
@@ -1010,7 +1143,7 @@ function LayoutsSection() {
 
       <h3 className="text-h3">{t('designPreview.layouts.auth')}</h3>
       <div className="overflow-hidden rounded-lg border border-border">
-        <AuthFrame footer={t('designPreview.demo.demoNote')}>
+        <AuthFrame footer={t('designPreview.layouts.demoNote')}>
           <div className="flex flex-col gap-4">
             <h3 className="text-h2 text-center">{t('designPreview.layouts.authHeading')}</h3>
             <p className="text-sm text-muted-foreground">{t('designPreview.layouts.authText')}</p>
