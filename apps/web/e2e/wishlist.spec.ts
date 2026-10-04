@@ -375,8 +375,8 @@ test.describe('the wishlist', () => {
 
     // The empty state shows without the action sitting in the round
     // icon plate — the button lives in the empty state's content slot
-    // (issue #58). Scoped to the empty state: a mobile FAB carries the
-    // same name elsewhere on the screen.
+    // (issue #58). Scoped to the empty state: the top bar's action and
+    // the mobile FAB carry the same name.
     const empty = page.locator('[data-slot="empty"]').first()
     await expect(empty).toBeVisible()
     const addButton = empty.getByRole('button', { name: 'Добавить желание' })

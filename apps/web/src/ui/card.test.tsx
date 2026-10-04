@@ -9,8 +9,9 @@ import { Card } from '@/ui/card.tsx'
  * the header and content slots —, the prototype's padded card
  * (`.card-pad`: 20px on all sides, no forced gap), and the list card
  * (`.card list`: no padding, rows flush, the corners clip them). The
- * rendered padding values are asserted against computed styles in
- * e2e/design.spec.ts; these tests pin the forms themselves.
+ * default and padded forms' rendered paddings are asserted against
+ * computed styles in e2e/design.spec.ts; the sm spacing override is
+ * pinned here at the class level — /design has no padded sm card.
  */
 describe('Card forms', () => {
   it('keeps the default form: vertical padding and the block gap', () => {

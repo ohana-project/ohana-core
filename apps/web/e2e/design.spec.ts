@@ -234,7 +234,6 @@ test.describe('card forms and list rows (issue #58)', () => {
     const heightsCard = page
       .locator('[data-slot="card"][data-variant="list"]')
       .filter({ has: page.locator('[data-slot="item"][data-size="xl"]') })
-      .first()
     const row = heightsCard.locator('[data-slot="item"][data-size="sm"]').first()
     await expect(row).toBeVisible()
     const shape = await row.evaluate((el) => {
@@ -306,6 +305,15 @@ test.describe('card forms and list rows (issue #58)', () => {
       .first()
     await expect(tile).toBeVisible()
     expect(await tile.evaluate((el) => getComputedStyle(el).width)).toBe('38px')
+    const warnFill = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.backgroundColor = 'var(--warn-fill)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return colour
+    })
+    expect(await tile.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(warnFill)
     // a tone on a bare icon colours it without a tile, like the
     // prototype's accent heart
     const tonedBare = page

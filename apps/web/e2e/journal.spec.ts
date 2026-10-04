@@ -454,18 +454,36 @@ test.describe('the journal', () => {
 
     // The sidebar rows opt into the 38px tile — surface-2 for drafts,
     // danger-tinted for trash (docs/design/screens/diary.html:85,95).
+    const surface2 = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.backgroundColor = 'var(--surface-2)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return colour
+    })
+    const dangerFill = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.backgroundColor = 'var(--danger-fill)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return colour
+    })
     const draftsMedia = page
       .getByRole('link', { name: /Мои черновики/ })
       .locator('[data-slot="item-media"]')
     await expect(draftsMedia).toHaveAttribute('data-variant', 'icon')
     await expect(draftsMedia).toHaveAttribute('data-tone', 'neutral')
     await expect(draftsMedia).toHaveCSS('width', '38px')
+    await expect(draftsMedia).toHaveCSS('background-color', surface2)
     const trashMedia = page
       .getByRole('link', { name: /Корзина/ })
       .locator('[data-slot="item-media"]')
     await expect(trashMedia).toHaveAttribute('data-variant', 'icon')
     await expect(trashMedia).toHaveAttribute('data-tone', 'danger')
     await expect(trashMedia).toHaveCSS('width', '38px')
+    await expect(trashMedia).toHaveCSS('background-color', dangerFill)
   })
 
   test('a published entry is edited and is never offered a draft state', async ({ page }) => {
