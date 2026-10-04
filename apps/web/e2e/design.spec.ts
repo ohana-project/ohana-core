@@ -504,3 +504,184 @@ test.describe('card forms and list rows (issue #58)', () => {
     expect(await button.evaluate((el) => el.closest('[data-slot="empty-icon"]'))).toBeNull()
   })
 })
+
+test.describe('overlay parity (issue #59)', () => {
+  const WIDTHS = [390, 1280]
+
+  test('the dialog and the sheet have no close X and close on a scrim tap', async ({ page }) => {
+    await openDesign(page)
+    await freezeMotion(page)
+
+    await page.getByRole('button', { name: 'Диалог' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    // the old X carried an sr-only «Закрыть»; the prototype has none —
+    // the dialog answers Esc and the scrim alone
+    expect(await page.getByRole('button', { name: 'Закрыть' }).count()).toBe(0)
+    // the 440px popup is centred; 16px from the edge is the scrim
+    await page.mouse.click(16, 450)
+    await expect(dialog).toBeHidden()
+
+    await page.getByRole('button', { name: 'Шторка' }).click()
+    const sheet = page.getByRole('dialog')
+    await expect(sheet).toBeVisible()
+    expect(await page.getByRole('button', { name: 'Закрыть' }).count()).toBe(0)
+    await page.mouse.click(16, 450)
+    await expect(sheet).toBeHidden()
+  })
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of WIDTHS) {
+      test(`the confirm dialog keeps its row at ${width}px in the ${theme} theme`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 })
+        await openDesign(page, { theme })
+        await freezeMotion(page)
+        await page.getByRole('button', { name: 'Диалог' }).click()
+        const dialog = page.getByRole('dialog')
+        await expect(dialog).toBeVisible()
+
+        const row = await page.evaluate(() => {
+          const buttons = [
+            ...(document.querySelector('[data-slot="dialog-footer"]')?.querySelectorAll('button') ??
+              []),
+          ]
+          const description = document.querySelector('[data-slot="dialog-description"]')
+          const boxes = buttons.map((button) => button.getBoundingClientRect())
+          return {
+            labels: buttons.map((button) => button.textContent?.trim()),
+            sameRow: boxes.length === 2 && Math.abs(boxes[0].top - boxes[1].top) <= 1,
+            equalWidth: boxes.length === 2 && Math.abs(boxes[0].width - boxes[1].width) <= 1,
+            cancelLeft: boxes.length === 2 && boxes[0].left < boxes[1].left,
+            // the text sits 18px above the buttons (the prototype's
+            // confirm: `.sheet-sub` margin-bottom 18px)
+            textGap:
+              description && boxes[0]
+                ? boxes[0].top - description.getBoundingClientRect().bottom
+                : null,
+          }
+        })
+        expect(row.labels, JSON.stringify(row)).toEqual(['Отмена', 'Удалить'])
+        expect(row.sameRow, JSON.stringify(row)).toBe(true)
+        expect(row.equalWidth, JSON.stringify(row)).toBe(true)
+        expect(row.cancelLeft, JSON.stringify(row)).toBe(true)
+        expect(row.textGap, JSON.stringify(row)).toBeCloseTo(18, 0)
+        await page.keyboard.press('Escape')
+      })
+    }
+  }
+
+  test('the confirm dialog reads Cancel in English', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 })
+    await openDesign(page, { locale: 'en' })
+    await page.getByRole('button', { name: 'Dialog' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    const labels = await page
+      .locator('[data-slot="dialog-footer"] button')
+      .evaluateAll((buttons) => buttons.map((button) => button.textContent?.trim()))
+    expect(labels).toEqual(['Cancel', 'Delete'])
+    await page.keyboard.press('Escape')
+  })
+
+  for (const width of WIDTHS) {
+    test(`the sheet grabber and borders match the prototype at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await openDesign(page)
+      await freezeMotion(page)
+      await page.getByRole('button', { name: 'Шторка' }).click()
+      const sheet = page.getByRole('dialog')
+      await expect(sheet).toBeVisible()
+
+      const shape = await page.evaluate(() => {
+        const popup = document.querySelector('[data-slot="sheet-content"]')
+        const grabber = document.querySelector('[data-slot="sheet-grabber"]')
+        if (!popup || !grabber) return null
+        const popupStyle = getComputedStyle(popup)
+        const grabberStyle = getComputedStyle(grabber)
+        return {
+          grabberDisplay: grabberStyle.display,
+          grabberMarginTop: grabberStyle.marginTop,
+          grabberMarginBottom: grabberStyle.marginBottom,
+          borderTop: popupStyle.borderTopWidth,
+          borderRight: popupStyle.borderRightWidth,
+          borderBottom: popupStyle.borderBottomWidth,
+          borderLeft: popupStyle.borderLeftWidth,
+        }
+      })
+      expect(shape, 'the sheet renders').not.toBeNull()
+
+      if (width >= 920) {
+        // the desktop modal: no grabber, the full hairline
+        expect(shape?.grabberDisplay).toBe('none')
+        expect(shape?.borderTop).toBe('1px')
+        expect(shape?.borderRight).toBe('1px')
+        expect(shape?.borderBottom).toBe('1px')
+        expect(shape?.borderLeft).toBe('1px')
+      } else {
+        // the mobile drawer: the grabber `6px auto 14px`, only the top
+        // hairline
+        expect(shape?.grabberMarginTop).toBe('6px')
+        expect(shape?.grabberMarginBottom).toBe('14px')
+        expect(shape?.borderTop).toBe('1px')
+        expect(shape?.borderRight).toBe('0px')
+        expect(shape?.borderBottom).toBe('0px')
+        expect(shape?.borderLeft).toBe('0px')
+      }
+      await page.keyboard.press('Escape')
+    })
+  }
+
+  for (const width of WIDTHS) {
+    test(`menu items and separators keep the prototype geometry at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await openDesign(page)
+      await page.getByRole('button', { name: 'Меню', exact: true }).click()
+      const item = page.getByRole('menuitem').first()
+      await expect(item).toBeVisible()
+      await expect(item).toHaveCSS('min-height', '42px')
+      await expect(item).toHaveCSS('font-size', '14.5px')
+
+      const separator = page.locator('[data-slot="dropdown-menu-separator"]').first()
+      await expect(separator).toHaveCSS('margin-top', '6px')
+      await expect(separator).toHaveCSS('margin-bottom', '6px')
+      await expect(separator).toHaveCSS('margin-left', '4px')
+      await expect(separator).toHaveCSS('margin-right', '4px')
+      await page.keyboard.press('Escape')
+    })
+  }
+
+  for (const width of WIDTHS) {
+    test(`the popover is as wide as its content, never below 208px, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await openDesign(page)
+      await page.getByRole('button', { name: 'Поповер' }).click()
+      const popup = page.locator('[data-slot="popover-content"]')
+      await expect(popup).toBeVisible()
+      const box = await popup.boundingBox()
+      expect(box?.width, 'the 208px floor holds').toBeGreaterThanOrEqual(208)
+      // not the fixed 288px the audit found: a short phrase sits close
+      // to the floor
+      expect(box?.width, 'the width follows the content').toBeLessThan(288)
+      await page.keyboard.press('Escape')
+    })
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`the toast is icon and text only at 14.5px in the ${theme} theme`, async ({ page }) => {
+      await openDesign(page, { theme })
+      await page.getByRole('button', { name: 'Ок', exact: true }).click()
+      const toastRoot = page.locator('[data-slot="toast"]').first()
+      await expect(toastRoot).toBeVisible()
+      await expect(toastRoot).toHaveCSS('font-size', '14.5px')
+      await expect(toastRoot.locator('svg')).toHaveCount(1)
+      // no close control: the toast hides itself and answers a swipe
+      expect(await toastRoot.locator('button').count()).toBe(0)
+    })
+  }
+})

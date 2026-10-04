@@ -116,7 +116,7 @@ describe('AdminSpacesList', () => {
     await screen.findByText('Наша семья')
     await user.click(screen.getByRole('button', { name: 'Новое пространство' }))
     await user.type(screen.getByLabelText('Название'), 'Черновик')
-    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Новое пространство' }))
 
     expect(screen.getByLabelText('Название')).toHaveValue('')

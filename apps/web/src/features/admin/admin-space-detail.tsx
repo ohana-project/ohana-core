@@ -327,7 +327,7 @@ function MemberRow({
                 disabled={archiveMember.isPending}
                 onClick={() => setConfirmArchive(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -360,7 +360,7 @@ function MemberRow({
                 disabled={changeRole.isPending}
                 onClick={() => setConfirmRole(undefined)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button onClick={applyRole} disabled={changeRole.isPending}>
                 {dialog.confirm}
@@ -436,7 +436,7 @@ function ArchivedMemberRow({ member, spaceId }: { member: AdminMember; spaceId: 
                 disabled={issue.isPending}
                 onClick={() => setConfirmRestore(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 disabled={issue.isPending}
@@ -996,7 +996,7 @@ function AccessCodeRow({
                 disabled={revoke.isPending}
                 onClick={() => setConfirming(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button variant="destructive" onClick={applyRevoke} disabled={revoke.isPending}>
                 {t('admin.codes.revokeConfirm')}

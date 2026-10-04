@@ -1,6 +1,5 @@
 import type { createToastManager as createToastManagerType } from '@base-ui/react/toast'
 import { Toast as ToastPrimitive } from '@base-ui/react/toast'
-import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
 
 import { Icon } from '@/ui/icon.tsx'
@@ -9,7 +8,8 @@ import { Icon } from '@/ui/icon.tsx'
  * Ohana toast (docs/design/README.md, "Components"): a glass pill with
  * an ok or danger icon that hides after about 3 seconds. It sits above
  * the tab bar on mobile and bottom-right on desktop. Base UI owns
- * queueing, swiping and reduced-motion behaviour.
+ * queueing, swiping and reduced-motion behaviour; like the prototype's
+ * `.toast` it is an icon and text only — no close control.
  */
 
 export type ToastTone = 'ok' | 'danger'
@@ -38,7 +38,6 @@ export function Toaster() {
 }
 
 function ToastList() {
-  const { t } = useTranslation()
   const { toasts } = ToastPrimitive.useToastManager<OhanaToastData>()
 
   return (
@@ -52,9 +51,10 @@ function ToastList() {
           <ToastPrimitive.Root
             key={item.id}
             toast={item}
+            data-slot="toast"
             swipeDirection={tone === 'danger' ? ['down', 'right'] : 'down'}
             className={cn(
-              'glass pointer-events-auto relative flex max-w-[min(92vw,480px)] items-center gap-2.5 rounded-full px-[18px] py-3 text-sm font-medium text-foreground transition-[opacity,transform] duration-(--t-base) ease-(--ease) animate-toast-in data-ending-style:translate-y-2 data-ending-style:opacity-0 data-swiping:translate-y-(--toast-swipe-movement-y)',
+              'glass pointer-events-auto relative flex max-w-[min(92vw,480px)] items-center gap-2.5 rounded-full px-[18px] py-3 text-[14.5px] font-medium text-foreground transition-[opacity,transform] duration-(--t-base) ease-(--ease) animate-toast-in data-ending-style:translate-y-2 data-ending-style:opacity-0 data-swiping:translate-y-(--toast-swipe-movement-y)',
             )}
           >
             <Icon
@@ -65,13 +65,6 @@ function ToastList() {
               )}
             />
             <ToastPrimitive.Title className="min-w-0 text-left" />
-            <ToastPrimitive.Close
-              className="ml-1 grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              aria-label={t('ui.close')}
-              tabIndex={-1}
-            >
-              <Icon name="x" className="size-3.5" />
-            </ToastPrimitive.Close>
           </ToastPrimitive.Root>
         )
       })}

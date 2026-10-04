@@ -30,6 +30,7 @@
   },
   "ui": {
     "close": "Close",
+    "cancel": "Cancel",
     "loading": "Loading…",
     "copy": "Copy",
     "copied": "Copied",
@@ -725,7 +726,6 @@
       "dialog": "Dialog",
       "dialogTitle": "Delete the entry?",
       "dialogText": "«Поход к Чёртову креслу» will move to the trash. You can restore it within 30 days.",
-      "cancel": "Keep it",
       "confirmDelete": "Delete",
       "sheet": "Sheet",
       "sheetTitle": "Люда's birthday",
@@ -742,7 +742,9 @@
       "newestFirst": "Newest first",
       "oldestFirst": "Oldest first",
       "withPhotos": "Only with photos",
-      "order": "Order"
+      "order": "Order",
+      "done": "Done",
+      "popoverText": "A quick action beside the button"
     },
     "badges": {
       "primary": "Up to date",

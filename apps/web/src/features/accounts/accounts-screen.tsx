@@ -284,7 +284,7 @@ export function AccountsScreen() {
                 disabled={signOut.isPending}
                 onClick={() => setSignOutOpen(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -333,7 +333,7 @@ export function AccountsScreen() {
                 disabled={revoke.isPending}
                 onClick={() => setRevoking(undefined)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button variant="destructive" onClick={applyRevoke} disabled={revoke.isPending}>
                 {t('accounts.devices.revokeConfirm')}

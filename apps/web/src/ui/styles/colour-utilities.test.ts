@@ -136,7 +136,9 @@ function colourCandidates(raw: string[]): ColourCandidate[] {
   const found = new Map<string, ColourCandidate>()
   for (const candidate of raw) {
     const parts = splitVariants(candidate)
-    const utility = (parts.at(-1) ?? '').replace(/^!/, '')
+    // the important modifier leads or trails the class (Tailwind 4
+    // spells it `class!`, as on the sheet's border utilities)
+    const utility = (parts.at(-1) ?? '').replace(/^!|!$/g, '')
     const slash = utility.indexOf('/')
     const bare = slash === -1 ? utility : utility.slice(0, slash)
     // split at the first dash after a known prefix, so multi-word colour

@@ -205,7 +205,7 @@ function DraftRow({
                 disabled={trash.isPending}
                 onClick={() => setConfirmTrash(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"

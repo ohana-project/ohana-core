@@ -411,10 +411,10 @@ function OverlaysSection() {
               <DialogTitle>{t('designPreview.overlays.dialogTitle')}</DialogTitle>
               <DialogDescription>{t('designPreview.overlays.dialogText')}</DialogDescription>
             </DialogHeader>
+            {/* the prototype's confirm row: equal buttons, cancel on
+                the left (issue #59) */}
             <DialogFooter>
-              <DialogClose render={<Button variant="secondary" />}>
-                {t('designPreview.overlays.cancel')}
-              </DialogClose>
+              <DialogClose render={<Button variant="secondary" />}>{t('ui.cancel')}</DialogClose>
               <DialogClose render={<Button variant="destructive" />}>
                 {t('designPreview.overlays.confirmDelete')}
               </DialogClose>
@@ -432,8 +432,8 @@ function OverlaysSection() {
               <SheetDescription>{t('designPreview.overlays.sheetText')}</SheetDescription>
             </SheetHeader>
             <SheetFooter>
-              <SheetClose render={<Button variant="primary" />}>
-                {t('designPreview.overlays.cancel')}
+              <SheetClose render={<Button size="lg" />}>
+                {t('designPreview.overlays.done')}
               </SheetClose>
             </SheetFooter>
           </SheetContent>
@@ -449,9 +449,7 @@ function OverlaysSection() {
               <DrawerDescription>{t('designPreview.overlays.sheetText')}</DrawerDescription>
             </DrawerHeader>
             <DrawerFooter>
-              <DrawerClose render={<Button variant="secondary" />}>
-                {t('designPreview.overlays.cancel')}
-              </DrawerClose>
+              <DrawerClose render={<Button variant="secondary" />}>{t('ui.cancel')}</DrawerClose>
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
@@ -460,8 +458,9 @@ function OverlaysSection() {
           <PopoverTrigger
             render={<Button variant="secondary">{t('designPreview.overlays.popover')}</Button>}
           />
-          <PopoverContent className="w-64">
-            <p className="text-sm">{t('designPreview.lists.cardText')}</p>
+          {/* as wide as its content, never below 208px (issue #59) */}
+          <PopoverContent>
+            <p className="text-sm">{t('designPreview.overlays.popoverText')}</p>
           </PopoverContent>
         </Popover>
 
