@@ -435,6 +435,39 @@ test.describe('the journal', () => {
     await expect(page.getByText('Аня Смирнова').first()).toBeVisible()
   })
 
+  test('the journal corner rows carry the prototype tiles (issue #58)', async ({ page }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await expect(page).toHaveURL(/\/journal$/)
+
+    // A draft exists so the drafts row shows beside the trash row.
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await page.getByLabel('Заголовок').fill('Про Бублика')
+    await page.getByLabel('Текст записи').fill('Он съел ещё один носок.')
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+    await expect(page).toHaveURL(/\/journal$/)
+
+    // The sidebar rows opt into the 38px tile — surface-2 for drafts,
+    // danger-tinted for trash (docs/design/screens/diary.html:85,95).
+    const draftsMedia = page
+      .getByRole('link', { name: /Мои черновики/ })
+      .locator('[data-slot="item-media"]')
+    await expect(draftsMedia).toHaveAttribute('data-variant', 'icon')
+    await expect(draftsMedia).toHaveAttribute('data-tone', 'neutral')
+    await expect(draftsMedia).toHaveCSS('width', '38px')
+    const trashMedia = page
+      .getByRole('link', { name: /Корзина/ })
+      .locator('[data-slot="item-media"]')
+    await expect(trashMedia).toHaveAttribute('data-variant', 'icon')
+    await expect(trashMedia).toHaveAttribute('data-tone', 'danger')
+    await expect(trashMedia).toHaveCSS('width', '38px')
+  })
+
   test('a published entry is edited and is never offered a draft state', async ({ page }) => {
     await mockJournalApi(page)
 

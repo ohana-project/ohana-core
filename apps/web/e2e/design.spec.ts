@@ -230,18 +230,30 @@ test.describe('card forms and list rows (issue #58)', () => {
 
   test('a row carries the prototype padding, gap, type sizes and hover', async ({ page }) => {
     await openDesign(page)
-    // the row-heights demo rows use the shared description slot; the
-    // older preview rows predate it
-    const row = page
-      .locator('[data-slot="item"][data-size="sm"]')
-      .filter({ has: page.locator('[data-slot="item-description"]') })
+    // the row-heights demo card: the one list card holding an xl row
+    const heightsCard = page
+      .locator('[data-slot="card"][data-variant="list"]')
+      .filter({ has: page.locator('[data-slot="item"][data-size="xl"]') })
       .first()
+    const row = heightsCard.locator('[data-slot="item"][data-size="sm"]').first()
     await expect(row).toBeVisible()
     const shape = await row.evaluate((el) => {
       const s = getComputedStyle(el)
-      return { paddingTop: s.paddingTop, paddingLeft: s.paddingLeft, columnGap: s.columnGap }
+      return {
+        paddingTop: s.paddingTop,
+        paddingRight: s.paddingRight,
+        paddingBottom: s.paddingBottom,
+        paddingLeft: s.paddingLeft,
+        columnGap: s.columnGap,
+      }
     })
-    expect(shape).toEqual({ paddingTop: '10px', paddingLeft: '14px', columnGap: '14px' })
+    expect(shape).toEqual({
+      paddingTop: '10px',
+      paddingRight: '14px',
+      paddingBottom: '10px',
+      paddingLeft: '14px',
+      columnGap: '14px',
+    })
     const title = row.locator('[data-slot="item-title"]')
     const titleStyle = await title.evaluate((el) => {
       const s = getComputedStyle(el)
@@ -287,12 +299,31 @@ test.describe('card forms and list rows (issue #58)', () => {
     expect(await avatarMedia.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
       'rgba(0, 0, 0, 0)',
     )
-    // the 38px tinted tile stays available where a tone opts in
+    // the 38px tinted tile stays available through variant="icon",
+    // tinted by its tone
     const tile = page
       .locator('[data-slot="item-media"][data-variant="icon"][data-tone="warn"]')
       .first()
     await expect(tile).toBeVisible()
     expect(await tile.evaluate((el) => getComputedStyle(el).width)).toBe('38px')
+    // a tone on a bare icon colours it without a tile, like the
+    // prototype's accent heart
+    const tonedBare = page
+      .locator('[data-slot="item-media"][data-variant="default"][data-tone="primary"]')
+      .first()
+    await expect(tonedBare).toBeVisible()
+    const accent = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--accent)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).color
+      probe.remove()
+      return colour
+    })
+    expect(await tonedBare.evaluate((el) => getComputedStyle(el).color)).toBe(accent)
+    expect(await tonedBare.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+      'rgba(0, 0, 0, 0)',
+    )
   })
 
   test('the empty state stands alone with its action outside the icon plate', async ({ page }) => {

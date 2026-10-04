@@ -93,7 +93,10 @@ describe('ItemMedia', () => {
     const media = screen.getByTestId('media')
     expect(media).toHaveAttribute('data-variant', 'default')
     expect(media).toHaveAttribute('data-tone', 'primary')
+    // the tone's colour wins over the bare default, and no tile comes
+    // with it
     expect(media.className).toContain('text-primary')
+    expect(media.className).not.toContain('text-muted-foreground')
     expect(media.className).not.toContain('size-[38px]')
     expect(media.className).not.toContain('bg-')
   })

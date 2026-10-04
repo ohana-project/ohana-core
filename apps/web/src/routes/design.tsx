@@ -883,7 +883,8 @@ function ListsSection() {
         <div className="flex flex-col gap-3">
           {/* the list form: no padding, rows flush, the corners clip
               them; a bare leading icon by default, the 38px tinted
-              tile opt-in through a tone, an avatar never on a tile */}
+              tile opt-in through variant="icon" — a tone alone only
+              colours the icon —, an avatar never on a tile */}
           <Card variant="list">
             <ItemGroup>
               <Item size="sm">

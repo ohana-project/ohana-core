@@ -375,12 +375,16 @@ test.describe('the wishlist', () => {
 
     // The empty state shows without the action sitting in the round
     // icon plate — the button lives in the empty state's content slot
-    // (issue #58).
+    // (issue #58). Scoped to the empty state: a mobile FAB carries the
+    // same name elsewhere on the screen.
     const empty = page.locator('[data-slot="empty"]').first()
     await expect(empty).toBeVisible()
-    const addButton = page.getByRole('button', { name: 'Добавить желание' }).first()
+    const addButton = empty.getByRole('button', { name: 'Добавить желание' })
     await expect(addButton).toBeVisible()
     expect(await addButton.evaluate((el) => el.closest('[data-slot="empty-icon"]'))).toBeNull()
+    expect(
+      await addButton.evaluate((el) => el.closest('[data-slot="empty-content"]')),
+    ).not.toBeNull()
 
     // A wish is added through the sheet, and the list shows it.
     await addButton.click()

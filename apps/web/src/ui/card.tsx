@@ -9,8 +9,8 @@ import type * as React from 'react'
  * slots —, the prototype's padded card (`.card-pad`: 20px on all
  * sides, no forced gap, the content sets its own rhythm), and the list
  * card (`.card.list`: no padding, rows flush, the corners clip them).
- * The padded and list forms take plain children: the header, content
- * and footer slots add their own side padding and would double it.
+ * The padded form takes plain children — the slots' own side padding
+ * would double it —, and the list form takes rows only.
  * `hoverable` is the link-card lift: shadow-2, −1px, a stronger
  * border (README "Components").
  */

@@ -36,6 +36,14 @@ describe('Card forms', () => {
     expect(card.className).not.toContain('py-(--card-spacing)')
   })
 
+  it('padded form keeps the sm card spacing', () => {
+    renderWithProviders(<Card variant="padded" size="sm" data-testid="card" />)
+    const card = screen.getByTestId('card')
+    expect(card).toHaveAttribute('data-size', 'sm')
+    expect(card.className).toContain('p-(--card-spacing)')
+    expect(card.className).toContain('data-[size=sm]:[--card-spacing:--spacing(4)]')
+  })
+
   it('list form: no padding and no gap, corners clip the rows', () => {
     renderWithProviders(<Card variant="list" data-testid="card" />)
     const card = screen.getByTestId('card')
