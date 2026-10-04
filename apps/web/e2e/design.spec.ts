@@ -242,7 +242,7 @@ test.describe('type scale survives class merging', () => {
     }
   })
 
-  test('the tab bar keeps the prototype height', async ({ page }) => {
+  test('the tab bar is 67px with micro labels', async ({ page }) => {
     // the issue's symptom was a 73px bar from body-size labels; with
     // micro labels it sits at 67px (the prototype's 68 includes the
     // 1px glass hairline the implementation drops)

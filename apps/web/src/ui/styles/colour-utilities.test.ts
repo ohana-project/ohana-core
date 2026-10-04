@@ -127,11 +127,14 @@ function splitVariants(candidate: string): string[] {
   return parts
 }
 
-function colourCandidates(): ColourCandidate[] {
+function scannedCandidates(): string[] {
   const scanner = new Scanner({})
-  const candidates = scanner.scanFiles(sourceFiles().map((path) => scannableContent(path)))
+  return scanner.scanFiles(sourceFiles().map((path) => scannableContent(path)))
+}
+
+function colourCandidates(raw: string[]): ColourCandidate[] {
   const found = new Map<string, ColourCandidate>()
-  for (const candidate of candidates) {
+  for (const candidate of raw) {
     const parts = splitVariants(candidate)
     const utility = (parts.at(-1) ?? '').replace(/^!/, '')
     const slash = utility.indexOf('/')
@@ -216,11 +219,13 @@ function generates(candidate: string): boolean {
   return generatedCss.replace(/\\/g, '').includes(`.${candidate}`)
 }
 
+let rawCandidates: string[]
 let candidates: ColourCandidate[]
 let generatedCss: string
 
 beforeAll(async () => {
-  candidates = colourCandidates()
+  rawCandidates = scannedCandidates()
+  candidates = colourCandidates(rawCandidates)
   const entry = readFileSync(resolvePath(webRoot, 'src/index.css'), 'utf8')
   const compiled = await compile(entry, { base: resolvePath(webRoot, 'src'), loadStylesheet })
   generatedCss = compiled.build(candidates.map((c) => c.candidate))
@@ -260,11 +265,12 @@ describe('every colour utility used by the client resolves to a generated rule',
 
   it('the client uses none of Tailwind’s default shadow steps', () => {
     // the README allows exactly the three --shadow-* steps; the default
-    // scale sits in the non-colour filter, so it would otherwise slip
-    // through uncounted
-    const offenders = candidates
-      .filter((c) => /(?:^|:)shadow-(?:2xs|xs|sm|md|lg|xl|2xl)$/.test(c.candidate))
-      .map((c) => c.candidate)
+    // scale is dropped by the non-colour filter before classification,
+    // so this reads the raw scanner output the classification starts
+    // from
+    const offenders = rawCandidates
+      .map((c) => (splitVariants(c).at(-1) ?? '').replace(/^!/, ''))
+      .filter((u) => /^shadow-(?:2xs|xs|sm|md|lg|xl|2xl)(?:\/|$)/.test(u))
     expect(offenders, 'candidates from the default shadow scale').toEqual([])
   })
 })

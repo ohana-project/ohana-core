@@ -46,7 +46,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -479,17 +478,15 @@ function OverlaysSection() {
             render={<Button variant="secondary">{t('designPreview.overlays.viewMenu')}</Button>}
           />
           <DropdownMenuContent>
-            <DropdownMenuGroup>
+            <DropdownMenuRadioGroup value={order} onValueChange={setOrder}>
               <DropdownMenuLabel>{t('designPreview.overlays.order')}</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={order} onValueChange={setOrder}>
-                <DropdownMenuRadioItem value="newest">
-                  {t('designPreview.overlays.newestFirst')}
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="oldest">
-                  {t('designPreview.overlays.oldestFirst')}
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
+              <DropdownMenuRadioItem value="newest">
+                {t('designPreview.overlays.newestFirst')}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="oldest">
+                {t('designPreview.overlays.oldestFirst')}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem checked={withPhotos} onCheckedChange={setWithPhotos}>
               {t('designPreview.overlays.withPhotos')}
