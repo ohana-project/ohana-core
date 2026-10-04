@@ -190,7 +190,7 @@ test.describe('overlays', () => {
   })
 })
 
-test.describe('the demo menus’ theme item (issue #63)', () => {
+test.describe('the theme item of the demo menus (issue #63)', () => {
   // Both demo menus mirror the shipped user menu (the layouts one
   // through the shipped top bar): the item names the theme a press
   // leads to, in both themes.
