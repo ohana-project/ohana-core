@@ -188,15 +188,27 @@ test.describe('overlays', () => {
       await expect(check).toHaveCSS('color', accent)
     }
   })
+})
 
-  test('the demo shell’s user menu mirrors the shipped theme item', async ({ page }) => {
-    await openDesign(page)
-    // The layouts demo's member shell carries the product's user menu
-    // (issue #63): the theme item names the theme it leads to, exactly
-    // like the shipped one.
-    await page.getByRole('button', { name: 'Меню пользователя' }).click()
-    await expect(page.getByRole('menuitem', { name: 'Тёмная тема' })).toBeVisible()
-  })
+test.describe('the theme item of the shells (issue #63)', () => {
+  // The overlays demo menu mirrors the shipped user menu, and the
+  // layouts demo's member shell carries the shipped menu itself; the
+  // item names the theme a press leads to, in both themes.
+  for (const [theme, offered] of [
+    ['light', 'Тёмная тема'],
+    ['dark', 'Светлая тема'],
+  ] as const) {
+    test(`the demo menus offer the theme a press leads to in ${theme}`, async ({ page }) => {
+      await openDesign(page, { theme })
+
+      await page.getByRole('button', { name: 'Меню', exact: true }).click()
+      await expect(page.getByRole('menuitem', { name: offered })).toBeVisible()
+      await page.keyboard.press('Escape')
+
+      await page.getByRole('button', { name: 'Меню пользователя' }).click()
+      await expect(page.getByRole('menuitem', { name: offered })).toBeVisible()
+    })
+  }
 })
 
 test.describe('icon sizes (issue #55)', () => {
@@ -250,9 +262,6 @@ test.describe('icon sizes (issue #55)', () => {
     await openDesign(page)
     await freezeMotion(page)
     await page.getByRole('button', { name: 'Меню', exact: true }).click()
-    // The overlays demo menu mirrors the shipped user menu (issue #63):
-    // the theme item names the theme it leads to.
-    await expect(page.getByRole('menuitem', { name: 'Тёмная тема' })).toBeVisible()
     // the menu mounts in a portal after the click; the poll rides out
     // the tail of its opening transition before the boxes are read
     await expect
