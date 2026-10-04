@@ -48,6 +48,10 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        // #f6f1ee is THEME_COLOR.light of src/app/theme.tsx (the manifest
+        // is a static document read before any code, so it cannot import
+        // it); the browser chrome follows an explicit theme choice at
+        // runtime through the theme-color metas, the manifest does not.
         background_color: '#f6f1ee',
         theme_color: '#f6f1ee',
         icons: [

@@ -109,6 +109,7 @@ test.describe('theme toggle', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
     for (const meta of await chrome.all()) {
       await expect(meta).toHaveAttribute('content', 'rgb(246 241 238)')
+      await expect(meta).not.toHaveAttribute('media')
     }
   })
 

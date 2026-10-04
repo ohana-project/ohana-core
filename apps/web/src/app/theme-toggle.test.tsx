@@ -33,7 +33,7 @@ describe('ThemeToggle', () => {
     renderWithProviders(<ThemeToggle />)
 
     const toggle = screen.getByRole('button', { name: 'Тёмная тема' })
-    expect(toggle.innerHTML).toBe(glyph('moon'))
+    expect(toggle.querySelector('svg')?.outerHTML).toBe(glyph('moon'))
     expect(document.documentElement.dataset.theme).toBe('light')
 
     await user.click(toggle)
@@ -41,7 +41,9 @@ describe('ThemeToggle', () => {
     expect(document.documentElement.dataset.theme).toBe('dark')
     // The choice is stored per device, so the next visit opens dark.
     expect(window.localStorage.getItem('ohana.theme')).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Светлая тема' }).innerHTML).toBe(glyph('sun'))
+    expect(
+      screen.getByRole('button', { name: 'Светлая тема' }).querySelector('svg')?.outerHTML,
+    ).toBe(glyph('sun'))
   })
 
   it('opens on a stored choice and offers the way back', () => {
@@ -49,7 +51,9 @@ describe('ThemeToggle', () => {
     renderWithProviders(<ThemeToggle />)
 
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Светлая тема' }).innerHTML).toBe(glyph('sun'))
+    expect(
+      screen.getByRole('button', { name: 'Светлая тема' }).querySelector('svg')?.outerHTML,
+    ).toBe(glyph('sun'))
   })
 
   it('names the themes in English (en)', () => {

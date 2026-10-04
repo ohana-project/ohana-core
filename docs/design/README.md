@@ -99,7 +99,7 @@ Numbers and dates use tabular figures. Headings use `text-wrap: balance`, paragr
 
 There are no other shadows.
 
-Spacing sits on a 4px grid. Page padding is `clamp(16px, 4vw, 24px)`, card padding 16–22px (default 20px), gaps between blocks 12, 28, and 40px. List rows are at least 52px tall (event rows 64px). Touch targets are at least 44px.
+Spacing sits on a 4px grid. Page padding is `clamp(16px, 4vw, 24px)`, card padding 16–22px (default 20px), gaps between blocks 12, 28, and 40px. List rows are at least 52px tall (event rows 64px). Touch targets are at least 44px, except the `sm` and `icon-sm` button sizes (36px, the prototype's `.btn-sm` — the `sm` buttons of dense bars and the administrative bar's theme toggle).
 
 Shell sizes: sidebar 232px, top bar 56px, tab bar 64px (the reserve `--tabbar-h`; the rendered bar is 67px — the prototype's 68px less the 1px hairline the implementation drops, see Glass). Content width is 1104px, narrow 760px, wide 1280px; the administrative area uses 960px.
 
@@ -133,7 +133,7 @@ Easing is `cubic-bezier(0.2, 0.8, 0.2, 1)`. Sheets rise 40px without overshoot, 
 
 Shared components live in `apps/web/src/ui`. The class names below refer to `assets/ohana.css`.
 
-- **Button** (`.btn`): primary (accent; hover darkens 12%, lightens 10% in dark), secondary (surface, border, `shadow-1`), ghost (hover `fg-soft`), danger (`danger` 12% over `surface`, 16% on hover), link. Sizes: default 44px, `lg` 52px full width, `sm` 36px, `icon` 44px round, `icon-sm` 36px round (the administrative bar's theme toggle; a deliberate sub-44px target, like `sm`).
+- **Button** (`.btn`): primary (accent; hover darkens 12%, lightens 10% in dark), secondary (surface, border, `shadow-1`), ghost (hover `fg-soft`), danger (`danger` 12% over `surface`, 16% on hover), link. Sizes: default 44px, `lg` 52px full width, `sm` 36px, `icon` 44px round, `icon-sm` 36px round (the administrative bar's theme toggle; both 36px sizes are the touch-target exception above).
 - **Input and textarea** (`.input`, `.textarea`): 46px, border darkens on hover, accent border and 3px `accent-soft` ring on focus. The textarea is at least 110px.
 - **Field** (`.field`): label in `sm`/`muted`, hint in `meta`. When invalid, the border and ring turn `danger`, an error line with an icon appears under the field and is linked with `aria-describedby`, and the input shakes once.
 - **Access-code input** (`.code-input`): 68px, JetBrains Mono 30px, tracking 0.18em, centred, uppercase; formats to `XXXX-XXXX` while typing (Latin letters and digits only). **Code display** (`.code-display`): a code shown once, mono, dashed accent border over `accent-soft`, selectable in one tap.
