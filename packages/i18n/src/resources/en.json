@@ -708,6 +708,7 @@
       "sm": "Small",
       "lg": "Large",
       "icon": "Icon",
+      "iconSm": "Small icon",
       "disabled": "Disabled"
     },
     "inputs": {

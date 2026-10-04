@@ -43,4 +43,30 @@ describe('SyncStatus', () => {
     await user.click(container.querySelector('[data-slot="sync-retry"]') as HTMLElement)
     expect(onRetry).toHaveBeenCalledOnce()
   })
+
+  it('colours only the glyph accent while syncing; the label stays muted', () => {
+    // `.sync[data-state='updating'] svg` — the accent never reaches the
+    // label (issue #60)
+    for (const state of ['first', 'updating'] as const) {
+      const { container, unmount } = renderWithProviders(<SyncStatus state={state} />)
+      const root = container.querySelector('[data-slot="sync-status"]')
+      const icon = root?.querySelector('svg')
+      expect(root?.classList.contains('text-muted-foreground'), state).toBe(true)
+      expect(root?.classList.contains('text-primary'), state).toBe(false)
+      expect(icon?.classList.contains('text-primary'), state).toBe(true)
+      unmount()
+    }
+  })
+
+  it('leaves the 430px text hiding to the top bar', () => {
+    // the full form keeps its words at every width everywhere else
+    // (.topbar .sync .sync-text is the prototype's only hiding rule)
+    for (const state of STATES) {
+      const { container, unmount } = renderWithProviders(<SyncStatus state={state} />)
+      const root = container.querySelector('[data-slot="sync-status"]')
+      expect(root?.className, state).not.toContain('max-[430px]')
+      expect(container.querySelector('[data-slot="sync-status-label"]'), state).not.toBeNull()
+      unmount()
+    }
+  })
 })

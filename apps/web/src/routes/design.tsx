@@ -323,6 +323,10 @@ function ButtonsSection() {
         <Button size="icon" variant="secondary" aria-label={t('designPreview.buttons.icon')}>
           <Icon name="search" />
         </Button>
+        {/* the 36px round icon button (.btn-icon.btn-sm, issue #60) */}
+        <Button size="icon-sm" variant="secondary" aria-label={t('designPreview.buttons.iconSm')}>
+          <Icon name="search" />
+        </Button>
         <Button size="icon" variant="ghost" aria-label={t('designPreview.buttons.icon')}>
           <Icon name="more-h" />
         </Button>
