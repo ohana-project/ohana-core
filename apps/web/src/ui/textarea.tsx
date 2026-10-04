@@ -1,4 +1,4 @@
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 import type * as React from 'react'
 
 /* Ohana textarea: the input recipe, at least 110px tall. */

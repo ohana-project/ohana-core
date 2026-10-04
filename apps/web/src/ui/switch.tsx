@@ -1,7 +1,7 @@
 'use client'
 
 import { Switch as SwitchPrimitive } from '@base-ui/react/switch'
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana switch: 46×28 with an accent track when on (`.switch` in the

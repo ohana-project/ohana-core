@@ -1,8 +1,8 @@
 'use client'
 
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
-import { cn } from 'cn'
 import type * as React from 'react'
+import { cn } from '@/lib/cn'
 
 import { Icon } from '@/ui/icon.tsx'
 

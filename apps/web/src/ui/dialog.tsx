@@ -1,7 +1,7 @@
 'use client'
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
 

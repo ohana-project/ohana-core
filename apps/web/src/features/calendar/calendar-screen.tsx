@@ -159,7 +159,7 @@ export function CalendarScreen() {
                       className={[
                         'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md py-1 transition-colors',
                         inMonth ? 'text-foreground' : 'text-muted-foreground/60',
-                        isToday ? 'bg-accent-soft font-semibold' : 'hover:bg-accent',
+                        isToday ? 'bg-primary-soft font-semibold' : 'hover:bg-accent',
                       ].join(' ')}
                     >
                       <span className="text-body">{date.day}</span>

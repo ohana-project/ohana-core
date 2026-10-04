@@ -77,6 +77,7 @@ All three are self-hosted with Cyrillic, Cyrillic Extended, Latin, and Latin Ext
 | `body` | 15.5px | line-height 1.55 |
 | `sm` | 13.5px | secondary text, hints |
 | `meta` | 12.5px | JetBrains Mono, `muted`, tracking 0.01em |
+| `micro` | 11.5px | tab bar labels (`font-medium`), count badges, calendar day numbers |
 
 Numbers and dates use tabular figures. Headings use `text-wrap: balance`, paragraphs `text-wrap: pretty`, and long Russian words in running text `hyphens: auto`. Navigation items and buttons never wrap; shorten the wording instead.
 
@@ -235,6 +236,7 @@ Do not carry these into the implementation:
 Rules for `apps/web`:
 
 - Tokens are CSS custom properties under `apps/web/src/ui/styles/` and are exposed to Tailwind through `@theme`.
+- The class merger (`apps/web/src/lib/cn.ts`) is taught every step of the type scale, so a `text-<step>` size and a text colour passed together both survive merging, in either order; the steps it knows are kept in step with the `--text-*` tokens of `src/index.css` by a test (`src/lib/cn.test.ts`). A second test (`src/ui/styles/colour-utilities.test.ts`) compiles the client's real stylesheet and fails on any colour utility that generates no rule — colour names are the ones the `@theme` block declares (`background`, `primary-soft`, …), not raw token names.
 - The Ohana tokens fill the shadcn roles: `background` ← `bg`, `card` and `popover` ← `surface`, `primary` and `ring` ← `accent`, `destructive` ← `danger`, `border` and `input` ← `border`, `muted-foreground` ← `muted`. shadcn's `accent` role (a subtle hover fill) takes `fg-soft`, so it never collides with Ohana's brand accent.
 - The theme is `data-theme="light" | "dark"` on `<html>`. It is persisted per device and follows `prefers-color-scheme` until the member chooses.
 - Fonts come from the `@fontsource` packages, and icons from the Hugeicons React package.

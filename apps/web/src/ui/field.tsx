@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from 'cn'
 import { useMemo } from 'react'
+import { cn } from '@/lib/cn'
 import { Icon } from '@/ui/icon.tsx'
 import { Label } from '@/ui/label'
 import { Separator } from '@/ui/separator'

@@ -1,5 +1,5 @@
-import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Icon } from '@/ui/icon.tsx'
 import type { ShellSection } from '@/ui/shell.ts'
@@ -39,7 +39,7 @@ export function TabBar({ sections, activeId, onSectionClick, className }: TabBar
             aria-current={active ? 'page' : undefined}
             onClick={() => onSectionClick?.(section.id)}
             className={cn(
-              'flex min-h-12 flex-col items-center gap-[3px] rounded-md pt-1 pb-0.5 text-meta font-medium transition-colors duration-(--t-fast) ease-(--ease) hover:text-foreground aria-[current=page]:text-primary',
+              'flex min-h-12 flex-col items-center gap-[3px] rounded-md pt-1 pb-0.5 text-micro font-medium transition-colors duration-(--t-fast) ease-(--ease) hover:text-foreground aria-[current=page]:text-primary',
               active ? 'text-primary' : 'text-muted-foreground',
             )}
           >

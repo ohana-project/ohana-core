@@ -1,4 +1,4 @@
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { applyAppUpdate, isAppUpdateReady, subscribeToAppUpdate } from '@/lib/app-update.ts'

@@ -2,7 +2,7 @@
 
 import { Toggle as TogglePrimitive } from '@base-ui/react/toggle'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana toggle: the `.seg` button look, shared with the toggle group.

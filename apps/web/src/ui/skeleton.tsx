@@ -1,4 +1,4 @@
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana skeleton (`.skel` in the prototype): shimmering surface-2.

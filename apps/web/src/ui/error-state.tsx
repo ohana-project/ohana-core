@@ -1,4 +1,4 @@
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/ui/button.tsx'

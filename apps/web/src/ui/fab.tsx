@@ -1,4 +1,4 @@
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 import type * as React from 'react'
 
 import { Icon, type IconName } from '@/ui/icon.tsx'

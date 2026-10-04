@@ -1,4 +1,4 @@
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 import type * as React from 'react'
 import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
 import type { ShellSection, ShellSyncState, ShellUserMenuItem, SpaceSummary } from '@/ui/shell.ts'
