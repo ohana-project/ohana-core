@@ -1,9 +1,9 @@
 'use client'
 
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
-import { cn } from 'cn'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Button } from '@/ui/button'
 import { Icon } from '@/ui/icon.tsx'

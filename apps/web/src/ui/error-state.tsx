@@ -1,5 +1,5 @@
-import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Button } from '@/ui/button.tsx'
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'

@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@tailwindcss/oxide": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.41",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

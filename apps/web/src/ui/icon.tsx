@@ -53,7 +53,7 @@ import {
   WifiOff01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 
 /*
  * The Ohana icon set: Hugeicons Free, stroke-rounded (docs/design/

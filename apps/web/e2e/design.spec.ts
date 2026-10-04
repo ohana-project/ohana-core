@@ -305,6 +305,69 @@ test.describe('access code input', () => {
   })
 })
 
+test.describe('type scale survives class merging', () => {
+  // the merger knows the Ohana steps (issue #56); these pin the rendered
+  // sizes the ticket names, computed from the real stylesheet
+  test('tab labels, hints, badges, tooltips and menu labels keep their size', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+
+    const tab = page.locator('[data-slot=tab]').first()
+    await expect(tab).toHaveCSS('font-size', '11.5px')
+    await expect(tab).toHaveCSS('font-weight', '500')
+
+    await expect(page.locator('[data-slot=field-description]').first()).toHaveCSS(
+      'font-size',
+      '12.5px',
+    )
+    await expect(page.locator('[data-slot=count-badge]').first()).toHaveCSS('font-size', '11.5px')
+
+    const trigger = page.locator('[data-slot=tooltip-trigger]').first()
+    await trigger.hover()
+    await expect(page.locator('[data-slot=tooltip-content]')).toHaveCSS('font-size', '12.5px')
+
+    await page.getByRole('button', { name: 'Вид ленты' }).click()
+    await expect(page.locator('[data-slot=dropdown-menu-label]').first()).toHaveCSS(
+      'font-size',
+      '12.5px',
+    )
+    await page.keyboard.press('Escape')
+  })
+
+  test('avatar monograms keep their hue ink at every size in both themes', async ({ page }) => {
+    // the rendered sizes of the four monogram steps (meta, sm, body, h2)
+    const INK_FONT_SIZES = { xs: '12.5px', sm: '13.5px', default: '15.5px', lg: '19px' }
+    for (const theme of ['light', 'dark'] as const) {
+      await openDesign(page, { theme })
+      const avatars = page.locator('[data-slot=avatar]')
+      const sizes = await avatars.evaluateAll((els) =>
+        [...new Set(els.map((el) => el.getAttribute('data-size')))].sort(),
+      )
+      expect(sizes, theme).toEqual(['default', 'lg', 'sm', 'xs'])
+      // light ink is oklch(38% 0.08 hue), dark ink oklch(88% 0.06 hue) —
+      // never the page's fg
+      const ink = theme === 'light' ? /^oklch\(0\.38 0\.08 / : /^oklch\(0\.88 0\.06 /
+      for (let i = 0; i < (await avatars.count()); i += 1) {
+        const avatar = avatars.nth(i)
+        const colour = await avatar.evaluate((el) => getComputedStyle(el).color)
+        expect(colour, `avatar ${i} (${theme})`).toMatch(ink)
+        const size = (await avatar.getAttribute('data-size')) as keyof typeof INK_FONT_SIZES
+        await expect(avatar, `avatar ${i} (${theme})`).toHaveCSS('font-size', INK_FONT_SIZES[size])
+      }
+    }
+  })
+
+  test('the tab bar is 67px with micro labels', async ({ page }) => {
+    // the issue's symptom was a 73px bar from body-size labels; with
+    // micro labels it sits at 67px (the prototype's 68 includes the
+    // 1px glass hairline the implementation drops)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const box = await page.locator('[data-slot=tabbar]').boundingBox()
+    expect(box?.height).toBeCloseTo(67, 0)
+  })
+})
+
 test.describe('card forms and list rows (issue #58)', () => {
   test('the padded and list card forms carry the prototype values', async ({ page }) => {
     await openDesign(page)

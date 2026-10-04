@@ -1,7 +1,7 @@
 import type { createToastManager as createToastManagerType } from '@base-ui/react/toast'
 import { Toast as ToastPrimitive } from '@base-ui/react/toast'
-import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Icon } from '@/ui/icon.tsx'
 

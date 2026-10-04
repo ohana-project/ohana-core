@@ -96,6 +96,7 @@
   --text-sm: 13.5px;
   --text-meta: 12.5px;
   --text-meta--letter-spacing: 0.01em;
+  --text-micro: 11.5px;
 
   /* radius scale, written out — README "Shape, spacing, elevation" */
   --radius-sm: 8px;

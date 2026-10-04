@@ -1,5 +1,5 @@
-import { cn } from 'cn'
 import { useId } from 'react'
+import { cn } from '@/lib/cn'
 
 /*
  * The Ohana mark: five petals and a heart, ink on rose, on a plate

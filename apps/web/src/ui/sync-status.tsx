@@ -1,5 +1,5 @@
-import { cn } from 'cn'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Icon, type IconName } from '@/ui/icon.tsx'
 

@@ -1,6 +1,6 @@
-import { cn } from 'cn'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { Logo } from '@/ui/logo.tsx'
 

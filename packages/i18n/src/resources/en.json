@@ -741,7 +741,8 @@
       "viewMenu": "Feed view",
       "newestFirst": "Newest first",
       "oldestFirst": "Oldest first",
-      "withPhotos": "Only with photos"
+      "withPhotos": "Only with photos",
+      "order": "Order"
     },
     "badges": {
       "primary": "Up to date",

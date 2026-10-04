@@ -47,6 +47,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -495,6 +496,7 @@ function OverlaysSection() {
           />
           <DropdownMenuContent>
             <DropdownMenuRadioGroup value={order} onValueChange={setOrder}>
+              <DropdownMenuLabel>{t('designPreview.overlays.order')}</DropdownMenuLabel>
               <DropdownMenuRadioItem value="newest">
                 {t('designPreview.overlays.newestFirst')}
               </DropdownMenuRadioItem>

@@ -1,6 +1,6 @@
 import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar'
-import { cn } from 'cn'
 import type * as React from 'react'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana avatar (docs/design/README.md, "Colour"): a monogram on a warm
@@ -53,7 +53,7 @@ function AvatarGroup({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="avatar-group"
       className={cn(
-        'flex *:data-[slot=avatar]:border-2 *:data-[slot=avatar]:border-bg *:data-[slot=avatar]:-ml-2 first:*:data-[slot=avatar]:ml-0 dark:*:data-[slot=avatar]:border-bg',
+        'flex *:data-[slot=avatar]:border-2 *:data-[slot=avatar]:border-background *:data-[slot=avatar]:-ml-2 first:*:data-[slot=avatar]:ml-0 dark:*:data-[slot=avatar]:border-background',
         className,
       )}
       {...props}

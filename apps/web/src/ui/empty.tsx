@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from 'cn'
+import { cn } from '@/lib/cn'
 
 /*
  * Ohana empty state (`.empty` in the prototype): a 64px round icon
