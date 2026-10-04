@@ -323,7 +323,9 @@ function DaySheet({
           <SheetTitle>{formatDayLong(day, locale)}</SheetTitle>
           <SheetDescription>{t('calendar.dayCount', { count: dayEvents.length })}</SheetDescription>
         </SheetHeader>
-        <div className="flex flex-col gap-1 overflow-y-auto">
+        {/* the sheet scrolls as a whole (issue #59), so the list needs
+            no scroll area of its own */}
+        <div className="flex flex-col gap-1">
           {dayEvents.length === 0 ? (
             <p className="px-1 py-2 text-sm text-muted-foreground">{t('calendar.dayEmpty')}</p>
           ) : (

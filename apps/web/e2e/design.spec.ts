@@ -541,8 +541,8 @@ test.describe('overlay parity (issue #59)', () => {
     await expect(sheet).toBeHidden()
   })
 
-  test('the long-label confirm keeps equal buttons at every width', async ({ page }) => {
-    for (const width of [390, 360]) {
+  for (const width of [390, 360]) {
+    test(`the long-label confirm keeps equal buttons at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await openDesign(page)
       await freezeMotion(page)
@@ -574,43 +574,84 @@ test.describe('overlay parity (issue #59)', () => {
       expect(row.buttonsFit, JSON.stringify(row)).toBe(true)
       expect(row.footerFits, JSON.stringify(row)).toBe(true)
       await page.keyboard.press('Escape')
-    }
-  })
+    })
+  }
 
-  test('a tall sheet keeps its bottom padding while the popup scrolls', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 600 })
+  test('a single long word stays inside its button at the 360px floor', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 900 })
     await openDesign(page)
-    await freezeMotion(page)
-    await page.getByRole('button', { name: 'Шторка' }).click()
-    const sheet = page.getByRole('dialog')
-    await expect(sheet).toBeVisible()
-
-    // grow the body past the 86dvh cap, then read the geometry at the
-    // bottom of the scroll
-    const gap = await page.evaluate(() => {
-      const popup = document.querySelector('[data-slot="sheet-content"]')
-      const body = document.querySelector('[data-slot="sheet-body"]')
-      if (!popup || !body) return null
-      const spacer = document.createElement('div')
-      spacer.style.height = '900px'
-      body.append(spacer)
-      popup.scrollTop = popup.scrollHeight
-      const popupRect = popup.getBoundingClientRect()
-      const last = body.lastElementChild
-      if (!last) return null
-      // the popup's own padding sits under the last child
-      const padding = Number.parseFloat(getComputedStyle(popup).paddingBottom)
+    await page.getByRole('button', { name: 'Диалог с длинным действием' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    // «Перевыпустить» cannot wrap: with min-w-0 its button stays equal
+    // and the word runs into the padding without leaving the button
+    const row = await page.evaluate(() => {
+      const footer = document.querySelector('[data-slot="dialog-footer"]')
+      const confirm = footer?.querySelectorAll('button')[1]
+      if (!confirm) return null
+      confirm.textContent = 'Перевыпустить'
+      const range = document.createRange()
+      range.selectNodeContents(confirm)
+      const text = range.getBoundingClientRect()
+      const box = confirm.getBoundingClientRect()
+      const boxes = [...footer.querySelectorAll('button')].map((button) =>
+        button.getBoundingClientRect(),
+      )
       return {
-        padding,
-        gap: popupRect.bottom - last.getBoundingClientRect().bottom,
-        scrolls: popup.scrollHeight > popup.clientHeight,
+        equalWidth: Math.abs(boxes[0].width - boxes[1].width) <= 1,
+        textInsideButton: text.left >= box.left && text.right <= box.right,
       }
     })
-    expect(gap?.scrolls, 'the injected content makes the sheet scroll').toBe(true)
-    expect(gap?.padding, 'the sheet declares its 20px bottom padding').toBeCloseTo(20, 0)
-    expect(gap?.gap, JSON.stringify(gap)).toBeGreaterThanOrEqual(18)
+    expect(row, 'the confirm button renders').not.toBeNull()
+    expect(row?.equalWidth).toBe(true)
+    expect(row?.textInsideButton, JSON.stringify(row)).toBe(true)
     await page.keyboard.press('Escape')
   })
+
+  for (const [width, height] of [
+    [390, 600],
+    [1280, 700],
+  ] as const) {
+    test(`a tall sheet keeps its bottom padding while the popup scrolls at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height })
+      await openDesign(page)
+      await freezeMotion(page)
+      await page.getByRole('button', { name: 'Шторка' }).click()
+      const sheet = page.getByRole('dialog')
+      await expect(sheet).toBeVisible()
+
+      // grow the body past the 86dvh cap, then read the geometry at the
+      // bottom of the scroll
+      const gap = await page.evaluate(() => {
+        const popup = document.querySelector('[data-slot="sheet-content"]')
+        const body = document.querySelector('[data-slot="sheet-body"]')
+        if (!popup || !body) return null
+        const spacer = document.createElement('div')
+        // like real content, the spacer refuses to shrink below its
+        // height — that is the behaviour under test
+        spacer.style.height = '900px'
+        spacer.style.flexShrink = '0'
+        body.append(spacer)
+        popup.scrollTop = popup.scrollHeight
+        const popupRect = popup.getBoundingClientRect()
+        const last = body.lastElementChild
+        if (!last) return null
+        // the popup's own padding sits under the last child
+        const padding = Number.parseFloat(getComputedStyle(popup).paddingBottom)
+        return {
+          padding,
+          gap: popupRect.bottom - last.getBoundingClientRect().bottom,
+          scrolls: popup.scrollHeight > popup.clientHeight,
+        }
+      })
+      expect(gap?.scrolls, 'the injected content makes the sheet scroll').toBe(true)
+      expect(gap?.padding, 'the sheet declares its 20px bottom padding').toBeCloseTo(20, 0)
+      expect(gap?.gap, JSON.stringify(gap)).toBeGreaterThanOrEqual(18)
+      await page.keyboard.press('Escape')
+    })
+  }
 
   for (const theme of ['light', 'dark'] as const) {
     for (const width of WIDTHS) {

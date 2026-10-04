@@ -41,6 +41,10 @@ describe('Dialog', () => {
     const footer = screen.getByTestId('footer')
     expect(footer.className).toContain('flex gap-2.5')
     expect(footer.className).toContain('[&>*]:flex-1')
+    // the pair stays equal for long labels: no content floor, and a
+    // label too long for its half wraps
+    expect(footer.className).toContain('[&>*]:min-w-0')
+    expect(footer.className).toContain('[&>*]:whitespace-normal')
     expect(footer.className).toContain('mt-0.5')
     // the stacked-and-right-aligned shadcn arrangement is gone: the
     // buttons stand side by side at every width (README "Overlays")

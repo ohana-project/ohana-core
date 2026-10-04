@@ -49,4 +49,17 @@ describe('Sheet', () => {
     expect(sheet.className).toContain('border-x-0! border-b-0!')
     expect(sheet.className).toContain('desktop:border-x! desktop:border-b!')
   })
+
+  it('body wrapper keeps its content height, so tall sheets scroll whole', () => {
+    renderWithProviders(
+      <Sheet open>
+        <SheetContent />
+      </Sheet>,
+    )
+    const body = document.querySelector('[data-slot="sheet-body"]')
+    // a shrinking wrapper would bury the popup's bottom padding under
+    // tall content; shrink-0 keeps the padding under the last child
+    expect(body?.className).toContain('shrink-0')
+    expect(body?.className).not.toContain('min-h-0')
+  })
 })

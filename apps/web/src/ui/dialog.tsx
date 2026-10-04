@@ -70,8 +70,9 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
  * the text — the content grid adds 16px, this footer adds 2. A single
  * button grows to the full width, like the prototype's form sheets.
  * min-w-0 drops each button's content floor, so the pair stays exactly
- * equal however long the labels are; a label too long for its half
- * wraps instead of squeezing its neighbour.
+ * equal however long the labels are: a multi-word label wraps, and a
+ * single long word runs into its own button's padding but stays inside
+ * it down to the 360px floor (measured; e2e pins both cases).
  */
 function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (

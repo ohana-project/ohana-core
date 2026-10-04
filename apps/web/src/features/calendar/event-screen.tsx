@@ -312,7 +312,10 @@ function ScopeDialog({
           </Button>
         </div>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>
+          {/* the prototype's scope dialog keeps a ghost cancel under the
+              two options (event.html) — only OHANA_CONFIRM rows use a
+              secondary cancel */}
+          <Button variant="ghost" onClick={onClose}>
             {t('ui.cancel')}
           </Button>
         </DialogFooter>
