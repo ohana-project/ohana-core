@@ -78,7 +78,7 @@ export function WishlistsScreen() {
               <Link to="/wishlist/mine" className="block">
                 <Card hoverable>
                   <div className="flex items-center gap-3">
-                    <span className="grid size-[38px] shrink-0 place-items-center rounded-md bg-accent text-accent-foreground">
+                    <span className="grid size-[38px] shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
                       <Icon name="gift" className="size-5" />
                     </span>
                     <div className="flex min-w-0 flex-1 flex-col">
@@ -100,7 +100,7 @@ export function WishlistsScreen() {
               <Link to="/wishlist/favorites" className="block">
                 <Card hoverable>
                   <div className="flex items-center gap-3">
-                    <span className="grid size-[38px] shrink-0 place-items-center rounded-md bg-accent text-accent-foreground">
+                    <span className="grid size-[38px] shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
                       <Icon name="heart" className="size-5" />
                     </span>
                     <div className="flex min-w-0 flex-1 flex-col">
