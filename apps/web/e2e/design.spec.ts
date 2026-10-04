@@ -190,10 +190,10 @@ test.describe('overlays', () => {
   })
 })
 
-test.describe('the theme item of the shells (issue #63)', () => {
-  // The overlays demo menu mirrors the shipped user menu, and the
-  // layouts demo's member shell carries the shipped menu itself; the
-  // item names the theme a press leads to, in both themes.
+test.describe('the demo menus’ theme item (issue #63)', () => {
+  // Both demo menus mirror the shipped user menu (the layouts one
+  // through the shipped top bar): the item names the theme a press
+  // leads to, in both themes.
   for (const [theme, offered] of [
     ['light', 'Тёмная тема'],
     ['dark', 'Светлая тема'],
@@ -202,11 +202,15 @@ test.describe('the theme item of the shells (issue #63)', () => {
       await openDesign(page, { theme })
 
       await page.getByRole('button', { name: 'Меню', exact: true }).click()
-      await expect(page.getByRole('menuitem', { name: offered })).toBeVisible()
+      const item = page.getByRole('menuitem', { name: offered })
+      await expect(item).toBeVisible()
       await page.keyboard.press('Escape')
+      // The first popup must be gone before the second opens: both
+      // items share the accessible name.
+      await expect(item).toBeHidden()
 
       await page.getByRole('button', { name: 'Меню пользователя' }).click()
-      await expect(page.getByRole('menuitem', { name: offered })).toBeVisible()
+      await expect(item).toBeVisible()
     })
   }
 })

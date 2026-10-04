@@ -23,13 +23,22 @@ const html = readFileSync(resolve('index.html'), 'utf8')
 const page = new DOMParser().parseFromString(html, 'text/html')
 
 const prePaint = page.querySelector('script:not([src])')
-if (prePaint === null || prePaint.textContent === null) {
+if (prePaint === null || prePaint.textContent === null || prePaint.textContent.trim() === '') {
   throw new Error('index.html carries no inline pre-paint script')
 }
 const script = prePaint
 
 function runPrePaint() {
   new Function(script.textContent)()
+}
+
+// The mock answers the query it is asked, so an inverted or mistyped
+// `(prefers-color-scheme: …)` in the script fails the suite instead of
+// agreeing with a fixed truth.
+function systemScheme(scheme: 'light' | 'dark') {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query === `(prefers-color-scheme: ${scheme})` }) as MediaQueryList,
+  )
 }
 
 function seedMetas() {
@@ -64,6 +73,10 @@ afterEach(() => {
 })
 
 describe('the pre-paint theme colours', () => {
+  it('sit in exactly one inline script, the one these tests run', () => {
+    expect(page.querySelectorAll('script:not([src])')).toHaveLength(1)
+  })
+
   it('map each system scheme to its colour, in the metas that precede the script', () => {
     const metas = [...page.querySelectorAll('meta[name="theme-color"]')]
     expect(metas.map((meta) => [meta.getAttribute('media'), meta.getAttribute('content')])).toEqual(
@@ -72,18 +85,11 @@ describe('the pre-paint theme colours', () => {
         ['(prefers-color-scheme: dark)', THEME_COLOR.dark],
       ],
     )
-  })
-
-  it('carry THEME_COLOR.light into the manifest, which cannot follow a choice', () => {
-    const config = readFileSync(resolve('vite.config.ts'), 'utf8')
-    const rgb = THEME_COLOR.light.match(/rgb\((\d+) (\d+) (\d+)\)/)
-    if (rgb === null) throw new Error('THEME_COLOR.light is not an rgb() triplet')
-    const hex = `#${rgb
-      .slice(1)
-      .map((channel) => Number(channel).toString(16).padStart(2, '0'))
-      .join('')}`
-    expect(config).toContain(`theme_color: '${hex}'`)
-    expect(config).toContain(`background_color: '${hex}'`)
+    // The behavioural tests only seed what a real browser has parsed
+    // when the script runs; both metas have to precede it.
+    for (const meta of metas) {
+      expect(script.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    }
   })
 
   it('resolve a stored dark choice onto html and the chrome before paint', () => {
@@ -98,18 +104,18 @@ describe('the pre-paint theme colours', () => {
   })
 
   it('follow a light system scheme with no stored choice', () => {
+    systemScheme('light')
     seedMetas()
 
     runPrePaint()
 
-    // jsdom's matchMedia stub answers light (src/testing/setup.ts).
     expect(document.documentElement.dataset.theme).toBe('light')
     expect(chromeContents()).toEqual([THEME_COLOR.light, THEME_COLOR.light])
     chromeKeepsNoMediaKeys()
   })
 
   it('follow a dark system scheme with no stored choice', () => {
-    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+    systemScheme('dark')
     seedMetas()
 
     runPrePaint()
@@ -121,7 +127,7 @@ describe('the pre-paint theme colours', () => {
 
   it('let a stored light choice beat a dark system scheme', () => {
     window.localStorage.setItem('ohana.theme', 'light')
-    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+    systemScheme('dark')
     seedMetas()
 
     runPrePaint()
@@ -129,5 +135,44 @@ describe('the pre-paint theme colours', () => {
     expect(document.documentElement.dataset.theme).toBe('light')
     expect(chromeContents()).toEqual([THEME_COLOR.light, THEME_COLOR.light])
     chromeKeepsNoMediaKeys()
+  })
+
+  it('follow the system scheme on a stored «system» choice', () => {
+    window.localStorage.setItem('ohana.theme', 'system')
+    systemScheme('dark')
+    seedMetas()
+
+    runPrePaint()
+
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(chromeContents()).toEqual([THEME_COLOR.dark, THEME_COLOR.dark])
+    chromeKeepsNoMediaKeys()
+  })
+
+  it('treat an invalid stored value as no choice at all', () => {
+    window.localStorage.setItem('ohana.theme', 'garbage')
+    systemScheme('dark')
+    seedMetas()
+
+    runPrePaint()
+
+    // Not «garbage» on <html>: the value falls back to the system scheme.
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(chromeContents()).toEqual([THEME_COLOR.dark, THEME_COLOR.dark])
+    chromeKeepsNoMediaKeys()
+  })
+})
+
+describe('the manifest colours', () => {
+  it('carry THEME_COLOR.light, which the manifest cannot follow a choice with', () => {
+    const config = readFileSync(resolve('vite.config.ts'), 'utf8')
+    const rgb = THEME_COLOR.light.match(/rgb\((\d+) (\d+) (\d+)\)/)
+    if (rgb === null) throw new Error('THEME_COLOR.light is not an rgb() triplet')
+    const hex = `#${rgb
+      .slice(1)
+      .map((channel) => Number(channel).toString(16).padStart(2, '0'))
+      .join('')}`
+    expect(config).toContain(`theme_color: '${hex}'`)
+    expect(config).toContain(`background_color: '${hex}'`)
   })
 })
