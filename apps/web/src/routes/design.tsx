@@ -484,9 +484,12 @@ function OverlaysSection() {
               {t('designPreview.overlays.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              aria-label={resolved === 'dark' ? t('layout.theme.light') : t('layout.theme.dark')}
+            >
               {/* The demo menu mirrors the shipped one: the glyph and the
-                  switch-space wording follow the product's keys. */}
+                  accessible name name the theme it leads to, and the
+                  switch-space wording follows the product's key. */}
               <Icon name={resolved === 'dark' ? 'sun' : 'moon'} />
               {t('layout.theme.item')}
             </DropdownMenuItem>
@@ -1040,6 +1043,7 @@ function LayoutsSection() {
       id: 'theme',
       label: t('layout.theme.item'),
       icon: (resolved === 'dark' ? 'sun' : 'moon') as IconName,
+      ariaLabel: resolved === 'dark' ? t('layout.theme.light') : t('layout.theme.dark'),
       separatorBefore: true,
     },
     {

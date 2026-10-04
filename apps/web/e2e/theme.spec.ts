@@ -96,8 +96,20 @@ test.describe('theme toggle', () => {
     // The stored choice survives a reload; the toggle now offers light.
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    // The pre-paint script carried the choice into the browser chrome:
+    // index.html's media-keyed metas collapsed onto the dark colour.
+    const chrome = page.locator('meta[name="theme-color"]')
+    await expect(chrome).toHaveCount(2)
+    for (const meta of await chrome.all()) {
+      await expect(meta).toHaveAttribute('content', 'rgb(117 34 49)')
+      await expect(meta).not.toHaveAttribute('media')
+    }
+
     await page.getByRole('button', { name: 'Светлая тема' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    for (const meta of await chrome.all()) {
+      await expect(meta).toHaveAttribute('content', 'rgb(246 241 238)')
+    }
   })
 
   test('the user menu switches the theme in place and opens the accounts screen', async ({

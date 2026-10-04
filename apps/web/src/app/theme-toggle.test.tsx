@@ -1,7 +1,9 @@
-import { screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { renderWithProviders } from '@/testing/render.tsx'
+import { Icon, type IconName } from '@/ui/icon.tsx'
+import { THEME_COLOR } from './theme.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 
 /*
@@ -11,6 +13,10 @@ import { ThemeToggle } from './theme-toggle.tsx'
  * the theme in place, no reload and no lost session, persisting the
  * choice per device (app/theme.tsx).
  */
+
+// The markup of the real glyph, to compare against the button's content:
+// the glyph is the contract, and no test-only attribute carries it.
+const glyph = (name: IconName) => render(<Icon name={name} />).container.innerHTML
 
 afterEach(() => {
   window.localStorage.clear()
@@ -26,15 +32,16 @@ describe('ThemeToggle', () => {
     const user = userEvent.setup()
     renderWithProviders(<ThemeToggle />)
 
-    expect(screen.getByRole('button', { name: 'Тёмная тема' })).toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: 'Тёмная тема' })
+    expect(toggle.innerHTML).toBe(glyph('moon'))
     expect(document.documentElement.dataset.theme).toBe('light')
 
-    await user.click(screen.getByRole('button', { name: 'Тёмная тема' }))
+    await user.click(toggle)
 
     expect(document.documentElement.dataset.theme).toBe('dark')
     // The choice is stored per device, so the next visit opens dark.
     expect(window.localStorage.getItem('ohana.theme')).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Светлая тема' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Светлая тема' }).innerHTML).toBe(glyph('sun'))
   })
 
   it('opens on a stored choice and offers the way back', () => {
@@ -42,7 +49,7 @@ describe('ThemeToggle', () => {
     renderWithProviders(<ThemeToggle />)
 
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(screen.getByRole('button', { name: 'Светлая тема' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Светлая тема' }).innerHTML).toBe(glyph('sun'))
   })
 
   it('names the themes in English (en)', () => {
@@ -60,7 +67,7 @@ describe('ThemeToggle', () => {
       const meta = document.createElement('meta')
       meta.setAttribute('name', 'theme-color')
       meta.setAttribute('media', `(prefers-color-scheme: ${scheme})`)
-      meta.setAttribute('content', scheme === 'dark' ? 'rgb(117 34 49)' : 'rgb(246 241 238)')
+      meta.setAttribute('content', scheme === 'dark' ? THEME_COLOR.dark : THEME_COLOR.light)
       document.head.appendChild(meta)
     }
     renderWithProviders(<ThemeToggle />)
@@ -69,9 +76,11 @@ describe('ThemeToggle', () => {
 
     const metas = [...document.querySelectorAll('meta[name="theme-color"]')]
     expect(metas.map((meta) => meta.getAttribute('content'))).toEqual([
-      'rgb(117 34 49)',
-      'rgb(117 34 49)',
+      THEME_COLOR.dark,
+      THEME_COLOR.dark,
     ])
-    expect(metas[0]).not.toHaveAttribute('media')
+    for (const meta of metas) {
+      expect(meta).not.toHaveAttribute('media')
+    }
   })
 })
