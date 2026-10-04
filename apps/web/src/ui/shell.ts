@@ -37,5 +37,7 @@ export interface ShellUserMenuItem {
   label: string
   icon: IconName
   danger?: boolean
+  /** Draws the prototype's hairline above the item (the user menu's grouping, issue #63). */
+  separatorBefore?: boolean
   onSelect?: () => void
 }

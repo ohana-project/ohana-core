@@ -480,9 +480,14 @@ function OverlaysSection() {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
+              <Icon name="moon" />
+              {t('layout.theme.item')}
+            </DropdownMenuItem>
+            <DropdownMenuItem>
               <Icon name="repeat" />
               {t('designPreview.overlays.switchSpace')}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">
               <Icon name="log-out" />
               {t('designPreview.overlays.logout')}
@@ -1016,15 +1021,29 @@ function LayoutsSection() {
     ],
   }
 
+  // The demo menu mirrors the product's user menu (issue #63): the
+  // destinations, the prototype's theme and switch-space pair between
+  // hairlines, and the way out.
   const userMenuItems = [
     { id: 'profile', label: t('designPreview.overlays.profile'), icon: 'user' as IconName },
     { id: 'settings', label: t('designPreview.overlays.settings'), icon: 'settings' as IconName },
-    { id: 'switch', label: t('designPreview.overlays.switchSpace'), icon: 'repeat' as IconName },
+    {
+      id: 'theme',
+      label: t('layout.theme.item'),
+      icon: 'moon' as IconName,
+      separatorBefore: true,
+    },
+    {
+      id: 'switch',
+      label: t('designPreview.overlays.switchSpace'),
+      icon: 'repeat' as IconName,
+    },
     {
       id: 'logout',
       label: t('designPreview.overlays.logout'),
       icon: 'log-out' as IconName,
       danger: true,
+      separatorBefore: true,
     },
   ]
 

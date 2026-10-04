@@ -1,25 +1,32 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '@/app/theme.tsx'
 import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
 import type { ShellUserMenuItem } from '@/ui/shell.ts'
 import { toast } from '@/ui/toast.tsx'
 
 /*
  * The user menu every member-area shell carries (docs/design/README.md,
- * "Layout"): the members screen, the owner's space settings where the API
- * would accept them, the accounts screen, and sign-out. One builder for
- * the shells, so every screen reaches the others the way the home does.
+ * "Layout"; issue #63): the member's destinations, then the prototype's
+ * pair — «Тема», whose icon follows the current theme and whose press
+ * switches it without leaving the app, and «Сменить пространство», which
+ * opens the accounts screen until the Spaces sheet ticket lands — then
+ * the way out, with the prototype's hairlines between the three groups.
+ * One builder for the shells, so every screen reaches the others the way
+ * the home does.
  */
 export function useMemberUserMenu(): ShellUserMenuItem[] {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const session = useMemberSessionStatus()
   const signOut = useMemberSignOut()
+  const { resolved, setTheme } = useTheme()
 
   const build = useCallback((): ShellUserMenuItem[] => {
     const me = session.me
     if (me === undefined) return []
+    const dark = resolved === 'dark'
     return [
       {
         id: 'members',
@@ -46,9 +53,19 @@ export function useMemberUserMenu(): ShellUserMenuItem[] {
         onSelect: () => void navigate({ to: '/notifications' }),
       },
       {
-        id: 'accounts',
-        label: t('member.home.accounts'),
-        icon: 'users',
+        id: 'theme',
+        label: t('layout.theme.item'),
+        // The glyph shows the theme one tap away, like the prototype's
+        // «Тема» item: the moon in the light theme, the sun in the dark.
+        icon: dark ? 'sun' : 'moon',
+        separatorBefore: true,
+        onSelect: () => setTheme(dark ? 'light' : 'dark'),
+      },
+      // The Spaces sheet is another ticket; the accounts screen stands in.
+      {
+        id: 'switch-space',
+        label: t('layout.switchSpace'),
+        icon: 'repeat',
         onSelect: () => void navigate({ to: '/accounts' }),
       },
       {
@@ -56,6 +73,7 @@ export function useMemberUserMenu(): ShellUserMenuItem[] {
         label: t('member.home.signOut'),
         icon: 'log-out',
         danger: true,
+        separatorBefore: true,
         onSelect: () =>
           signOut.mutate(me.member.id, {
             // A failed sign-out keeps the member signed in; it must not look
@@ -64,7 +82,7 @@ export function useMemberUserMenu(): ShellUserMenuItem[] {
           }),
       },
     ]
-  }, [navigate, session.me, signOut, t])
+  }, [navigate, resolved, session.me, setTheme, signOut, t])
 
   // The menu is rebuilt per render like the screens that inline it; the
   // shells treat the items as plain props.

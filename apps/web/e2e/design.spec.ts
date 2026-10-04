@@ -257,6 +257,7 @@ test.describe('icon sizes (issue #55)', () => {
         [18, 18],
         [18, 18],
         [18, 18],
+        [18, 18],
       ])
     await page.keyboard.press('Escape')
   })

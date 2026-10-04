@@ -1,4 +1,5 @@
 import type * as React from 'react'
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
 
@@ -8,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu.tsx'
 import { Icon } from '@/ui/icon.tsx'
@@ -101,14 +103,16 @@ function UserMenu({ items }: { items: ShellUserMenuItem[] }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {items.map((item) => (
-          <DropdownMenuItem
-            key={item.id}
-            variant={item.danger ? 'destructive' : 'default'}
-            onClick={item.onSelect}
-          >
-            <Icon name={item.icon} />
-            {item.label}
-          </DropdownMenuItem>
+          <Fragment key={item.id}>
+            {item.separatorBefore && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              variant={item.danger ? 'destructive' : 'default'}
+              onClick={item.onSelect}
+            >
+              <Icon name={item.icon} />
+              {item.label}
+            </DropdownMenuItem>
+          </Fragment>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
