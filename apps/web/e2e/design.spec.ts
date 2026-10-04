@@ -21,6 +21,17 @@ async function openDesign(page: Page, options: { theme?: string; locale?: string
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
 }
 
+/**
+ * Stops every animation and transition, so the measured boxes are the
+ * static layout — the pending button's spinner would otherwise be
+ * caught mid-rotation, its bounding box grown by the transform.
+ */
+async function freezeMotion(page: Page) {
+  await page.addStyleTag({
+    content: '*, *::before, *::after { animation: none !important; transition: none !important }',
+  })
+}
+
 test.describe('themes and languages', () => {
   for (const theme of ['light', 'dark']) {
     for (const locale of ['ru', 'en'] as const) {
@@ -187,6 +198,7 @@ test.describe('icon sizes (issue #55)', () => {
   test('each context dictates its icon size at 1280px', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await openDesign(page)
+    await freezeMotion(page)
 
     const sizes = await page.evaluate(() => {
       const boxes = (selector: string) =>
@@ -226,6 +238,7 @@ test.describe('icon sizes (issue #55)', () => {
 
   test('menu items dictate 18px once a menu is open', async ({ page }) => {
     await openDesign(page)
+    await freezeMotion(page)
     await page.getByRole('button', { name: 'Меню', exact: true }).click()
     // the menu mounts in a portal after the click
     const items = page.getByRole('menuitem')
@@ -244,6 +257,7 @@ test.describe('icon sizes (issue #55)', () => {
   test('the tab bar keeps its 40×28 plate with a 24px glyph at 390px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page)
+    await freezeMotion(page)
 
     const measured = await page.evaluate(() => {
       const px = (value: string) => Number.parseFloat(value)
