@@ -109,6 +109,18 @@ describe('TopBar shell chrome (issue #62)', () => {
     expect(switcher?.className).not.toContain('size-11')
   })
 
+  it('the space switcher keeps the 44px round on an empty stack', () => {
+    // min-w-11 is the floor the negative margins cannot eat: without a
+    // monogram the button would otherwise collapse to its cancelled
+    // padding — a focusable nothing (review round three)
+    renderWithProviders(<TopBar title="Главная" space={{ ...SPACE, marks: [] }} />)
+
+    const switcher = document.querySelector('[data-slot="topbar-space"]')
+    expect(switcher).not.toBeNull()
+    expect(switcher?.className).toContain('min-w-11')
+    expect(switcher?.querySelector('[data-slot="avatar"]')).toBeNull()
+  })
+
   it('desktop-only actions mount into a slot hidden below 920px', () => {
     renderWithProviders(
       <TopBar

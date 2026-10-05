@@ -74,7 +74,10 @@ export function useMemberShell(): MemberShellData {
   const downloaded = snapshot.data?.revision !== undefined
   // The viewer's role is the probe's word — the same source the user
   // menu's settings entry gates on (use-user-menu.ts), so the line and
-  // the menu can never disagree about it.
+  // the menu answer "am I the owner" with one word. The stack's order
+  // and the screens' owner badges still read the snapshot, which may
+  // trail a demotion by a probe's staleness; the line is the quicker
+  // of the two to correct.
   const ownRole = me?.member.role
   const membersLabel = downloaded
     ? t('layout.spaceSub', {

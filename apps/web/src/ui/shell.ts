@@ -19,6 +19,7 @@ export interface SpaceSummary {
   name: string
   /** e.g. «4 участника · вы владелец», already translated. */
   membersLabel?: string
+  /** All active members in the stack's order; the displays cap the stack at two. */
   marks: MemberMark[]
 }
 
