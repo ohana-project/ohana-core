@@ -243,7 +243,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
                 disabled={reserveWish.isPending}
                 onClick={() => setConfirmReserveId(undefined)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 disabled={reserveWish.isPending}
@@ -274,7 +274,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
                 disabled={cancelReservation.isPending}
                 onClick={() => setConfirmCancelId(undefined)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"

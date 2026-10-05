@@ -459,7 +459,7 @@ function OwnerSections({
                 disabled={changeRole.isPending}
                 onClick={() => setConfirmRole(undefined)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button onClick={applyRole} disabled={changeRole.isPending}>
                 {dialog.confirm}
@@ -501,7 +501,7 @@ function OwnerSections({
                       setIssueError(undefined)
                     }}
                   >
-                    {t('ui.close')}
+                    {t('ui.cancel')}
                   </Button>
                   <Button
                     disabled={issueCode.isPending}
@@ -565,7 +565,7 @@ function OwnerSections({
                 disabled={revokeDevices.isPending}
                 onClick={() => setConfirmDisconnect(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -617,7 +617,7 @@ function OwnerSections({
                 disabled={archiveMember.isPending}
                 onClick={() => setConfirmArchive(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -665,7 +665,7 @@ function OwnerSections({
                 disabled={revokeCode.isPending}
                 onClick={() => setConfirmRevoke(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -801,7 +801,7 @@ function ArchivedOwnerSections({
                 disabled={issueCode.isPending}
                 onClick={() => setConfirmRestore(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button
                 disabled={issueCode.isPending}

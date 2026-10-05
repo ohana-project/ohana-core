@@ -210,7 +210,7 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
                 disabled={trash.isPending}
                 onClick={() => setConfirmTrash(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button variant="destructive" disabled={trash.isPending} onClick={removeEntry}>
                 {t('journal.trashConfirmLabel')}

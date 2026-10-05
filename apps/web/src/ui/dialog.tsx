@@ -2,16 +2,13 @@
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import type * as React from 'react'
-import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
-
-import { Button } from '@/ui/button'
-import { Icon } from '@/ui/icon.tsx'
 
 /*
  * Ohana dialog (docs/design/README.md, "Components"): 440px on the
- * glass recipe, rising 14px from 98% scale. Behaviour (focus trap,
- * Esc) is Base UI's; only the appearance is ours.
+ * glass recipe, rising 14px from 98% scale. No close X, like the
+ * prototypes — Esc and the scrim close it, and Base UI traps focus.
+ * A screen that needs an explicit dismiss renders DialogClose itself.
  */
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -43,15 +40,7 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
   )
 }
 
-function DialogContent({
-  className,
-  children,
-  showCloseButton = true,
-  ...props
-}: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean
-}) {
-  const { t } = useTranslation()
+function DialogContent({ className, children, ...props }: DialogPrimitive.Popup.Props) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -64,15 +53,6 @@ function DialogContent({
         {...props}
       >
         {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={<Button variant="ghost" size="icon" className="absolute top-3 right-3" />}
-          >
-            <Icon name="x" className="size-[18px]" />
-            <span className="sr-only">{t('ui.close')}</span>
-          </DialogPrimitive.Close>
-        )}
       </DialogPrimitive.Popup>
     </DialogPortal>
   )
@@ -84,11 +64,24 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
+/*
+ * The prototype's confirm row (OHANA_CONFIRM): buttons side by side at
+ * every width, each grown to an equal width, 10px apart, 18px below
+ * the text — the content grid adds 16px, this footer adds 2. A single
+ * button grows to the full width, like the prototype's form sheets.
+ * min-w-0 drops each button's content floor, so the pair stays exactly
+ * equal however long the labels are: a multi-word label wraps, and a
+ * single long word runs into its own button's padding but stays inside
+ * it down to the 360px floor (measured; e2e pins both cases).
+ */
 function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn('flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end', className)}
+      className={cn(
+        'mt-0.5 flex gap-2.5 [&>*]:min-w-0 [&>*]:flex-1 [&>*]:whitespace-normal',
+        className,
+      )}
       {...props}
     >
       {children}

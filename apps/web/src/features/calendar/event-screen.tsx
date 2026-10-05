@@ -219,8 +219,8 @@ export function EventScreen({
             <DialogDescription>{t('calendar.deleteConfirmText')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirming(false)}>
-              {t('calendar.cancel')}
+            <Button variant="secondary" onClick={() => setConfirming(false)}>
+              {t('ui.cancel')}
             </Button>
             <Button variant="destructive" disabled={removeEvent.isPending} onClick={onDeleteSeries}>
               {removeEvent.isPending ? <Spinner /> : <Icon name="trash" />}
@@ -312,8 +312,11 @@ function ScopeDialog({
           </Button>
         </div>
         <DialogFooter>
+          {/* the prototype's scope dialog keeps a ghost cancel under the
+              two options (event.html) — only OHANA_CONFIRM rows use a
+              secondary cancel */}
           <Button variant="ghost" onClick={onClose}>
-            {t('calendar.cancel')}
+            {t('ui.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>

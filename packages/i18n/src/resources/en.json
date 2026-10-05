@@ -30,6 +30,7 @@
   },
   "ui": {
     "close": "Close",
+    "cancel": "Cancel",
     "loading": "Loading…",
     "copy": "Copy",
     "copied": "Copied",
@@ -733,7 +734,6 @@
       "dialog": "Dialog",
       "dialogTitle": "Delete the entry?",
       "dialogText": "«Поход к Чёртову креслу» will move to the trash. You can restore it within 30 days.",
-      "cancel": "Keep it",
       "confirmDelete": "Delete",
       "sheet": "Sheet",
       "sheetTitle": "Люда's birthday",
@@ -749,7 +749,13 @@
       "newestFirst": "Newest first",
       "oldestFirst": "Oldest first",
       "withPhotos": "Only with photos",
-      "order": "Order"
+      "order": "Order",
+      "done": "Done",
+      "popoverText": "A quick action beside the button",
+      "dialogLong": "Long-action dialog",
+      "dialogOwnerTitle": "Make Дима the owner?",
+      "dialogOwnerText": "Дима will be able to invite members, hide sections, and archive people.",
+      "makeOwner": "Make owner"
     },
     "badges": {
       "primary": "Up to date",
@@ -828,7 +834,6 @@
       "notePlainLead": "Share the code in person",
       "notePlainRest": " — a group chat can be read by strangers. The code burns after the first sign-in. Re-issuing cancels the old code and creates a new one.",
       "actionBarToggle": "Action bar in the shell demo",
-      "barCancel": "Cancel",
       "barSave": "Save",
       "actionBarInLayouts": "The action bar is shown in the member shell demo below."
     },

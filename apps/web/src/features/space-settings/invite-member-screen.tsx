@@ -215,7 +215,7 @@ export function InviteMemberScreen() {
                   disabled={issueCode.isPending}
                   onClick={() => setRerollOpen(false)}
                 >
-                  {t('ui.close')}
+                  {t('ui.cancel')}
                 </Button>
                 <Button onClick={() => issue(provisioned.memberId)} disabled={issueCode.isPending}>
                   {t('space.invite.rerollConfirm')}

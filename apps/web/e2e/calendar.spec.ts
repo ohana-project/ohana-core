@@ -416,7 +416,9 @@ test.describe('a repeating series', () => {
     const sheet = page.getByRole('dialog', { name: '5 октября' })
     await expect(sheet).toBeVisible()
     await expect(sheet.getByText('В этот день событий нет')).toBeVisible()
-    await sheet.getByRole('button', { name: 'Закрыть' }).click()
+    // the day sheet has no close X (issue #59): Escape dismisses it
+    await page.keyboard.press('Escape')
+    await expect(sheet).toBeHidden()
     await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
     await expect(
       page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка'),
@@ -505,10 +507,8 @@ test.describe('a repeating series, one occurrence edited', () => {
     await expect(
       page.getByRole('dialog', { name: '19 октября' }).getByText('Утренняя зарядка'),
     ).toBeVisible()
-    await page
-      .getByRole('dialog', { name: '19 октября' })
-      .getByRole('button', { name: 'Закрыть' })
-      .click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: '19 октября' })).toBeHidden()
     await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
     await expect(
       page.getByRole('dialog', { name: '12 октября' }).getByText('Зарядка у Димы'),

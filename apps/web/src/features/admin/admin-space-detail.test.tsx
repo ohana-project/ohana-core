@@ -148,8 +148,9 @@ describe('AdminSpaceDetail', () => {
     await user.click(screen.getByRole('button', { name: 'Добавить' }))
 
     // The in-flight request owns the sheet: dismissing it is refused, so
-    // the draft and the fields stay exactly as they were.
-    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    // the draft and the fields stay exactly as they were. The sheet has
+    // no close X (issue #59) — Escape is the dismissal it refuses.
+    await user.keyboard('{Escape}')
     expect(screen.getByLabelText('Имя')).toHaveValue('Миша')
 
     settle?.()
@@ -164,7 +165,7 @@ describe('AdminSpaceDetail', () => {
     await screen.findByText('Аня')
     await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
     await user.type(screen.getByLabelText('Имя'), 'Черновик')
-    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Добавить участника' }))
 
     expect(screen.getByLabelText('Имя')).toHaveValue('')
@@ -180,7 +181,7 @@ describe('AdminSpaceDetail', () => {
     const nameInput = await screen.findByLabelText('Название')
     await user.clear(nameInput)
     await user.type(nameInput, 'Брошенное имя')
-    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.keyboard('{Escape}')
     await user.click(screen.getByRole('button', { name: 'Настройки' }))
 
     expect(await screen.findByLabelText('Название')).toHaveValue('Наша семья')
@@ -272,15 +273,11 @@ describe('AdminSpaceDetail', () => {
     const dialog = within(await screen.findByRole('dialog'))
     await user.click(dialog.getByRole('button', { name: 'Сделать владельцем' }))
 
-    // The in-flight request owns the dialog: Escape and both close buttons
-    // are refused until it settles.
+    // The in-flight request owns the dialog: Escape and the footer's
+    // cancel button are refused until it settles.
     await user.keyboard('{Escape}')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    const footerClose = dialog
-      .getAllByRole('button', { name: 'Закрыть' })
-      .find((button) => button.getAttribute('data-slot') === 'button')
-    if (footerClose === undefined) throw new Error('The dialog has no footer close button')
-    await user.click(footerClose)
+    await user.click(dialog.getByRole('button', { name: 'Отмена' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     settle?.()

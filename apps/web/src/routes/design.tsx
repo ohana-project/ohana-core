@@ -428,13 +428,31 @@ function OverlaysSection() {
               <DialogTitle>{t('designPreview.overlays.dialogTitle')}</DialogTitle>
               <DialogDescription>{t('designPreview.overlays.dialogText')}</DialogDescription>
             </DialogHeader>
+            {/* the prototype's confirm row: equal buttons, cancel on
+                the left (issue #59) */}
             <DialogFooter>
-              <DialogClose render={<Button variant="secondary" />}>
-                {t('designPreview.overlays.cancel')}
-              </DialogClose>
+              <DialogClose render={<Button variant="secondary" />}>{t('ui.cancel')}</DialogClose>
               <DialogClose render={<Button variant="destructive" />}>
                 {t('designPreview.overlays.confirmDelete')}
               </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* the long-label case (issue #59): the row keeps both buttons
+            exactly equal and the long action wraps */}
+        <Dialog>
+          <DialogTrigger
+            render={<Button variant="secondary">{t('designPreview.overlays.dialogLong')}</Button>}
+          />
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('designPreview.overlays.dialogOwnerTitle')}</DialogTitle>
+              <DialogDescription>{t('designPreview.overlays.dialogOwnerText')}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose render={<Button variant="secondary" />}>{t('ui.cancel')}</DialogClose>
+              <DialogClose render={<Button />}>{t('designPreview.overlays.makeOwner')}</DialogClose>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -449,8 +467,8 @@ function OverlaysSection() {
               <SheetDescription>{t('designPreview.overlays.sheetText')}</SheetDescription>
             </SheetHeader>
             <SheetFooter>
-              <SheetClose render={<Button variant="primary" />}>
-                {t('designPreview.overlays.cancel')}
+              <SheetClose render={<Button size="lg" />}>
+                {t('designPreview.overlays.done')}
               </SheetClose>
             </SheetFooter>
           </SheetContent>
@@ -466,9 +484,7 @@ function OverlaysSection() {
               <DrawerDescription>{t('designPreview.overlays.sheetText')}</DrawerDescription>
             </DrawerHeader>
             <DrawerFooter>
-              <DrawerClose render={<Button variant="secondary" />}>
-                {t('designPreview.overlays.cancel')}
-              </DrawerClose>
+              <DrawerClose render={<Button variant="secondary" />}>{t('ui.cancel')}</DrawerClose>
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
@@ -477,8 +493,9 @@ function OverlaysSection() {
           <PopoverTrigger
             render={<Button variant="secondary">{t('designPreview.overlays.popover')}</Button>}
           />
-          <PopoverContent className="w-64">
-            <p className="text-sm">{t('designPreview.lists.cardText')}</p>
+          {/* as wide as its content, never below 208px (issue #59) */}
+          <PopoverContent>
+            <p className="text-sm">{t('designPreview.overlays.popoverText')}</p>
           </PopoverContent>
         </Popover>
 
@@ -1209,7 +1226,7 @@ function LayoutsSection() {
                 reserves the bar's bottom space while it is up */
             <ActionBar>
               <Button variant="secondary" className="min-w-0 flex-1">
-                {t('designPreview.pieces.barCancel')}
+                {t('ui.cancel')}
               </Button>
               <Button className="min-w-0 flex-1">{t('designPreview.pieces.barSave')}</Button>
             </ActionBar>

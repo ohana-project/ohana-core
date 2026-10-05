@@ -359,7 +359,7 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
                 disabled={remove.isPending}
                 onClick={() => setConfirmRemove(false)}
               >
-                {t('ui.close')}
+                {t('ui.cancel')}
               </Button>
               <Button variant="destructive" disabled={remove.isPending} onClick={removeWish}>
                 {t('wishlist.removeConfirmLabel')}
