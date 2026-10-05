@@ -29,8 +29,9 @@ export interface TopBarProps {
   actions?: React.ReactNode
   /**
    * The screen's desktop-only actions (the prototype's `d-only`): they
-   * mount into the bar from 920px up and render nothing below, where the
-   * screen's FAB or action bar carries them instead (issue #62).
+   * stand in the bar from 920px up and are not displayed below it — the
+   * subtree stays mounted, so an action must not carry side effects that
+   * only a phone's FAB should run (issue #62).
    */
   desktopActions?: React.ReactNode
   back?: React.ReactNode
@@ -78,7 +79,7 @@ export function TopBar({
       >
         <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (
-            <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
+            <Avatar key={mark.id} size="sm" hue={mark.hue}>
               {mark.initials}
             </Avatar>
           ))}
@@ -101,8 +102,9 @@ export function TopBar({
       <span className="min-w-0 flex-1" />
       {actions}
       {desktopActions && (
-        // the prototype's .d-only: no display below 920px, the actions
-        // as direct flex items above (display: contents)
+        // the prototype's .d-only: not displayed below 920px, the
+        // actions as direct flex items above (display: contents) — the
+        // subtree stays mounted, only its box goes
         <span data-slot="topbar-actions-desktop" className="hidden desktop:contents">
           {desktopActions}
         </span>

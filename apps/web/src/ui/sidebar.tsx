@@ -50,7 +50,7 @@ export function Sidebar({
       >
         <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (
-            <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
+            <Avatar key={mark.id} size="sm" hue={mark.hue}>
               {mark.initials}
             </Avatar>
           ))}

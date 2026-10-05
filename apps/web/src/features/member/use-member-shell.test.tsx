@@ -30,10 +30,10 @@ const DIMA = '01900000-0000-7000-8000-000000000002'
 const MISHA = '01900000-0000-7000-8000-000000000003'
 const LUDA = '01900000-0000-7000-8000-000000000004'
 
-function meResponse(role: 'owner' | 'regular') {
+function meResponse(role: 'owner' | 'regular', memberId = ANYA) {
   return {
     member: {
-      id: ANYA,
+      id: memberId,
       name: 'Аня',
       displayName: 'Аня Смирнова',
       role,
@@ -44,11 +44,11 @@ function meResponse(role: 'owner' | 'regular') {
   }
 }
 
-function mockMe(role: 'owner' | 'regular' = 'owner') {
+function mockMe(role: 'owner' | 'regular' = 'owner', memberId = ANYA) {
   vi.mocked(api.GET).mockImplementation(async (path: never) => {
     if (path === '/api/v1/me') {
       return {
-        data: meResponse(role),
+        data: meResponse(role, memberId),
         error: undefined,
         response: new Response(null, { status: 200 }),
       }
@@ -92,14 +92,20 @@ function syncResultWith(members: SyncResult['changes'][number][]): SyncResult {
   }
 }
 
-function member(id: string, name: string, role: 'owner' | 'regular', archivedAt?: string) {
+function member(
+  id: string,
+  name: string,
+  role: 'owner' | 'regular',
+  createdAt = '2026-08-12T10:00:00.000Z',
+  archivedAt?: string,
+) {
   return {
     entity: 'member' as const,
     member: {
       id,
       name,
       role,
-      createdAt: '2026-08-12T10:00:00.000Z',
+      createdAt,
       ...(archivedAt ? { archivedAt } : {}),
     },
   }
@@ -147,7 +153,7 @@ describe('useMemberShell', () => {
         member(ANYA, 'Аня', 'owner'),
         member(DIMA, 'Дима', 'regular'),
         member(MISHA, 'Миша', 'regular'),
-        member(LUDA, 'Люда', 'regular', '2026-09-01T10:00:00.000Z'),
+        member(LUDA, 'Люда', 'regular', '2026-08-12T10:00:00.000Z', '2026-09-01T10:00:00.000Z'),
       ]),
     )
     renderWithProviders(<Probe />)
@@ -164,7 +170,7 @@ describe('useMemberShell', () => {
       ANYA,
       syncResultWith([
         member(ANYA, 'Аня', 'owner'),
-        member(DIMA, 'Дима', 'regular', '2026-09-01T10:00:00.000Z'),
+        member(DIMA, 'Дима', 'regular', '2026-08-12T10:00:00.000Z', '2026-09-01T10:00:00.000Z'),
         member(MISHA, 'Миша', 'regular'),
       ]),
     )
@@ -174,12 +180,49 @@ describe('useMemberShell', () => {
     expect(screen.getByTestId('label')).toHaveTextContent('2 участника · вы владелец')
   })
 
+  it('the owner leads the stack even with the highest id and the latest creation', async () => {
+    // The store reads rows in key order; the builder, not the storage,
+    // decides the order — the owner first, whatever the ids say.
+    const anyaLast = '01900000-0000-7000-8000-0000000000a9'
+    seedRegistry(anyaLast)
+    mockMe('owner', anyaLast)
+    await applySyncResult(
+      anyaLast,
+      syncResultWith([
+        member(MISHA, 'Миша', 'regular', '2026-08-12T10:00:00.000Z'),
+        member(anyaLast, 'Аня', 'owner', '2026-09-01T10:00:00.000Z'),
+      ]),
+    )
+    renderWithProviders(<Probe />)
+
+    await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АМ'))
+  })
+
+  it('two regular members ride the stack by creation, not by id order', async () => {
+    seedRegistry()
+    mockMe('owner')
+    await applySyncResult(
+      ANYA,
+      syncResultWith([
+        member(ANYA, 'Аня', 'owner'),
+        // Миша's id sorts after Дима's, his creation does not.
+        member(MISHA, 'Миша', 'regular', '2026-08-14T10:00:00.000Z'),
+        member(DIMA, 'Дима', 'regular', '2026-09-01T10:00:00.000Z'),
+      ]),
+    )
+    renderWithProviders(<Probe />)
+
+    await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АМ'))
+  })
+
   it('a regular member’s count line carries no owner note', async () => {
+    // The partition's row for the viewer agrees with the probe: the role
+    // the line names is the one the count's own snapshot carries.
     seedRegistry()
     mockMe('regular')
     await applySyncResult(
       ANYA,
-      syncResultWith([member(ANYA, 'Аня', 'owner'), member(DIMA, 'Дима', 'regular')]),
+      syncResultWith([member(ANYA, 'Аня', 'regular'), member(DIMA, 'Дима', 'regular')]),
     )
     renderWithProviders(<Probe />)
 

@@ -7,8 +7,10 @@ import type { SyncStatusProps } from '@/ui/sync-status.tsx'
  * stay pure presentations of this shape.
  */
 
-/** A member monogram: initials plus the warm avatar hue. */
+/** A member monogram: the member's id plus initials on the warm avatar hue. */
 export interface MemberMark {
+  /** The member's id; the stack keys on it, not on the initials. */
+  id: string
   initials: string
   hue: number
 }

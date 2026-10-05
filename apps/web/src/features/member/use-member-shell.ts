@@ -49,12 +49,19 @@ export function useMemberShell(): MemberShellData {
     .filter((profile) => profile.archivedAt === undefined)
     .sort((a, b) => {
       if ((a.role === 'owner') !== (b.role === 'owner')) return a.role === 'owner' ? -1 : 1
+      // ISO timestamps and UUIDs order by code unit; a locale collation
+      // would only add a table lookup between equal forms.
       return a.createdAt === b.createdAt
-        ? a.id.localeCompare(b.id)
-        : a.createdAt.localeCompare(b.createdAt)
+        ? a.id < b.id
+          ? -1
+          : 1
+        : a.createdAt < b.createdAt
+          ? -1
+          : 1
     })
   const marked = activeMembers.length > 0 ? activeMembers : me ? [me.member] : []
   const marks = marked.slice(0, 2).map((profile) => ({
+    id: profile.id,
     initials: monogramOf(profile.displayName ?? profile.name),
     hue: hueFromId(profile.id),
   }))
@@ -63,9 +70,14 @@ export function useMemberShell(): MemberShellData {
   // never synced knows only the viewer, and a made-up count would be a
   // lie — the line waits, like the home's empty sections do (ADR-0002).
   const downloaded = snapshot.data?.revision !== undefined
-  const owner = me?.member.role === 'owner'
+  // The role comes from the same snapshot the count does: a probe with a
+  // stale role beside a fresh count would split one fact in two.
+  const ownRole = me === undefined ? undefined : activeMembers.find((p) => p.id === me.member.id)?.role ?? me.member.role
   const membersLabel = downloaded
-    ? t('layout.spaceSub', { count: activeMembers.length, role: owner ? 'owner' : 'regular' })
+    ? t('layout.spaceSub', {
+        count: activeMembers.length,
+        role: ownRole === 'owner' ? 'owner' : 'regular',
+      })
     : undefined
 
   return {

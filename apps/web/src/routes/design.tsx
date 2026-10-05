@@ -1095,10 +1095,10 @@ function LayoutsSection() {
     name: t('designPreview.demo.spaceNameShort'),
     membersLabel: t('designPreview.demo.membersLabel'),
     marks: [
-      { initials: 'А', hue: HUES.anya },
-      { initials: 'Д', hue: HUES.dima },
-      { initials: 'М', hue: HUES.misha },
-      { initials: 'Л', hue: HUES.luda },
+      { id: 'anya', initials: 'А', hue: HUES.anya },
+      { id: 'dima', initials: 'Д', hue: HUES.dima },
+      { id: 'misha', initials: 'М', hue: HUES.misha },
+      { id: 'luda', initials: 'Л', hue: HUES.luda },
     ],
   }
 

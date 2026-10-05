@@ -460,6 +460,35 @@ test.describe('the wishlist', () => {
   })
 })
 
+test.describe('the shell of the wishlist area (issue #62)', () => {
+  test('on a phone the back arrow leads from the favorites screen to the overview', async ({
+    page,
+  }) => {
+    await mockWishlistApi(page)
+    // the back arrow is the prototype's .m-only: below 920px it is the
+    // way back — the sidebar is hidden there
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.getByRole('button', { name: 'Вишлисты' }).first().click()
+    await expect(page).toHaveURL(/\/wishlist$/)
+    // the overview answers from the partition; the rows follow the sync
+    await expect(page.getByText('Дима')).toBeVisible()
+
+    await page.getByRole('link').filter({ hasText: 'Избранные идеи' }).click()
+    await expect(page).toHaveURL(/\/wishlist\/favorites$/)
+    // the arrow rides the top bar; the sidebar it stands in for is not
+    // displayed at this width
+    await expect(page.locator('[data-slot="sidebar"]')).toBeHidden()
+    await expect(page.getByRole('link', { name: 'Назад' })).toBeVisible()
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/wishlist$/)
+  })
+})
+
 test.describe('the gift favorites and reservations (issue #19)', () => {
   test('a wish is favorited from the heart, listed on the favorites screen, and taken back', async ({
     page,

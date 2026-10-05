@@ -16,8 +16,8 @@ const SPACE = {
   name: 'Наша семья',
   membersLabel: '4 участника · вы владелец',
   marks: [
-    { initials: 'А', hue: 60 },
-    { initials: 'Д', hue: 145 },
+    { id: 'anya', initials: 'А', hue: 60 },
+    { id: 'dima', initials: 'Д', hue: 145 },
   ],
 }
 

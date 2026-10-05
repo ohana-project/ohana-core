@@ -27,8 +27,9 @@ export interface MemberLayoutProps {
   actions?: React.ReactNode
   /**
    * The screen's desktop-only top-bar actions (issue #62): from 920px up
-   * they mount into the top bar, below it they render nothing — the
-   * screen's FAB or action bar carries the same action on a phone.
+   * they stand in the top bar, below it they are not displayed — the
+   * subtree stays mounted, and the screen's FAB or action bar carries
+   * the same action on a phone.
    */
   desktopActions?: React.ReactNode
   back?: React.ReactNode
