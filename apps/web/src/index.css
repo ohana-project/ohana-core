@@ -147,12 +147,12 @@
  * The mobile action bar (issue #61) and the toast viewport share the
  * bottom of a phone screen; a screen that mounts the bar lifts the
  * toasts above it by the bar's `--action-bar-h` floor and the
- * safe-area inset, the same measure the member layout reserves. The
- * viewport reads the
- * lift through its own bottom offset (which carries a 0px fallback);
- * on desktop it sits at its bottom-6 and the variable is out of the
- * picture. The media query restates the one layout breakpoint — media
- * queries cannot read custom properties.
+ * safe-area inset, landing on the same offset the member layout
+ * reserves. The viewport reads the lift through its own bottom offset
+ * (which carries a 0px fallback); on desktop it sits at its bottom-6
+ * and the variable is out of the picture. The media query restates
+ * the one layout breakpoint — media queries cannot read custom
+ * properties.
  */
 @media (width < 57.5rem) {
   html:has([data-slot="action-bar"]) {

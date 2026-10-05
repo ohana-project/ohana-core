@@ -657,14 +657,19 @@ test.describe('shared pieces (issue #61)', () => {
     // the pill sits flush with the toast viewport's bottom edge, so the
     // 144px offset just asserted is the pill's own distance from the
     // page bottom — 16px over the tab bar reserve plus --action-bar-h
-    // (14px over the demo's 66px row)
-    const pill = viewport.locator('> *').last()
+    // (on a real screen 14px over a 66px default-button row; this
+    // demo's bar lives inside the transformed demo box, so the test
+    // does not compare the two)
+    const pill = viewport.locator('[data-slot="toast"]')
     await expect(pill).toBeVisible()
     await expect
-      .poll(async () => {
-        const [p, v] = await Promise.all([pill.boundingBox(), viewport.boundingBox()])
-        return p && v ? Math.abs(p.y + p.height - (v.y + v.height)) : null
-      })
+      .poll(
+        async () => {
+          const [p, v] = await Promise.all([pill.boundingBox(), viewport.boundingBox()])
+          return p && v ? Math.abs(p.y + p.height - (v.y + v.height)) : Number.POSITIVE_INFINITY
+        },
+        { message: 'the pill stays flush with the toast viewport while the toast is up' },
+      )
       .toBeLessThanOrEqual(1)
     await page.locator('#layouts').getByRole('switch').click()
     // bar unmounted: the plain tab-bar-plus-gap offset returns

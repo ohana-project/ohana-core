@@ -54,6 +54,7 @@ function ToastList() {
         return (
           <ToastPrimitive.Root
             key={item.id}
+            data-slot="toast"
             toast={item}
             swipeDirection={tone === 'danger' ? ['down', 'right'] : 'down'}
             className={cn(
