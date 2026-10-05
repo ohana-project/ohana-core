@@ -90,6 +90,7 @@
     "spaces": {
       "title": "Spaces",
       "count": "{count, plural, one {# space} other {# spaces}}",
+      "trashRetention": "trash kept for {count, plural, one {# day} other {# days}}",
       "new": "New space",
       "newTitle": "New space",
       "newDescription": "Members and access codes are added inside the space",
@@ -841,6 +842,8 @@
       "member": "Member: tab bar below 920px, sidebar above",
       "admin": "Admin: a calm top bar and a 960px column",
       "auth": "Sign-in: a centred 420px column",
+      "adminBack": "Admin: a space’s bar — «‹ Spaces» instead of the lockup",
+      "authBrand": "Sign-in: the frame without the logo — the screen brings its own brand row",
       "demoNote": "The «Наша семья» demo world: Аня (owner), Дима, Миша and бабушка Люда.",
       "adminHeading": "Spaces",
       "adminText": "The server hosts two spaces. Members and codes come with tickets #8 and #12.",

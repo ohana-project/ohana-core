@@ -1269,6 +1269,17 @@ function LayoutsSection() {
         </AdminLayout>
       </div>
 
+      {/* The bar's back-link variant (issue #79): «‹ Пространства» in
+          place of the lockup, as a space's screen carries it. */}
+      <p className="text-sm text-muted-foreground">{t('designPreview.layouts.adminBack')}</p>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <AdminLayout back>
+          <p className="pt-2 text-body text-muted-foreground">
+            {t('designPreview.layouts.adminText')}
+          </p>
+        </AdminLayout>
+      </div>
+
       <h3 className="text-h3">{t('designPreview.layouts.auth')}</h3>
       <div className="overflow-hidden rounded-lg border border-border">
         <AuthFrame footer={t('designPreview.layouts.demoNote')}>
@@ -1276,6 +1287,18 @@ function LayoutsSection() {
             <h3 className="text-h2 text-center">{t('designPreview.layouts.authHeading')}</h3>
             <p className="text-sm text-muted-foreground">{t('designPreview.layouts.authText')}</p>
             <AccessCodeInput aria-label={t('designPreview.inputs.code')} />
+            <Button size="lg">{t('designPreview.layouts.authAction')}</Button>
+          </div>
+        </AuthFrame>
+      </div>
+
+      {/* The frame's brand-row variant (issue #79): no centred lockup —
+          the screen brings its own logo row, as the admin sign-in does. */}
+      <p className="text-sm text-muted-foreground">{t('designPreview.layouts.authBrand')}</p>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <AuthFrame footer={t('designPreview.layouts.demoNote')} logo={false}>
+          <div className="flex flex-col gap-4">
+            <h3 className="text-h2 text-center">{t('designPreview.layouts.authHeading')}</h3>
             <Button size="lg">{t('designPreview.layouts.authAction')}</Button>
           </div>
         </AuthFrame>

@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { type FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -104,14 +103,6 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        to="/admin"
-        className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-      >
-        <Icon name="chevron-left" className="size-4" />
-        {t('admin.space.back')}
-      </Link>
-
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3.5">
           <Avatar size="lg" hue={hueFromId(current.id)}>

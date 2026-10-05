@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAdminSettings } from '@/features/admin/use-admin-settings.ts'
 import {
   type AdminSpace,
   adminSpaceErrorMessage,
@@ -45,18 +46,28 @@ import { toast } from '@/ui/toast.tsx'
 export function AdminSpacesList() {
   const { t, i18n } = useTranslation()
   const spaces = useAdminSpaces()
+  const settings = useAdminSettings()
   const [createOpen, setCreateOpen] = useState(false)
 
   const dateFormatter = new Intl.DateTimeFormat(i18n.language, { day: 'numeric', month: 'long' })
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+      {/* The prototype's `row-between`: title and action share one row,
+          centred, 20px above the list (the header's own margin). The
+          title block flexes down to the title itself, so the subtitle
+          narrows first and the action wraps beneath at phone widths,
+          where the prototype's own row would overflow its viewport
+          (README, known defects). */}
+      <header className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex-1">
           <h1 className="text-display-lg">{t('admin.spaces.title')}</h1>
           {spaces.data !== undefined ? (
             <p className="mt-1 text-sm text-muted-foreground">
               {t('admin.spaces.count', { count: spaces.data.length })}
+              {settings.data !== undefined
+                ? ` · ${t('admin.spaces.trashRetention', { count: settings.data.trashRetentionDays })}`
+                : null}
             </p>
           ) : null}
         </div>
@@ -73,17 +84,17 @@ export function AdminSpacesList() {
       ) : spaces.isError ? (
         <ErrorState onRetry={() => void spaces.refetch()} />
       ) : spaces.data.length === 0 ? (
-        <Card>
-          <Empty>
-            <EmptyMedia>
-              <Icon name="users" />
-            </EmptyMedia>
-            <EmptyTitle>{t('admin.spaces.emptyTitle')}</EmptyTitle>
-            <EmptyDescription>{t('admin.spaces.emptyText')}</EmptyDescription>
-          </Empty>
-        </Card>
+        // The empty state stands on its own, no card around it (README
+        // "Implementation"); the plate carries the 28px icon.
+        <Empty>
+          <EmptyMedia>
+            <Icon name="users" />
+          </EmptyMedia>
+          <EmptyTitle>{t('admin.spaces.emptyTitle')}</EmptyTitle>
+          <EmptyDescription>{t('admin.spaces.emptyText')}</EmptyDescription>
+        </Empty>
       ) : (
-        <Card className="py-0">
+        <Card variant="list">
           <ItemGroup>
             {spaces.data.map((space) => (
               <SpaceRow key={space.id} space={space} dateFormatter={dateFormatter} />
@@ -111,8 +122,11 @@ function SpaceRow({
   const { t } = useTranslation()
   const isEmpty = space.memberCount === 0
   return (
-    <Item size="lg" render={<Link to="/admin/spaces/$spaceId" params={{ spaceId: space.id }} />}>
-      <Avatar size="sm" hue={hueFromId(space.id)}>
+    // The prototype's 68px row (`min-height: 68px`) with the space's own
+    // 40px monogram (README: the avatar stack of the prototype becomes
+    // the space's monogram here) and the 18px trailing chevron.
+    <Item size="xl" render={<Link to="/admin/spaces/$spaceId" params={{ spaceId: space.id }} />}>
+      <Avatar hue={hueFromId(space.id)}>
         <AvatarFallback>{monogramOf(space.name)}</AvatarFallback>
       </Avatar>
       <ItemContent>
