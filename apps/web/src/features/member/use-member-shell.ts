@@ -72,7 +72,10 @@ export function useMemberShell(): MemberShellData {
   const downloaded = snapshot.data?.revision !== undefined
   // The role comes from the same snapshot the count does: a probe with a
   // stale role beside a fresh count would split one fact in two.
-  const ownRole = me === undefined ? undefined : activeMembers.find((p) => p.id === me.member.id)?.role ?? me.member.role
+  const ownRole =
+    me === undefined
+      ? undefined
+      : (activeMembers.find((p) => p.id === me.member.id)?.role ?? me.member.role)
   const membersLabel = downloaded
     ? t('layout.spaceSub', {
         count: activeMembers.length,
