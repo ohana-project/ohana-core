@@ -72,7 +72,9 @@ export function TopBar({
         onClick={onSpaceClick}
         className="-mx-1.5 grid h-11 w-auto shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
       >
-        <AvatarStack className="-ml-1">
+        // no outer margin on the stack: the button's own -6px margins do
+        // the prototype's `margin: 0 -6px` work
+        <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (
             <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
               {mark.initials}
