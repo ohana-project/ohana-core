@@ -50,16 +50,22 @@ function okBody(body: unknown) {
 // header's trash retention, issue #79).
 function mockRoutes({
   spaces = SPACES,
-  settings = { trashRetentionDays: 30 },
+  settings,
 }: {
   spaces?: typeof SPACES
-  settings?: { trashRetentionDays: number } | undefined
+  /** Null simulates the settings query failing: the header keeps the count. */
+  settings?: { trashRetentionDays: number } | null
 } = {}) {
   apiGet.mockImplementation(async (path: never) => {
     if (path === '/api/v1/admin/settings') {
-      return settings === undefined
-        ? { data: undefined, error: undefined, response: new Response(null, { status: 204 }) }
-        : okBody(settings)
+      if (settings === null) {
+        return {
+          data: undefined,
+          error: { error: { code: 'unexpected', message: 'no settings' } },
+          response: new Response(null, { status: 500 }),
+        }
+      }
+      return okBody(settings ?? { trashRetentionDays: 30 })
     }
     if (path === '/api/v1/spaces') return okBody(spaces)
     throw new Error(`Unexpected GET ${String(path)}`)
@@ -96,6 +102,14 @@ describe('AdminSpacesList', () => {
     renderWithProviders(<AdminSpacesList />)
 
     expect(await screen.findByText('Пространств пока нет')).toBeInTheDocument()
+  })
+
+  it('keeps the count alone when the settings query fails', async () => {
+    mockRoutes({ settings: null })
+    renderWithProviders(<AdminSpacesList />)
+
+    expect(await screen.findByText('2 пространства')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Наша семья/ })).toBeInTheDocument()
   })
 
   it('centres the header’s title and action on one row', async () => {

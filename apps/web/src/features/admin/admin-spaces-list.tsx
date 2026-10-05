@@ -54,9 +54,10 @@ export function AdminSpacesList() {
   return (
     <div className="flex flex-col gap-4">
       {/* The prototype's `row-between`: title and action share one row,
-          centred, 20px above the list (the header's own margin). No wrap —
-          the subtitle narrows and wraps, the action keeps its place. */}
-      <header className="mb-1 flex items-center justify-between gap-3">
+          centred, 20px above the list (the header's own margin). The row
+          holds from 380px up — below it the action wraps rather than
+          scrolling the page (no horizontal scroll from 360px). */}
+      <header className="mb-1 flex flex-wrap items-center justify-between gap-3 min-[380px]:flex-nowrap">
         <div>
           <h1 className="text-display-lg">{t('admin.spaces.title')}</h1>
           {spaces.data !== undefined ? (

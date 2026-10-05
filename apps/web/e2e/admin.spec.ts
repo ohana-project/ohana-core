@@ -66,6 +66,14 @@ async function mockAdminApi(page: Page, options: { signedIn?: boolean } = {}) {
       body: JSON.stringify([]),
     })
   })
+  // The spaces header's trash-retention line reads the settings.
+  await page.route('**/api/v1/admin/settings', async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ trashRetentionDays: 30 }),
+    }),
+  )
 }
 
 test.describe('administrative sign-in', () => {

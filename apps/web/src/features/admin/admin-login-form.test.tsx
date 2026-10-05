@@ -35,7 +35,7 @@ describe('AdminLoginForm', () => {
     expect(row).toHaveClass('flex', 'items-center', 'gap-3')
     // The lockup shares the row, like the prototype's `admin-login-brand`.
     expect(row).toHaveTextContent('Ohana')
-    expect(row).toHaveClass('mb-[26px]')
+    expect(row).toHaveClass('mb-6.5')
   })
 
   it('keeps the prototype’s 6px and 22px rhythm under the brand row', () => {
@@ -46,7 +46,7 @@ describe('AdminLoginForm', () => {
       screen.getByText(
         'Отдельный вход для того, кто хостит Ohana. Пространства семьи — через код на главном экране.',
       ),
-    ).toHaveClass('mb-[22px]')
+    ).toHaveClass('mb-5.5')
   })
 
   it('submits through the prototype’s large 52px button with 16.5px text', () => {

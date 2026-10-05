@@ -273,6 +273,19 @@ test.describe('administrative space screen', () => {
     ).toBeVisible()
   })
 
+  test('returns to the list through the bar’s back link (ru)', async ({ page }) => {
+    await mockAdminApi(page)
+    await page.goto('/admin')
+    await page.getByRole('link', { name: /Наша семья/ }).click()
+
+    // The back link lives in the bar now (issue #79) — the only way back.
+    await expect(page.getByRole('heading', { name: 'Наша семья' })).toBeVisible()
+    await page.getByRole('link', { name: 'Пространства' }).click()
+
+    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
+  })
+
   test('provisions a member through the sheet (ru)', async ({ page }) => {
     const model = await mockAdminApi(page)
     await page.goto('/admin')

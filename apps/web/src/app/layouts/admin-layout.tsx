@@ -33,7 +33,7 @@ export function AdminLayout({
           back ? (
             <Link
               to="/admin"
-              className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground"
+              className="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-muted-foreground transition-colors duration-(--t-fast) ease-(--ease) hover:text-foreground"
             >
               <Icon name="chevron-left" size={18} />
               {t('admin.space.back')}

@@ -40,12 +40,12 @@ export function AdminLoginForm({ onSignedIn }: { onSignedIn?: () => void }) {
     <div>
       {/* The prototype's `admin-login-brand` row: the lockup and the
           «АДМИНКА» pill on one row, 26px above the title. */}
-      <div className="mb-[26px] flex items-center gap-3">
+      <div className="mb-6.5 flex items-center gap-3">
         <Logo />
         <Badge variant="neutral">{t('admin.pill')}</Badge>
       </div>
       <h1 className="mb-1.5 text-display-lg">{t('admin.login.title')}</h1>
-      <p className="mb-[22px] text-body text-muted-foreground">{t('admin.login.description')}</p>
+      <p className="mb-5.5 text-body text-muted-foreground">{t('admin.login.description')}</p>
       <form onSubmit={submit} className="flex flex-col gap-3.5" noValidate>
         <Field data-invalid={invalid || undefined}>
           <FieldLabel htmlFor="admin-password">{t('admin.login.passwordLabel')}</FieldLabel>
