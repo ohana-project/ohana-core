@@ -16,6 +16,9 @@ function OnboardingPage() {
 
   return (
     <AuthLayout
+      columnWidth={460}
+      // The onboarding prototype has no logo: the space meta line leads.
+      logo={false}
       footer={
         session.me === undefined
           ? undefined

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminLayout } from '@/app/layouts/admin-layout.tsx'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
@@ -72,6 +72,7 @@ import {
 import { NoteBlock } from '@/ui/note-block.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
+import { Radio, RadioGroup } from '@/ui/radio-group.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
 import {
   Sheet,
@@ -647,6 +648,25 @@ function ControlsSection() {
           <ToggleGroupItem value="month">{t('designPreview.controls.tabOne')}</ToggleGroupItem>
           <ToggleGroupItem value="list">{t('designPreview.controls.tabTwo')}</ToggleGroupItem>
         </ToggleGroup>
+
+        {/* the radio group of the onboarding screen's language cards */}
+        <RadioGroup
+          defaultValue="ru"
+          name="preview-language"
+          aria-label={t('designPreview.controls.radio')}
+          className="w-fit flex-col gap-2"
+        >
+          {(['ru', 'en'] as const).map((locale) => (
+            <Fragment key={locale}>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: the Base UI
+                  radio inside renders the native input this label controls */}
+              <label className="flex cursor-pointer items-center gap-2.5 text-body select-none">
+                <Radio value={locale} />
+                {t(`language.${locale}`)}
+              </label>
+            </Fragment>
+          ))}
+        </RadioGroup>
 
         <Toggle aria-pressed={reminders} onPressedChange={setReminders}>
           {t('designPreview.controls.tabTwo')}

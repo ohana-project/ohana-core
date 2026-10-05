@@ -13,6 +13,15 @@ import { SignInScreen } from './signin-screen.tsx'
  * one through navigator and matchMedia.
  */
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: (props: { to: string; children?: React.ReactNode; 'aria-label'?: string }) => (
+    <a href={props.to} aria-label={props['aria-label']}>
+      {props.children}
+    </a>
+  ),
+  useNavigate: () => async () => {},
+}))
+
 interface DeviceOptions {
   userAgent?: string
   platform?: string
@@ -100,6 +109,26 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
+describe('SignInScreen code entry', () => {
+  it('links back to the accounts screen when the device retains a sign-in', () => {
+    window.localStorage.setItem(
+      'ohana.sessions',
+      JSON.stringify([{ memberId: 'm-1', spaceId: 's-1', spaceName: 'Наша семья', name: 'Аня' }]),
+    )
+    renderWithProviders(<SignInScreen onSignedIn={() => {}} />)
+
+    expect(screen.getByRole('link', { name: 'Назад' })).toHaveAttribute('href', '/accounts')
+    // The heading keeps the display size on every sign-in screen.
+    expect(screen.getByRole('heading', { name: 'Код входа' })).toHaveClass('text-display')
+  })
+
+  it('offers no way back when the device has no sign-in', () => {
+    renderWithProviders(<SignInScreen onSignedIn={() => {}} />)
+
+    expect(screen.queryByRole('link', { name: 'Назад' })).not.toBeInTheDocument()
+  })
+})
+
 describe('SignInScreen install gate', () => {
   it('asks an iPhone in Safari to install before showing the code', () => {
     const restore = mockDevice(IPHONE_SAFARI)
@@ -109,8 +138,30 @@ describe('SignInScreen install gate', () => {
       expect(
         screen.getByRole('heading', { name: 'Установите Ohana на экран «Домой»' }),
       ).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { name: 'Установите Ohana на экран «Домой»' }),
+      ).toHaveClass('text-display')
+      expect(screen.getByText('Safari · Chrome')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Продолжить в браузере' })).toBeInTheDocument()
       expect(screen.queryByLabelText('Код входа')).not.toBeInTheDocument()
+    } finally {
+      restore()
+    }
+  })
+
+  it('renders the install steps as 52px rows with mono muted numbers', () => {
+    const restore = mockDevice(IPHONE_SAFARI)
+    try {
+      renderWithProviders(<SignInScreen onSignedIn={() => {}} />)
+
+      const titles = ['Откройте Ohana в Safari', '«На экран “Домой”»', 'Нажмите «Добавить»']
+      for (const [index, title] of titles.entries()) {
+        const number = screen.getByText(String(index + 1))
+        expect(number).toHaveClass('font-mono', 'text-muted-foreground')
+        const row = number.closest('li')
+        expect(row).toHaveClass('min-h-[52px]')
+        expect(row).toHaveTextContent(title)
+      }
     } finally {
       restore()
     }

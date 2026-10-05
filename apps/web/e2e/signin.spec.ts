@@ -197,10 +197,11 @@ test.describe('member sign-in by access code', () => {
     await expect(page).toHaveURL(/\/onboarding$/)
     await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
 
-    // Onboarding collects the optional profile and the interface language.
+    // Onboarding collects the optional profile and the interface language
+    // (the cards come preselected; «Русский» stays).
     await page.getByLabel('Имя').fill('Аня Смирнова')
     await page.getByLabel('Эл. почта').fill('anya@example.com')
-    await page.getByRole('button', { name: 'Русский' }).click()
+    await expect(page.getByRole('radio', { name: 'Русский' })).toBeChecked()
     await page.getByRole('button', { name: 'Продолжить' }).click()
 
     // The space home greets the member by their display name and offers

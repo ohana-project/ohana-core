@@ -37,6 +37,48 @@ describe('OnboardingForm', () => {
     expect(screen.getByRole('button', { name: 'Продолжить' })).toBeInTheDocument()
   })
 
+  it('leads with the space meta line above the display heading', () => {
+    renderWithOnboardingForm()
+
+    const meta = screen.getByText('Пространство «Наша семья» · Шаг 2 из 2')
+    expect(meta).toHaveClass('font-mono', 'text-meta', 'uppercase')
+    const heading = screen.getByRole('heading', { name: 'Как вас назовут в семье?' })
+    expect(heading).toHaveClass('text-display')
+    expect(meta.nextElementSibling).toBe(heading)
+  })
+
+  it('shows the reference placeholders', () => {
+    renderWithOnboardingForm()
+
+    expect(screen.getByLabelText('Имя')).toHaveAttribute('placeholder', 'Например: Аня')
+    expect(screen.getByLabelText('Эл. почта')).toHaveAttribute('placeholder', 'anechka@mail.ru')
+    expect(screen.getByLabelText('Телефон')).toHaveAttribute('placeholder', '+7 900 000-00-00')
+  })
+
+  it('hints under the contacts with a lock', () => {
+    renderWithOnboardingForm()
+
+    const hint = screen.getByText('Необязательно. Видны только вашей семье — и никому больше.')
+    expect(hint).toHaveClass('text-meta')
+    expect(hint.querySelector('svg')).not.toBeNull()
+  })
+
+  it('picks the language from two full-width choice cards with Russian preselected', () => {
+    renderWithOnboardingForm()
+
+    const group = screen.getByRole('radiogroup', { name: 'Язык интерфейса' })
+    const russian = screen.getByRole('radio', { name: 'Русский' })
+    const english = screen.getByRole('radio', { name: 'English' })
+    expect(russian).toBeChecked()
+    expect(english).not.toBeChecked()
+    expect(group).toContainElement(russian)
+    // The card around each radio is a 56px choice card with a globe.
+    const card = russian.closest('label')
+    expect(card).toHaveClass('min-h-14')
+    expect(card).toHaveTextContent('Русский')
+    expect(card?.querySelector('svg')).not.toBeNull()
+  })
+
   it('submits the optional profile and finishes onboarding', async () => {
     apiPost.mockResolvedValue({
       data: { ...ME, needsOnboarding: false },
@@ -56,7 +98,7 @@ describe('OnboardingForm', () => {
     await user.type(screen.getByLabelText('Имя'), 'Аня Смирнова')
     await user.type(screen.getByLabelText('Эл. почта'), 'anya@example.com')
     await user.type(screen.getByLabelText('Телефон'), '+7 900 000-00-00')
-    await user.click(screen.getByRole('button', { name: 'Русский' }))
+    await user.click(screen.getByRole('radio', { name: 'Русский' }))
     await user.click(screen.getByRole('button', { name: 'Продолжить' }))
 
     expect(apiPost).toHaveBeenCalledWith(
@@ -75,7 +117,7 @@ describe('OnboardingForm', () => {
     expect(sessions[0]).toMatchObject({ memberId: 'm-1', displayName: 'Аня Смирнова' })
   })
 
-  it('submits an empty profile as an all-optional onboarding', async () => {
+  it('submits an empty profile as an all-optional onboarding, language included', async () => {
     apiPost.mockResolvedValue({
       data: { ...ME, needsOnboarding: false },
       error: undefined,
@@ -94,7 +136,7 @@ describe('OnboardingForm', () => {
           displayName: undefined,
           email: undefined,
           phone: undefined,
-          interfaceLanguage: undefined,
+          interfaceLanguage: 'ru',
         },
       }),
     )

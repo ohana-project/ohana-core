@@ -38,6 +38,34 @@ describe('CodeEntryForm', () => {
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument()
   })
 
+  it('centres the header: the 32-character lead under the display heading, 18px below the logo', () => {
+    renderWithCodeEntryForm()
+
+    const heading = screen.getByRole('heading', { name: 'Код входа' })
+    expect(heading).toHaveClass('text-display')
+    const header = heading.parentElement
+    expect(header).toHaveClass('text-center', 'mb-7')
+    expect(screen.getByText('Ohana').parentElement).toHaveClass('justify-center', 'mb-4.5')
+    expect(
+      screen.getByText('Введите код — его выдаёт владелец пространства и показывает один раз.'),
+    ).toHaveClass('mx-auto', 'max-w-[32ch]')
+  })
+
+  it('mounts extra affordances between the header and the form', () => {
+    renderWithProviders(
+      <CodeEntryForm onSignedIn={() => {}}>
+        <button type="button">Предложение установки</button>
+      </CodeEntryForm>,
+    )
+
+    const offer = screen.getByRole('button', { name: 'Предложение установки' })
+    const header = screen.getByRole('heading', { name: 'Код входа' }).parentElement
+    const form = screen.getByRole('button', { name: 'Войти' }).closest('form')
+    // The offer follows the header and precedes the form.
+    expect(header?.contains(offer)).toBe(false)
+    expect(offer.nextElementSibling).toBe(form)
+  })
+
   it('asks for the code before calling the API when the field is short', async () => {
     const user = userEvent.setup()
     renderWithCodeEntryForm()
