@@ -47,7 +47,11 @@ function meResponse(role: 'owner' | 'regular') {
 function mockMe(role: 'owner' | 'regular' = 'owner') {
   vi.mocked(api.GET).mockImplementation(async (path: never) => {
     if (path === '/api/v1/me') {
-      return { data: meResponse(role), error: undefined, response: new Response(null, { status: 200 }) }
+      return {
+        data: meResponse(role),
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
     }
     throw new Error(`Unexpected GET ${String(path)}`)
   })
@@ -204,7 +208,9 @@ describe('useMemberShell', () => {
     )
     renderWithProviders(<Probe />)
 
-    expect(await screen.findByTestId('sections')).toHaveTextContent('home,journal,calendar,wishlist')
+    expect(await screen.findByTestId('sections')).toHaveTextContent(
+      'home,journal,calendar,wishlist',
+    )
     // The engine has not run under the probe: no chip yet — the state is
     // the layout's to render, the pass-through is the screens' tests'.
     expect(screen.getByTestId('sync')).toHaveTextContent('none')

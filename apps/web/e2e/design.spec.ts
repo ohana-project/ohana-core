@@ -1323,14 +1323,17 @@ test.describe('the member shell matches the prototype (issue #62)', () => {
     await page.setViewportSize({ width: 1280, height: 900 })
     // from 920px up the hairline takes the border token (.topbar's media
     // query), which the dark and light themes both define
-    await expect(bar).toHaveCSS('border-bottom-color', await page.evaluate(() => {
-      const probe = document.createElement('span')
-      probe.style.borderColor = 'var(--border)'
-      document.body.append(probe)
-      const colour = getComputedStyle(probe).borderTopColor
-      probe.remove()
-      return colour
-    }))
+    await expect(bar).toHaveCSS(
+      'border-bottom-color',
+      await page.evaluate(() => {
+        const probe = document.createElement('span')
+        probe.style.borderColor = 'var(--border)'
+        document.body.append(probe)
+        const colour = getComputedStyle(probe).borderTopColor
+        probe.remove()
+        return colour
+      }),
+    )
   })
 
   test('the tab bar keeps the glass recipe’s top hairline', async ({ page }) => {

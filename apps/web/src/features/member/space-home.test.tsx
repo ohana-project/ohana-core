@@ -298,7 +298,12 @@ describe('SpaceHomeScreen', () => {
         { entity: 'member', member: me.member },
         {
           entity: 'member',
-          member: { id: dimaId, name: 'Дима', role: 'regular', createdAt: '2026-08-14T10:00:00.000Z' },
+          member: {
+            id: dimaId,
+            name: 'Дима',
+            role: 'regular',
+            createdAt: '2026-08-14T10:00:00.000Z',
+          },
         },
       ],
       tombstones: [],
@@ -330,15 +335,15 @@ describe('SpaceHomeScreen', () => {
     expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
 
     const topbar = container.querySelector('[data-slot="topbar"]')
-    expect(topbar).not.toBeNull()
-    expect(topbar?.textContent).toContain('Наша семья')
-    const switcher = topbar?.querySelector('[data-slot="topbar-space"]')
-    expect(switcher).not.toBeNull()
+    if (topbar === null) throw new Error('The member shell never rendered its top bar')
+    expect(topbar.textContent).toContain('Наша семья')
+    const switcher = topbar.querySelector('[data-slot="topbar-space"]')
+    if (switcher === null) throw new Error('The top bar never rendered its space switcher')
     // The partition read lands a beat after the greeting; the stack grows
     // from the viewer's stand-in to the space's first two members, the
     // owner leading, like the prototype's shell.
     await vi.waitFor(() => {
-      const monograms = [...switcher!.querySelectorAll('[data-slot="avatar"]')].map(
+      const monograms = [...switcher.querySelectorAll('[data-slot="avatar"]')].map(
         (avatar) => avatar.textContent,
       )
       expect(monograms).toEqual(['А', 'Д'])

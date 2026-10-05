@@ -6,12 +6,7 @@ import { useSyncStatus } from '@/features/member/use-sync-status.ts'
 import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
 import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
-import type {
-  ShellSection,
-  ShellSyncState,
-  ShellUserMenuItem,
-  SpaceSummary,
-} from '@/ui/shell.ts'
+import type { ShellSection, ShellSyncState, ShellUserMenuItem, SpaceSummary } from '@/ui/shell.ts'
 
 /*
  * One place builds the member shell's data (issue #62): the space with

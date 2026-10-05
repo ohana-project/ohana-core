@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { renderWithProviders } from '@/testing/render.tsx'
 import { ShellBackLink } from '@/features/member/shell-back-link.tsx'
+import { renderWithProviders } from '@/testing/render.tsx'
 
 /*
  * The shell's back arrow (docs/design/screens/home.html, ohana.js):
