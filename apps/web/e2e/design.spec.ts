@@ -600,9 +600,10 @@ test.describe('shared pieces (issue #61)', () => {
     // the difference. The floor itself is pinned by the class assertion
     // in action-bar.test.tsx.
     expect(geometry?.barHeight).toBe(66)
-    // the bar's lowest 3px tuck under the tab bar's glass — the 64px
-    // reserve is 3px less than the rendered 67px bar — so the two sit
-    // flush, and the tab bar, later in the shell, paints over the tuck
+    // the action bar's lowest 3px tuck under the tab bar's glass — the
+    // 64px --tabbar-h offset is 3px less than the rendered 67px tab
+    // bar — so the two sit flush, and the tab bar, later in the shell,
+    // paints over the tuck
     expect(geometry?.tuck).toBeGreaterThanOrEqual(2)
     expect(geometry?.tuck).toBeLessThanOrEqual(4)
     // the bar's buttons are never covered by the tab bar
@@ -630,7 +631,7 @@ test.describe('shared pieces (issue #61)', () => {
     const main = demoShell(page).locator('main')
     const paddingBottom = () => main.evaluate((el) => getComputedStyle(el).paddingBottom)
     // the bar is mounted by default: tab bar (64) + safe area (0 in
-    // the test browser) + the bar's 64px + a 16px gap
+    // the test browser) + the bar's --action-bar-h (64px) + a 16px gap
     expect(await paddingBottom()).toBe('144px')
     await page.locator('#layouts').getByRole('switch').click()
     // unmounted: the ordinary tab bar reserve returns
@@ -643,15 +644,30 @@ test.describe('shared pieces (issue #61)', () => {
     const viewport = page.locator('[data-slot="toast-viewport"]')
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page, { locale: 'en' })
+    await freezeMotion(page)
     // fire a real toast first, so the run exercises the actual
     // pipeline; what the assertions pin is the viewport's bottom
-    // offset (the pill renders flush with the viewport's bottom edge,
-    // and the element stays mounted with its offset after the toast
-    // hides)
+    // offset — the pill renders flush with the viewport's bottom
+    // edge, which the geometry read below proves while the toast is
+    // up — and the element stays mounted with its offset after the
+    // toast hides
     await page.locator('#feedback').getByRole('button', { name: 'OK', exact: true }).click()
     // bar mounted by default: the reserve's own measure — tab bar (64)
-    // + safe area (0) + the bar's 64px, over the 16px gap
+    // + safe area (0) + the bar's --action-bar-h (64px), over the gap
     await expect(viewport).toHaveCSS('bottom', '144px')
+    // the pill sits flush with the viewport's bottom edge, so its
+    // clearance above the bar really is the 144px just asserted
+    const flush = await page.evaluate(() => {
+      const el = document.querySelector('[data-slot="toast-viewport"]')
+      const pill = el?.firstElementChild
+      if (!el || !pill) return null
+      return {
+        pillBottom: pill.getBoundingClientRect().bottom,
+        viewportBottom: el.getBoundingClientRect().bottom,
+      }
+    })
+    expect(flush, 'the toast is showing').not.toBeNull()
+    expect(Math.abs((flush?.pillBottom ?? 0) - (flush?.viewportBottom ?? 0))).toBeLessThanOrEqual(1)
     await page.locator('#layouts').getByRole('switch').click()
     // bar unmounted: the plain tab-bar-plus-gap offset returns
     await expect(viewport).toHaveCSS('bottom', '80px')

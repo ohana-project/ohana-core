@@ -1107,7 +1107,8 @@ function LayoutsSection() {
           bar is still real to `html:has`, so while it is up the app's
           own toast viewport lifts above it — what a screen mounting the
           bar gets. The switch is on by default, so at phone width the
-          page's toasts sit 64px higher than on a screen without a bar */}
+          page's toasts sit higher by the bar's --action-bar-h (plus the
+          safe-area inset) than on a screen without a bar */}
       <div className="overflow-hidden rounded-lg border border-border [transform:translateZ(0)]">
         <MemberLayout
           space={space}
