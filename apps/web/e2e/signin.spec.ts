@@ -209,7 +209,9 @@ test.describe('member sign-in by access code', () => {
     await expect(
       page.getByRole('heading', { name: /Добр(ое утро|ый день|ый вечер), Аня Смирнова/ }),
     ).toBeVisible()
-    await expect(page.getByText('Наша семья')).toBeVisible()
+    // the space name stands twice by design: the sidebar's switcher and
+    // the home's top-bar title, which is the space name since issue #62
+    await expect(page.getByText('Наша семья').first()).toBeVisible()
     await expect(page.getByRole('navigation', { name: 'Разделы' })).toBeVisible()
     for (const section of ['Главная', 'Дневник', 'Календарь', 'Вишлисты']) {
       await expect(page.getByRole('button', { name: section }).first()).toBeVisible()

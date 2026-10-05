@@ -440,7 +440,9 @@ test.describe('the wishlist', () => {
     await expect(page.getByText('Кожаный ремень')).toHaveCount(0)
 
     // The own wishlist's removal stands behind its confirm.
-    await page.getByRole('link', { name: 'Назад' }).click()
+    // the back arrow is mobile-only since issue #62; at the desktop
+    // viewport the sidebar's section leads back, like the prototype
+    await page.getByRole('button', { name: 'Вишлисты' }).click()
     await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
     await page.getByRole('button', { name: 'Добавить желание' }).first().click()
     await page.getByLabel('Название').fill('Билеты на стендап, 2 шт')
@@ -478,7 +480,9 @@ test.describe('the gift favorites and reservations (issue #19)', () => {
 
     // The favorites screen lists the bookmark with the wishlist it came
     // from, and the removal stands right beside it.
-    await page.getByRole('link', { name: 'Назад' }).click()
+    // the back arrow is mobile-only since issue #62; at the desktop
+    // viewport the sidebar's section leads back, like the prototype
+    await page.getByRole('button', { name: 'Вишлисты' }).click()
     await page.getByRole('link').filter({ hasText: 'Избранные идеи' }).click()
     await expect(page).toHaveURL(/\/wishlist\/favorites$/)
     await expect(page.getByText('Налобный фонарь Petzl Actik Core')).toBeVisible()
