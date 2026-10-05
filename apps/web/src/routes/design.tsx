@@ -6,6 +6,7 @@ import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { type ThemeChoice, useTheme } from '@/app/theme.tsx'
 import { LanguageSwitcher } from '@/features/language/language-switcher.tsx'
 import { AccessCodeInput } from '@/ui/access-code-input.tsx'
+import { ActionBar } from '@/ui/action-bar.tsx'
 import { AuthFrame } from '@/ui/auth-frame.tsx'
 import { Avatar } from '@/ui/avatar.tsx'
 import { AvatarStack } from '@/ui/avatar-stack.tsx'
@@ -68,6 +69,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
+import { NoteBlock } from '@/ui/note-block.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
@@ -143,6 +145,7 @@ function DesignPreview() {
         <ControlsSection />
         <FeedbackSection />
         <ListsSection />
+        <PiecesSection />
         <LayoutsSection />
       </div>
     </TooltipProvider>
@@ -309,6 +312,11 @@ function ButtonsSection() {
         <Button variant="ghost">{t('designPreview.buttons.ghost')}</Button>
         <Button variant="destructive">{t('designPreview.buttons.destructive')}</Button>
         <Button variant="link">{t('designPreview.buttons.link')}</Button>
+        {/* a small link stays an sm button (.btn-sm follows .btn-link) —
+            the app's update banner ships that combination */}
+        <Button variant="link" size="sm">
+          {t('designPreview.buttons.linkSm')}
+        </Button>
         <Button disabled>{t('designPreview.buttons.disabled')}</Button>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -321,6 +329,10 @@ function ButtonsSection() {
           {t('designPreview.lists.cardLink')}
         </Button>
         <Button size="icon" variant="secondary" aria-label={t('designPreview.buttons.icon')}>
+          <Icon name="search" />
+        </Button>
+        {/* the 36px round icon button (.btn-icon.btn-sm, issue #60) */}
+        <Button size="icon-sm" variant="secondary" aria-label={t('designPreview.buttons.iconSm')}>
           <Icon name="search" />
         </Button>
         <Button size="icon" variant="ghost" aria-label={t('designPreview.buttons.icon')}>
@@ -1005,6 +1017,45 @@ function ListsSection() {
   )
 }
 
+/* ── shared pieces (issue #61) ──────────────────────────────────── */
+
+function PiecesSection() {
+  const { t } = useTranslation()
+
+  return (
+    <PreviewSection id="pieces" title={t('designPreview.sections.pieces')}>
+      <div className="grid gap-8 desktop:grid-cols-2">
+        {/* the Home form: title, text and the accent link */}
+        <div className="flex flex-col gap-3">
+          <NoteBlock icon="gift">
+            <p className="font-semibold text-foreground">{t('designPreview.pieces.noteTitle')}</p>
+            <p className="mt-0.5 text-muted-foreground">{t('designPreview.pieces.noteText')}</p>
+            <a
+              href="#pieces"
+              className="mt-2 inline-flex font-medium text-primary underline-offset-3 hover:underline"
+            >
+              {t('designPreview.pieces.noteLink')}
+            </a>
+          </NoteBlock>
+          <p className="text-sm text-muted-foreground">{t('designPreview.pieces.noteHint')}</p>
+        </div>
+        {/* the invite form: one rich paragraph after the icon */}
+        <div className="flex flex-col gap-3">
+          <NoteBlock icon="shield">
+            <p>
+              <b>{t('designPreview.pieces.notePlainLead')}</b>
+              {t('designPreview.pieces.notePlainRest')}
+            </p>
+          </NoteBlock>
+          <p className="text-sm text-muted-foreground">
+            {t('designPreview.pieces.actionBarInLayouts')}
+          </p>
+        </div>
+      </div>
+    </PreviewSection>
+  )
+}
+
 /* ── shells ─────────────────────────────────────────────────────── */
 
 function LayoutsSection() {
@@ -1012,6 +1063,7 @@ function LayoutsSection() {
   const { resolved } = useTheme()
   const [activeId, setActiveId] = useState('home')
   const [sectionCount, setSectionCount] = useState(4)
+  const [withActionBar, setWithActionBar] = useState(true)
   const date = demoDate(i18n.language)
 
   const sections: { id: string; label: string; icon: IconName }[] = [
@@ -1079,9 +1131,25 @@ function LayoutsSection() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        {/* the switch renders a button, so a wrapping label would not
+            activate it — the text is its visible caption, and the
+            accessible name is that same text (WCAG 2.5.3) */}
+        <span className="flex items-center gap-3 text-sm font-medium">
+          <Switch
+            checked={withActionBar}
+            onCheckedChange={setWithActionBar}
+            aria-label={t('designPreview.pieces.actionBarToggle')}
+          />
+          {t('designPreview.pieces.actionBarToggle')}
+        </span>
       </div>
       {/* the transform turns the demo box into the containing block for the
-          fixed tab bar and FAB, so they stay inside the demo */}
+          fixed tab bar and FAB, so they stay inside the demo. The demo
+          bar is still real to `html:has`, so while it is up the app's
+          own toast viewport lifts above it — what a screen mounting the
+          bar gets. The switch is on by default, so at phone width the
+          page's toasts sit higher by the bar's --action-bar-h (plus the
+          safe-area inset) than on a screen without a bar */}
       <div className="overflow-hidden rounded-lg border border-border [transform:translateZ(0)]">
         <MemberLayout
           space={space}
@@ -1135,6 +1203,17 @@ function LayoutsSection() {
               </CardContent>
             </Card>
           </div>
+          {withActionBar && (
+            /* a screen's main actions ride the shared action bar
+                (issue #61); mounted as part of the screen, the layout
+                reserves the bar's bottom space while it is up */
+            <ActionBar>
+              <Button variant="secondary" className="min-w-0 flex-1">
+                {t('designPreview.pieces.barCancel')}
+              </Button>
+              <Button className="min-w-0 flex-1">{t('designPreview.pieces.barSave')}</Button>
+            </ActionBar>
+          )}
         </MemberLayout>
       </div>
 
@@ -1185,10 +1264,15 @@ function LayoutsSection() {
         </AuthFrame>
       </div>
 
-      <Fab
-        aria-label={t('designPreview.feedback.emptyAction')}
-        onClick={() => toast(t('designPreview.feedback.toastOk'))}
-      />
+      {/* the FAB demo floats over the page; the screens that mount the
+          action bar never carry a FAB, so the demo hides it while the
+          bar is up instead of letting the two overlap */}
+      {!withActionBar && (
+        <Fab
+          aria-label={t('designPreview.feedback.emptyAction')}
+          onClick={() => toast(t('designPreview.feedback.toastOk'))}
+        />
+      )}
     </PreviewSection>
   )
 }
