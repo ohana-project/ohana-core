@@ -668,7 +668,7 @@ function ControlsSection() {
             <Item size="sm">
               <ItemMedia variant="num">1</ItemMedia>
               <ItemContent>
-                <ItemTitle>{t('designPreview.controls.radio')}</ItemTitle>
+                <ItemTitle>{t('designPreview.controls.numberedStep')}</ItemTitle>
               </ItemContent>
             </Item>
           </ItemGroup>

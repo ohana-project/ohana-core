@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
@@ -49,6 +49,17 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
     () => me.member.interfaceLanguage ?? (i18n.language === 'en' ? 'en' : 'ru'),
   )
   const [errorText, setErrorText] = useState<string | undefined>(undefined)
+
+  // A stored preference leads the whole interface from arrival, not only
+  // the checked card: a member invited with «English» on a Russian device
+  // would otherwise read Russian under an unchecked-looking choice, and
+  // clicking the checked card sends nothing.
+  const storedLanguage = me.member.interfaceLanguage
+  useEffect(() => {
+    if (storedLanguage === undefined || storedLanguage === i18n.language) return
+    void i18n.changeLanguage(storedLanguage)
+    storeLocale(storedLanguage)
+  }, [storedLanguage, i18n])
 
   const complete = useMutation({
     mutationFn: async () => {

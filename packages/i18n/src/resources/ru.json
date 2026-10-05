@@ -776,6 +776,7 @@
       "tabThree": "Год",
       "toggle": "Выбор",
       "radio": "Радиокнопки",
+      "numberedStep": "Нумерованный шаг",
       "switchLabel": "Напоминать о событиях"
     },
     "feedback": {

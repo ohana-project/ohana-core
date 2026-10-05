@@ -143,6 +143,10 @@ describe('SignInScreen install gate', () => {
       ).toHaveClass('text-display')
       expect(screen.getByText('Safari · Chrome')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Продолжить в браузере' })).toBeInTheDocument()
+      // The footer keeps only the promise this installation makes: the
+      // settings screen has no install entry yet.
+      expect(screen.getByText('Установить можно в любой момент.')).toBeInTheDocument()
+      expect(screen.queryByText(/в настройках/)).not.toBeInTheDocument()
       expect(screen.queryByLabelText('Код входа')).not.toBeInTheDocument()
     } finally {
       restore()

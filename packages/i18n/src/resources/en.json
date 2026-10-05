@@ -776,6 +776,7 @@
       "tabThree": "Year",
       "toggle": "Toggle",
       "radio": "Radio buttons",
+      "numberedStep": "Numbered step",
       "switchLabel": "Remind me about events"
     },
     "feedback": {

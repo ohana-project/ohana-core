@@ -8,9 +8,11 @@ import { Separator } from '@/ui/separator'
 
 /*
  * Ohana list row (`.list-row` in the prototype): a leading icon —
- * bare by default, or in the 38px tinted tile that `variant="icon"`
- * opts into —, title and subtitle, trailing content; rows are divided
- * by hairlines. The size variants carry the heights the prototypes
+ * bare by default, in the 38px tinted tile that `variant="icon"` opts
+ * into, or in the 28px numbered plate of `variant="num"` (the
+ * prototype's `.leading.num`, install.html) —, title and subtitle,
+ * trailing content; rows are divided by hairlines. The size variants
+ * carry the heights the prototypes
  * use inline (52, 56, 60, 64, 68px) instead of one-off pixel values
  * (issue #58). A leading icon is 20px (`.list-row .leading svg`), a
  * trailing icon 18px (`.list-row .trailing svg`) — the icons pick

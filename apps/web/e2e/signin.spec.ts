@@ -270,8 +270,10 @@ test.describe('member sign-in by access code', () => {
     page,
   }) => {
     await mockMemberApi(page)
-    // Two members remain signed in on this device, none active — the
-    // visitor sees the code screen with the prototype's back button.
+    // Two members remain signed in on this device and none is active —
+    // no `ohana.activeMember`, on purpose: the probe then answers signed
+    // out, the visitor sees the code screen, and the registry still
+    // offers the prototype's back button.
     await page.addInitScript(() => {
       window.localStorage.setItem(
         'ohana.sessions',

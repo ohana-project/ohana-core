@@ -99,7 +99,13 @@ describe('OnboardingForm', () => {
     )
   })
 
-  it('preselects the language stored on the member profile over the device one', () => {
+  it('preselects the language stored on the member profile over the device one, interface included', async () => {
+    apiPost.mockResolvedValue({
+      data: { ...ME, needsOnboarding: false },
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    const user = userEvent.setup()
     renderWithProviders(
       <OnboardingForm
         me={{ ...ME, member: { ...ME.member, interfaceLanguage: 'en' } }}
@@ -109,6 +115,17 @@ describe('OnboardingForm', () => {
 
     expect(screen.getByRole('radio', { name: 'English' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Русский' })).not.toBeChecked()
+    // The stored preference leads the interface, not only the card.
+    expect(
+      await screen.findByRole('heading', { name: 'How will the family call you?' }),
+    ).toBeInTheDocument()
+    expect(window.localStorage.getItem('ohana.locale')).toBe('en')
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/me/onboarding',
+      expect.objectContaining({ body: expect.objectContaining({ interfaceLanguage: 'en' }) }),
+    )
   })
 
   it('switches the whole interface when a card is chosen', async () => {
