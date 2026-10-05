@@ -133,7 +133,7 @@ Easing is `cubic-bezier(0.2, 0.8, 0.2, 1)`. Sheets rise 40px without overshoot, 
 
 Shared components live in `apps/web/src/ui`. The class names below refer to `assets/ohana.css`.
 
-- **Button** (`.btn`): primary (accent; hover darkens 12%, lightens 10% in dark), secondary (surface, border, `shadow-1`), ghost (hover `fg-soft`), danger (`danger` 12% over `surface`, 16% on hover), link. Sizes: default 44px, `lg` 52px full width, `sm` 36px, `icon` 44px round.
+- **Button** (`.btn`): primary (accent; hover darkens 12%, lightens 10% in dark), secondary (surface, border, `shadow-1`), ghost (hover `fg-soft`), danger (`danger` 12% over `surface`, 16% on hover), link (8px side padding at the default and `lg` sizes, radius `sm`; a `sm` link keeps the `sm` padding, as `.btn-sm` follows `.btn-link`). Text sizes are the prototype's own: 15px, `sm` 14px, `lg` 16.5px. Sizes: default 44px, `lg` 52px full width, `sm` 36px, `icon` 44px round, `icon-sm` 36px round.
 - **Input and textarea** (`.input`, `.textarea`): 46px, border darkens on hover, accent border and 3px `accent-soft` ring on focus. The textarea is at least 110px.
 - **Field** (`.field`): label in `sm`/`muted`, hint in `meta`. When invalid, the border and ring turn `danger`, an error line with an icon appears under the field and is linked with `aria-describedby`, and the input shakes once.
 - **Access-code input** (`.code-input`): 68px, JetBrains Mono 30px, tracking 0.18em, centred, uppercase; formats to `XXXX-XXXX` while typing (Latin letters and digits only). **Code display** (`.code-display`): a code shown once, mono, dashed accent border over `accent-soft`, selectable in one tap.
@@ -141,19 +141,19 @@ Shared components live in `apps/web/src/ui`. The class names below refer to `ass
 - **List and list row** (`.list-row`): at least 52px; a leading icon (20px, often in a 38px `md`-radius tile tinted `surface-2` or a semantic colour), title and subtitle, trailing content. A danger row colours its icon and title `danger`. **Pick row** (`.pick`): a selectable row with an accent check driven by `aria-pressed`.
 - **Section header** (`.sec-head`): an `h2` with a trailing accent link.
 - **Pill** (`.pill`): mono 11px uppercase on `accent-soft`; variants ok, warn, danger, neutral. **Count badge**: mono 11.5px on `fg-soft`.
-- **Avatar**: 40px, `sm` 32, `lg` 56, `xs` 24; **avatar stack** overlaps by 8px with a background-coloured rim.
+- **Avatar**: 40px, `sm` 32, `lg` 56, `xs` 24, with monograms of 15, 13, 20 and 11px; **avatar stack** overlaps by 8px with a 2px page-background rim, wherever the stack is placed.
 - **Sync status** (`.sync[data-state]`), six states:
 
   | State | Colour | Text (ru) |
   |---|---|---|
-  | `first` | accent, spinning | Первая синхронизация… |
-  | `updating` | accent, spinning | Обновляется… |
+  | `first` | accent icon, muted text, spinning | Первая синхронизация… |
+  | `updating` | accent icon, muted text, spinning | Обновляется… |
   | `synced` | ok | Актуально · 14:32 |
   | `offline` | warn | Офлайн — изменения сохраняются локально |
   | `unreachable` | danger | Сервер недоступен · Повторить |
   | `error` | danger | Ошибка синхронизации · Повторить |
 
-  «Повторить» is a link button. On mobile the top bar shows a compact chip (icon only below 430px); the full form appears on the home screen and in settings. On desktop it sits in the sidebar footer.
+  «Повторить» is a link button. On mobile the top bar shows a compact chip (icon only at 430px and below); the full form appears on the home screen and in settings. On desktop it sits in the sidebar footer.
 - **Overlays**: the sheet is a bottom drawer with a grabber on mobile (radius `xl` on top, max 86% height) and a centred 460px modal on desktop. The dialog is 440px. The popover and menu sit on the plain glass recipe, with 42px items and separators. The lightbox shows a photo on a black 72% scrim with a mono caption. Dialogs trap focus and close on Esc.
 - **Toast**: glass pill with an ok or danger icon; it sits above the tab bar on mobile and bottom-right on desktop, and hides after about 3 seconds.
 - **Tooltip** (`[data-tip]`): inverted `fg` on `bg`, radius `sm`, `meta` size.
@@ -244,6 +244,8 @@ Rules for `apps/web`:
 - Fonts come from the `@fontsource` packages, and icons from the Hugeicons React package.
 - Icons take the size their context dictates by default, so callers do not need to pass one. The containers own the sizing rules (buttons and menu items 18px, list-row leading icons and pick checks 20px, list-row trailing icons 18px, pills 12px, the empty-state plate 28px, the tab bar's 40×28 plate a 24px glyph), an unsized icon follows the surrounding text (1em) where no container rule applies, and an explicit size still wins — through the `size` prop or a `size-*` class (other width/height classes override the 1em fallback but do not opt out of a container's rule). The prototype's `icon()` helper stamps a 20px default on every icon and lets the CSS shrink it; the implementation deliberately inverts that — no global default, the context owns the size — so an icon running inside text follows that text's size instead of the prototype's hand-set pixel attributes (the install steps' inline glyphs render at 13.5px, not the prototype's 14px).
 - A preview route shows every shared component in both themes and both languages.
+
+Some component values are the prototype's own, outside the type scale: the button's text sizes (15px, `sm` 14px, `lg` 16.5px) and the avatar monograms (11, 13, 15 and 20px for the 24, 32, 40 and 56px avatars). The class merger treats such one-off pixel sizes as sizes, so they survive beside a text colour like any step (asserted in `src/lib/cn.test.ts`). The avatar stack's rim is 2px of the page background and each avatar after the first overlaps by 8px wherever the stack is placed; the top bar hides the sync chip's text at 430px and below with `sr-only` rather than the prototype's `display: none`, so screen readers keep the status words. The focus ring rounds to the small radius: the global `:focus-visible` rule sets `border-radius: var(--radius-sm)`, so elements without a radius of their own take it while focused and a component's own radius utility wins.
 
 Three token values moved from the prototype for WCAG AA, kept in the same commit as the contrast test that requires them (`apps/web/src/ui/styles/contrast.test.ts`): light `ok` is 50% (not 52%) and light `warn` is 51% (not 54%), because those pills' text must hold 4.5:1 over their tints, and dark `accent` is 74% (not 72%), because the primary pill's text must hold 4.5:1 over `accent-soft` on surface. The glass fill is 90% in light and 92% in dark (not the prototype's 76%) for the same reason: text on glass must keep 4.5:1 over the worst-case backdrops, and light `danger` (the failed sync label, destructive menu items) misses 4.5:1 over a black one below 88% (90% keeps a margin); `ok` and `warn` reach glass only as icons and need 3:1. The pill and banner fills and the hover accent (`accent-strong`: 12% darker in light, 10% lighter in dark) live as derived tokens (`--ok-fill`, `--warn-fill`, `--danger-fill`, `--accent-fill`, `--neutral-fill`, `--danger-tint`, `--banner-*`) so the components and the contrast test read the same values. Fills that carry text (the pills, the danger button and the destructive menu item's highlight) mix into `surface` rather than toward transparent, so they are opaque: they can sit on glass, in a sheet or a dialog footer, and a see-through tint there lets a black or white backdrop pull danger text down to about 3.8:1. The danger button's hover is 16% (not 20%), because at 20% its text misses 4.5:1 even on plain `surface`.
 
