@@ -16,12 +16,13 @@ export function AuthLayout({
   children,
   footer,
   columnWidth,
-  logo,
+  logo = true,
 }: {
   children: React.ReactNode
   footer?: React.ReactNode
   columnWidth?: AuthFrameProps['columnWidth']
-  logo?: AuthFrameProps['logo']
+  /** False where the screen draws its own brand row (the admin sign-in). */
+  logo?: boolean
 }) {
   return (
     <>

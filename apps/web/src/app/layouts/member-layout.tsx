@@ -25,6 +25,13 @@ export interface MemberLayoutProps {
   sync?: ShellSyncState | null
   userMenuItems?: ShellUserMenuItem[]
   actions?: React.ReactNode
+  /**
+   * The screen's desktop-only top-bar actions (issue #62): from 920px up
+   * they stand in the top bar, below it they are not displayed — the
+   * subtree stays mounted, and the screen's FAB or action bar carries
+   * the same action on a phone.
+   */
+  desktopActions?: React.ReactNode
   back?: React.ReactNode
   title?: string
   width?: 'default' | 'narrow' | 'wide'
@@ -41,6 +48,7 @@ export function MemberLayout({
   sync = null,
   userMenuItems = [],
   actions,
+  desktopActions,
   back,
   title,
   width = 'default',
@@ -66,6 +74,7 @@ export function MemberLayout({
           title={topBarTitle}
           space={space}
           actions={actions}
+          desktopActions={desktopActions}
           back={back}
           sync={sync ? { ...sync } : null}
           userMenuItems={userMenuItems}

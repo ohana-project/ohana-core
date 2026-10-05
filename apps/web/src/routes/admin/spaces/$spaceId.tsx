@@ -8,7 +8,7 @@ function AdminSpacePage() {
   const { spaceId } = Route.useParams()
   return (
     <AdminSessionGate require="signed-in" redirectTo="/admin/login">
-      <AdminLayout actions={<AdminTopBarActions />}>
+      <AdminLayout back actions={<AdminTopBarActions />}>
         <AdminSpaceDetail spaceId={spaceId} />
       </AdminLayout>
     </AdminSessionGate>

@@ -77,7 +77,7 @@ export function CalendarScreen() {
     <CalendarShell
       title={t('calendar.title')}
       width="wide"
-      actions={
+      desktopActions={
         <Button size="sm" render={<Link to="/calendar/new" />}>
           <Icon name="plus" />
           {t('calendar.newEvent')}

@@ -61,7 +61,8 @@
       "light": "Light theme",
       "dark": "Dark theme"
     },
-    "switchSpace": "Switch space"
+    "switchSpace": "Switch space",
+    "spaceSub": "{count, plural, one {# member} other {# members}}{role, select, owner { · you are the owner} other {}}"
   },
   "admin": {
     "pill": "Admin",
@@ -90,6 +91,7 @@
     "spaces": {
       "title": "Spaces",
       "count": "{count, plural, one {# space} other {# spaces}}",
+      "trashRetention": "trash kept for {count, plural, one {# day} other {# days}}",
       "new": "New space",
       "newTitle": "New space",
       "newDescription": "Members and access codes are added inside the space",
@@ -487,7 +489,6 @@
     }
   },
   "space": {
-    "back": "Back",
     "members": {
       "title": "Members",
       "subtitle": "“{space}”",
@@ -847,6 +848,8 @@
       "member": "Member: tab bar below 920px, sidebar above",
       "admin": "Admin: a calm top bar and a 960px column",
       "auth": "Sign-in: a centred 420px column",
+      "adminBack": "Admin: a space’s bar — «‹ Spaces» instead of the lockup",
+      "authBrand": "Sign-in: the frame without the logo — the screen brings its own brand row",
       "demoNote": "The «Наша семья» demo world: Аня (owner), Дима, Миша and бабушка Люда.",
       "adminHeading": "Spaces",
       "adminText": "The server hosts two spaces. Members and codes come with tickets #8 and #12.",
@@ -855,7 +858,8 @@
       "authAction": "Sign in",
       "openInPlace": "The shells are assembled below, one after another.",
       "sectionCount": "Visible sections",
-      "spaceToast": "The list of spaces will appear here"
+      "spaceToast": "The list of spaces will appear here",
+      "desktopAction": "Desktop only"
     },
     "demo": {
       "spaceName": "«Наша семья»",

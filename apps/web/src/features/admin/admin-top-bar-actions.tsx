@@ -8,7 +8,9 @@ import { toast } from '@/ui/toast.tsx'
 /*
  * Shared actions for the administrative top bar: instance settings and
  * sign-out. The settings entry houses the password change (folded from
- * the former standalone password screen).
+ * the former standalone password screen). Both are 36px rounds (issue
+ * #79) — the bar's actions share the theme toggle's `.btn-icon.btn-sm`
+ * size, so the bar keeps its 56px.
  */
 export function AdminTopBarActions({ showSettings = true }: { showSettings?: boolean }) {
   const { t } = useTranslation()
@@ -18,14 +20,14 @@ export function AdminTopBarActions({ showSettings = true }: { showSettings?: boo
   return (
     <>
       {showSettings ? (
-        <Button variant="ghost" size="icon" render={<Link to="/admin/settings" />}>
+        <Button variant="ghost" size="icon-sm" render={<Link to="/admin/settings" />}>
           <Icon name="settings" />
           <span className="sr-only">{t('admin.settings.title')}</span>
         </Button>
       ) : null}
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-label={t('admin.signOut')}
         disabled={signOut.isPending}
         onClick={() =>

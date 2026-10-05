@@ -9,7 +9,9 @@ import { Logo } from '@/ui/logo.tsx'
  * 420px by default, 460px where the prototype says so (onboarding,
  * accounts) — with an optional wordmark lockup on top and a footer
  * note that stays inside the column, like `.auth-foot` inside
- * `.auth-card`.
+ * `.auth-card`. A screen that brings its own brand row — the admin
+ * sign-in's logo-and-pill row — passes `logo={false}` so the lockup
+ * does not double (issue #79).
  */
 export interface AuthFrameProps {
   children: React.ReactNode
@@ -43,7 +45,7 @@ export function AuthFrame({
       >
         {logo && <Logo className="mb-8 justify-center" />}
         {children}
-        <p className="mt-[22px] text-center text-sm text-muted-foreground">
+        <p className="mt-5.5 text-center text-sm text-muted-foreground">
           {footer ?? t('layout.authNote')}
         </p>
       </div>

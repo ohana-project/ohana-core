@@ -9,7 +9,9 @@ function AdminLoginPage() {
   const navigate = useNavigate()
 
   return (
-    <AuthLayout footer={t('admin.login.footer')}>
+    // The screen brings its own brand row — the lockup and the «АДМИНКА»
+    // pill (issue #79) — so the frame's centred logo stays off.
+    <AuthLayout footer={t('admin.login.footer')} logo={false}>
       <AdminSessionGate require="signed-out" redirectTo="/admin">
         <AdminLoginForm onSignedIn={() => void navigate({ to: '/admin' })} />
       </AdminSessionGate>

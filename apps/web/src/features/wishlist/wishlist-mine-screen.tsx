@@ -76,7 +76,7 @@ export function WishlistMineScreen() {
   )
 
   return (
-    <WishlistShell title={t('wishlist.mineTitle')} width="narrow" actions={addWish}>
+    <WishlistShell title={t('wishlist.mineTitle')} width="narrow" desktopActions={addWish}>
       <div className="flex flex-col gap-6 pt-6">
         <div className="flex items-center gap-2.5">
           <Avatar size="sm" hue={hueFromId(meId ?? '')}>

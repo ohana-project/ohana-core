@@ -25,7 +25,11 @@ export function TabBar({ sections, activeId, onSectionClick, className }: TabBar
       data-slot="tabbar"
       aria-label={t('layout.sections')}
       className={cn(
-        'glass-bar fixed inset-x-0 bottom-0 z-30 grid grid-rows-1 grid-flow-col auto-cols-fr gap-0 rounded-none border-0 px-2 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] desktop:hidden',
+        // the glass bar keeps the recipe's 1px fg 9% top hairline, like
+        // the prototype's .tabbar on .glass (the side and bottom edges
+        // are cut): with it the rendered bar is the prototype's 68px
+        // (issue #62)
+        'glass-bar fixed inset-x-0 bottom-0 z-30 grid grid-rows-1 grid-flow-col auto-cols-fr gap-0 rounded-none border-t border-[color-mix(in_oklch,var(--fg)_9%,transparent)] px-2 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] desktop:hidden',
         className,
       )}
     >
