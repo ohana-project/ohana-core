@@ -14,6 +14,7 @@ import { expect, type Page, test } from '@playwright/test'
 const ME = '**/api/v1/me'
 const SYNC = '**/api/v1/sync*'
 const SESSION = '**/api/v1/admin/session'
+const SETTINGS = '**/api/v1/admin/settings'
 const SPACES = '**/api/v1/spaces'
 
 const ANYA = {
@@ -76,13 +77,14 @@ async function mockAdminApi(page: Page) {
     return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   })
   // The spaces header's trash-retention line reads the settings.
-  await page.route('**/api/v1/admin/settings', (route) =>
-    route.fulfill({
+  await page.route(SETTINGS, (route) => {
+    if (route.request().method() !== 'GET') return route.fulfill({ status: 405 })
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ trashRetentionDays: 30 }),
-    }),
-  )
+    })
+  })
 }
 
 test.describe('theme toggle', () => {

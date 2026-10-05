@@ -47,26 +47,17 @@ function okBody(body: unknown) {
 }
 
 // The list answers for the spaces and the installation settings (the
-// header's trash retention, issue #79).
+// header's trash retention, issue #79). A test that needs the settings
+// to fail holds its own mock, as the failing-settings test does.
 function mockRoutes({
   spaces = SPACES,
-  settings,
+  settings = { trashRetentionDays: 30 },
 }: {
   spaces?: typeof SPACES
-  /** Null simulates the settings query failing: the header keeps the count. */
-  settings?: { trashRetentionDays: number } | null
+  settings?: { trashRetentionDays: number }
 } = {}) {
   apiGet.mockImplementation(async (path: never) => {
-    if (path === '/api/v1/admin/settings') {
-      if (settings === null) {
-        return {
-          data: undefined,
-          error: { error: { code: 'unexpected', message: 'no settings' } },
-          response: new Response(null, { status: 500 }),
-        }
-      }
-      return okBody(settings ?? { trashRetentionDays: 30 })
-    }
+    if (path === '/api/v1/admin/settings') return okBody(settings)
     if (path === '/api/v1/spaces') return okBody(spaces)
     throw new Error(`Unexpected GET ${String(path)}`)
   })
@@ -105,12 +96,30 @@ describe('AdminSpacesList', () => {
   })
 
   it('keeps the count alone when the settings query fails', async () => {
-    mockRoutes({ settings: null })
+    // The settings answer is held back until the spaces row has rendered,
+    // so the assertions below run strictly after the 500 settles.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/admin/settings') {
+        await held
+        return {
+          data: undefined,
+          error: { error: { code: 'unexpected', message: 'no settings' } },
+          response: new Response(null, { status: 500 }),
+        }
+      }
+      if (path === '/api/v1/spaces') return okBody(SPACES)
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
     renderWithProviders(<AdminSpacesList />)
 
     expect(await screen.findByText('2 пространства')).toBeInTheDocument()
-    // The 500 was consumed: the line stays the bare count.
-    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/api/v1/admin/settings'))
+    release()
+    await waitFor(() => expect(apiGet.mock.settledResults).toHaveLength(2))
+    expect(screen.getByText('2 пространства')).toBeInTheDocument()
     expect(screen.queryByText(/хранение корзины/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Наша семья/ })).toBeInTheDocument()
   })
