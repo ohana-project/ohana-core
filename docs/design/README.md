@@ -180,7 +180,7 @@ There is one layout breakpoint, 920px. Components adapt to their container where
 - The interface works fully from the keyboard; dialogs trap focus and close on Esc.
 - Interactive elements carry the right ARIA (`aria-pressed`, `aria-label`, `aria-current`, `role="status"` for sync and banners).
 - Colour is never the only signal: errors and states also carry an icon or text.
-- Every string comes from `packages/i18n` in Russian and English, and keys are never concatenated at runtime: a typed template literal over a key union (`t(`language.${locale}`)`) typechecks against the catalogues, gluing strings by hand (`'language.' + locale`) does not.
+- Every string comes from `packages/i18n` in Russian and English, and keys are never built by untyped concatenation at runtime: a typed template literal over a key union (``t(`language.${locale}`)``) typechecks against the catalogues, gluing strings by hand (``'language.' + locale``) does not.
 
 Full accessibility validation still needs manual testing with assistive technology.
 
