@@ -47,4 +47,30 @@ describe('AuthLayout', () => {
     expect(window.localStorage.getItem('ohana.theme')).toBe('dark')
     expect(screen.getByText('Код входа')).toBeInTheDocument()
   })
+
+  it('keeps the footer note inside the 420px column, like the prototype’s .auth-foot', () => {
+    renderWithProviders(
+      <AuthLayout footer="Забыли пароль? Он хранится только на вашем сервере.">
+        <p>Сервер под паролем</p>
+      </AuthLayout>,
+    )
+
+    const note = screen.getByText('Забыли пароль? Он хранится только на вашем сервере.')
+    const column = note.closest('div')
+    expect(column).toHaveClass('max-w-[420px]')
+    // The note follows the screen's content inside the column…
+    expect(column).toHaveTextContent('Сервер под паролем')
+    // …so nothing sits between them.
+    expect(note.previousElementSibling?.textContent).toBe('Сервер под паролем')
+  })
+
+  it('drops the frame’s centred logo where a screen brings its own brand row', () => {
+    renderWithProviders(
+      <AuthLayout logo={false}>
+        <p>Сервер под паролем</p>
+      </AuthLayout>,
+    )
+
+    expect(screen.queryByText('Ohana')).not.toBeInTheDocument()
+  })
 })

@@ -14,14 +14,17 @@ import { AuthFrame } from '@/ui/auth-frame.tsx'
 export function AuthLayout({
   children,
   footer,
+  logo = true,
 }: {
   children: React.ReactNode
   footer?: React.ReactNode
+  /** False where the screen draws its own brand row (the admin sign-in). */
+  logo?: boolean
 }) {
   return (
     <>
       <ThemeToggle className="fixed top-3.5 right-3.5 z-10" />
-      <AuthFrame footer={footer}>
+      <AuthFrame footer={footer} logo={logo}>
         <UpdatePrompt />
         {children}
       </AuthFrame>

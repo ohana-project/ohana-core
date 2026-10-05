@@ -7,6 +7,7 @@ import { expect, type Page, test } from '@playwright/test'
  */
 
 const SESSION = '**/api/v1/admin/session'
+const SETTINGS = '**/api/v1/admin/settings'
 const SPACES = '**/api/v1/spaces'
 const SPACE = /\/api\/v1\/spaces\/[0-9a-f-]+$/
 const MEMBERS = /\/api\/v1\/spaces\/[0-9a-f-]+\/members$/
@@ -95,6 +96,12 @@ async function mockAdminApi(
     const method = route.request().method()
     if (method === 'GET') return route.fulfill({ status: 204 })
     return route.fulfill({ status: 204 })
+  })
+
+  // The installation settings (the header's trash retention line).
+  await page.route(SETTINGS, async (route) => {
+    if (route.request().method() !== 'GET') return route.fulfill({ status: 405 })
+    return route.fulfill(jsonBody({ trashRetentionDays: 30 }))
   })
 
   await page.route(SPACES, async (route) => {
@@ -199,7 +206,7 @@ test.describe('administrative spaces list', () => {
     await page.goto('/admin')
 
     await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
-    await expect(page.getByText('2 пространства')).toBeVisible()
+    await expect(page.getByText('2 пространства · хранение корзины: 30 дней')).toBeVisible()
     const familyRow = page.getByRole('link', { name: /Наша семья/ })
     await expect(familyRow).toContainText('4 участника')
     await expect(familyRow).toContainText('создано 12 августа')
@@ -247,6 +254,43 @@ test.describe('administrative spaces list', () => {
     await expect(page.getByRole('link', { name: /Наша семья/ })).toContainText('4 members')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   })
+
+  test('measures the header by width: no horizontal scroll, the action wraps at phone widths (ru)', async ({
+    page,
+  }) => {
+    await mockAdminApi(page)
+
+    // The prototype's centred row: the subtitle narrows first, the action
+    // wraps when the two truly cannot share a row. The prototype itself
+    // overflows a 390px viewport by about 17px here; the implementation
+    // keeps the no-scroll rule instead (README, known defects). Every
+    // measuring spec reads metrics, so wait out the webfonts; measure
+    // after the settings line lands — it is the header's widest state.
+    for (const width of [360, 390, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('/admin')
+      await expect(page.getByRole('link', { name: /Наша семья/ })).toBeVisible()
+      await expect(page.getByText(/хранение корзины/)).toBeVisible()
+      await page.evaluate(() => document.fonts.ready)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+
+      // Pin both sides of the recorded deviation: at 360 and 390px the
+      // action sits on its own row under the title; at 1280px they share
+      // one row.
+      const title = await page.getByRole('heading', { name: 'Пространства' }).boundingBox()
+      const action = await page.getByRole('button', { name: 'Новое пространство' }).boundingBox()
+      if (!title || !action) throw new Error('the header never rendered')
+      if (width >= 1280) {
+        expect(action.y).toBeLessThan(title.y + title.height)
+      } else {
+        expect(action.y).toBeGreaterThanOrEqual(title.y + title.height)
+      }
+    }
+  })
 })
 
 test.describe('administrative space screen', () => {
@@ -267,6 +311,21 @@ test.describe('administrative space screen', () => {
     await expect(
       page.getByText('Роль владельца можно передать, но не снять с последнего'),
     ).toBeVisible()
+  })
+
+  test('returns to the list through the bar’s back link (ru)', async ({ page }) => {
+    await mockAdminApi(page)
+    await page.goto('/admin')
+    await page.getByRole('link', { name: /Наша семья/ }).click()
+
+    // The back link lives in the bar now (issue #79) — the only way back.
+    await expect(page.getByRole('heading', { name: 'Наша семья' })).toBeVisible()
+    // «Пространства» is the bar's back link; exact keeps a future
+    // «Настройки пространства» link from matching it.
+    await page.getByRole('link', { name: 'Пространства', exact: true }).click()
+
+    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
   })
 
   test('provisions a member through the sheet (ru)', async ({ page }) => {
