@@ -198,10 +198,15 @@ test.describe('member sign-in by access code', () => {
     await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
 
     // Onboarding collects the optional profile and the interface language
-    // (the cards come preselected; «Русский» stays).
+    // (the cards come preselected; «Русский» stays). Choosing a card
+    // switches the whole interface at once, and back again.
     await page.getByLabel('Имя').fill('Аня Смирнова')
     await page.getByLabel('Эл. почта').fill('anya@example.com')
     await expect(page.getByRole('radio', { name: 'Русский' })).toBeChecked()
+    await page.getByRole('radio', { name: 'English' }).click()
+    await expect(page.getByRole('heading', { name: 'How will the family call you?' })).toBeVisible()
+    await page.getByRole('radio', { name: 'Русский' }).click()
+    await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
     await page.getByRole('button', { name: 'Продолжить' }).click()
 
     // The space home greets the member by their display name and offers
@@ -259,5 +264,28 @@ test.describe('member sign-in by access code', () => {
     await expect(page.getByRole('heading', { name: 'Access code' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  })
+
+  test('a device with retained sign-ins offers the way back to the accounts screen', async ({
+    page,
+  }) => {
+    await mockMemberApi(page)
+    // Two members remain signed in on this device, none active — the
+    // visitor sees the code screen with the prototype's back button.
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'ohana.sessions',
+        JSON.stringify([
+          { memberId: 'm-1', spaceId: 's-1', spaceName: 'Наша семья', name: 'Аня' },
+          { memberId: 'm-2', spaceId: 's-2', spaceName: 'Дача', name: 'Дима' },
+        ]),
+      )
+    })
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/signin$/)
+
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/accounts$/)
+    await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
   })
 })

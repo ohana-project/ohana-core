@@ -443,7 +443,7 @@
       "platformAndroid": "Android",
       "continue": "Continue in the browser",
       "browsers": "Safari · Chrome",
-      "footer": "You can install at any time — the link stays in the settings.",
+      "footer": "You can install at any time.",
       "steps": {
         "ios1Title": "Open Ohana in Safari",
         "ios1Sub": "and tap the Share button",

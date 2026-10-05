@@ -30,11 +30,9 @@ function Steps({ platform }: { platform: 'ios' | 'android' }) {
     <ol className="m-0 flex list-none flex-col p-0">
       {STEPS[platform].map((step, index) => (
         <Item key={step.key} size="sm" render={<li />} className="px-1">
-          {/* The prototype's `.leading.num`: a 28px mono muted number on
-              a round surface-2 plate. */}
-          <ItemMedia className="size-7 rounded-full bg-surface-2 font-mono text-[13px] tabular-nums">
-            {index + 1}
-          </ItemMedia>
+          {/* The prototype's `.leading.num` is the shared media's `num`
+              variant: a 28px mono muted number on a round plate. */}
+          <ItemMedia variant="num">{index + 1}</ItemMedia>
           <ItemContent>
             <ItemTitle>{t(`pwa.install.steps.${step.key}Title`)}</ItemTitle>
             <ItemDescription>

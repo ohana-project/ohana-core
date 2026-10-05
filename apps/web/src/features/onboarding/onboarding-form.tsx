@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, Fragment, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
@@ -12,26 +12,19 @@ import { Button } from '@/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
-import { Radio, RadioGroup } from '@/ui/radio-group.tsx'
+import { RadioCard, RadioGroup } from '@/ui/radio-group.tsx'
 
 /*
  * The onboarding screen (docs/design/screens/onboarding.html): the space
  * meta line above the display heading, the display name first, the
  * optional contacts beside each other with a locked hint, and the
  * interface language as two full-width choice cards with a radio. The
- * language is preselected (the prototype checks «Русский»; the form
- * follows the device's current locale) and applies to the whole app
- * immediately. Everything is optional (ADR-0005).
+ * language comes preselected — the member's stored preference, else the
+ * device's locale (the prototype pins «Русский») — and applies to the
+ * whole app immediately. Everything is optional (ADR-0005).
  */
 
 const LANGUAGES: Locale[] = ['ru', 'en']
-
-/*
- * The prototype's choice card: `label.card.card-link` — 56px tall, 10px
- * gap, the 18px radio, a muted globe and the 15px semibold name.
- */
-const languageCardClass =
-  'flex min-h-14 flex-1 cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-card px-4 py-3.5 text-body shadow-1 transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) select-none hover:-translate-y-px hover:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] hover:shadow-2'
 
 export type OnboardingErrorKey = 'member.errors.validation_failed' | 'member.errors.unexpected'
 
@@ -52,7 +45,9 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [language, setLanguage] = useState<Locale>(() => (i18n.language === 'en' ? 'en' : 'ru'))
+  const [language, setLanguage] = useState<Locale>(
+    () => me.member.interfaceLanguage ?? (i18n.language === 'en' ? 'en' : 'ru'),
+  )
   const [errorText, setErrorText] = useState<string | undefined>(undefined)
 
   const complete = useMutation({
@@ -142,31 +137,25 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
               />
             </Field>
           </div>
-          <p className="-mt-2 flex items-center gap-1.5 text-meta text-muted-foreground">
+          {/* The prototype's hint: a sibling in the 18px stack pulled up
+              8px, so 10px stay under the fields. */}
+          <p className="mt-2.5 flex items-center gap-1.5 text-meta text-muted-foreground">
             <Icon name="lock" className="size-3.5 shrink-0" />
             {t('onboarding.contactsHint')}
           </p>
         </div>
         <Field>
-          <FieldLabel>{t('onboarding.languageLabel')}</FieldLabel>
+          <FieldLabel id="onboarding-language-label">{t('onboarding.languageLabel')}</FieldLabel>
           <RadioGroup
             name="interface-language"
-            aria-label={t('onboarding.languageLabel')}
+            aria-labelledby="onboarding-language-label"
             value={language}
             onValueChange={chooseLanguage}
           >
             {LANGUAGES.map((locale) => (
-              <Fragment key={locale}>
-                {/* biome-ignore lint/a11y/noLabelWithoutControl: the Base UI
-                    radio inside renders the native input this label controls */}
-                <label className={languageCardClass}>
-                  <Radio value={locale} />
-                  <Icon name="globe" className="size-[18px] text-muted-foreground" />
-                  <span className="text-[15px] leading-snug font-semibold">
-                    {t(`language.${locale}`)}
-                  </span>
-                </label>
-              </Fragment>
+              <RadioCard key={locale} value={locale} media={<Icon name="globe" />}>
+                {t(`language.${locale}`)}
+              </RadioCard>
             ))}
           </RadioGroup>
           <FieldDescription>{t('onboarding.languageHint')}</FieldDescription>

@@ -96,6 +96,9 @@ const itemMediaVariants = cva(
       variant: {
         default: 'text-muted-foreground',
         icon: 'size-[38px] rounded-md',
+        // The prototype's `.leading.num` (install.html): a 28px mono
+        // muted number on a round surface-2 plate.
+        num: 'size-7 rounded-full bg-surface-2 font-mono text-[13px] tabular-nums text-muted-foreground',
       },
       tone: {
         neutral: '',
@@ -121,13 +124,13 @@ function ItemMedia({
   tone,
   ...props
 }: React.ComponentProps<'div'> & {
-  variant?: 'default' | 'icon'
+  variant?: 'default' | 'icon' | 'num'
   tone?: ItemMediaTone
 }) {
   // A bare icon is the default, like the prototype's `.leading`; the
   // 38px tinted tile is opt-in through `variant="icon"`, its tint
-  // coming from the tone. An avatar therefore never sits on a tinted
-  // square (issue #58).
+  // coming from the tone; the numbered plate is `variant="num"`. An
+  // avatar therefore never sits on a tinted square (issue #58).
   const tiled = variant === 'icon'
   const activeTone = tone ?? (tiled ? 'neutral' : undefined)
   return (

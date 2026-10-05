@@ -82,6 +82,27 @@ describe('ItemMedia', () => {
     expect(media.className).toContain('bg-(--warn-fill)')
   })
 
+  it('the numbered plate of the install steps is the num variant', () => {
+    renderWithProviders(
+      <Item>
+        <ItemMedia variant="num" data-testid="media">
+          1
+        </ItemMedia>
+      </Item>,
+    )
+    const media = screen.getByTestId('media')
+    expect(media).toHaveAttribute('data-variant', 'num')
+    expect(media).not.toHaveAttribute('data-tone')
+    // The prototype's `.leading.num` (install.html): a 28px mono muted
+    // number on a round surface-2 plate.
+    expect(media.className).toContain('size-7')
+    expect(media.className).toContain('rounded-full')
+    expect(media.className).toContain('bg-surface-2')
+    expect(media.className).toContain('font-mono')
+    expect(media.className).toContain('text-[13px]')
+    expect(media.className).toContain('tabular-nums')
+  })
+
   it('a tone on a bare icon colours it without a tile behind it', () => {
     renderWithProviders(
       <Item>

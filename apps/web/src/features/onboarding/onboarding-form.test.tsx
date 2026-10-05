@@ -55,11 +55,12 @@ describe('OnboardingForm', () => {
     expect(screen.getByLabelText('Телефон')).toHaveAttribute('placeholder', '+7 900 000-00-00')
   })
 
-  it('hints under the contacts with a lock', () => {
+  it('hints under the contacts with a lock, 10px below the fields', () => {
     renderWithOnboardingForm()
 
     const hint = screen.getByText('Необязательно. Видны только вашей семье — и никому больше.')
-    expect(hint).toHaveClass('text-meta')
+    // The prototype's hint: a sibling in the 18px stack pulled up 8px.
+    expect(hint).toHaveClass('text-meta', 'mt-2.5')
     expect(hint.querySelector('svg')).not.toBeNull()
   })
 
@@ -77,6 +78,59 @@ describe('OnboardingForm', () => {
     expect(card).toHaveClass('min-h-14')
     expect(card).toHaveTextContent('Русский')
     expect(card?.querySelector('svg')).not.toBeNull()
+  })
+
+  it('preselects the locale of an English device instead of the pinned Russian', async () => {
+    window.localStorage.setItem('ohana.locale', 'en')
+    apiPost.mockResolvedValue({
+      data: { ...ME, needsOnboarding: false },
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    const user = userEvent.setup()
+    renderWithOnboardingForm()
+
+    expect(screen.getByRole('radio', { name: 'English' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/me/onboarding',
+      expect.objectContaining({ body: expect.objectContaining({ interfaceLanguage: 'en' }) }),
+    )
+  })
+
+  it('preselects the language stored on the member profile over the device one', () => {
+    renderWithProviders(
+      <OnboardingForm
+        me={{ ...ME, member: { ...ME.member, interfaceLanguage: 'en' } }}
+        onCompleted={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('radio', { name: 'English' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Русский' })).not.toBeChecked()
+  })
+
+  it('switches the whole interface when a card is chosen', async () => {
+    apiPost.mockResolvedValue({
+      data: { ...ME, needsOnboarding: false },
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    const user = userEvent.setup()
+    renderWithOnboardingForm()
+
+    await user.click(screen.getByRole('radio', { name: 'English' }))
+    expect(
+      screen.getByRole('heading', { name: 'How will the family call you?' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/me/onboarding',
+      expect.objectContaining({ body: expect.objectContaining({ interfaceLanguage: 'en' }) }),
+    )
+    expect(window.localStorage.getItem('ohana.locale')).toBe('en')
   })
 
   it('submits the optional profile and finishes onboarding', async () => {
