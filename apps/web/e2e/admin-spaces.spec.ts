@@ -251,6 +251,24 @@ test.describe('administrative spaces list', () => {
     await expect(page.getByRole('link', { name: /Наша семья/ })).toContainText('4 members')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   })
+
+  test('keeps the header inside the viewport from 360px up (ru)', async ({ page }) => {
+    await mockAdminApi(page)
+
+    // The prototype's centred row: the subtitle narrows first, the action
+    // wraps only when the two truly cannot share a row — the page never
+    // scrolls horizontally (README "Layout").
+    for (const width of [360, 380, 390]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('/admin')
+      await expect(page.getByRole('link', { name: /Наша семья/ })).toBeVisible()
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
+  })
 })
 
 test.describe('administrative space screen', () => {
@@ -280,7 +298,7 @@ test.describe('administrative space screen', () => {
 
     // The back link lives in the bar now (issue #79) — the only way back.
     await expect(page.getByRole('heading', { name: 'Наша семья' })).toBeVisible()
-    await page.getByRole('link', { name: 'Пространства' }).click()
+    await page.getByRole('link', { name: 'Пространства', exact: true }).click()
 
     await expect(page).toHaveURL(/\/admin$/)
     await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()

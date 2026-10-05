@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -109,6 +109,9 @@ describe('AdminSpacesList', () => {
     renderWithProviders(<AdminSpacesList />)
 
     expect(await screen.findByText('2 пространства')).toBeInTheDocument()
+    // The 500 was consumed: the line stays the bare count.
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/api/v1/admin/settings'))
+    expect(screen.queryByText(/хранение корзины/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Наша семья/ })).toBeInTheDocument()
   })
 
@@ -155,7 +158,7 @@ describe('AdminSpacesList', () => {
   })
 
   it('stands the empty state on its own with the 28px plate icon', async () => {
-    apiGet.mockResolvedValue(okBody([]))
+    mockRoutes({ spaces: [] })
     renderWithProviders(<AdminSpacesList />)
 
     const title = await screen.findByText('Пространств пока нет')

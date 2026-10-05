@@ -842,6 +842,8 @@
       "member": "Member: tab bar below 920px, sidebar above",
       "admin": "Admin: a calm top bar and a 960px column",
       "auth": "Sign-in: a centred 420px column",
+      "adminBack": "Admin: a space’s bar — «‹ Spaces» instead of the lockup",
+      "authBrand": "Sign-in: the frame without the logo — the screen brings its own brand row",
       "demoNote": "The «Наша семья» demo world: Аня (owner), Дима, Миша and бабушка Люда.",
       "adminHeading": "Spaces",
       "adminText": "The server hosts two spaces. Members and codes come with tickets #8 and #12.",

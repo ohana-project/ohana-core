@@ -60,10 +60,10 @@ describe('AdminLayout', () => {
 
     const bar = screen.getByRole('banner')
     // «‹ Пространства» leads back to the list; the lockup is gone.
-    expect(within(bar).getByRole('link', { name: 'Пространства' })).toHaveAttribute(
-      'href',
-      '/admin',
-    )
+    const link = within(bar).getByRole('link', { name: 'Пространства' })
+    expect(link).toHaveAttribute('href', '/admin')
+    // The link answers a hover and sits at the bar's 36px action height.
+    expect(link).toHaveClass('min-h-9', 'hover:text-foreground')
     expect(within(bar).queryByText('Ohana · Админка')).not.toBeInTheDocument()
   })
 

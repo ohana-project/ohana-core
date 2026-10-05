@@ -33,7 +33,7 @@ export function AuthFrame({
       <div className="w-full max-w-[420px]">
         {logo && <Logo className="mb-8 justify-center" />}
         {children}
-        <p className="mt-[22px] text-center text-sm text-muted-foreground">
+        <p className="mt-5.5 text-center text-sm text-muted-foreground">
           {footer ?? t('layout.authNote')}
         </p>
       </div>
