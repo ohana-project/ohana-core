@@ -646,28 +646,26 @@ test.describe('shared pieces (issue #61)', () => {
     await openDesign(page, { locale: 'en' })
     await freezeMotion(page)
     // fire a real toast first, so the run exercises the actual
-    // pipeline; what the assertions pin is the viewport's bottom
-    // offset — the pill renders flush with the viewport's bottom
-    // edge, which the geometry read below proves while the toast is
-    // up — and the element stays mounted with its offset after the
-    // toast hides
+    // pipeline; what the assertions pin is the toast viewport's bottom
+    // offset — the pill renders flush with its bottom edge, which the
+    // geometry read below proves while the toast is up — and the
+    // element stays mounted with its offset after the toast hides
     await page.locator('#feedback').getByRole('button', { name: 'OK', exact: true }).click()
     // bar mounted by default: the reserve's own measure — tab bar (64)
-    // + safe area (0) + the bar's --action-bar-h (64px), over the gap
+    // + safe area (0) + the bar's --action-bar-h (64px) + the 16px gap
     await expect(viewport).toHaveCSS('bottom', '144px')
-    // the pill sits flush with the viewport's bottom edge, so its
-    // clearance above the bar really is the 144px just asserted
-    const flush = await page.evaluate(() => {
-      const el = document.querySelector('[data-slot="toast-viewport"]')
-      const pill = el?.firstElementChild
-      if (!el || !pill) return null
-      return {
-        pillBottom: pill.getBoundingClientRect().bottom,
-        viewportBottom: el.getBoundingClientRect().bottom,
-      }
-    })
-    expect(flush, 'the toast is showing').not.toBeNull()
-    expect(Math.abs((flush?.pillBottom ?? 0) - (flush?.viewportBottom ?? 0))).toBeLessThanOrEqual(1)
+    // the pill sits flush with the toast viewport's bottom edge, so the
+    // 144px offset just asserted is the pill's own distance from the
+    // page bottom — 16px over the tab bar reserve plus --action-bar-h
+    // (14px over the demo's 66px row)
+    const pill = viewport.locator('> *').last()
+    await expect(pill).toBeVisible()
+    await expect
+      .poll(async () => {
+        const [p, v] = await Promise.all([pill.boundingBox(), viewport.boundingBox()])
+        return p && v ? Math.abs(p.y + p.height - (v.y + v.height)) : null
+      })
+      .toBeLessThanOrEqual(1)
     await page.locator('#layouts').getByRole('switch').click()
     // bar unmounted: the plain tab-bar-plus-gap offset returns
     await expect(viewport).toHaveCSS('bottom', '80px')
