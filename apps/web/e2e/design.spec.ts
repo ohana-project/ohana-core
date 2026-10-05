@@ -943,12 +943,11 @@ test.describe('shared pieces (issue #61)', () => {
     // the reserve's 16px gap absorbs the difference. The floor itself
     // is pinned by the class assertion in action-bar.test.tsx.
     expect(geometry?.barHeight).toBe(65)
-    // the action bar's lowest 3px tuck under the tab bar's glass — the
-    // 64px --tabbar-h offset is 3px less than the rendered 67px tab
+    // the action bar's lowest 4px tuck under the tab bar's glass — the
+    // 64px --tabbar-h offset is 4px less than the rendered 68px tab
     // bar — so the two sit flush, and the tab bar, later in the shell,
     // paints over the tuck
-    expect(geometry?.tuck).toBeGreaterThanOrEqual(2)
-    expect(geometry?.tuck).toBeLessThanOrEqual(4)
+    expect(geometry?.tuck).toBeCloseTo(4, 0)
     // the bar's buttons are never covered by the tab bar
     expect(geometry?.buttonBottom).toBeLessThan(geometry?.tabTop ?? 0)
     // edge to edge, like the prototype's bars — the demo box is the

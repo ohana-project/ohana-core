@@ -10,7 +10,8 @@ import type { ShellSection, ShellSyncState, ShellUserMenuItem, SpaceSummary } fr
 
 /*
  * One place builds the member shell's data (issue #62): the space with
- * the first two active members' monograms and the member-count line
+ * the active members' monograms in the stack's order and the
+ * member-count line
  * (docs/design/README.md, "Layout"; the prototype's `data-space` and
  * `data-space-sub`), the visible sections, the sync state, the user menu
  * and the section nav. Every member area — the home, the journal, the
@@ -39,12 +40,13 @@ export function useMemberShell(): MemberShellData {
   const onSectionClick = useSectionNav()
 
   const me = session.me
-  // The monograms are the space's, not the viewer's: the first two active
-  // members, exactly what the prototype's shell builder stamps into the
-  // switcher (ohana.js, `SPACES[0].marks`) — the owner leading, then the
-  // elders by creation. An archived member has left the space (issue #23)
-  // and takes no seat. The store reads rows in key order, so the order is
-  // decided here, not by the storage.
+  // The monograms are the space's, not the viewer's: the active members,
+  // the owner leading, then the elders by creation — exactly the order
+  // the prototype's shell builder stamps into the switcher (ohana.js,
+  // `SPACES[0].marks`); the stack itself shows at most two, the display's
+  // own cap. An archived member has left the space (issue #23) and takes
+  // no seat. The store reads rows in key order, so the order is decided
+  // here, not by the storage.
   const activeMembers = (snapshot.data?.members ?? [])
     .filter((profile) => profile.archivedAt === undefined)
     .sort((a, b) => {
@@ -60,7 +62,7 @@ export function useMemberShell(): MemberShellData {
           : 1
     })
   const marked = activeMembers.length > 0 ? activeMembers : me ? [me.member] : []
-  const marks = marked.slice(0, 2).map((profile) => ({
+  const marks = marked.map((profile) => ({
     id: profile.id,
     initials: monogramOf(profile.displayName ?? profile.name),
     hue: hueFromId(profile.id),
@@ -70,12 +72,10 @@ export function useMemberShell(): MemberShellData {
   // never synced knows only the viewer, and a made-up count would be a
   // lie — the line waits, like the home's empty sections do (ADR-0002).
   const downloaded = snapshot.data?.revision !== undefined
-  // The role comes from the same snapshot the count does: a probe with a
-  // stale role beside a fresh count would split one fact in two.
-  const ownRole =
-    me === undefined
-      ? undefined
-      : (activeMembers.find((p) => p.id === me.member.id)?.role ?? me.member.role)
+  // The viewer's role is the probe's word — the same source the user
+  // menu's settings entry gates on (use-user-menu.ts), so the line and
+  // the menu can never disagree about it.
+  const ownRole = me?.member.role
   const membersLabel = downloaded
     ? t('layout.spaceSub', {
         count: activeMembers.length,

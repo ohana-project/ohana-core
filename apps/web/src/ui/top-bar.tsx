@@ -69,13 +69,14 @@ export function TopBar({
       {/* the prototype's `.topbar .topbar-space`: `width: auto; padding:
           0 6px; margin: 0 -6px` on the 44px round — the button is as
           wide as its stack, and no outer margin sits on the stack
-          itself */}
+          itself; min-w-11 keeps the 44px round when the stack is empty
+          (one 32px avatar plus the padding is 44px either way) */}
       <button
         type="button"
         data-slot="topbar-space"
         aria-label={t('layout.space')}
         onClick={onSpaceClick}
-        className="-mx-1.5 grid h-11 w-auto shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
+        className="-mx-1.5 grid h-11 min-w-11 w-auto shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
       >
         <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (

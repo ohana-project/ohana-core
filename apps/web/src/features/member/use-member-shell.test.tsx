@@ -8,7 +8,8 @@ import { useMemberShell } from './use-member-shell.ts'
 
 /*
  * One place builds the member shell's data (issue #62): the space with
- * the first two active members' monograms and the member-count line,
+ * the active members' monograms in the stack's order and the
+ * member-count line,
  * the visible sections, the sync state and the user menu — the same
  * shapes every member area passes to the layout, so no area passes an
  * empty monogram list and the top bar shows the same stack everywhere.
@@ -142,11 +143,12 @@ afterEach(async () => {
 })
 
 describe('useMemberShell', () => {
-  it('builds the space from the first two active members with the count line', async () => {
+  it('builds the space from the active members in the stack’s order with the count line', async () => {
     seedRegistry()
     mockMe('owner')
-    // Four members in the demo world, Люда archived: the stack shows the
-    // first two active monograms, the line counts the active three.
+    // Four members in the demo world, Люда archived: the marks carry the
+    // active three in order (the stack's two seats are the display's
+    // cap), the line counts the active three.
     await applySyncResult(
       ANYA,
       syncResultWith([
@@ -158,7 +160,7 @@ describe('useMemberShell', () => {
     )
     renderWithProviders(<Probe />)
 
-    await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АД'))
+    await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АДМ'))
     expect(screen.getByTestId('label')).toHaveTextContent('3 участника · вы владелец')
     expect(screen.getByTestId('name')).toHaveTextContent('Наша семья')
   })
@@ -198,7 +200,7 @@ describe('useMemberShell', () => {
     await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АМ'))
   })
 
-  it('two regular members ride the stack by creation, not by id order', async () => {
+  it('regular members ride the stack by creation, not by id order', async () => {
     seedRegistry()
     mockMe('owner')
     await applySyncResult(
@@ -212,7 +214,7 @@ describe('useMemberShell', () => {
     )
     renderWithProviders(<Probe />)
 
-    await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АМ'))
+    await vi.waitFor(() => expect(screen.getByTestId('marks')).toHaveTextContent('АМД'))
   })
 
   it('a regular member’s count line carries no owner note', async () => {
@@ -223,6 +225,22 @@ describe('useMemberShell', () => {
     await applySyncResult(
       ANYA,
       syncResultWith([member(ANYA, 'Аня', 'regular'), member(DIMA, 'Дима', 'regular')]),
+    )
+    renderWithProviders(<Probe />)
+
+    await vi.waitFor(() => expect(screen.getByTestId('label')).toHaveTextContent(/^2 участника$/))
+    expect(screen.getByTestId('label').textContent).not.toContain('владелец')
+  })
+
+  it('a stale snapshot role cannot outvote the probe the user menu reads', async () => {
+    // The probe answers regular, the partition's row still says owner:
+    // the line follows the probe — the same source the menu's settings
+    // entry gates on — so the two never disagree (review round two).
+    seedRegistry()
+    mockMe('regular')
+    await applySyncResult(
+      ANYA,
+      syncResultWith([member(ANYA, 'Аня', 'owner'), member(DIMA, 'Дима', 'regular')]),
     )
     renderWithProviders(<Probe />)
 
