@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { createI18n, defaultLocale, locales } from './index.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createI18n, defaultLocale, deviceLocale, locales } from './index.ts'
 import en from './resources/en.json'
 import ru from './resources/ru.json'
 
@@ -46,5 +46,29 @@ describe('createI18n', () => {
     expect(i18n.t('designPreview.lists.cardMeta', { date: '28.09', author: 'Миша' })).toBe(
       '28.09 · Миша',
     )
+  })
+})
+
+describe('deviceLocale', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('takes the first navigator language the catalogues speak', () => {
+    vi.stubGlobal('navigator', { languages: ['fr-FR', 'en-US', 'ru'] })
+    expect(deviceLocale()).toBe('en')
+  })
+
+  it('reads the plain language tag when there is no language list', () => {
+    vi.stubGlobal('navigator', { language: 'ru-RU' })
+    expect(deviceLocale()).toBe('ru')
+  })
+
+  it('keeps the default when the device speaks neither catalogue', () => {
+    vi.stubGlobal('navigator', { languages: ['fr-FR', 'de-DE'] })
+    expect(deviceLocale()).toBe(defaultLocale)
+  })
+
+  it('is the default outside a browser', () => {
+    vi.stubGlobal('navigator', undefined)
+    expect(deviceLocale()).toBe(defaultLocale)
   })
 })

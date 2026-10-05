@@ -9,6 +9,27 @@ export const locales = ['ru', 'en'] as const
 export type Locale = (typeof locales)[number]
 export const defaultLocale: Locale = 'ru'
 
+/**
+ * The device's preferred locale: the first navigator language the
+ * catalogues speak, else the default. The onboarding screen reaches for
+ * it when neither the member nor the device has a stored choice (issue
+ * #78); outside a browser it is the default.
+ */
+export function deviceLocale(): Locale {
+  // The package runs outside a browser too, where there is no navigator
+  // — and its tsconfig knows no DOM lib, so the global is read untyped.
+  const nav = (globalThis as { navigator?: { languages?: readonly string[]; language?: string } })
+    .navigator
+  if (nav === undefined) return defaultLocale
+  for (const candidate of nav.languages ?? [nav.language]) {
+    if (candidate === undefined) continue
+    const base = candidate.split('-')[0]?.toLowerCase()
+    const locale = locales.find((locale) => locale === base)
+    if (locale !== undefined) return locale
+  }
+  return defaultLocale
+}
+
 const resources = {
   ru: { translation: ru },
   en: { translation: en },

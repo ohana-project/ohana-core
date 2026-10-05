@@ -1,5 +1,5 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppProviders } from '@/app/providers.tsx'
@@ -39,6 +39,9 @@ const ok = {
 
 /** The probe's answer and the sync's empty delta, over the one mock. */
 function mockProbe(me: typeof ME) {
+  // The mock reads through a holder, so a later mockProbe call moves the
+  // answer in place — how a member switch reaches the same query.
+  currentMe = me
   apiGet.mockImplementation(async (path: never) => {
     if (path === '/api/v1/sync') {
       return {
@@ -48,9 +51,23 @@ function mockProbe(me: typeof ME) {
       }
     }
     if (path === '/api/v1/me') {
-      return { data: me, error: undefined, response: new Response(null, { status: 200 }) }
+      return { data: currentMe, error: undefined, response: new Response(null, { status: 200 }) }
     }
     throw new Error(`Unexpected GET ${String(path)}`)
+  })
+}
+
+let currentMe: typeof ME
+
+/**
+ * The device presents its languages through navigator; the tests pin them
+ * per scenario (jsdom speaks en-US otherwise, and the suite's Russian
+ * screens would silently turn English).
+ */
+function stubDeviceLocale(languages: string[]) {
+  Object.defineProperty(window.navigator, 'languages', {
+    value: languages,
+    configurable: true,
   })
 }
 
@@ -85,6 +102,7 @@ function probe(): QueryClient {
 describe('OnboardingScreen', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    stubDeviceLocale(['ru-RU'])
     // The probe asks the registry first: an active member makes it fetch.
     window.localStorage.setItem(
       'ohana.sessions',
@@ -165,6 +183,63 @@ describe('OnboardingScreen', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Русский' })).toBeChecked()
     expect(window.localStorage.getItem('ohana.locale')).toBeNull()
+  })
+
+  it('applies an English device to the whole interface when no preference is stored', async () => {
+    stubDeviceLocale(['en-US'])
+    renderOnboardingScreen()
+
+    expect(
+      await screen.findByRole('heading', { name: 'How will the family call you?' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'English' })).toBeChecked()
+    // The device's locale is the device's own choice: it sticks for the
+    // rest of the app, the way a member's stored preference does.
+    expect(window.localStorage.getItem('ohana.locale')).toBe('en')
+  })
+
+  it('reseeds the draft empty when the active member changes', async () => {
+    const user = userEvent.setup()
+    renderOnboardingScreen()
+    await screen.findByRole('heading', { name: 'Как вас назовут в семье?' })
+    await user.type(screen.getByLabelText('Имя'), 'Аня')
+
+    // The accounts screen's switch resets every query; the probe next
+    // answers for the member who became active.
+    const other = {
+      ...ME,
+      member: { ...ME.member, id: '01900000-0000-7000-8000-000000000002', name: 'Ваня' },
+    }
+    window.localStorage.setItem(
+      'ohana.sessions',
+      JSON.stringify([
+        {
+          memberId: ME.member.id,
+          spaceId: ME.space.id,
+          spaceName: ME.space.name,
+          name: ME.member.name,
+        },
+        {
+          memberId: other.member.id,
+          spaceId: other.space.id,
+          spaceName: other.space.name,
+          name: other.member.name,
+        },
+      ]),
+    )
+    window.localStorage.setItem('ohana.activeMember', other.member.id)
+    mockProbe(other)
+    act(() => {
+      probe().resetQueries()
+    })
+
+    // No member reads or submits another's entries: the form arrives
+    // empty for the member it now belongs to.
+    expect(
+      await screen.findByRole('heading', { name: 'Как вас назовут в семье?' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Имя')).toHaveValue('')
+    expect(screen.getByRole('radio', { name: 'Русский' })).toBeChecked()
   })
 
   it('sends a member that has already onboarded home', async () => {

@@ -176,6 +176,11 @@ async function mockMemberApi(page: Page, options: MockOptions = {}) {
 }
 
 test.describe('member sign-in by access code', () => {
+  // The spec walks the Russian interface: the browser presents itself as
+  // a Russian device, so onboarding's device-locale preselection reads
+  // Russian instead of the runner's en-US.
+  test.use({ locale: 'ru-RU' })
+
   test('walks code entry, onboarding, and lands on the space home (ru)', async ({ page }) => {
     await mockMemberApi(page)
 

@@ -1,3 +1,4 @@
+import { deviceLocale } from '@ohana/i18n'
 import { Navigate, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,41 +13,55 @@ import { type OnboardingDraft, OnboardingForm } from './onboarding-form.tsx'
  * the sign-in flow, right after the code is accepted; a member that has
  * already onboarded goes straight home. The draft lives here, above the
  * session gate: the gate swaps its children for a spinner while the probe
- * refetches, and everything the member typed or chose survives that swap.
- * The draft seeds once, from the probe's first answer — a member's stored
- * preference leads the interface on arrival (once per arrival; a fresh
- * arrival follows it again), and after that their own choice on the cards
- * is the latest word, riding the device locale the rest of the app reads.
+ * refetches, and everything the member typed or chosen survives that swap.
+ * The draft is keyed to the member it was seeded from, so a member switch
+ * (another sign-in, the accounts screen) reseeds it empty — no member
+ * reads or submits another's entries. The seed leads with the member's
+ * stored preference, else the device's locale, and the arrival applies
+ * that preference to the whole interface once per arrival; after it the
+ * member's own choice on the cards is the latest word, riding the device
+ * locale the rest of the app reads.
  */
+
+/** The draft together with the member it was seeded from. */
+type OwnedDraft = { memberId: string; draft: OnboardingDraft }
+
 export function OnboardingScreen() {
   const { t, i18n } = useTranslation()
   const session = useMemberSessionStatus()
   const navigate = useNavigate()
 
-  const [draft, setDraft] = useState<OnboardingDraft | undefined>(undefined)
-  if (draft === undefined && session.me !== undefined) {
-    setDraft({
-      displayName: '',
-      email: '',
-      phone: '',
-      language: session.me.member.interfaceLanguage ?? (i18n.language === 'en' ? 'en' : 'ru'),
-      storedApplied: false,
+  const [owned, setOwned] = useState<OwnedDraft | undefined>(undefined)
+  const me = session.me
+  if (me !== undefined && (owned === undefined || owned.memberId !== me.member.id)) {
+    setOwned({
+      memberId: me.member.id,
+      draft: {
+        displayName: '',
+        email: '',
+        phone: '',
+        language: me.member.interfaceLanguage ?? deviceLocale(),
+        storedApplied: false,
+      },
     })
   }
 
-  const storedLanguage = session.me?.member.interfaceLanguage
+  const storedLanguage = me?.member.interfaceLanguage
   useEffect(() => {
-    if (draft === undefined || draft.storedApplied) return
-    if (storedLanguage === undefined) {
-      setDraft({ ...draft, storedApplied: true })
-      return
+    if (owned === undefined || owned.draft.storedApplied) return
+    // The stored preference leads the interface on arrival; absent one,
+    // the device's locale does — Russian when the device speaks neither
+    // supported language.
+    const preference = storedLanguage ?? deviceLocale()
+    if (preference !== i18n.language) {
+      void i18n.changeLanguage(preference)
+      storeLocale(preference)
     }
-    if (storedLanguage !== i18n.language) {
-      void i18n.changeLanguage(storedLanguage)
-      storeLocale(storedLanguage)
-    }
-    setDraft({ ...draft, language: storedLanguage, storedApplied: true })
-  }, [draft, storedLanguage, i18n])
+    setOwned({
+      memberId: owned.memberId,
+      draft: { ...owned.draft, language: preference, storedApplied: true },
+    })
+  }, [owned, storedLanguage, i18n])
 
   return (
     <AuthLayout
@@ -61,9 +76,13 @@ export function OnboardingScreen() {
     >
       <MemberSessionGate require="signed-in" redirectTo="/signin">
         <OnboardingInner
-          me={session.me}
-          draft={draft}
-          onDraftChange={setDraft}
+          me={me}
+          draft={owned?.draft}
+          onDraftChange={(next) =>
+            setOwned((prev) =>
+              prev === undefined ? undefined : { memberId: prev.memberId, draft: next },
+            )
+          }
           onCompleted={() => void navigate({ to: '/' })}
         />
       </MemberSessionGate>
