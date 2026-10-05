@@ -56,8 +56,9 @@ export function AdminSpacesList() {
       {/* The prototype's `row-between`: title and action share one row,
           centred, 20px above the list (the header's own margin). The
           title block flexes down to the title itself, so the subtitle
-          narrows first and the action wraps only when the two truly
-          cannot share a row — no horizontal scroll from 360px. */}
+          narrows first and the action wraps beneath at phone widths,
+          where the prototype's own row would overflow its viewport
+          (README, known defects). */}
       <header className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <div className="flex-1">
           <h1 className="text-display-lg">{t('admin.spaces.title')}</h1>

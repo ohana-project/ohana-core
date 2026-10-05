@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -118,13 +118,25 @@ describe('AdminSpacesList', () => {
 
     expect(await screen.findByText('2 пространства')).toBeInTheDocument()
     release()
-    await waitFor(() => expect(apiGet.mock.settledResults).toHaveLength(2))
+    // Both GETs must have settled (the 500 among them) before the
+    // assertions run — settle types, not lengths: a length counts the
+    // calls the moment they are issued.
+    await waitFor(() =>
+      expect(apiGet.mock.settledResults.map((result) => result.type)).toEqual([
+        'fulfilled',
+        'fulfilled',
+      ]),
+    )
+    // A tick lets the query observer deliver the error state.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
     expect(screen.getByText('2 пространства')).toBeInTheDocument()
     expect(screen.queryByText(/хранение корзины/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Наша семья/ })).toBeInTheDocument()
   })
 
-  it('centres the header’s title and action on one row', async () => {
+  it('centres the header’s title and action', async () => {
     renderWithProviders(<AdminSpacesList />)
 
     await screen.findByText('Наша семья')

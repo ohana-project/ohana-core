@@ -99,7 +99,10 @@ async function mockAdminApi(
   })
 
   // The installation settings (the header's trash retention line).
-  await page.route(SETTINGS, async (route) => route.fulfill(jsonBody({ trashRetentionDays: 30 })))
+  await page.route(SETTINGS, async (route) => {
+    if (route.request().method() !== 'GET') return route.fulfill({ status: 405 })
+    return route.fulfill(jsonBody({ trashRetentionDays: 30 }))
+  })
 
   await page.route(SPACES, async (route) => {
     const request = route.request()
@@ -257,10 +260,10 @@ test.describe('administrative spaces list', () => {
 
     // The prototype's centred row: the subtitle narrows first, the action
     // wraps when the two truly cannot share a row. The prototype itself
-    // overflows a 390px viewport by 17px here; the implementation keeps
-    // the no-scroll rule instead (README, known defects). Measure after
-    // the settings line lands: it is the header's widest state.
-    for (const width of [360, 390]) {
+    // overflows a 390px viewport by about 17px here; the implementation
+    // keeps the no-scroll rule instead (README, known defects). Measure
+    // after the settings line lands: it is the header's widest state.
+    for (const width of [360, 390, 1280]) {
       await page.setViewportSize({ width, height: 800 })
       await page.goto('/admin')
       await expect(page.getByRole('link', { name: /Наша семья/ })).toBeVisible()
@@ -270,6 +273,17 @@ test.describe('administrative spaces list', () => {
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
         ),
       ).toBeLessThanOrEqual(0)
+
+      // Pin both sides of the recorded deviation: beneath 1280 the action
+      // sits on its own row under the title; at 1280 they share one row.
+      const title = await page.getByRole('heading', { name: 'Пространства' }).boundingBox()
+      const action = await page.getByRole('button', { name: 'Новое пространство' }).boundingBox()
+      if (!title || !action) throw new Error('the header never rendered')
+      if (width === 1280) {
+        expect(action.y).toBeLessThan(title.y + title.height)
+      } else {
+        expect(action.y).toBeGreaterThanOrEqual(title.y + title.height)
+      }
     }
   })
 })
