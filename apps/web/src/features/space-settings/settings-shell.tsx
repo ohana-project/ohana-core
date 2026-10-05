@@ -1,22 +1,19 @@
-import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
-import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
-import { useNavSections } from '@/features/member/use-nav-sections.ts'
-import { useSectionNav } from '@/features/member/use-section-nav.ts'
-import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
-import { Icon } from '@/ui/icon.tsx'
+import { ShellBackLink } from '@/features/member/shell-back-link.tsx'
+import { useMemberShell } from '@/features/member/use-member-shell.ts'
 import { Spinner } from '@/ui/spinner.tsx'
 
 /*
- * The space settings area (docs/design/screens/members.html,
+ * The space settings area's shell (docs/design/screens/members.html,
  * member-card.html, invite.html, space-settings.html): the member shell
- * with the screen's title in the top bar and a back arrow — to the members
- * screen inside the area, to home at its edge. The section navigation is
- * the space's own visible sections (issue #13); the user menu travels with
- * the shell, so every screen of the area reaches the others and the
- * accounts screen the same way the home does.
+ * with the screen's title in the top bar and a back arrow — the
+ * prototype's 44px round `.m-only` button, below 920px only — to the
+ * members screen inside the area, to home at its edge (issue #62). The
+ * shell data — monograms included, like every member area — comes from
+ * the one builder; the section navigation is the space's own visible
+ * sections (issue #13) and the sync state travels with the shell, so the
+ * footer's indicator answers offline exactly as the home's does.
  */
 
 export function SettingsShell({
@@ -30,13 +27,9 @@ export function SettingsShell({
   width?: 'default' | 'narrow'
   children: ReactNode
 }) {
-  const { t } = useTranslation()
-  const session = useMemberSessionStatus()
-  const sections = useNavSections()
-  const userMenuItems = useMemberUserMenu()
-  const onSectionClick = useSectionNav()
+  const shell = useMemberShell()
 
-  if (session.status === 'pending') {
+  if (shell.sessionPending) {
     return (
       <div className="grid min-h-dvh place-items-center">
         <Spinner className="size-6" />
@@ -46,21 +39,14 @@ export function SettingsShell({
 
   return (
     <MemberLayout
-      space={{ name: session.me?.space.name ?? '', marks: [] }}
-      sections={sections}
+      space={shell.space}
+      sections={shell.sections}
+      sync={shell.sync}
       title={title}
       width={width}
-      userMenuItems={userMenuItems}
-      back={
-        <Link
-          to={backTo}
-          aria-label={t('space.back')}
-          className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <Icon name="chevron-left" className="size-5" />
-        </Link>
-      }
-      onSectionClick={onSectionClick}
+      userMenuItems={shell.userMenuItems}
+      back={<ShellBackLink to={backTo} />}
+      onSectionClick={shell.onSectionClick}
     >
       {children}
     </MemberLayout>

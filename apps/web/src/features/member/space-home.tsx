@@ -4,11 +4,9 @@ import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { occurrenceLink, upcomingEvents } from '@/features/calendar/calendar-entries.ts'
 import { EventTimeLine } from '@/features/calendar/event-time.tsx'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
-import { ALL_SECTIONS_VISIBLE, useNavSections } from '@/features/member/use-nav-sections.ts'
-import { useSectionNav } from '@/features/member/use-section-nav.ts'
-import { useSyncStatus } from '@/features/member/use-sync-status.ts'
+import { ALL_SECTIONS_VISIBLE } from '@/features/member/use-nav-sections.ts'
+import { useMemberShell } from '@/features/member/use-member-shell.ts'
 import { sectionDownloaded, useSyncedSpace } from '@/features/member/use-synced-space.ts'
-import { useMemberUserMenu } from '@/features/member/use-user-menu.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -45,10 +43,10 @@ export function SpaceHomeScreen() {
   const { t, i18n } = useTranslation()
   const session = useMemberSessionStatus()
   const snapshot = useSyncedSpace()
-  const sync = useSyncStatus()
-  const sections = useNavSections()
-  const userMenuItems = useMemberUserMenu()
-  const onSectionClick = useSectionNav()
+  // The shell's data — the space with the first two members' monograms,
+  // the sections, the sync state, the user menu — comes from the one
+  // builder every member area shares (issue #62).
+  const shell = useMemberShell()
 
   if (session.me === undefined) return null
   const me = session.me
@@ -72,15 +70,15 @@ export function SpaceHomeScreen() {
 
   return (
     <MemberLayout
-      space={{
-        name: me.space.name,
-        marks: [{ initials: monogramOf(displayName), hue: hueFromId(me.member.id) }],
-      }}
-      sections={sections}
+      space={shell.space}
+      // The home's top-bar title is the space name, like the prototype's
+      // `data-title` on home.html — not the section label.
+      title={shell.space.name}
+      sections={shell.sections}
       activeId="home"
-      sync={sync}
-      userMenuItems={userMenuItems}
-      onSectionClick={onSectionClick}
+      sync={shell.sync}
+      userMenuItems={shell.userMenuItems}
+      onSectionClick={shell.onSectionClick}
     >
       <div className="flex flex-col gap-6 pt-6">
         <header>

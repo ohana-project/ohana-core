@@ -42,7 +42,7 @@ export function WishlistsScreen() {
     <WishlistShell
       title={t('wishlist.title')}
       width="narrow"
-      actions={
+      desktopActions={
         <Button size="sm" render={<Link to="/wishlist/mine" />}>
           <Icon name="plus" />
           {t('wishlist.addWish')}

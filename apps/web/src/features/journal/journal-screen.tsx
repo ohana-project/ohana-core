@@ -62,7 +62,7 @@ export function JournalScreen() {
   return (
     <JournalShell
       title={t('journal.title')}
-      actions={newEntry}
+      desktopActions={newEntry}
       width={showAside ? 'wide' : 'default'}
     >
       <div

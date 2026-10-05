@@ -391,14 +391,14 @@ test.describe('type scale survives class merging', () => {
     }
   })
 
-  test('the tab bar is 67px with micro labels', async ({ page }) => {
+  test('the tab bar is 68px with micro labels', async ({ page }) => {
     // the issue's symptom was a 73px bar from body-size labels; with
-    // micro labels it sits at 67px (the prototype's 68 includes the
-    // 1px glass hairline the implementation drops)
+    // micro labels it sits at the prototype's 68px — the glass top
+    // hairline came back with issue #62 (docs/design/README.md, "Glass")
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page)
     const box = await page.locator('[data-slot=tabbar]').boundingBox()
-    expect(box?.height).toBeCloseTo(67, 0)
+    expect(box?.height).toBeCloseTo(68, 0)
   })
 })
 
@@ -1281,5 +1281,164 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
       [TARGET],
     )
     expect(radius, 'the link is :focus-visible and rounds to 8px').toBe('8px')
+  })
+})
+
+test.describe('the member shell matches the prototype (issue #62)', () => {
+  /**
+   * The demo shell box: the transformed container that pins the member
+   * shell's chrome inside the preview (the same helper the issue #61
+   * specs use, read fresh in each block).
+   */
+  function demoShell(page: Page) {
+    return page
+      .locator('#layouts')
+      .locator('div')
+      .filter({ has: page.locator('[data-slot="tabbar"]') })
+      .first()
+  }
+
+  test('the mobile top bar carries the fg-8% bottom hairline, the token border on desktop', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const bar = demoShell(page).locator('[data-slot="topbar"]')
+    const mobile = await bar.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { width: s.borderBottomWidth, colour: s.borderBottomColor }
+    })
+    expect(mobile.width).toBe('1px')
+    // the prototype's .topbar hairline: fg 8% over transparency
+    const hairline = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.borderColor = 'color-mix(in oklch, var(--fg) 8%, transparent)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).borderTopColor
+      probe.remove()
+      return colour
+    })
+    expect(mobile.colour).toBe(hairline)
+
+    await page.setViewportSize({ width: 1280, height: 900 })
+    // from 920px up the hairline takes the border token (.topbar's media
+    // query), which the dark and light themes both define
+    await expect(bar).toHaveCSS('border-bottom-color', await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.borderColor = 'var(--border)'
+      document.body.append(probe)
+      const colour = getComputedStyle(probe).borderTopColor
+      probe.remove()
+      return colour
+    }))
+  })
+
+  test('the tab bar keeps the glass recipe’s top hairline', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const bar = demoShell(page).locator('[data-slot="tabbar"]')
+    const hairline = await bar.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { top: s.borderTopWidth, bottom: s.borderBottomWidth, left: s.borderLeftWidth }
+    })
+    // the prototype's .tabbar: the .glass border on the top edge only
+    expect(hairline).toEqual({ top: '1px', bottom: '0px', left: '0px' })
+  })
+
+  test('the space switcher is as wide as its monogram stack', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const geometry = await demoShell(page).evaluate((root) => {
+      const button = root.querySelector<HTMLButtonElement>('[data-slot="topbar-space"]')
+      const stack = button?.querySelector('[data-slot="avatar-stack"]')
+      if (!button || !stack) return null
+      const b = button.getBoundingClientRect()
+      const s = stack.getBoundingClientRect()
+      return { button: b.width, stack: s.width, left: b.left, stackLeft: s.left }
+    })
+    expect(geometry, 'the demo shell renders at 390px').not.toBeNull()
+    // .topbar .topbar-space { width: auto; padding: 0 6px }: the button
+    // hugs the stack, 6px of padding on each side
+    expect(geometry?.button).toBeCloseTo((geometry?.stack ?? 0) + 12, 0)
+    expect(geometry?.stackLeft).toBeCloseTo((geometry?.left ?? 0) + 6, 0)
+  })
+
+  test('the back arrow is the 44px round mobile-only button with an 18px chevron', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const back = demoShell(page).getByRole('link', { name: 'Назад' })
+    await expect(back).toBeVisible()
+    const shape = await back.evaluate((el) => {
+      const s = getComputedStyle(el)
+      const icon = el.querySelector('svg')
+      const i = icon ? getComputedStyle(icon) : null
+      return {
+        width: s.width,
+        height: s.height,
+        radius: s.borderTopLeftRadius,
+        colour: s.color,
+        iconWidth: i?.width,
+        iconColour: i?.color,
+      }
+    })
+    // .btn.btn-icon: 44px round, the main text colour; .btn svg: 18px
+    expect(shape.width).toBe('44px')
+    expect(shape.height).toBe('44px')
+    expect(shape.radius).toBe('999px')
+    expect(shape.colour).toBe(await tokenFill(page, '--fg'))
+    expect(shape.iconWidth).toBe('18px')
+    expect(shape.iconColour).toBe(await tokenFill(page, '--fg'))
+
+    // .m-only: from 920px up the arrow is gone — the sidebar leads back
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(back).toBeHidden()
+  })
+
+  test('desktop-only top-bar actions render from 920px and not below', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page, { locale: 'en' })
+    const action = demoShell(page).getByRole('button', { name: 'Desktop only' })
+    // .d-only: no display below the breakpoint, where the FAB carries
+    // the screen's action
+    await expect(action).toBeHidden()
+
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(action).toBeVisible()
+  })
+
+  test('the sidebar chevron is 20px', async ({ page }) => {
+    await openDesign(page)
+    const chevron = demoShell(page).locator('[data-slot="side-space"] svg').last()
+    const size = await chevron.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return [s.width, s.height]
+    })
+    // the prototype stamps every icon 20px; the switcher's container
+    // rule keeps that for the un-sized chevron
+    expect(size).toEqual(['20px', '20px'])
+  })
+
+  test('an active sidebar item keeps its accent under the pointer', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openDesign(page)
+    const active = demoShell(page).locator('[data-slot="nav-item"][aria-current="page"]')
+    await expect(active).toBeVisible()
+    const atRest = await active.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { bg: s.backgroundColor, colour: s.color }
+    })
+    // the hover that greys an active item was the audit's finding: the
+    // prototype declares .nav-item.is-active after :hover, so the accent
+    // survives the pointer
+    await active.hover()
+    const onHover = await active.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { bg: s.backgroundColor, colour: s.color }
+    })
+    expect(onHover).toEqual(atRest)
+    // and it is the accent, not the grey hover fill
+    expect(onHover.colour).toBe(await tokenFill(page, '--accent'))
   })
 })

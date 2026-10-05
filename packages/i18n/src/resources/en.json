@@ -61,7 +61,8 @@
       "light": "Light theme",
       "dark": "Dark theme"
     },
-    "switchSpace": "Switch space"
+    "switchSpace": "Switch space",
+    "spaceSub": "{count, plural, one {# member} other {# members}}{role, select, owner { · you are the owner} other {}}"
   },
   "admin": {
     "pill": "Admin",
@@ -483,7 +484,6 @@
     }
   },
   "space": {
-    "back": "Back",
     "members": {
       "title": "Members",
       "subtitle": "“{space}”",
@@ -849,7 +849,8 @@
       "authAction": "Sign in",
       "openInPlace": "The shells are assembled below, one after another.",
       "sectionCount": "Visible sections",
-      "spaceToast": "The list of spaces will appear here"
+      "spaceToast": "The list of spaces will appear here",
+      "desktopAction": "Desktop only"
     },
     "demo": {
       "spaceName": "«Наша семья»",

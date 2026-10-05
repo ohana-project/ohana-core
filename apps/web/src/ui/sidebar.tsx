@@ -70,17 +70,24 @@ export function Sidebar({
         {sections.map((section) => {
           const active = section.id === activeId
           return (
-            <button
-              key={section.id}
-              type="button"
-              data-slot="nav-item"
-              aria-current={active ? 'page' : undefined}
-              onClick={() => onSectionClick?.(section.id)}
-              className={cn(
-                'flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body font-medium transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent hover:text-foreground',
-                active ? 'bg-primary-soft text-primary' : 'text-muted-foreground',
-              )}
-            >
+          <button
+            key={section.id}
+            type="button"
+            data-slot="nav-item"
+            aria-current={active ? 'page' : undefined}
+            onClick={() => onSectionClick?.(section.id)}
+            className={cn(
+              // the prototype declares .nav-item.is-active after :hover,
+              // so the grey hover fill never covers an active item's
+              // accent — the active branch carries its own hover,
+              // instead of relying on Tailwind's variant order
+              // (docs/design/screens/home.html, .nav-item; issue #62)
+              'flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body font-medium transition-colors duration-(--t-fast) ease-(--ease)',
+              active
+                ? 'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
               <Icon name={section.icon} className="size-5 shrink-0" />
               <span className="truncate">{section.label}</span>
             </button>

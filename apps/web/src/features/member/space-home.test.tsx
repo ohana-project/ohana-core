@@ -263,6 +263,88 @@ describe('SpaceHomeScreen', () => {
     expect(apiGet.mock.calls.filter((call) => call[0] === '/api/v1/sync')).toHaveLength(1)
   })
 
+  it('shows the space’s two monograms and the space name in the top bar (issue #62)', async () => {
+    // The shell data comes from the one builder (useMemberShell): the
+    // stack is the first two active members' monograms — never empty, and
+    // never the viewer alone — and the home's top-bar title is the space
+    // name, like the prototype's `data-title` on home.html. The ids stay
+    // clear of MISHA's: the store is keyed by id, and a collision would
+    // silently merge two members into one row.
+    const memberId = '01900000-0000-7000-8000-0000000000a1'
+    const dimaId = '01900000-0000-7000-8000-0000000000d1'
+    const me = {
+      member: {
+        id: memberId,
+        name: 'Аня',
+        displayName: 'Аня Смирнова',
+        role: 'owner' as const,
+        createdAt: '2026-08-12T10:00:00.000Z',
+      },
+      space: { id: SPACE_ID, name: 'Наша семья' },
+      needsOnboarding: false,
+    }
+    const sync: SyncResult = {
+      revision: '7',
+      changes: [
+        {
+          entity: 'space',
+          space: {
+            id: SPACE_ID,
+            name: 'Наша семья',
+            timezone: 'Europe/Moscow',
+            sections: { journal: true, calendar: true, wishlist: true },
+          },
+        },
+        { entity: 'member', member: me.member },
+        {
+          entity: 'member',
+          member: { id: dimaId, name: 'Дима', role: 'regular', createdAt: '2026-08-14T10:00:00.000Z' },
+        },
+      ],
+      tombstones: [],
+    }
+    window.localStorage.setItem(
+      'ohana.sessions',
+      JSON.stringify([
+        {
+          memberId,
+          spaceId: SPACE_ID,
+          spaceName: 'Наша семья',
+          name: 'Аня',
+          displayName: 'Аня Смирнова',
+        },
+      ]),
+    )
+    window.localStorage.setItem('ohana.activeMember', memberId)
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return { data: me, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/sync') {
+        return { data: sync, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    const { container } = renderWithProviders(<HomeRoute />)
+
+    expect(await screen.findByRole('heading', { name: /Аня Смирнова/ })).toBeInTheDocument()
+
+    const topbar = container.querySelector('[data-slot="topbar"]')
+    expect(topbar).not.toBeNull()
+    expect(topbar?.textContent).toContain('Наша семья')
+    const switcher = topbar?.querySelector('[data-slot="topbar-space"]')
+    expect(switcher).not.toBeNull()
+    // The partition read lands a beat after the greeting; the stack grows
+    // from the viewer's stand-in to the space's first two members, the
+    // owner leading, like the prototype's shell.
+    await vi.waitFor(() => {
+      const monograms = [...switcher!.querySelectorAll('[data-slot="avatar"]')].map(
+        (avatar) => avatar.textContent,
+      )
+      expect(monograms).toEqual(['А', 'Д'])
+    })
+  })
+
   it('a calendar awaiting its replay says nothing is downloaded in the events column', async () => {
     // A re-show or the store upgrade wrote the replay promise paired with
     // the cursor of 0 (ADR-0014): the rows the store holds are a fraction

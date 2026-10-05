@@ -32,6 +32,18 @@ describe('createI18n', () => {
     expect(i18n.t('members.count', { count: 5 })).toBe('5 members')
   })
 
+  it('builds the sidebar’s space line with the count and the owner note (issue #62)', () => {
+    const ru = createI18n({ locale: 'ru' })
+    expect(ru.t('layout.spaceSub', { count: 1, role: 'owner' })).toBe('1 участник · вы владелец')
+    expect(ru.t('layout.spaceSub', { count: 4, role: 'owner' })).toBe('4 участника · вы владелец')
+    expect(ru.t('layout.spaceSub', { count: 21, role: 'regular' })).toBe('21 участник')
+    const en = createI18n({ locale: 'en' })
+    expect(en.t('layout.spaceSub', { count: 4, role: 'owner' })).toBe(
+      '4 members · you are the owner',
+    )
+    expect(en.t('layout.spaceSub', { count: 1, role: 'regular' })).toBe('1 member')
+  })
+
   it.each(locales)('uses ICU single-brace interpolation in every %s string', (locale) => {
     for (const [key, value] of strings(catalogues[locale])) {
       expect(
