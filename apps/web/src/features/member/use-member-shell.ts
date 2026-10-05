@@ -75,9 +75,9 @@ export function useMemberShell(): MemberShellData {
   // The viewer's role is the probe's word — the same source the user
   // menu's settings entry gates on (use-user-menu.ts), so the line and
   // the menu answer "am I the owner" with one word. The stack's order
-  // and the screens' owner badges still read the snapshot, which may
-  // trail a demotion by a probe's staleness; the line is the quicker
-  // of the two to correct.
+  // and the screens' owner badges read the synced snapshot instead, so
+  // after a role change the two may disagree until both the probe and
+  // the sync have caught up.
   const ownRole = me?.member.role
   const membersLabel = downloaded
     ? t('layout.spaceSub', {
