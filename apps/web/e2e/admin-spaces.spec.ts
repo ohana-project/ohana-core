@@ -7,6 +7,7 @@ import { expect, type Page, test } from '@playwright/test'
  */
 
 const SESSION = '**/api/v1/admin/session'
+const SETTINGS = '**/api/v1/admin/settings'
 const SPACES = '**/api/v1/spaces'
 const SPACE = /\/api\/v1\/spaces\/[0-9a-f-]+$/
 const MEMBERS = /\/api\/v1\/spaces\/[0-9a-f-]+\/members$/
@@ -96,6 +97,9 @@ async function mockAdminApi(
     if (method === 'GET') return route.fulfill({ status: 204 })
     return route.fulfill({ status: 204 })
   })
+
+  // The installation settings (the header's trash retention line).
+  await page.route(SETTINGS, async (route) => route.fulfill(jsonBody({ trashRetentionDays: 30 })))
 
   await page.route(SPACES, async (route) => {
     const request = route.request()
@@ -199,7 +203,7 @@ test.describe('administrative spaces list', () => {
     await page.goto('/admin')
 
     await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
-    await expect(page.getByText('2 пространства')).toBeVisible()
+    await expect(page.getByText('2 пространства · хранение корзины: 30 дней')).toBeVisible()
     const familyRow = page.getByRole('link', { name: /Наша семья/ })
     await expect(familyRow).toContainText('4 участника')
     await expect(familyRow).toContainText('создано 12 августа')

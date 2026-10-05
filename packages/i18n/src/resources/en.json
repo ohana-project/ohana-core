@@ -90,6 +90,7 @@
     "spaces": {
       "title": "Spaces",
       "count": "{count, plural, one {# space} other {# spaces}}",
+      "trashRetention": "trash kept for {count, plural, one {# day} other {# days}}",
       "new": "New space",
       "newTitle": "New space",
       "newDescription": "Members and access codes are added inside the space",

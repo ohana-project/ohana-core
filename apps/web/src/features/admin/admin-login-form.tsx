@@ -5,11 +5,14 @@ import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Input } from '@/ui/input.tsx'
+import { Logo } from '@/ui/logo.tsx'
 
 /*
  * The administrative sign-in screen (docs/design/screens/admin-login.html):
- * the «АДМИНКА» pill, the display heading, one password field, and the
- * console-recovery note. Wrong passwords mark the field invalid and shake.
+ * the brand row — lockup and «АДМИНКА» pill —, the display heading at
+ * the prototype's 6px/22px rhythm, one password field, and the
+ * console-recovery note. Wrong passwords mark the field invalid and
+ * shake.
  */
 export function AdminLoginForm({ onSignedIn }: { onSignedIn?: () => void }) {
   const { t } = useTranslation()
@@ -34,13 +37,16 @@ export function AdminLoginForm({ onSignedIn }: { onSignedIn?: () => void }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
+    <div>
+      {/* The prototype's `admin-login-brand` row: the lockup and the
+          «АДМИНКА» pill on one row, 26px above the title. */}
+      <div className="mb-[26px] flex items-center gap-3">
+        <Logo />
         <Badge variant="neutral">{t('admin.pill')}</Badge>
       </div>
-      <h1 className="text-display-lg">{t('admin.login.title')}</h1>
-      <p className="text-body text-muted-foreground">{t('admin.login.description')}</p>
-      <form onSubmit={submit} className="mt-2 flex flex-col gap-3.5" noValidate>
+      <h1 className="mb-1.5 text-display-lg">{t('admin.login.title')}</h1>
+      <p className="mb-[22px] text-body text-muted-foreground">{t('admin.login.description')}</p>
+      <form onSubmit={submit} className="flex flex-col gap-3.5" noValidate>
         <Field data-invalid={invalid || undefined}>
           <FieldLabel htmlFor="admin-password">{t('admin.login.passwordLabel')}</FieldLabel>
           <Input

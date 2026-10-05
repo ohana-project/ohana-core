@@ -27,6 +27,37 @@ describe('AdminLoginForm', () => {
     expect(screen.getByRole('button', { name: 'Войти в админку' })).toBeInTheDocument()
   })
 
+  it('opens with the brand row: the logo and the АДМИНКА pill on one row', () => {
+    renderWithLoginForm()
+
+    const pill = screen.getByText('Админка')
+    const row = pill.closest('div')
+    expect(row).toHaveClass('flex', 'items-center', 'gap-3')
+    // The lockup shares the row, like the prototype's `admin-login-brand`.
+    expect(row).toHaveTextContent('Ohana')
+    expect(row).toHaveClass('mb-[26px]')
+  })
+
+  it('keeps the prototype’s 6px and 22px rhythm under the brand row', () => {
+    renderWithLoginForm()
+
+    expect(screen.getByRole('heading', { name: 'Сервер под паролем' })).toHaveClass('mb-1.5')
+    expect(
+      screen.getByText(
+        'Отдельный вход для того, кто хостит Ohana. Пространства семьи — через код на главном экране.',
+      ),
+    ).toHaveClass('mb-[22px]')
+  })
+
+  it('submits through the prototype’s large 52px button with 16.5px text', () => {
+    renderWithLoginForm()
+
+    expect(screen.getByRole('button', { name: 'Войти в админку' })).toHaveClass(
+      'min-h-[52px]',
+      'text-[16.5px]',
+    )
+  })
+
   it('sends the password and reports success to the caller', async () => {
     apiPost.mockResolvedValue({
       data: undefined,
