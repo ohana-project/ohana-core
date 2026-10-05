@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
@@ -26,6 +26,15 @@ import { RadioCard, RadioGroup } from '@/ui/radio-group.tsx'
 
 const LANGUAGES: Locale[] = ['ru', 'en']
 
+/*
+ * The stored preference applies once per member per browser session: the
+ * session gate remounts this form whenever the probe refetches, and an
+ * effect that re-ran per mount would revert the member's own choice of
+ * the other card. Module scope survives the remounts; a full page reload
+ * legitimately starts the arrival over.
+ */
+const appliedStoredLanguages = new Map<string, Locale>()
+
 export type OnboardingErrorKey = 'member.errors.validation_failed' | 'member.errors.unexpected'
 
 /** Translates a stable API error code into the caller's locale. */
@@ -45,27 +54,34 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [language, setLanguage] = useState<Locale>(
-    () => me.member.interfaceLanguage ?? (i18n.language === 'en' ? 'en' : 'ru'),
-  )
+  const [language, setLanguage] = useState<Locale>(() => {
+    // Once the stored preference has applied for this member, the device
+    // locale is the member's latest word — a remount must not reseed the
+    // card from the stored value over their own choice.
+    if (appliedStoredLanguages.get(me.member.id) === me.member.interfaceLanguage) {
+      return i18n.language === 'en' ? 'en' : 'ru'
+    }
+    return me.member.interfaceLanguage ?? (i18n.language === 'en' ? 'en' : 'ru')
+  })
   const [errorText, setErrorText] = useState<string | undefined>(undefined)
 
   // A stored preference leads the whole interface from arrival, not only
   // the checked card: a member invited with «English» on a Russian device
   // would otherwise read Russian under a checked «English» card, and
-  // clicking the already-checked card changes nothing. Each stored value
-  // applies once — react-i18next hands back a new wrapper object on every
-  // language change, and a bare effect would fight the member's own
-  // choice of the other card forever.
+  // clicking the already-checked card changes nothing. A stored change
+  // mid-form stays one decision — the card, the payload and the
+  // interface move together.
   const storedLanguage = me.member.interfaceLanguage
-  const appliedStored = useRef<Locale | undefined>(undefined)
+  const memberId = me.member.id
   useEffect(() => {
-    if (storedLanguage === undefined || appliedStored.current === storedLanguage) return
-    appliedStored.current = storedLanguage
+    if (storedLanguage === undefined) return
+    if (appliedStoredLanguages.get(memberId) === storedLanguage) return
+    appliedStoredLanguages.set(memberId, storedLanguage)
+    setLanguage(storedLanguage)
     if (storedLanguage === i18n.language) return
     void i18n.changeLanguage(storedLanguage)
     storeLocale(storedLanguage)
-  }, [storedLanguage, i18n])
+  }, [storedLanguage, memberId, i18n])
 
   const complete = useMutation({
     mutationFn: async () => {

@@ -108,7 +108,7 @@ describe('OnboardingForm', () => {
     const user = userEvent.setup()
     renderWithProviders(
       <OnboardingForm
-        me={{ ...ME, member: { ...ME.member, interfaceLanguage: 'en' } }}
+        me={{ ...ME, member: { ...ME.member, id: 'm-stored', interfaceLanguage: 'en' } }}
         onCompleted={() => {}}
       />,
     )
@@ -135,12 +135,8 @@ describe('OnboardingForm', () => {
       response: new Response(null, { status: 200 }),
     })
     const user = userEvent.setup()
-    renderWithProviders(
-      <OnboardingForm
-        me={{ ...ME, member: { ...ME.member, interfaceLanguage: 'en' } }}
-        onCompleted={() => {}}
-      />,
-    )
+    const me = { ...ME, member: { ...ME.member, id: 'm-chose', interfaceLanguage: 'en' as const } }
+    const view = renderWithProviders(<OnboardingForm me={me} onCompleted={() => {}} />)
     await screen.findByRole('heading', { name: 'How will the family call you?' })
 
     // The stored preference applies once on arrival; the member's own
@@ -157,6 +153,15 @@ describe('OnboardingForm', () => {
       '/api/v1/me/onboarding',
       expect.objectContaining({ body: expect.objectContaining({ interfaceLanguage: 'ru' }) }),
     )
+
+    // The gate remounts the form whenever the probe refetches; the
+    // chosen card survives it, because the stored preference applies
+    // once per member per browser session.
+    view.unmount()
+    renderWithProviders(<OnboardingForm me={me} onCompleted={() => {}} />)
+    expect(screen.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Русский' })).toBeChecked()
+    expect(window.localStorage.getItem('ohana.locale')).toBe('ru')
   })
 
   it('switches the whole interface when a card is chosen', async () => {
