@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { createI18n, defaultLocale, locales } from './index.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createI18n, defaultLocale, deviceLocale, locales } from './index.ts'
 import en from './resources/en.json'
 import ru from './resources/ru.json'
 
@@ -58,5 +58,41 @@ describe('createI18n', () => {
     expect(i18n.t('designPreview.lists.cardMeta', { date: '28.09', author: 'Миша' })).toBe(
       '28.09 · Миша',
     )
+  })
+})
+
+describe('deviceLocale', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** A navigator only counts when it comes with a window. */
+  function stubBrowser(navigator: unknown) {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', navigator)
+  }
+
+  it('takes the first navigator language the catalogues speak', () => {
+    stubBrowser({ languages: ['fr-FR', 'en-US', 'ru'] })
+    expect(deviceLocale()).toBe('en')
+  })
+
+  it('reads the plain language tag when there is no language list', () => {
+    stubBrowser({ language: 'ru-RU' })
+    expect(deviceLocale()).toBe('ru')
+  })
+
+  it('keeps the default when the device speaks neither catalogue', () => {
+    stubBrowser({ languages: ['fr-FR', 'de-DE'] })
+    expect(deviceLocale()).toBe(defaultLocale)
+  })
+
+  it('is the default when there is no navigator at all', () => {
+    stubBrowser(undefined)
+    expect(deviceLocale()).toBe(defaultLocale)
+  })
+
+  it('is the default outside a browser — the runtime navigator does not count', () => {
+    // The node runtime grows a navigator of its own; without a window it
+    // is no browser, and the helper keeps the default.
+    expect(deviceLocale()).toBe(defaultLocale)
   })
 })

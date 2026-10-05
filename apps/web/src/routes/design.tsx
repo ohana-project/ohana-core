@@ -73,6 +73,7 @@ import {
 import { NoteBlock } from '@/ui/note-block.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover.tsx'
+import { RadioCard, RadioGroup } from '@/ui/radio-group.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
 import {
   Sheet,
@@ -648,6 +649,31 @@ function ControlsSection() {
           <ToggleGroupItem value="month">{t('designPreview.controls.tabOne')}</ToggleGroupItem>
           <ToggleGroupItem value="list">{t('designPreview.controls.tabTwo')}</ToggleGroupItem>
         </ToggleGroup>
+
+        {/* the radio group and choice cards of the onboarding screen */}
+        <RadioGroup
+          defaultValue="ru"
+          name="preview-language"
+          aria-label={t('designPreview.controls.radio')}
+        >
+          {(['ru', 'en'] as const).map((locale) => (
+            <RadioCard key={locale} value={locale} media={<Icon name="globe" />}>
+              {t(`language.${locale}`)}
+            </RadioCard>
+          ))}
+        </RadioGroup>
+
+        {/* the numbered plate of the install steps */}
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <ItemGroup>
+            <Item size="sm">
+              <ItemMedia variant="num">1</ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t('designPreview.controls.numberedStep')}</ItemTitle>
+              </ItemContent>
+            </Item>
+          </ItemGroup>
+        </div>
 
         <Toggle aria-pressed={reminders} onPressedChange={setReminders}>
           {t('designPreview.controls.tabTwo')}

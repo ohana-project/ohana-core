@@ -8,14 +8,15 @@ import { Separator } from '@/ui/separator'
 
 /*
  * Ohana list row (`.list-row` in the prototype): a leading icon —
- * bare by default, or in the 38px tinted tile that `variant="icon"`
- * opts into —, title and subtitle, trailing content; rows are divided
- * by hairlines. The size variants carry the heights the prototypes
- * use inline (52, 56, 60, 64, 68px) instead of one-off pixel values
- * (issue #58). A leading icon is 20px (`.list-row .leading svg`), a
- * trailing icon 18px (`.list-row .trailing svg`) — the icons pick
- * their sizes up from the row, callers do not need to pass one
- * (issue #55).
+ * bare by default, in the 38px tinted tile that `variant="icon"` opts
+ * into, or in the 28px numbered plate of `variant="num"` (the
+ * prototype's `.leading.num`, install.html) —, title and subtitle,
+ * trailing content; rows are divided by hairlines. The size variants
+ * carry the heights the prototypes use inline (52, 56, 60, 64, 68px)
+ * instead of one-off pixel values (issue #58). A leading icon is 20px
+ * (`.list-row .leading svg`), a trailing icon 18px
+ * (`.list-row .trailing svg`) — the icons pick their sizes up from the
+ * row, callers do not need to pass one (issue #55).
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {
@@ -96,6 +97,9 @@ const itemMediaVariants = cva(
       variant: {
         default: 'text-muted-foreground',
         icon: 'size-[38px] rounded-md',
+        // The prototype's `.leading.num` (install.html): a 28px mono
+        // muted number on a round surface-2 plate.
+        num: 'size-7 rounded-full bg-surface-2 font-mono text-[13px] tabular-nums text-muted-foreground',
       },
       tone: {
         neutral: '',
@@ -121,13 +125,13 @@ function ItemMedia({
   tone,
   ...props
 }: React.ComponentProps<'div'> & {
-  variant?: 'default' | 'icon'
+  variant?: 'default' | 'icon' | 'num'
   tone?: ItemMediaTone
 }) {
   // A bare icon is the default, like the prototype's `.leading`; the
   // 38px tinted tile is opt-in through `variant="icon"`, its tint
-  // coming from the tone. An avatar therefore never sits on a tinted
-  // square (issue #58).
+  // coming from the tone; the numbered plate is `variant="num"`. An
+  // avatar therefore never sits on a tinted square (issue #58).
   const tiled = variant === 'icon'
   const activeTone = tone ?? (tiled ? 'neutral' : undefined)
   return (

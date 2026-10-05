@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import type * as React from 'react'
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
@@ -8,11 +9,15 @@ import { AccessCodeInput } from '@/ui/access-code-input.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Field, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { toast } from '@/ui/toast.tsx'
+import { SignInHeader } from './sign-in-header.tsx'
 
 /*
- * The code-entry screen (docs/design/screens/code-entry.html): one code
- * field that formats while typing, an inline error line, and one primary
- * button. A wrong code marks the field invalid and shakes.
+ * The code-entry screen (docs/design/screens/code-entry.html): the
+ * centred header (logo, display heading, 32-character lead), one code
+ * field that formats while typing, an inline error line, and one
+ * primary button. A wrong code marks the field invalid and shakes.
+ * Extra affordances — the installation offer — mount between the
+ * header and the form.
  */
 
 export type RedeemResult = {
@@ -49,7 +54,13 @@ export function signinErrorMessage(
   return translate('signin.errors.unexpected')
 }
 
-export function CodeEntryForm({ onSignedIn }: { onSignedIn: (result: RedeemResult) => void }) {
+export function CodeEntryForm({
+  onSignedIn,
+  children,
+}: {
+  onSignedIn: (result: RedeemResult) => void
+  children?: React.ReactNode
+}) {
   const { t } = useTranslation()
   const rememberSignIn = useRedeemedSignIn()
   const [code, setCode] = useState('')
@@ -91,10 +102,14 @@ export function CodeEntryForm({ onSignedIn }: { onSignedIn: (result: RedeemResul
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-display-lg">{t('signin.title')}</h1>
-      <p className="text-body text-muted-foreground">{t('signin.description')}</p>
-      <form onSubmit={submit} className="mt-2 flex flex-col gap-3.5" noValidate>
+    <div className="flex flex-col">
+      <SignInHeader
+        title={t('signin.title')}
+        lead={t('signin.description')}
+        leadClassName="max-w-[32ch]"
+      />
+      {children}
+      <form onSubmit={submit} className="flex flex-col gap-4.5" noValidate>
         <Field data-invalid={invalid || undefined}>
           <FieldLabel htmlFor="access-code">{t('signin.label')}</FieldLabel>
           <AccessCodeInput

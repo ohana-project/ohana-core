@@ -176,6 +176,11 @@ async function mockMemberApi(page: Page, options: MockOptions = {}) {
 }
 
 test.describe('member sign-in by access code', () => {
+  // The spec walks the Russian interface: the browser presents itself as
+  // a Russian device, so onboarding's device-locale preselection reads
+  // Russian instead of the runner's en-US.
+  test.use({ locale: 'ru-RU' })
+
   test('walks code entry, onboarding, and lands on the space home (ru)', async ({ page }) => {
     await mockMemberApi(page)
 
@@ -197,10 +202,16 @@ test.describe('member sign-in by access code', () => {
     await expect(page).toHaveURL(/\/onboarding$/)
     await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
 
-    // Onboarding collects the optional profile and the interface language.
+    // Onboarding collects the optional profile and the interface language
+    // (the cards come preselected; «Русский» stays). Choosing a card
+    // switches the whole interface at once, and back again.
     await page.getByLabel('Имя').fill('Аня Смирнова')
     await page.getByLabel('Эл. почта').fill('anya@example.com')
-    await page.getByRole('button', { name: 'Русский' }).click()
+    await expect(page.getByRole('radio', { name: 'Русский' })).toBeChecked()
+    await page.getByRole('radio', { name: 'English' }).click()
+    await expect(page.getByRole('heading', { name: 'How will the family call you?' })).toBeVisible()
+    await page.getByRole('radio', { name: 'Русский' }).click()
+    await expect(page.getByRole('heading', { name: 'Как вас назовут в семье?' })).toBeVisible()
     await page.getByRole('button', { name: 'Продолжить' }).click()
 
     // The space home greets the member by their display name and offers
@@ -260,5 +271,30 @@ test.describe('member sign-in by access code', () => {
     await expect(page.getByRole('heading', { name: 'Access code' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  })
+
+  test('a device with retained sign-ins offers the way back to the accounts screen', async ({
+    page,
+  }) => {
+    await mockMemberApi(page)
+    // Two members remain signed in on this device and none is active —
+    // no `ohana.activeMember`, on purpose: the probe then answers signed
+    // out, the visitor sees the code screen, and the registry still
+    // offers the prototype's back button.
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'ohana.sessions',
+        JSON.stringify([
+          { memberId: 'm-1', spaceId: 's-1', spaceName: 'Наша семья', name: 'Аня' },
+          { memberId: 'm-2', spaceId: 's-2', spaceName: 'Дача', name: 'Дима' },
+        ]),
+      )
+    })
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/signin$/)
+
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/accounts$/)
+    await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
   })
 })

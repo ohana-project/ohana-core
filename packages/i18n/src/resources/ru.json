@@ -421,15 +421,18 @@
     }
   },
   "onboarding": {
+    "meta": "Пространство «{space}» · Шаг 2 из 2",
     "title": "Как вас назовут в семье?",
     "description": "Имя увидят участники ваших пространств. Остальное — по желанию.",
     "displayNameLabel": "Имя",
-    "displayNameHint": "Так к вам будут обращаться близкие",
+    "displayNamePlaceholder": "Например: Аня",
     "emailLabel": "Эл. почта",
+    "emailPlaceholder": "anechka@mail.ru",
     "phoneLabel": "Телефон",
+    "phonePlaceholder": "+7 900 000-00-00",
     "contactsHint": "Необязательно. Видны только вашей семье — и никому больше.",
     "languageLabel": "Язык интерфейса",
-    "languageHint": "Позже можно изменить в настройках.",
+    "languageHint": "Позже можно изменить в настройках. Китайский — скоро.",
     "submit": "Продолжить",
     "footer": "Вы входите в пространство «{space}»"
   },
@@ -441,6 +444,7 @@
       "platformIos": "iPhone",
       "platformAndroid": "Android",
       "continue": "Продолжить в браузере",
+      "browsers": "Safari · Chrome",
       "footer": "Установить можно в любой момент.",
       "steps": {
         "ios1Title": "Откройте Ohana в Safari",
@@ -772,6 +776,8 @@
       "tabTwo": "Список",
       "tabThree": "Год",
       "toggle": "Выбор",
+      "radio": "Радиокнопки",
+      "numberedStep": "Нумерованный шаг",
       "switchLabel": "Напоминать о событиях"
     },
     "feedback": {

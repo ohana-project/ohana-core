@@ -421,15 +421,18 @@
     }
   },
   "onboarding": {
+    "meta": "The “{space}” space · Step 2 of 2",
     "title": "How will the family call you?",
     "description": "The name is visible to the members of your spaces. Everything else is optional.",
     "displayNameLabel": "Name",
-    "displayNameHint": "This is how your family will address you",
+    "displayNamePlaceholder": "For example: Anya",
     "emailLabel": "Email",
+    "emailPlaceholder": "anechka@mail.ru",
     "phoneLabel": "Phone",
+    "phonePlaceholder": "+7 900 000-00-00",
     "contactsHint": "Optional. Visible only to your family — and nobody else.",
     "languageLabel": "Interface language",
-    "languageHint": "You can change it later in the settings.",
+    "languageHint": "You can change it later in the settings. Chinese is on its way.",
     "submit": "Continue",
     "footer": "You are signing in to the “{space}” space"
   },
@@ -441,6 +444,7 @@
       "platformIos": "iPhone",
       "platformAndroid": "Android",
       "continue": "Continue in the browser",
+      "browsers": "Safari · Chrome",
       "footer": "You can install at any time.",
       "steps": {
         "ios1Title": "Open Ohana in Safari",
@@ -772,6 +776,8 @@
       "tabTwo": "List",
       "tabThree": "Year",
       "toggle": "Toggle",
+      "radio": "Radio buttons",
+      "numberedStep": "Numbered step",
       "switchLabel": "Remind me about events"
     },
     "feedback": {

@@ -15,6 +15,15 @@ import { cn } from '@/lib/cn'
  * border (README "Components").
  */
 
+/*
+ * The link-card lift (`.card-link:hover` in the prototype): shadow-2,
+ * −1px, a stronger border. Card's `hoverable` opts in; the radio card
+ * (`label.card.card-link`, issue #78) shares the recipe from here so
+ * the two cannot drift.
+ */
+export const cardHoverableClass =
+  'transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) hover:-translate-y-px hover:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] hover:shadow-2'
+
 function Card({
   className,
   variant = 'default',
@@ -37,8 +46,7 @@ function Card({
         variant === 'default' &&
           'gap-(--card-spacing) py-(--card-spacing) has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:has-data-[slot=card-footer]:pb-0',
         variant === 'padded' && 'p-(--card-spacing)',
-        hoverable &&
-          'transition-[box-shadow,transform,border-color] duration-(--t-base) ease-(--ease) hover:-translate-y-px hover:border-[color-mix(in_oklch,var(--fg)_16%,var(--border))] hover:shadow-2',
+        hoverable && cardHoverableClass,
         className,
       )}
       {...props}
