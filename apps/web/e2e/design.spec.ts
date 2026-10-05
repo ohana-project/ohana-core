@@ -511,7 +511,6 @@ test.describe('card forms and list rows (issue #58)', () => {
   })
 })
 
-
 test.describe('shared pieces (issue #61)', () => {
   /**
    * The demo shell box: the transformed container that pins the
@@ -596,12 +595,12 @@ test.describe('shared pieces (issue #61)', () => {
       }
     })
     expect(geometry, 'the demo shell renders at 390px').not.toBeNull()
-    // the demo row renders 2px over the token floor: the button's body
-    // leading, padding and hairlines outgrow its 44px min-height, so
-    // the natural bar is 46 + 20px — the reserve's 16px gap absorbs
-    // the difference. The floor itself is pinned by the class assertion
-    // in action-bar.test.tsx.
-    expect(geometry?.barHeight).toBe(66)
+    // the demo row renders 1px over the token floor: the button's 15px
+    // text on the body's 1.55 leading, its padding and hairlines
+    // outgrow the 44px min-height, so the natural bar is 45.25 + 20px —
+    // the reserve's 16px gap absorbs the difference. The floor itself
+    // is pinned by the class assertion in action-bar.test.tsx.
+    expect(geometry?.barHeight).toBe(65)
     // the action bar's lowest 3px tuck under the tab bar's glass — the
     // 64px --tabbar-h offset is 3px less than the rendered 67px tab
     // bar — so the two sit flush, and the tab bar, later in the shell,
@@ -659,7 +658,7 @@ test.describe('shared pieces (issue #61)', () => {
     // the pill sits flush with the toast viewport's bottom edge, so the
     // 144px offset just asserted is the pill's own distance from the
     // page bottom — 16px over the tab bar reserve plus --action-bar-h
-    // (on a real screen 14px over a 66px default-button row; this
+    // (on a real screen 15px over a 65px default-button row; this
     // demo's bar lives inside the transformed demo box, so the test
     // does not compare the two)
     const pill = viewport.locator('[data-slot="toast"]')
@@ -756,8 +755,8 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     const CHECKED = { left: 21, right: 3, top: 3 }
     const inset = () =>
       page.evaluate(() => {
-        const track = document.querySelector('[data-slot="switch"]')
-        const thumb = document.querySelector('[data-slot="switch-thumb"]')
+        const track = document.querySelector('#controls [data-slot="switch"]')
+        const thumb = document.querySelector('#controls [data-slot="switch-thumb"]')
         if (!(track instanceof HTMLElement) || !(thumb instanceof HTMLElement)) return null
         const trackBox = track.getBoundingClientRect()
         const thumbBox = thumb.getBoundingClientRect()
@@ -772,12 +771,13 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
           top: Math.round(thumbBox.top - (trackBox.top + Number.parseFloat(style.borderTopWidth))),
         }
       })
-    const checkedState = () => page.locator('[data-slot="switch"]').getAttribute('data-checked')
+    const checkedState = () =>
+      page.locator('#controls [data-slot="switch"]').getAttribute('data-checked')
 
     const before = await checkedState()
     await expect.poll(inset).toEqual(before === null ? UNCHECKED : CHECKED)
 
-    await page.locator('[data-slot="switch"]').click()
+    await page.locator('#controls [data-slot="switch"]').click()
     const after = await checkedState()
     expect((after === null) === (before === null), 'the click toggled the switch').toBe(false)
     await expect.poll(inset).toEqual(after === null ? UNCHECKED : CHECKED)
