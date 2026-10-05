@@ -52,23 +52,35 @@ describe('createI18n', () => {
 describe('deviceLocale', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  /** A navigator only counts when it comes with a window. */
+  function stubBrowser(navigator: unknown) {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('navigator', navigator)
+  }
+
   it('takes the first navigator language the catalogues speak', () => {
-    vi.stubGlobal('navigator', { languages: ['fr-FR', 'en-US', 'ru'] })
+    stubBrowser({ languages: ['fr-FR', 'en-US', 'ru'] })
     expect(deviceLocale()).toBe('en')
   })
 
   it('reads the plain language tag when there is no language list', () => {
-    vi.stubGlobal('navigator', { language: 'ru-RU' })
+    stubBrowser({ language: 'ru-RU' })
     expect(deviceLocale()).toBe('ru')
   })
 
   it('keeps the default when the device speaks neither catalogue', () => {
-    vi.stubGlobal('navigator', { languages: ['fr-FR', 'de-DE'] })
+    stubBrowser({ languages: ['fr-FR', 'de-DE'] })
     expect(deviceLocale()).toBe(defaultLocale)
   })
 
-  it('is the default outside a browser', () => {
-    vi.stubGlobal('navigator', undefined)
+  it('is the default when there is no navigator at all', () => {
+    stubBrowser(undefined)
+    expect(deviceLocale()).toBe(defaultLocale)
+  })
+
+  it('is the default outside a browser — the runtime navigator does not count', () => {
+    // The node runtime grows a navigator of its own; without a window it
+    // is no browser, and the helper keeps the default.
     expect(deviceLocale()).toBe(defaultLocale)
   })
 })

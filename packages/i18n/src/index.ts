@@ -16,12 +16,15 @@ export const defaultLocale: Locale = 'ru'
  * #78); outside a browser it is the default.
  */
 export function deviceLocale(): Locale {
-  // The package runs outside a browser too, where there is no navigator
-  // — and its tsconfig knows no DOM lib, so the global is read untyped.
-  const nav = (globalThis as { navigator?: { languages?: readonly string[]; language?: string } })
-    .navigator
-  if (nav === undefined) return defaultLocale
-  for (const candidate of nav.languages ?? [nav.language]) {
+  // A navigator only counts when it comes with a window: recent Node
+  // grows one of its own. The package's tsconfig knows no DOM lib, so
+  // the globals are read untyped.
+  const globalScope = globalThis as {
+    window?: unknown
+    navigator?: { languages?: readonly string[]; language?: string }
+  }
+  if (globalScope.window === undefined || globalScope.navigator === undefined) return defaultLocale
+  for (const candidate of globalScope.navigator.languages ?? [globalScope.navigator.language]) {
     if (candidate === undefined) continue
     const base = candidate.split('-')[0]?.toLowerCase()
     const locale = locales.find((locale) => locale === base)
