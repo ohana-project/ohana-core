@@ -440,7 +440,9 @@ test.describe('the wishlist', () => {
     await expect(page.getByText('Кожаный ремень')).toHaveCount(0)
 
     // The own wishlist's removal stands behind its confirm.
-    await page.getByRole('link', { name: 'Назад' }).click()
+    // the back arrow is mobile-only since issue #62; at the desktop
+    // viewport the sidebar's section leads back, like the prototype
+    await page.getByRole('button', { name: 'Вишлисты' }).click()
     await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
     await page.getByRole('button', { name: 'Добавить желание' }).first().click()
     await page.getByLabel('Название').fill('Билеты на стендап, 2 шт')
@@ -455,6 +457,35 @@ test.describe('the wishlist', () => {
     await expect(page.getByText('Желание удалено')).toBeVisible()
     await expect(page.getByText('Билеты на стендап, 2 шт')).toHaveCount(0)
     await expect(page.getByText('Здесь пока ничего нет')).toBeVisible()
+  })
+})
+
+test.describe('the shell of the wishlist area (issue #62)', () => {
+  test('on a phone the back arrow leads from the favorites screen to the overview', async ({
+    page,
+  }) => {
+    await mockWishlistApi(page)
+    // the back arrow is the prototype's .m-only: below 920px it is the
+    // way back — the sidebar is hidden there
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.getByRole('button', { name: 'Вишлисты' }).first().click()
+    await expect(page).toHaveURL(/\/wishlist$/)
+    // the overview answers from the partition; the rows follow the sync
+    await expect(page.getByText('Дима')).toBeVisible()
+
+    await page.getByRole('link').filter({ hasText: 'Избранные идеи' }).click()
+    await expect(page).toHaveURL(/\/wishlist\/favorites$/)
+    // the arrow rides the top bar; the sidebar it stands in for is not
+    // displayed at this width
+    await expect(page.locator('[data-slot="sidebar"]')).toBeHidden()
+    await expect(page.getByRole('link', { name: 'Назад' })).toBeVisible()
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/wishlist$/)
   })
 })
 
@@ -478,7 +509,9 @@ test.describe('the gift favorites and reservations (issue #19)', () => {
 
     // The favorites screen lists the bookmark with the wishlist it came
     // from, and the removal stands right beside it.
-    await page.getByRole('link', { name: 'Назад' }).click()
+    // the back arrow is mobile-only since issue #62; at the desktop
+    // viewport the sidebar's section leads back, like the prototype
+    await page.getByRole('button', { name: 'Вишлисты' }).click()
     await page.getByRole('link').filter({ hasText: 'Избранные идеи' }).click()
     await expect(page).toHaveURL(/\/wishlist\/favorites$/)
     await expect(page.getByText('Налобный фонарь Petzl Actik Core')).toBeVisible()

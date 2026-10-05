@@ -61,7 +61,8 @@
       "light": "Светлая тема",
       "dark": "Тёмная тема"
     },
-    "switchSpace": "Сменить пространство"
+    "switchSpace": "Сменить пространство",
+    "spaceSub": "{count, plural, one {# участник} few {# участника} many {# участников} other {# участника}}{role, select, owner { · вы владелец} other {}}"
   },
   "admin": {
     "pill": "Админка",
@@ -484,7 +485,6 @@
     }
   },
   "space": {
-    "back": "Назад",
     "members": {
       "title": "Участники",
       "subtitle": "«{space}»",
@@ -852,7 +852,8 @@
       "authAction": "Войти",
       "openInPlace": "Оболочки собраны ниже один под другим.",
       "sectionCount": "Видимых разделов",
-      "spaceToast": "Здесь появится список пространств"
+      "spaceToast": "Здесь появится список пространств",
+      "desktopAction": "Только на десктопе"
     },
     "demo": {
       "spaceName": "«Наша семья»",

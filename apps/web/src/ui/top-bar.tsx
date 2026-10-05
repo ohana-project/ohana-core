@@ -27,6 +27,13 @@ export interface TopBarProps {
   title: string
   space: SpaceSummary
   actions?: React.ReactNode
+  /**
+   * The screen's desktop-only actions (the prototype's `d-only`): they
+   * stand in the bar from 920px up and are not displayed below it — the
+   * subtree stays mounted, so an action must not carry side effects that
+   * only a phone's FAB should run (issue #62).
+   */
+  desktopActions?: React.ReactNode
   back?: React.ReactNode
   sync?: SyncStatusProps | null
   userMenuItems?: ShellUserMenuItem[]
@@ -38,6 +45,7 @@ export function TopBar({
   title,
   space,
   actions,
+  desktopActions,
   back,
   sync,
   userMenuItems = [],
@@ -50,21 +58,29 @@ export function TopBar({
     <header
       data-slot="topbar"
       className={cn(
-        'glass-bar sticky top-0 z-30 flex min-h-14 items-center gap-3 px-(--pad) py-2 desktop:border-b desktop:border-border',
+        // the prototype's .topbar: a 1px fg 8% hairline below 920px; from
+        // 920px up the hairline takes the border token
+        // (assets/ohana.css, .topbar and its 920px media query)
+        'glass-bar sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-[color-mix(in_oklch,var(--fg)_8%,transparent)] px-(--pad) py-2 desktop:border-border',
         className,
       )}
     >
       {back}
+      {/* the prototype's `.topbar .topbar-space`: `width: auto; padding:
+          0 6px; margin: 0 -6px` on the 44px round — the button is as
+          wide as its stack, and no outer margin sits on the stack
+          itself; min-w-11 keeps the 44px round when the stack is empty
+          (one 32px avatar plus the padding is 44px either way) */}
       <button
         type="button"
         data-slot="topbar-space"
         aria-label={t('layout.space')}
         onClick={onSpaceClick}
-        className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
+        className="-mx-1.5 grid h-11 min-w-11 w-auto shrink-0 place-items-center rounded-full px-1.5 transition-colors duration-(--t-fast) ease-(--ease) hover:bg-accent desktop:hidden"
       >
-        <AvatarStack className="-ml-1">
+        <AvatarStack>
           {space.marks.slice(0, 2).map((mark) => (
-            <Avatar key={`${mark.initials}-${mark.hue}`} size="sm" hue={mark.hue}>
+            <Avatar key={mark.id} size="sm" hue={mark.hue}>
               {mark.initials}
             </Avatar>
           ))}
@@ -86,6 +102,14 @@ export function TopBar({
       )}
       <span className="min-w-0 flex-1" />
       {actions}
+      {desktopActions && (
+        // the prototype's .d-only: not displayed below 920px, the
+        // actions as direct flex items above (display: contents) — the
+        // subtree stays mounted, only its box goes
+        <span data-slot="topbar-actions-desktop" className="hidden desktop:contents">
+          {desktopActions}
+        </span>
+      )}
       {userMenuItems.length > 0 && <UserMenu items={userMenuItems} />}
     </header>
   )

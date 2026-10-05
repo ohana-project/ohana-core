@@ -5,6 +5,7 @@ import { AdminLayout } from '@/app/layouts/admin-layout.tsx'
 import { MemberLayout } from '@/app/layouts/member-layout.tsx'
 import { type ThemeChoice, useTheme } from '@/app/theme.tsx'
 import { LanguageSwitcher } from '@/features/language/language-switcher.tsx'
+import { ShellBackLink } from '@/features/member/shell-back-link.tsx'
 import { AccessCodeInput } from '@/ui/access-code-input.tsx'
 import { ActionBar } from '@/ui/action-bar.tsx'
 import { AuthFrame } from '@/ui/auth-frame.tsx'
@@ -1094,10 +1095,10 @@ function LayoutsSection() {
     name: t('designPreview.demo.spaceNameShort'),
     membersLabel: t('designPreview.demo.membersLabel'),
     marks: [
-      { initials: 'А', hue: HUES.anya },
-      { initials: 'Д', hue: HUES.dima },
-      { initials: 'М', hue: HUES.misha },
-      { initials: 'Л', hue: HUES.luda },
+      { id: 'anya', initials: 'А', hue: HUES.anya },
+      { id: 'dima', initials: 'Д', hue: HUES.dima },
+      { id: 'misha', initials: 'М', hue: HUES.misha },
+      { id: 'luda', initials: 'Л', hue: HUES.luda },
     ],
   }
 
@@ -1174,9 +1175,19 @@ function LayoutsSection() {
           activeId={activeId}
           sync={{ state: 'synced', syncedAt: new Date(2026, 8, 28, 14, 32) }}
           userMenuItems={userMenuItems}
-          title={t('designPreview.demo.homeTitle')}
+          // the home screen's top-bar title is the space name (issue #62)
+          title={t('designPreview.demo.spaceNameShort')}
           onSpaceClick={() => toast(t('designPreview.layouts.spaceToast'))}
           onSectionClick={setActiveId}
+          // the back arrow is the prototype's `.btn.btn-icon.m-only`:
+          // 44px round, below 920px only (issue #62)
+          back={<ShellBackLink to="/design" />}
+          desktopActions={
+            <Button size="sm" variant="secondary">
+              <Icon name="plus" />
+              {t('designPreview.layouts.desktopAction')}
+            </Button>
+          }
         >
           <div className="flex flex-col gap-4 pt-6">
             <h3 className="text-display-lg">{t('designPreview.demo.greeting')}</h3>

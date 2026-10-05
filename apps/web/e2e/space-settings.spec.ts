@@ -381,7 +381,7 @@ test.describe('archiving and restoring members', () => {
     await page.getByRole('button', { name: 'Меню пользователя' }).click()
     await page.getByRole('menuitem', { name: 'Участники' }).click()
     await expect(page).toHaveURL(/\/members$/)
-    await expect(page.getByRole('heading', { name: 'Архив' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Архив', exact: true })).toBeVisible()
     await expect(page.getByText('в архиве с 3 сентября')).toBeVisible()
     await expect(page.getByText('В архиве').last()).toBeVisible()
 
