@@ -132,7 +132,9 @@ test('the space opens offline from the data the sync brought', async ({ page, co
   // The probe cannot reach the API; the retained sign-in reads on from the
   // synchronised partition, and the indicator says the device is offline.
   await expect(page.getByRole('heading', { name: /Аня Смирнова/ })).toBeVisible()
-  await expect(page.getByText('Наша семья')).toBeVisible()
+  // the sidebar's switcher and the home's top-bar title both carry the
+  // space name since issue #62
+  await expect(page.getByText('Наша семья').first()).toBeVisible()
   await expect(page.getByText('Миша')).toBeVisible()
   await expect(page.getByText('Свежее в дневнике')).toBeVisible()
   await expect(page.locator('[data-slot="sync-status"]').first()).toHaveAttribute(
