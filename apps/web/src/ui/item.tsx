@@ -12,12 +12,11 @@ import { Separator } from '@/ui/separator'
  * into, or in the 28px numbered plate of `variant="num"` (the
  * prototype's `.leading.num`, install.html) —, title and subtitle,
  * trailing content; rows are divided by hairlines. The size variants
- * carry the heights the prototypes
- * use inline (52, 56, 60, 64, 68px) instead of one-off pixel values
- * (issue #58). A leading icon is 20px (`.list-row .leading svg`), a
- * trailing icon 18px (`.list-row .trailing svg`) — the icons pick
- * their sizes up from the row, callers do not need to pass one
- * (issue #55).
+ * carry the heights the prototypes use inline (52, 56, 60, 64, 68px)
+ * instead of one-off pixel values (issue #58). A leading icon is 20px
+ * (`.list-row .leading svg`), a trailing icon 18px (`.list-row
+ * .trailing svg`) — the icons pick their sizes up from the row, callers
+ * do not need to pass one (issue #55).
  */
 
 function ItemGroup({ className, ...props }: React.ComponentProps<'div'>) {

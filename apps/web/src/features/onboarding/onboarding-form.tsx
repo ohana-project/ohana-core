@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
@@ -52,11 +52,17 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
 
   // A stored preference leads the whole interface from arrival, not only
   // the checked card: a member invited with «English» on a Russian device
-  // would otherwise read Russian under an unchecked-looking choice, and
-  // clicking the checked card sends nothing.
+  // would otherwise read Russian under a checked «English» card, and
+  // clicking the already-checked card changes nothing. Each stored value
+  // applies once — react-i18next hands back a new wrapper object on every
+  // language change, and a bare effect would fight the member's own
+  // choice of the other card forever.
   const storedLanguage = me.member.interfaceLanguage
+  const appliedStored = useRef<Locale | undefined>(undefined)
   useEffect(() => {
-    if (storedLanguage === undefined || storedLanguage === i18n.language) return
+    if (storedLanguage === undefined || appliedStored.current === storedLanguage) return
+    appliedStored.current = storedLanguage
+    if (storedLanguage === i18n.language) return
     void i18n.changeLanguage(storedLanguage)
     storeLocale(storedLanguage)
   }, [storedLanguage, i18n])

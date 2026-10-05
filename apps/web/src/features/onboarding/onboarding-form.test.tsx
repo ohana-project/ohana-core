@@ -128,6 +128,37 @@ describe('OnboardingForm', () => {
     )
   })
 
+  it('lets the member choose the other card over a stored preference', async () => {
+    apiPost.mockResolvedValue({
+      data: { ...ME, needsOnboarding: false },
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <OnboardingForm
+        me={{ ...ME, member: { ...ME.member, interfaceLanguage: 'en' } }}
+        onCompleted={() => {}}
+      />,
+    )
+    await screen.findByRole('heading', { name: 'How will the family call you?' })
+
+    // The stored preference applies once on arrival; the member's own
+    // choice of the other card wins and is neither reverted nor re-stored.
+    await user.click(screen.getByRole('radio', { name: 'Русский' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Как вас назовут в семье?' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Русский' })).toBeChecked()
+    expect(window.localStorage.getItem('ohana.locale')).toBe('ru')
+
+    await user.click(screen.getByRole('button', { name: 'Продолжить' }))
+    expect(apiPost).toHaveBeenCalledWith(
+      '/api/v1/me/onboarding',
+      expect.objectContaining({ body: expect.objectContaining({ interfaceLanguage: 'ru' }) }),
+    )
+  })
+
   it('switches the whole interface when a card is chosen', async () => {
     apiPost.mockResolvedValue({
       data: { ...ME, needsOnboarding: false },
