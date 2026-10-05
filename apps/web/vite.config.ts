@@ -48,6 +48,11 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        // #f6f1ee is THEME_COLOR.light of src/app/theme.tsx in hex; kept
+        // literal so the config does not load a React module, and pinned
+        // by src/app/pre-paint.test.ts. The browser chrome follows an
+        // explicit theme choice at runtime through the theme-color metas;
+        // the manifest does not.
         background_color: '#f6f1ee',
         theme_color: '#f6f1ee',
         icons: [

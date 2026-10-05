@@ -37,5 +37,13 @@ export interface ShellUserMenuItem {
   label: string
   icon: IconName
   danger?: boolean
+  /**
+   * The accessible name when it differs from the visible label — the
+   * theme item names the theme it leads to, like the prototype's
+   * `data-action="theme"` buttons (issue #63).
+   */
+  ariaLabel?: string
+  /** Draws the prototype's hairline above the item (the user menu's grouping, issue #63). */
+  separatorBefore?: boolean
   onSelect?: () => void
 }

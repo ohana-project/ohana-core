@@ -8,8 +8,12 @@ import { Icon } from '@/ui/icon.tsx'
  * Ohana toast (docs/design/README.md, "Components"): a glass pill with
  * an ok or danger icon that hides after about 3 seconds. It sits above
  * the tab bar on mobile and bottom-right on desktop. Base UI owns
- * queueing, swiping and reduced-motion behaviour; like the prototype's
- * `.toast` it is an icon and text only — no close control.
+ * queueing, swiping and reduced-motion behaviour. A screen that mounts
+ * the action bar (issue #61) lifts the viewport above the bar through
+ * the `--toast-lift` variable index.css sets (the viewport is portaled
+ * to the app root, so it cannot see the bar with `has-` itself). Like
+ * the prototype's `.toast` it is an icon and text only — no close
+ * control.
  */
 
 export type ToastTone = 'ok' | 'danger'
@@ -43,15 +47,15 @@ function ToastList() {
   return (
     <ToastPrimitive.Viewport
       data-slot="toast-viewport"
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-h)+16px)] z-80 flex flex-col items-center gap-2 outline-none desktop:bottom-6 desktop:items-end desktop:pr-6"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--toast-lift,0px)+16px)] z-80 flex flex-col items-center gap-2 outline-none desktop:bottom-6 desktop:items-end desktop:pr-6"
     >
       {toasts.map((item) => {
         const tone = item.data?.tone ?? 'ok'
         return (
           <ToastPrimitive.Root
             key={item.id}
-            toast={item}
             data-slot="toast"
+            toast={item}
             swipeDirection={tone === 'danger' ? ['down', 'right'] : 'down'}
             className={cn(
               'glass pointer-events-auto relative flex max-w-[min(92vw,480px)] items-center gap-2.5 rounded-full px-[18px] py-3 text-[14.5px] font-medium text-foreground transition-[opacity,transform] duration-(--t-base) ease-(--ease) animate-toast-in data-ending-style:translate-y-2 data-ending-style:opacity-0 data-swiping:translate-y-(--toast-swipe-movement-y)',

@@ -1,4 +1,5 @@
 import type * as React from 'react'
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/cn'
 
@@ -8,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu.tsx'
 import { Icon } from '@/ui/icon.tsx'
@@ -72,7 +74,13 @@ export function TopBar({
         {title}
       </span>
       {sync && (
-        <span className="shrink-0 desktop:hidden">
+        // the chip goes icon-only at 430px and below here and only here
+        // (.topbar .sync .sync-text); the media query is spelled out
+        // because Tailwind's max-* compiles to a strict width<430px and
+        // the prototype hides at max-width: 430px inclusive. sr-only
+        // keeps the words for screen readers, where the prototype's
+        // display:none dropped them
+        <span className="shrink-0 desktop:hidden [@media(max-width:430px)]:[&_[data-slot=sync-status-label]]:sr-only">
           <SyncStatus {...sync} />
         </span>
       )}
@@ -101,14 +109,17 @@ function UserMenu({ items }: { items: ShellUserMenuItem[] }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {items.map((item) => (
-          <DropdownMenuItem
-            key={item.id}
-            variant={item.danger ? 'destructive' : 'default'}
-            onClick={item.onSelect}
-          >
-            <Icon name={item.icon} />
-            {item.label}
-          </DropdownMenuItem>
+          <Fragment key={item.id}>
+            {item.separatorBefore && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              variant={item.danger ? 'destructive' : 'default'}
+              aria-label={item.ariaLabel}
+              onClick={item.onSelect}
+            >
+              <Icon name={item.icon} />
+              {item.label}
+            </DropdownMenuItem>
+          </Fragment>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

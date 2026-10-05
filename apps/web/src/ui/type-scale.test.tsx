@@ -6,11 +6,12 @@ import type { IconName } from '@/ui/icon.tsx'
 import { TabBar } from '@/ui/tab-bar.tsx'
 
 /*
- * The components the audit called out keep their type-scale step and
- * their text colour together in the rendered class list (issue #56):
- * the merger knows the scale, and these tests pin the components to
- * the steps the prototype names — tab labels micro/medium, hints meta,
- * avatar monograms their hue ink at every size. The computed sizes
+ * The components the audit called out keep their text size and their
+ * text colour together in the rendered class list (issues #56 and #60):
+ * the merger knows the scale and the one-off prototype values alike,
+ * and these tests pin the components to the sizes the prototype names
+ * — tab labels micro/medium, hints meta, avatar monograms 11/13/15/20px
+ * at 24/32/40/56px, their hue ink at every size. The computed sizes
  * these classes produce are asserted in e2e/design.spec.ts.
  */
 
@@ -19,11 +20,11 @@ const SECTIONS = [
   { id: 'journal', label: 'Дневник', icon: 'book' as IconName },
 ]
 
-const AVATAR_STEPS = {
-  xs: 'text-meta',
-  sm: 'text-sm',
-  default: 'text-body',
-  lg: 'text-h2',
+const AVATAR_MONOGRAMS = {
+  xs: 'text-[11px]',
+  sm: 'text-[13px]',
+  default: 'text-[15px]',
+  lg: 'text-[20px]',
 } as const
 
 describe('components keep their type-scale step beside their colour', () => {
@@ -47,18 +48,19 @@ describe('components keep their type-scale step beside their colour', () => {
     unmount()
   })
 
-  it('avatar monograms keep the hue ink at every size', () => {
-    for (const [size, step] of Object.entries(AVATAR_STEPS) as [
-      keyof typeof AVATAR_STEPS,
+  it('avatar monograms keep the prototype size and the hue ink at every size', () => {
+    for (const [size, monogram] of Object.entries(AVATAR_MONOGRAMS) as [
+      keyof typeof AVATAR_MONOGRAMS,
       string,
     ][]) {
       const { container, unmount } = renderWithProviders(<Avatar size={size} hue={60} />)
       const avatar = container.querySelector('[data-slot=avatar]')
       expect(avatar, size).not.toBeNull()
-      // the light-theme ink class must survive beside the size step; the
-      // computed colour it produces is asserted in e2e/design.spec.ts
+      // the light-theme ink class must survive beside the size; the
+      // computed colour and size it produces are asserted in
+      // e2e/design.spec.ts
       expect(avatar?.classList.contains('text-[oklch(38%_0.08_var(--hue))]'), size).toBe(true)
-      expect(avatar?.classList.contains(step), size).toBe(true)
+      expect(avatar?.classList.contains(monogram), size).toBe(true)
       unmount()
     }
   })

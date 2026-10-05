@@ -71,6 +71,9 @@
   --side-w: 232px;
   --topbar-h: 56px;
   --tabbar-h: 64px;
+  /* the mobile action bar's minimum height (issue #61): the member
+     layout reserves it and the toast viewport lifts above it */
+  --action-bar-h: 64px;
   --pad: clamp(16px, 4vw, 24px);
   --content-w: 1104px;
   --content-w-narrow: 760px;
@@ -78,12 +81,11 @@
   --admin-w: 960px;
 
   /* ── brand constants, outside the UI palette ──────────────────────
-     rose and ink build the mark and the app icon; the sRGB values are
-     fallbacks for <meta name="theme-color"> only. */
+     rose and ink build the mark and the app icon. The sRGB fallbacks
+     of <meta name="theme-color"> live in app/theme.tsx (THEME_COLOR)
+     and the pre-paint script of index.html, which cannot read tokens. */
   --ohana-rose: #f5d8d5;
   --ohana-ink: #4a1a48;
-  --theme-color-light: rgb(246 241 238);
-  --theme-color-dark: rgb(117 34 49);
 }
 
 [data-theme="dark"] {
