@@ -667,6 +667,7 @@
       "controls": "Controls",
       "feedback": "States",
       "lists": "Lists and cards",
+      "pieces": "Note block and action bar",
       "layouts": "Shells"
     },
     "tokens": {
@@ -814,6 +815,18 @@
       "leadingTone": "icon in the accent colour",
       "leadingAvatar": "avatar, no tile behind",
       "giftIdeas": "Gift ideas"
+    },
+    "pieces": {
+      "noteHint": "The soft accent fill, a 22% accent hairline, the 18px radius, 16px padding, a 14px gap and a 20px accent icon",
+      "noteTitle": "Three weeks until Люда's birthday",
+      "noteText": "Her list already has four ideas. Reserve a gift secretly before someone else claims it.",
+      "noteLink": "Open wishlists",
+      "notePlainLead": "Share the code in person",
+      "notePlainRest": " — a group chat can be read by strangers. The code burns after the first sign-in. Re-issuing cancels the old code and creates a new one.",
+      "actionBarToggle": "Action bar in the shell demo",
+      "barCancel": "Cancel",
+      "barSave": "Save",
+      "actionBarInLayouts": "The action bar is shown in the member shell demo below."
     },
     "layouts": {
       "member": "Member: tab bar below 920px, sidebar above",

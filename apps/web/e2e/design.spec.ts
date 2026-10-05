@@ -216,6 +216,7 @@ test.describe('icon sizes (issue #55)', () => {
         emptyPlate: boxes('[data-slot="empty-icon"] > svg'),
         pill: boxes('[data-slot="badge"] svg'),
         sidebarChevron: boxes('[data-slot="side-space"] > svg'),
+        noteBlock: boxes('[data-slot="note-block"] > svg'),
       }
     })
 
@@ -228,6 +229,7 @@ test.describe('icon sizes (issue #55)', () => {
       emptyPlate: [28, 28],
       pill: [12, 12],
       sidebarChevron: [20, 20],
+      noteBlock: [20, 20],
     } as const
     for (const [context, boxes] of Object.entries(sizes)) {
       expect(boxes.length, `${context}: the preview shows the context`).toBeGreaterThan(0)
@@ -265,6 +267,9 @@ test.describe('icon sizes (issue #55)', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page)
     await freezeMotion(page)
+    // the FAB demo yields to the action bar demo (the screens that
+    // mount the bar never carry a FAB), so drop the bar first
+    await page.locator('#layouts').getByRole('switch').click()
 
     const measured = await page.evaluate(() => {
       const px = (value: string) => Number.parseFloat(value)
@@ -506,6 +511,178 @@ test.describe('card forms and list rows (issue #58)', () => {
   })
 })
 
+test.describe('shared pieces (issue #61)', () => {
+  /**
+   * The demo shell box: the transformed container that pins the
+   * member shell's fixed chrome (the tab bar, the action bar) inside
+   * the preview.
+   */
+  function demoShell(page: Page) {
+    return page
+      .locator('#layouts')
+      .locator('div')
+      .filter({ has: page.locator('[data-slot="tabbar"]') })
+      .first()
+  }
+
+  test('the note block carries the prototype values in both themes', async ({ page }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      await openDesign(page, { theme })
+      const note = page.locator('[data-slot="note-block"]').first()
+      await expect(note).toBeVisible()
+      const shape = await note.evaluate((el) => {
+        const s = getComputedStyle(el)
+        return {
+          padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft],
+          columnGap: s.columnGap,
+          borderRadius: s.borderRadius,
+          backgroundColor: s.backgroundColor,
+          borderTopColor: s.borderTopColor,
+          borderWidth: s.borderTopWidth,
+        }
+      })
+      // soft accent fill and the 22% accent hairline, each read from
+      // the token the way the component draws it
+      const fill = await tokenFill(page, '--accent-soft')
+      const hairline = await page.evaluate(() => {
+        const probe = document.createElement('span')
+        probe.style.borderColor = 'color-mix(in oklch, var(--accent) 22%, transparent)'
+        document.body.append(probe)
+        const colour = getComputedStyle(probe).borderTopColor
+        probe.remove()
+        return colour
+      })
+      expect(shape).toEqual({
+        padding: ['16px', '16px', '16px', '16px'],
+        columnGap: '14px',
+        borderRadius: '18px',
+        backgroundColor: fill,
+        borderTopColor: hairline,
+        borderWidth: '1px',
+      })
+      // the accent icon is 20px and coloured by the accent
+      const icon = note.locator('> svg')
+      const box = await icon.evaluate((el) => {
+        const rect = el.getBoundingClientRect()
+        return { size: [rect.width, rect.height], colour: getComputedStyle(el).color }
+      })
+      expect(box.size).toEqual([20, 20])
+      expect(box.colour).toBe(await tokenFill(page, '--accent'))
+    }
+  })
+
+  test('the action bar sits flush above the tab bar at 390px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const bar = demoShell(page).locator('[data-slot="action-bar"]')
+    await expect(bar).toBeVisible()
+    const geometry = await page.evaluate(() => {
+      const box = (selector: string) =>
+        document.querySelector('#layouts')?.querySelector(selector)?.getBoundingClientRect()
+      const barBox = box('[data-slot="action-bar"]')
+      const tabBox = box('[data-slot="tabbar"]')
+      if (!barBox || !tabBox) return null
+      const button = document
+        .querySelector('#layouts')
+        ?.querySelector('[data-slot="action-bar"] [data-slot="button"]')
+        ?.getBoundingClientRect()
+      return {
+        tuck: barBox.bottom - tabBox.top,
+        buttonBottom: button?.bottom,
+        tabTop: tabBox.top,
+        barHeight: Math.round(barBox.height),
+        sameBleed: barBox.left === tabBox.left && barBox.right === tabBox.right,
+      }
+    })
+    expect(geometry, 'the demo shell renders at 390px').not.toBeNull()
+    // the demo row renders 1px over the token floor: the button's 15px
+    // text on the body's 1.55 leading, its padding and hairlines
+    // outgrow the 44px min-height, so the natural bar is 45.25 + 20px —
+    // the reserve's 16px gap absorbs the difference. The floor itself
+    // is pinned by the class assertion in action-bar.test.tsx.
+    expect(geometry?.barHeight).toBe(65)
+    // the action bar's lowest 3px tuck under the tab bar's glass — the
+    // 64px --tabbar-h offset is 3px less than the rendered 67px tab
+    // bar — so the two sit flush, and the tab bar, later in the shell,
+    // paints over the tuck
+    expect(geometry?.tuck).toBeGreaterThanOrEqual(2)
+    expect(geometry?.tuck).toBeLessThanOrEqual(4)
+    // the bar's buttons are never covered by the tab bar
+    expect(geometry?.buttonBottom).toBeLessThan(geometry?.tabTop ?? 0)
+    // edge to edge, like the prototype's bars — the demo box is the
+    // fixed bar's containing block, so full bleed means sharing the
+    // tab bar's exact span
+    expect(geometry?.sameBleed).toBe(true)
+  })
+
+  test('the action bar is hidden from 920px', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openDesign(page)
+    await expect(demoShell(page).locator('[data-slot="action-bar"]')).toBeHidden()
+    // the desktop reserve ignores the bar: the has-data rule outranks
+    // the plain desktop padding on specificity, so dropping that class
+    // would leave the mobile 144px reserve on desktop with nothing
+    // failing but this
+    await expect(demoShell(page).locator('main')).toHaveCSS('padding-bottom', '48px')
+  })
+
+  test('mounting the action bar grows the shell bottom reserve', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page)
+    const main = demoShell(page).locator('main')
+    const paddingBottom = () => main.evaluate((el) => getComputedStyle(el).paddingBottom)
+    // the bar is mounted by default: tab bar (64) + safe area (0 in
+    // the test browser) + the bar's --action-bar-h (64px) + a 16px gap
+    expect(await paddingBottom()).toBe('144px')
+    await page.locator('#layouts').getByRole('switch').click()
+    // unmounted: the ordinary tab bar reserve returns
+    expect(await paddingBottom()).toBe('92px')
+    await page.locator('#layouts').getByRole('switch').click()
+    expect(await paddingBottom()).toBe('144px')
+  })
+
+  test('toasts lift above a mounted action bar', async ({ page }) => {
+    const viewport = page.locator('[data-slot="toast-viewport"]')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await openDesign(page, { locale: 'en' })
+    await freezeMotion(page)
+    // fire a real toast first, so the run exercises the actual
+    // pipeline; what the assertions pin is the toast viewport's bottom
+    // offset — the pill renders flush with its bottom edge, which the
+    // geometry read below proves while the toast is up — and the
+    // element stays mounted with its offset after the toast hides
+    await page.locator('#feedback').getByRole('button', { name: 'OK', exact: true }).click()
+    // bar mounted by default: the reserve's own measure — tab bar (64)
+    // + safe area (0) + the bar's --action-bar-h (64px) + the 16px gap
+    await expect(viewport).toHaveCSS('bottom', '144px')
+    // the pill sits flush with the toast viewport's bottom edge, so the
+    // 144px offset just asserted is the pill's own distance from the
+    // page bottom — 16px over the tab bar reserve plus --action-bar-h
+    // (on a real screen 15px over a 65px default-button row; this
+    // demo's bar lives inside the transformed demo box, so the test
+    // does not compare the two)
+    const pill = viewport.locator('[data-slot="toast"]')
+    await expect(pill).toBeVisible()
+    await expect
+      .poll(
+        async () => {
+          const [p, v] = await Promise.all([pill.boundingBox(), viewport.boundingBox()])
+          return p && v ? Math.abs(p.y + p.height - (v.y + v.height)) : Number.POSITIVE_INFINITY
+        },
+        { message: 'the pill stays flush with the toast viewport while the toast is up' },
+      )
+      .toBeLessThanOrEqual(1)
+    await page.locator('#layouts').getByRole('switch').click()
+    // bar unmounted: the plain tab-bar-plus-gap offset returns
+    await expect(viewport).toHaveCSS('bottom', '80px')
+    await page.locator('#layouts').getByRole('switch').click()
+    await expect(viewport).toHaveCSS('bottom', '144px')
+    // from 920px the bar is gone and the viewport sits at its own 24px
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(viewport).toHaveCSS('bottom', '24px')
+  })
+})
+
 test.describe('buttons, switch and avatar stack match the prototype (issue #60)', () => {
   test('buttons carry the prototype text sizes and paddings', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
@@ -578,8 +755,8 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
     const CHECKED = { left: 21, right: 3, top: 3 }
     const inset = () =>
       page.evaluate(() => {
-        const track = document.querySelector('[data-slot="switch"]')
-        const thumb = document.querySelector('[data-slot="switch-thumb"]')
+        const track = document.querySelector('#controls [data-slot="switch"]')
+        const thumb = document.querySelector('#controls [data-slot="switch-thumb"]')
         if (!(track instanceof HTMLElement) || !(thumb instanceof HTMLElement)) return null
         const trackBox = track.getBoundingClientRect()
         const thumbBox = thumb.getBoundingClientRect()
@@ -594,12 +771,13 @@ test.describe('buttons, switch and avatar stack match the prototype (issue #60)'
           top: Math.round(thumbBox.top - (trackBox.top + Number.parseFloat(style.borderTopWidth))),
         }
       })
-    const checkedState = () => page.locator('[data-slot="switch"]').getAttribute('data-checked')
+    const checkedState = () =>
+      page.locator('#controls [data-slot="switch"]').getAttribute('data-checked')
 
     const before = await checkedState()
     await expect.poll(inset).toEqual(before === null ? UNCHECKED : CHECKED)
 
-    await page.locator('[data-slot="switch"]').click()
+    await page.locator('#controls [data-slot="switch"]').click()
     const after = await checkedState()
     expect((after === null) === (before === null), 'the click toggled the switch').toBe(false)
     await expect.poll(inset).toEqual(after === null ? UNCHECKED : CHECKED)

@@ -71,6 +71,9 @@
   --side-w: 232px;
   --topbar-h: 56px;
   --tabbar-h: 64px;
+  /* the mobile action bar's minimum height (issue #61): the member
+     layout reserves it and the toast viewport lifts above it */
+  --action-bar-h: 64px;
   --pad: clamp(16px, 4vw, 24px);
   --content-w: 1104px;
   --content-w-narrow: 760px;
