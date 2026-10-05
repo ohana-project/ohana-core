@@ -309,6 +309,11 @@ function ButtonsSection() {
         <Button variant="ghost">{t('designPreview.buttons.ghost')}</Button>
         <Button variant="destructive">{t('designPreview.buttons.destructive')}</Button>
         <Button variant="link">{t('designPreview.buttons.link')}</Button>
+        {/* a small link stays an sm button (.btn-sm follows .btn-link) —
+            the app's update banner ships that combination */}
+        <Button variant="link" size="sm">
+          {t('designPreview.buttons.linkSm')}
+        </Button>
         <Button disabled>{t('designPreview.buttons.disabled')}</Button>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -321,6 +326,10 @@ function ButtonsSection() {
           {t('designPreview.lists.cardLink')}
         </Button>
         <Button size="icon" variant="secondary" aria-label={t('designPreview.buttons.icon')}>
+          <Icon name="search" />
+        </Button>
+        {/* the 36px round icon button (.btn-icon.btn-sm, issue #60) */}
+        <Button size="icon-sm" variant="secondary" aria-label={t('designPreview.buttons.iconSm')}>
           <Icon name="search" />
         </Button>
         <Button size="icon" variant="ghost" aria-label={t('designPreview.buttons.icon')}>

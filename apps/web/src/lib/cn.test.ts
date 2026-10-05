@@ -66,6 +66,24 @@ describe('default and arbitrary sizes still merge as sizes', () => {
     expect(cn('text-sm', 'text-current')).toBe('text-sm text-current')
     expect(cn('text-current', 'text-sm')).toBe('text-current text-sm')
   })
+
+  it('the one-off prototype pixel sizes merge as sizes too (issue #60)', () => {
+    // the button's 15/14/16.5px and the avatar's 11/13/15/20px are the
+    // prototype's own values, not type-scale steps
+    for (const size of [
+      'text-[11px]',
+      'text-[13px]',
+      'text-[14px]',
+      'text-[15px]',
+      'text-[16.5px]',
+      'text-[20px]',
+    ]) {
+      expect(cn(size, 'text-muted-foreground')).toBe(`${size} text-muted-foreground`)
+      expect(cn('text-muted-foreground', size)).toBe(`text-muted-foreground ${size}`)
+    }
+    expect(cn('text-body', 'text-[15px]')).toBe('text-[15px]')
+    expect(cn('text-[15px]', 'text-body')).toBe('text-body')
+  })
 })
 
 describe('text colours still conflict with each other', () => {

@@ -6,11 +6,12 @@ import { Icon, type IconName } from '@/ui/icon.tsx'
 /*
  * Ohana sync status (`.sync[data-state]` in the prototype), six
  * states: the two in-flight states spin the `sync` glyph (never a ring
- * spinner; reduced motion stops it), the settled states carry their
- * semantic colours, and the two failure states offer a retry link.
- * Compact chip by default, full form via size="lg"; the top-bar chip
- * goes icon-only below 430px (README "Components"), the full form
- * keeps its text.
+ * spinner; reduced motion stops it) and colour only the glyph accent —
+ * the label stays muted until a settled state colours it — while the
+ * settled states carry their semantic colours, and the two failure
+ * states offer a retry link. Compact chip by default, full form via
+ * size="lg"; hiding the text at 430px and below is the top bar's own
+ * trick (`.topbar .sync .sync-text`), not the component's.
  */
 
 export type SyncState = 'first' | 'updating' | 'synced' | 'offline' | 'unreachable' | 'error'
@@ -19,8 +20,13 @@ const STATES: Record<
   SyncState,
   { icon: IconName; label: string; glyph: string; spinning?: boolean }
 > = {
-  first: { icon: 'sync', label: 'text-primary', glyph: 'text-primary', spinning: true },
-  updating: { icon: 'sync', label: 'text-primary', glyph: 'text-primary', spinning: true },
+  first: { icon: 'sync', label: 'text-muted-foreground', glyph: 'text-primary', spinning: true },
+  updating: {
+    icon: 'sync',
+    label: 'text-muted-foreground',
+    glyph: 'text-primary',
+    spinning: true,
+  },
   synced: { icon: 'check', label: 'text-muted-foreground', glyph: 'text-ok' },
   offline: { icon: 'wifi-off', label: 'text-muted-foreground', glyph: 'text-warn' },
   unreachable: { icon: 'cloud-off', label: 'text-destructive', glyph: 'text-destructive' },
@@ -74,9 +80,7 @@ export function SyncStatus({
           current.glyph,
         )}
       />
-      <span className={cn(size === 'default' && 'max-[430px]:sr-only')}>
-        {t(`sync.${state}`, { time: time ?? '' })}
-      </span>
+      <span data-slot="sync-status-label">{t(`sync.${state}`, { time: time ?? '' })}</span>
       {(state === 'unreachable' || state === 'error') && onRetry && (
         <button
           type="button"

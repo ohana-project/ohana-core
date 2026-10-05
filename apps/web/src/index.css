@@ -201,6 +201,10 @@
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+    /* the small radius (the prototype's :focus-visible rule): the ring
+       follows the element's own radius while focused, so plain links
+       and rows round to 8px and a button's own utility radius wins */
+    border-radius: var(--radius-sm);
   }
 
   @media (prefers-reduced-motion: reduce) {
