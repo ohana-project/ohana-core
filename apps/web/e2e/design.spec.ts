@@ -594,10 +594,12 @@ test.describe('shared pieces (issue #61)', () => {
       }
     })
     expect(geometry, 'the demo shell renders at 390px').not.toBeNull()
-    // the bar renders at the token's 64px: a shorter button row leaves
-    // the min-height to hold it, and a taller one must be a conscious
-    // change to the token the reserve and the toast lift read
-    expect(geometry?.barHeight).toBe(64)
+    // the demo row renders 2px over the token floor: the button's body
+    // leading, padding and hairlines outgrow its 44px min-height, so
+    // the natural bar is 46 + 20px — the reserve's 16px gap absorbs
+    // the difference. The floor itself is pinned by the class assertion
+    // in action-bar.test.tsx.
+    expect(geometry?.barHeight).toBe(66)
     // the bar's lowest 3px tuck under the tab bar's glass — the 64px
     // reserve is 3px less than the rendered 67px bar — so the two sit
     // flush, and the tab bar, later in the shell, paints over the tuck
@@ -641,9 +643,11 @@ test.describe('shared pieces (issue #61)', () => {
     const viewport = page.locator('[data-slot="toast-viewport"]')
     await page.setViewportSize({ width: 390, height: 844 })
     await openDesign(page, { locale: 'en' })
-    // fire a real toast, so the assertion is about the pill's actual
-    // position, not a stylesheet reading (the viewport element stays
-    // mounted after the toast hides, its bottom offset does not move)
+    // fire a real toast first, so the run exercises the actual
+    // pipeline; what the assertions pin is the viewport's bottom
+    // offset (the pill renders flush with the viewport's bottom edge,
+    // and the element stays mounted with its offset after the toast
+    // hides)
     await page.locator('#feedback').getByRole('button', { name: 'OK', exact: true }).click()
     // bar mounted by default: the reserve's own measure — tab bar (64)
     // + safe area (0) + the bar's 64px, over the 16px gap

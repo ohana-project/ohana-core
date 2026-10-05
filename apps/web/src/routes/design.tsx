@@ -1105,9 +1105,9 @@ function LayoutsSection() {
       {/* the transform turns the demo box into the containing block for the
           fixed tab bar and FAB, so they stay inside the demo. The demo
           bar is still real to `html:has`, so while it is up the app's
-          own toast viewport lifts above it — exactly what a screen
-          mounting the bar gets; leaving the switch on therefore shows
-          toasts 64px higher than the default */}
+          own toast viewport lifts above it — what a screen mounting the
+          bar gets. The switch is on by default, so at phone width the
+          page's toasts sit 64px higher than on a screen without a bar */}
       <div className="overflow-hidden rounded-lg border border-border [transform:translateZ(0)]">
         <MemberLayout
           space={space}
