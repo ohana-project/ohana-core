@@ -339,7 +339,7 @@ function ButtonsSection() {
           <Icon name="more-h" />
         </Button>
         {/* The administrative bar's 36px round (issue #63). */}
-        <Button size="icon-sm" variant="ghost" aria-label={t('designPreview.buttons.icon')}>
+        <Button size="icon-sm" variant="ghost" aria-label={t('designPreview.buttons.iconSm')}>
           <Icon name="moon" />
         </Button>
       </div>
