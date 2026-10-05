@@ -834,7 +834,6 @@
       "notePlainLead": "Share the code in person",
       "notePlainRest": " — a group chat can be read by strangers. The code burns after the first sign-in. Re-issuing cancels the old code and creates a new one.",
       "actionBarToggle": "Action bar in the shell demo",
-      "barCancel": "Cancel",
       "barSave": "Save",
       "actionBarInLayouts": "The action bar is shown in the member shell demo below."
     },

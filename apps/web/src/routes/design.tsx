@@ -1226,7 +1226,7 @@ function LayoutsSection() {
                 reserves the bar's bottom space while it is up */
             <ActionBar>
               <Button variant="secondary" className="min-w-0 flex-1">
-                {t('designPreview.pieces.barCancel')}
+                {t('ui.cancel')}
               </Button>
               <Button className="min-w-0 flex-1">{t('designPreview.pieces.barSave')}</Button>
             </ActionBar>
