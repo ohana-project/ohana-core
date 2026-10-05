@@ -1,6 +1,6 @@
 import type { Locale } from '@ohana/i18n'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/data/api.ts'
 import { ApiError, assertOk } from '@/data/api-error.ts'
@@ -15,25 +15,28 @@ import { Input } from '@/ui/input.tsx'
 import { RadioCard, RadioGroup } from '@/ui/radio-group.tsx'
 
 /*
- * The onboarding screen (docs/design/screens/onboarding.html): the space
+ * The onboarding form (docs/design/screens/onboarding.html): the space
  * meta line above the display heading, the display name first, the
  * optional contacts beside each other with a locked hint, and the
  * interface language as two full-width choice cards with a radio. The
- * language comes preselected — the member's stored preference, else the
- * device's locale (the prototype pins «Русский») — and applies to the
- * whole app immediately. Everything is optional (ADR-0005).
+ * form renders the draft its screen owns — the screen seeds it from the
+ * member's stored preference, else the device's locale (the prototype
+ * pins «Русский»), and a card's choice applies to the whole app at once.
+ * Everything is optional (ADR-0005).
  */
 
 const LANGUAGES: Locale[] = ['ru', 'en']
 
-/*
- * The stored preference applies once per member per browser session: the
- * session gate remounts this form whenever the probe refetches, and an
- * effect that re-ran per mount would revert the member's own choice of
- * the other card. Module scope survives the remounts; a full page reload
- * legitimately starts the arrival over.
- */
-const appliedStoredLanguages = new Map<string, Locale>()
+/** What the member has typed and chosen so far, owned by the screen. */
+export type OnboardingDraft = {
+  displayName: string
+  email: string
+  phone: string
+  language: Locale
+  /** The stored preference has led the interface once; the member's own
+   * choice is the latest word after it. */
+  storedApplied: boolean
+}
 
 export type OnboardingErrorKey = 'member.errors.validation_failed' | 'member.errors.unexpected'
 
@@ -48,55 +51,35 @@ export function onboardingErrorMessage(
   return translate('member.errors.unexpected')
 }
 
-export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted: () => void }) {
+export function OnboardingForm({
+  me,
+  draft,
+  onDraftChange,
+  onCompleted,
+}: {
+  me: MemberMe
+  draft: OnboardingDraft
+  onDraftChange: (draft: OnboardingDraft) => void
+  onCompleted: () => void
+}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
-  const [displayName, setDisplayName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [language, setLanguage] = useState<Locale>(() => {
-    // Once the stored preference has applied for this member, the device
-    // locale is the member's latest word — a remount must not reseed the
-    // card from the stored value over their own choice.
-    if (appliedStoredLanguages.get(me.member.id) === me.member.interfaceLanguage) {
-      return i18n.language === 'en' ? 'en' : 'ru'
-    }
-    return me.member.interfaceLanguage ?? (i18n.language === 'en' ? 'en' : 'ru')
-  })
   const [errorText, setErrorText] = useState<string | undefined>(undefined)
-
-  // A stored preference leads the whole interface from arrival, not only
-  // the checked card: a member invited with «English» on a Russian device
-  // would otherwise read Russian under a checked «English» card, and
-  // clicking the already-checked card changes nothing. A stored change
-  // mid-form stays one decision — the card, the payload and the
-  // interface move together.
-  const storedLanguage = me.member.interfaceLanguage
-  const memberId = me.member.id
-  useEffect(() => {
-    if (storedLanguage === undefined) return
-    if (appliedStoredLanguages.get(memberId) === storedLanguage) return
-    appliedStoredLanguages.set(memberId, storedLanguage)
-    setLanguage(storedLanguage)
-    if (storedLanguage === i18n.language) return
-    void i18n.changeLanguage(storedLanguage)
-    storeLocale(storedLanguage)
-  }, [storedLanguage, memberId, i18n])
 
   const complete = useMutation({
     mutationFn: async () => {
       const response = await api.POST('/api/v1/me/onboarding', {
         body: {
-          displayName: displayName.trim() || undefined,
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-          interfaceLanguage: language,
+          displayName: draft.displayName.trim() || undefined,
+          email: draft.email.trim() || undefined,
+          phone: draft.phone.trim() || undefined,
+          interfaceLanguage: draft.language,
         },
       })
       await assertOk(response)
     },
     onSuccess: async () => {
-      renameSession(me.member.id, displayName.trim() || undefined)
+      renameSession(me.member.id, draft.displayName.trim() || undefined)
       // The stored profile is refreshed through the sync, not patched by
       // hand (issue #14).
       void triggerSync(me.member.id)
@@ -116,7 +99,7 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
   }
 
   const chooseLanguage = (next: Locale) => {
-    setLanguage(next)
+    onDraftChange({ ...draft, language: next })
     // The chosen language is the member's interface preference; the whole
     // app switches with it, and it rides to the server with the form.
     void i18n.changeLanguage(next)
@@ -140,9 +123,9 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
           <Input
             id="onboarding-display-name"
             placeholder={t('onboarding.displayNamePlaceholder')}
-            value={displayName}
+            value={draft.displayName}
             maxLength={200}
-            onChange={(event) => setDisplayName(event.target.value)}
+            onChange={(event) => onDraftChange({ ...draft, displayName: event.target.value })}
           />
         </Field>
         <div>
@@ -153,9 +136,9 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
                 id="onboarding-email"
                 type="email"
                 placeholder={t('onboarding.emailPlaceholder')}
-                value={email}
+                value={draft.email}
                 maxLength={200}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => onDraftChange({ ...draft, email: event.target.value })}
               />
             </Field>
             <Field>
@@ -164,9 +147,9 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
                 id="onboarding-phone"
                 type="tel"
                 placeholder={t('onboarding.phonePlaceholder')}
-                value={phone}
+                value={draft.phone}
                 maxLength={40}
-                onChange={(event) => setPhone(event.target.value)}
+                onChange={(event) => onDraftChange({ ...draft, phone: event.target.value })}
               />
             </Field>
           </div>
@@ -182,7 +165,7 @@ export function OnboardingForm({ me, onCompleted }: { me: MemberMe; onCompleted:
           <RadioGroup
             name="interface-language"
             aria-labelledby="onboarding-language-label"
-            value={language}
+            value={draft.language}
             onValueChange={chooseLanguage}
           >
             {LANGUAGES.map((locale) => (
