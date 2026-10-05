@@ -338,6 +338,10 @@ function ButtonsSection() {
         <Button size="icon" variant="ghost" aria-label={t('designPreview.buttons.icon')}>
           <Icon name="more-h" />
         </Button>
+        {/* The administrative bar's 36px round (issue #63). */}
+        <Button size="icon-sm" variant="ghost" aria-label={t('designPreview.buttons.iconSm')}>
+          <Icon name="moon" />
+        </Button>
       </div>
       <Button size="lg" className="max-w-sm">
         {t('designPreview.buttons.lg')}
@@ -408,6 +412,7 @@ function InputsSection() {
 
 function OverlaysSection() {
   const { t } = useTranslation()
+  const { resolved } = useTheme()
   const [order, setOrder] = useState('newest')
   const [withPhotos, setWithPhotos] = useState(true)
 
@@ -491,10 +496,20 @@ function OverlaysSection() {
               {t('designPreview.overlays.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              aria-label={resolved === 'dark' ? t('layout.theme.light') : t('layout.theme.dark')}
+            >
+              {/* The demo menu mirrors the shipped one: the glyph and the
+                  accessible name both point at the theme it leads to, and
+                  the switch-space wording follows the product's key. */}
+              <Icon name={resolved === 'dark' ? 'sun' : 'moon'} />
+              {t('layout.theme.item')}
+            </DropdownMenuItem>
             <DropdownMenuItem>
               <Icon name="repeat" />
-              {t('designPreview.overlays.switchSpace')}
+              {t('layout.switchSpace')}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">
               <Icon name="log-out" />
               {t('designPreview.overlays.logout')}
@@ -1045,6 +1060,7 @@ function PiecesSection() {
 
 function LayoutsSection() {
   const { t, i18n } = useTranslation()
+  const { resolved } = useTheme()
   const [activeId, setActiveId] = useState('home')
   const [sectionCount, setSectionCount] = useState(4)
   const [withActionBar, setWithActionBar] = useState(true)
@@ -1068,15 +1084,31 @@ function LayoutsSection() {
     ],
   }
 
+  // The demo menu mirrors the product's user menu (issue #63): the
+  // destinations, the prototype's theme and switch-space pair between
+  // hairlines, and the way out — the theme glyph following the resolved
+  // theme, exactly like the shipped item.
   const userMenuItems = [
     { id: 'profile', label: t('designPreview.overlays.profile'), icon: 'user' as IconName },
     { id: 'settings', label: t('designPreview.overlays.settings'), icon: 'settings' as IconName },
-    { id: 'switch', label: t('designPreview.overlays.switchSpace'), icon: 'repeat' as IconName },
+    {
+      id: 'theme',
+      label: t('layout.theme.item'),
+      icon: (resolved === 'dark' ? 'sun' : 'moon') as IconName,
+      ariaLabel: resolved === 'dark' ? t('layout.theme.light') : t('layout.theme.dark'),
+      separatorBefore: true,
+    },
+    {
+      id: 'switch',
+      label: t('layout.switchSpace'),
+      icon: 'repeat' as IconName,
+    },
     {
       id: 'logout',
       label: t('designPreview.overlays.logout'),
       icon: 'log-out' as IconName,
       danger: true,
+      separatorBefore: true,
     },
   ]
 

@@ -13,6 +13,16 @@ export type ResolvedTheme = 'light' | 'dark'
 
 const STORAGE_KEY = 'ohana.theme'
 
+/**
+ * The browser chrome's colours (docs/design/README.md, "Colour"): the
+ * sRGB fallbacks index.html's theme-color metas carry, collapsed onto
+ * the resolved theme by the provider and the pre-paint script.
+ */
+export const THEME_COLOR = {
+  light: 'rgb(246 241 238)',
+  dark: 'rgb(117 34 49)',
+} as const
+
 function loadThemeChoice(): ThemeChoice {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY)
@@ -48,6 +58,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolved
+    // The browser chrome follows the choice too: index.html's two
+    // media-keyed metas only know the system scheme, so once the
+    // provider runs they collapse onto the resolved theme's colour —
+    // the sRGB fallbacks of docs/design/README.md, "Colour" (≈ bg in
+    // the light theme, ≈ accent in the dark).
+    const color = resolved === 'dark' ? THEME_COLOR.dark : THEME_COLOR.light
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+      meta.removeAttribute('media')
+      meta.content = color
+    }
   }, [resolved])
 
   useEffect(() => {

@@ -190,6 +190,31 @@ test.describe('overlays', () => {
   })
 })
 
+test.describe('the theme item of the demo menus (issue #63)', () => {
+  // Both demo menus mirror the shipped user menu (the layouts one
+  // through the shipped top bar): the item names the theme a press
+  // leads to, in both themes.
+  for (const [theme, offered] of [
+    ['light', 'Тёмная тема'],
+    ['dark', 'Светлая тема'],
+  ] as const) {
+    test(`the demo menus offer the theme a press leads to in ${theme}`, async ({ page }) => {
+      await openDesign(page, { theme })
+
+      await page.getByRole('button', { name: 'Меню', exact: true }).click()
+      const item = page.getByRole('menuitem', { name: offered })
+      await expect(item).toBeVisible()
+      await page.keyboard.press('Escape')
+      // The first popup must be gone before the second opens: both
+      // items share the accessible name.
+      await expect(item).toBeHidden()
+
+      await page.getByRole('button', { name: 'Меню пользователя' }).click()
+      await expect(item).toBeVisible()
+    })
+  }
+})
+
 test.describe('icon sizes (issue #55)', () => {
   /**
    * Every context sizes its own icons (docs/design/README.md
@@ -255,6 +280,7 @@ test.describe('icon sizes (issue #55)', () => {
         ),
       )
       .toEqual([
+        [18, 18],
         [18, 18],
         [18, 18],
         [18, 18],

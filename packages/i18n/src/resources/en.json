@@ -54,7 +54,13 @@
     "back": "Back",
     "sections": "Sections",
     "adminTitle": "Ohana · Admin",
-    "authNote": "The family album that is always with you"
+    "authNote": "The family album that is always with you",
+    "theme": {
+      "item": "Theme",
+      "light": "Light theme",
+      "dark": "Dark theme"
+    },
+    "switchSpace": "Switch space"
   },
   "admin": {
     "pill": "Admin",
@@ -471,7 +477,6 @@
       "eventsLink": "The whole calendar",
       "eventsEmpty": "Events will appear here — birthdays, doctors, dinners.",
       "membersSection": "Members",
-      "accounts": "Spaces",
       "signOut": "Sign out",
       "signOutFailed": "Signing out did not work — check the network and try again."
     }
@@ -739,7 +744,6 @@
       "tooltip": "Hover me",
       "profile": "Profile",
       "settings": "Settings",
-      "switchSpace": "Switch space",
       "logout": "Sign out",
       "viewMenu": "Feed view",
       "newestFirst": "Newest first",

@@ -32,6 +32,8 @@ const buttonVariants = cva(
         sm: 'min-h-9 px-3.5 py-1.5 text-[14px]',
         lg: 'w-full min-h-[52px] px-5 py-2.5 text-[16.5px]',
         icon: 'size-11 rounded-full p-0',
+        // The prototype's `.btn-icon.btn-sm`: the 36px round icon button
+        // of the administrative bar's theme toggle.
         'icon-sm': 'size-9 rounded-full p-0',
       },
     },

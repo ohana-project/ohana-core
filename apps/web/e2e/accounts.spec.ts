@@ -146,9 +146,10 @@ async function mockMemberApi(page: Page) {
 
 async function openAccountsFromMenu(page: Page) {
   await page.getByRole('button', { name: 'Меню пользователя' }).click()
-  // Exact: the owner menu also carries «Настройки пространства», whose name
-  // contains this one as a substring.
-  await page.getByRole('menuitem', { name: 'Пространства', exact: true }).click()
+  // The menu item is «Сменить пространство» (issue #63); the space
+  // settings entry shares the words «пространств…», so the name narrows
+  // to the full item.
+  await page.getByRole('menuitem', { name: 'Сменить пространство' }).click()
   await expect(page).toHaveURL(/\/accounts$/)
 }
 
