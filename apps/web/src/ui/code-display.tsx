@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { writeClipboard } from '@/lib/clipboard.ts'
 import { cn } from '@/lib/cn'
 
 import { Button } from '@/ui/button.tsx'
@@ -25,12 +26,8 @@ export function CodeDisplay({
   const { t } = useTranslation()
 
   const write = async () => {
-    try {
-      await navigator.clipboard.writeText(code)
-      toast(t('ui.copied'))
-    } catch {
-      // The code stays selectable; nothing to report.
-    }
+    // The clipboard may be absent or refuse; the code stays selectable.
+    if (await writeClipboard(code)) toast(t('ui.copied'))
   }
 
   return (

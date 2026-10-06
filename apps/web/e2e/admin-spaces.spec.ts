@@ -231,21 +231,19 @@ async function mockAdminApi(
     }
     if (request.method() === 'POST') {
       // The issuance rides the member's URL (…/members/{id}/access-codes);
-      // the response carries the plaintext, shown once.
+      // the response carries the plaintext, shown once — the record the
+      // later list answers serve keeps only the hash-shaped fields.
       const memberId = request.url().match(/members\/([0-9a-f-]+)\/access-codes$/)?.[1] ?? ''
-      const code = {
-        ...({
-          id: nextId(),
-          memberId,
-          status: 'issued',
-          createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-          statusChangedAt: new Date().toISOString(),
-        } satisfies MockCode),
-        code: 'QWEE-4455',
+      const record: MockCode = {
+        id: nextId(),
+        memberId,
+        status: 'issued',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        statusChangedAt: new Date().toISOString(),
       }
-      codes.unshift(code)
-      return route.fulfill(jsonBody(code, 201))
+      codes.unshift(record)
+      return route.fulfill(jsonBody({ ...record, code: 'QWEE-4455' }, 201))
     }
     return route.fulfill({ status: 405 })
   })

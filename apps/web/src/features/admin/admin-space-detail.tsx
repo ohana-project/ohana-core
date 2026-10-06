@@ -20,6 +20,7 @@ import {
   useSpaceMembers,
   useUpdateSpace,
 } from '@/features/admin/use-admin-spaces.ts'
+import { writeClipboard } from '@/lib/clipboard.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -873,12 +874,7 @@ function ProvisionMemberSheet({
 function CodeCopyButton({ code, label }: { code: string; label: string }) {
   const { t } = useTranslation()
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code)
-      toast(t('admin.codes.copiedToast'))
-    } catch {
-      // The code stays selectable in the display; nothing to report.
-    }
+    if (await writeClipboard(code)) toast(t('admin.codes.copiedToast'))
   }
   return (
     <Button
