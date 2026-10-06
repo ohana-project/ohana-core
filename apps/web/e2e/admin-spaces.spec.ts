@@ -576,8 +576,9 @@ test.describe('administrative space screen parity', () => {
       if (!box) throw new Error('the row never rendered a box')
       expect(box.height).toBeLessThanOrEqual(70)
     }
-    const dimaSub = memberRow(page, 'Дима').locator('[data-slot=item-description]')
-    expect(await dimaSub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap')
+    // Миша's row carries the phone line: it clips instead of wrapping.
+    const mishaSub = memberRow(page, 'Миша').locator('[data-slot=item-description]')
+    expect(await mishaSub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap')
   })
 
   test('tooltips name the row actions (ru)', async ({ page }) => {
