@@ -205,15 +205,34 @@ describe('WishlistPersonScreen (one member wishlist)', () => {
 
   it('wraps a long member name instead of truncating it', async () => {
     seedRegistry()
-    await applySyncResult(ME, syncResult([]))
+    // The contract's longest name (200 code points, no space in it):
+    // rendered whole — the heading wraps it (break-words) instead of
+    // hiding its end. The classes pin the wrapping — a truncating heading
+    // keeps the text in the DOM and would pass a text-only assertion green.
+    const longName = `${'А'.repeat(199)}Б`
+    await applySyncResult(
+      ME,
+      syncResult(
+        [],
+        [
+          {
+            entity: 'member',
+            member: {
+              id: DIMA,
+              name: 'Дима',
+              displayName: longName,
+              role: 'regular',
+              createdAt: '2026-08-14T10:00:00.000Z',
+            },
+          },
+        ],
+      ),
+    )
     mockQuietSync()
     renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
 
-    // The name is the contract's own 200 characters: the heading wraps it
-    // (break-words) instead of hiding its end. The classes pin the
-    // wrapping — a truncating heading keeps the text in the DOM and would
-    // pass a text-only assertion green.
-    const heading = await screen.findByRole('heading', { level: 1, name: 'Дима' })
+    const heading = await screen.findByRole('heading', { level: 1, name: longName })
+    expect(heading).toHaveTextContent(longName)
     expect(heading).toHaveClass('break-words')
     expect(heading).not.toHaveClass('truncate')
   })
