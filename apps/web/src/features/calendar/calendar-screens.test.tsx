@@ -260,11 +260,12 @@ describe('CalendarScreen (the month and the agenda)', () => {
     expect(screen.getByText(/пн, 5 октября ·/)).toBeInTheDocument()
     expect(screen.getByText(/пн, 12 октября ·/)).toBeInTheDocument()
     // Tomorrow's row keeps the bare time line — its group label names the
-    // day, no dated prefix rides along.
-    expect(
-      screen.getByText('14:00 – 15:00 · 17:00 – 18:00 · Moscow (UTC+3)'),
-    ).toBeInTheDocument()
-    expect(screen.queryByText(/2 октября · 14:00/)).not.toBeInTheDocument()
+    // day. The row itself is the scope (its link): a dated prefix would be
+    // a direct text node of the description, invisible to a whole-document
+    // query.
+    const tomorrowRow = screen.getByText('Завтрашний врач').closest('a')
+    expect(tomorrowRow).not.toHaveTextContent('2 октября · 14:00')
+    expect(tomorrowRow).toHaveTextContent('14:00 – 15:00 · 17:00 – 18:00 · Moscow (UTC+3)')
   })
 
   it('the month grid follows the prototype: the today cell, the dots, the dimmed out days', async () => {
