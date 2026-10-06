@@ -192,9 +192,10 @@ describe('the person screen gift controls (issue #19)', () => {
     const user = userEvent.setup()
     renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
 
-    // The label carries the state; there is no pressed attribute beside it.
+    // The label carries the state, and the pressed state rides aria-pressed
+    // like the prototype's fav-btn (issue #67).
     const heart = await screen.findByRole('button', { name: 'В избранное' })
-    expect(heart).not.toHaveAttribute('aria-pressed')
+    expect(heart).toHaveAttribute('aria-pressed', 'false')
     await user.click(heart)
 
     expect(apiPost).toHaveBeenCalledWith(
@@ -298,6 +299,8 @@ describe('the favorites screen (issue #19)', () => {
             id: '01900000-0000-7000-8000-000000000302',
             authorId: LYUDA,
             title: 'Шёлковый платок',
+            // Without a hint the sub line stops at the wishlist's name.
+            details: undefined,
           }),
         ],
         [
@@ -323,9 +326,19 @@ describe('the favorites screen (issue #19)', () => {
 
     expect(await screen.findByText('Налобный фонарь Petzl Actik Core')).toBeInTheDocument()
     expect(screen.getByText('Шёлковый платок')).toBeInTheDocument()
-    expect(screen.getByText('Из вишлиста: Дима')).toBeInTheDocument()
+    // The sub line carries the wishlist the idea came from and the wish's
+    // own hint after the separator, like the prototype's metadata line.
+    expect(
+      screen.getByText('Из вишлиста: Дима · чтобы ходить в горы в темноте'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Из вишлиста: Люда')).toBeInTheDocument()
     expect(screen.getByText('2 идеи · видно только вам')).toBeInTheDocument()
+
+    // One link per card (issue #67): the whole row leads to the wishlist it
+    // came from, the removal standing beside it, not inside the link.
+    const row = screen.getByText('Налобный фонарь Petzl Actik Core').closest('[data-slot="card"]')
+    expect(row).not.toBeNull()
+    expect(within(row as HTMLElement).getAllByRole('link')).toHaveLength(1)
 
     // The way back out of the shortlist.
     const removeButtons = screen.getAllByRole('button', { name: 'Убрать' })

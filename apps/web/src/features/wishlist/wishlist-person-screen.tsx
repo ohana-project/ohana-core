@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { StoredMemberProfile } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
@@ -16,6 +17,7 @@ import {
 } from '@/ui/dialog.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
+import { NoteBlock } from '@/ui/note-block.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 import {
@@ -75,6 +77,10 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
   const name = authorName(memberId, profiles, t('wishlist.authorUnknown'))
   const open = openWishesOf(wishes, memberId)
   const updated = wishlistUpdatedAt(open)
+  // The viewers the footer names: the space's active members — an archived
+  // member's profile still travels for attribution, but they cannot sign
+  // in, and the line must not claim they see the list (issue #23).
+  const activeProfiles = profiles.filter((candidate) => candidate.archivedAt === undefined)
 
   const toggleFavorite = (wishId: string, on: boolean) => {
     const mutate = on ? unfavoriteWish : favoriteWish
@@ -132,7 +138,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
         // fraction left by an owed replay — says so, instead of reading the
         // absent profile as a missing member or counting the rows it
         // happens to hold (ADR-0014, architecture.md web rules).
-        <Card className="mt-6">
+        <Card className="mt-5">
           <Empty>
             <EmptyMedia>
               <Icon name="cloud-off" />
@@ -142,7 +148,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
           </Empty>
         </Card>
       ) : profile === undefined ? (
-        <Card className="mt-6">
+        <Card className="mt-5">
           <Empty>
             <EmptyMedia>
               <Icon name="users" />
@@ -152,42 +158,42 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
           </Empty>
         </Card>
       ) : (
-        <div className="flex flex-col gap-6 pt-6">
-          <div className="flex items-center gap-3">
+        // The prototype's column (issue #67): the member's header, the
+        // surprise note, the wishes, and the mono footer line — the
+        // margins the prototype sets between them.
+        <div className="flex flex-col pt-5">
+          <header className="mb-3.5 flex items-center gap-3.5">
             <Avatar size="lg" hue={hueFromId(memberId)}>
               <AvatarFallback>{monogramOf(name)}</AvatarFallback>
             </Avatar>
-            <div className="flex min-w-0 flex-col">
-              <span className="text-h3">{name}</span>
-              <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
+            <div className="min-w-0 flex-1">
+              {/* break-words, not truncate: a name of the contract's 200
+                  characters wraps — nothing of it is hidden. */}
+              <h1 className="break-words text-display-lg">{name}</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 {updated === undefined
                   ? t('wishlist.openCount', { count: open.length })
                   : `${t('wishlist.openCount', { count: open.length })} · ${t('wishlist.updated', {
                       moment: personMoment(updated, i18n.language),
                     })}`}
-              </span>
+              </p>
             </div>
-          </div>
+          </header>
 
           {/* The surprise rule (the prototype's venue-note): the author of
               these wishes sees neither reservations nor anyone's favorites. */}
-          <div className="flex items-start gap-2.5 rounded-md border border-border px-4 py-3">
-            <Icon name="eye-off" className="mt-0.5 size-4 shrink-0 text-primary" />
-            <p className="text-sm break-words text-muted-foreground">
-              {t('wishlist.personSurpriseNote', { name })}
-            </p>
-          </div>
+          <NoteBlock icon="eye-off" className="mb-4.5">
+            <p className="leading-normal">{t('wishlist.personSurpriseNote', { name })}</p>
+          </NoteBlock>
 
           {open.length === 0 ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="gift" />
-                </EmptyMedia>
-                <EmptyTitle>{t('wishlist.personEmptyTitle')}</EmptyTitle>
-                <EmptyDescription>{t('wishlist.personEmptyText', { name })}</EmptyDescription>
-              </Empty>
-            </Card>
+            <Empty className="py-14">
+              <EmptyMedia>
+                <Icon name="gift" />
+              </EmptyMedia>
+              <EmptyTitle>{t('wishlist.personEmptyTitle')}</EmptyTitle>
+              <EmptyDescription>{t('wishlist.personEmptyText', { name })}</EmptyDescription>
+            </Empty>
           ) : (
             <div className="flex flex-col gap-3">
               {open.map((wish) => {
@@ -219,7 +225,16 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
             </div>
           )}
 
-          <p className="text-meta text-muted-foreground">{t('wishlist.personHint')}</p>
+          {/* The prototype's footer meta line, with the real membership in
+              place of the demo world's names (`.meta`, uppercase). The
+              archived members cannot sign in, so the line names the active
+              ones only. */}
+          <p className="mx-1 mt-4.5 font-mono text-meta uppercase text-muted-foreground">
+            {t('wishlist.personViewers', {
+              count: activeProfiles.length,
+              names: viewersLine(activeProfiles, t('wishlist.authorUnknown'), i18n.language),
+            })}
+          </p>
         </div>
       )}
 
@@ -302,4 +317,13 @@ function personMoment(iso: string, locale: string): string {
   })
     .format(new Date(iso))
     .toLocaleLowerCase(locale)
+}
+
+/** The footer's viewers line, "Аня, Дима и Миша": the given (active)
+ *  members as the locale's conjunction list, uppercased by the line's own
+ *  styling. */
+function viewersLine(profiles: StoredMemberProfile[], fallback: string, locale: string): string {
+  return new Intl.ListFormat(locale, { type: 'conjunction' }).format(
+    profiles.map((candidate) => authorName(candidate.id, profiles, fallback)),
+  )
 }
