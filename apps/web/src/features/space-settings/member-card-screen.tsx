@@ -97,7 +97,7 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
 
   if (profiles.isPending) {
     return (
-      <SettingsShell title={t('space.card.topBarTitle')}>
+      <SettingsShell title={t('space.card.topBarTitle')} backTo="/members">
         <div className="grid place-items-center py-16">
           <Spinner className="size-6" />
         </div>
@@ -106,7 +106,7 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
   }
   if (profiles.isError) {
     return (
-      <SettingsShell title={t('space.card.topBarTitle')}>
+      <SettingsShell title={t('space.card.topBarTitle')} backTo="/members">
         <div className="pt-5">
           <ErrorState onRetry={() => void profiles.refetch()} />
         </div>
@@ -276,16 +276,16 @@ function OwnerSections({
               {/* The title wraps beside the select, like the prototype's
                   `.title` — the row is the one place a long title and a
                   wide trailing control share a 390px row. */}
-              <ItemTitle className="whitespace-normal">
-                {t('space.card.roleLabel')}
-              </ItemTitle>
+              <ItemTitle className="whitespace-normal">{t('space.card.roleLabel')}</ItemTitle>
               <ItemDescription>{t('space.card.roleHint')}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              {/* The prototype's select: auto width at 40px. */}
+              {/* The prototype's select: auto width at 40px — the shared
+                  select's compact size. */}
               <Select
                 aria-label={t('space.card.roleLabel')}
-                className="w-auto [&_select]:min-h-10 [&_select]:px-3 [&_select]:py-2"
+                size="sm"
+                className="w-auto"
                 value={profile.role}
                 onChange={(event) => {
                   const next = event.target.value

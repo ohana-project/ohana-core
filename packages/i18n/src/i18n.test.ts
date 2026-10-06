@@ -32,6 +32,21 @@ describe('createI18n', () => {
     expect(i18n.t('members.count', { count: 5 })).toBe('5 members')
   })
 
+  it('counts the members screen’s active and archived members (issue #76)', () => {
+    const ru = createI18n({ locale: 'ru' })
+    expect(ru.t('space.members.activeCount', { active: 1 })).toBe('1 активный')
+    expect(ru.t('space.members.activeCount', { active: 4 })).toBe('4 активных')
+    // 21 and 101 take the Russian «one» category, not the literal 1.
+    expect(ru.t('space.members.activeCount', { active: 21 })).toBe('21 активный')
+    expect(ru.t('space.members.activeCount', { active: 101 })).toBe('101 активный')
+    expect(ru.t('space.members.archivedCount', { count: 1 })).toBe('1 в архиве')
+    expect(ru.t('space.members.archivedCount', { count: 21 })).toBe('21 в архиве')
+    const en = createI18n({ locale: 'en' })
+    expect(en.t('space.members.activeCount', { active: 1 })).toBe('1 active')
+    expect(en.t('space.members.activeCount', { active: 4 })).toBe('4 active')
+    expect(en.t('space.members.archivedCount', { count: 4 })).toBe('4 archived')
+  })
+
   it('builds the sidebar’s space line with the count and the owner note (issue #62)', () => {
     const ru = createI18n({ locale: 'ru' })
     expect(ru.t('layout.spaceSub', { count: 1, role: 'owner' })).toBe('1 участник · вы владелец')

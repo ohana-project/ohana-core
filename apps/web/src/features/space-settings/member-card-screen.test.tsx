@@ -558,6 +558,58 @@ describe('MemberCardScreen — design parity (issue #76)', () => {
     expect(within(otherRow).getByRole('button', { name: 'Отключить всё' })).toBeInTheDocument()
   })
 
+  it('backs to the members list while the profiles are still loading', async () => {
+    // The pending shell must not send the back arrow Home (issue #76).
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return new Promise(() => {})
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    const back = await screen.findByRole('link', { name: 'Назад' })
+    expect(back).toHaveAttribute('href', '/members')
+  })
+
+  it('orders the devices by their last activity and marks the current one once', async () => {
+    // The API's order is its own; the rows follow the last activity —
+    // current first — and exactly one row carries the pill.
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return okBody(PROFILES)
+      if (path === '/api/v1/members/{memberId}/access-code') return okBody(CODE)
+      if (path === '/api/v1/members/{memberId}/sessions') {
+        return okBody([
+          DEVICES[1],
+          {
+            id: '01900000-0000-7000-8000-000000001003',
+            browser: 'Firefox',
+            platform: 'Linux',
+            createdAt: '2026-09-25T10:00:00.000Z',
+            lastUsedAt: '2026-10-01T12:00:00.000Z',
+          },
+          DEVICES[0],
+        ])
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    await screen.findByText('Firefox на Linux')
+    // Newest activity first, the API's own order discarded.
+    const titles = screen
+      .getAllByText(/Chrome на iPhone|Firefox на Linux|Android/)
+      .map((node) => node.textContent)
+    expect(titles).toEqual(['Firefox на Linux', 'Chrome на iPhone', 'Android'])
+    // Exactly one current-device pill, on the latest-activity row.
+    expect(screen.getAllByText('Текущее')).toHaveLength(1)
+    const currentRow = screen
+      .getByText('Firefox на Linux')
+      .closest<HTMLElement>('[data-slot="item"]')
+    if (currentRow === null) throw new Error('No Firefox row rendered')
+    expect(within(currentRow).getByText('Текущее')).toBeInTheDocument()
+  })
+
   it('shows the empty device state as a single row', async () => {
     apiGet.mockImplementation(async (path: never) => {
       if (path === '/api/v1/me') return okBody(OWNER_ME)
