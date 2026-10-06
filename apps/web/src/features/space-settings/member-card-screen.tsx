@@ -18,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog.tsx'
-import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { ErrorState } from '@/ui/error-state.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import {
@@ -30,7 +29,6 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
-import { SectionHeader } from '@/ui/section-header.tsx'
 import { Select } from '@/ui/select.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
@@ -49,12 +47,15 @@ import {
 
 /*
  * The member card (docs/design/screens/member-card.html): the member's role,
- * their access code with its status, and their devices — the owner's
- * instruments; a regular member sees the read-only profile. Issuing a code
- * shows the plaintext once; disconnecting ends every session of the member
- * (issue #12, ADR-0005). The archive row removes the member from the space
- * while the family history keeps their name; an archived card explains what
- * the archive means and offers the restore through a new code (issue #23).
+ * their access code with its status and the reissue beside it, and their
+ * devices with the disconnect in the row — the owner's instruments; a
+ * regular member sees the read-only profile. Issuing a code shows the
+ * plaintext once; disconnecting ends every session of the member (issue
+ * #12, ADR-0005). The archive is a whole danger row; an archived card is
+ * one card with the two status lines and the restore through a new code
+ * (issue #23). The device the member used most recently carries the
+ * current-device pill; the API names no city, so the rows speak of the
+ * sign-in and the last activity instead (docs/design/README.md).
  */
 
 /** The profile shape the card reads, with the archiving stamps (issue #23). */
@@ -96,7 +97,7 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
 
   if (profiles.isPending) {
     return (
-      <SettingsShell title={t('space.card.title')}>
+      <SettingsShell title={t('space.card.topBarTitle')}>
         <div className="grid place-items-center py-16">
           <Spinner className="size-6" />
         </div>
@@ -105,8 +106,8 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
   }
   if (profiles.isError) {
     return (
-      <SettingsShell title={t('space.card.title')}>
-        <div className="pt-6">
+      <SettingsShell title={t('space.card.topBarTitle')}>
+        <div className="pt-5">
           <ErrorState onRetry={() => void profiles.refetch()} />
         </div>
       </SettingsShell>
@@ -118,40 +119,32 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
   }
 
   const displayName = profile.displayName ?? profile.name
-  const title = t('space.card.title', { name: displayName })
   // An archived member's card (issue #23): the owner sees the archive state
   // with the restore, everyone else sees the read-only profile with the pill.
   const isArchived = profile.archivedAt !== undefined
   const archivedAt = profile.archivedAt
 
   return (
-    <SettingsShell title={title}>
-      <div className="flex flex-col gap-6 pt-6">
+    // The top bar carries the area's name («Участник»), like the
+    // prototype's `data-title`; the h1 keeps the member's own.
+    <SettingsShell title={t('space.card.topBarTitle')} backTo="/members">
+      <div className="flex flex-col gap-7 pt-5">
         <header className="flex items-center gap-3.5">
           <Avatar size="lg" hue={hueFromId(profile.id)}>
             <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <h1 className="text-display-lg">{displayName}</h1>
-            {archivedAt !== undefined ? (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {t('space.members.archivedSince', {
-                  date: dateFormatter.format(new Date(archivedAt)),
-                })}
-              </p>
-            ) : (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {t('space.card.memberSince', {
-                  date: dateFormatter.format(new Date(profile.createdAt)),
-                })}
-              </p>
-            )}
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {archivedAt !== undefined
+                ? t('space.members.archivedSince', {
+                    date: dateFormatter.format(new Date(archivedAt)),
+                  })
+                : t('space.card.memberSince', {
+                    date: dateFormatter.format(new Date(profile.createdAt)),
+                  })}
+            </p>
           </div>
-          {isArchived ? (
-            <span className="ml-auto">
-              <Badge variant="neutral">{t('space.members.archivedPill')}</Badge>
-            </span>
-          ) : null}
         </header>
         {isOwner ? (
           isArchived ? (
@@ -167,7 +160,7 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
           <p className="px-1 text-sm text-muted-foreground">
             {t(profile.role === 'owner' ? 'admin.space.ownerPill' : 'admin.space.regularPill')}
           </p>
-        )}{' '}
+        )}
       </div>
     </SettingsShell>
   )
@@ -204,6 +197,18 @@ function OwnerSections({
   // An owner may be reviewing their own card: disconnecting then ends this
   // device's own session and must sign the device out.
   const isSelf = memberId === session.me?.member.id
+
+  // The device the member used most recently is their current one; the row
+  // order follows it — current first, the rest by their last activity.
+  const currentDeviceId =
+    devices.data !== undefined && devices.data.length > 0
+      ? devices.data.reduce((acc, row) => (row.lastUsedAt >= acc.lastUsedAt ? row : acc)).id
+      : undefined
+  const deviceRows = [...(devices.data ?? [])].sort((a, b) => {
+    if (a.id === currentDeviceId) return -1
+    if (b.id === currentDeviceId) return 1
+    return b.lastUsedAt.localeCompare(a.lastUsedAt)
+  })
 
   const [confirmRole, setConfirmRole] = useState<'owner' | 'regular' | undefined>()
   const [issueOpen, setIssueOpen] = useState(false)
@@ -261,10 +266,10 @@ function OwnerSections({
   return (
     <>
       <section>
-        <SectionHeader title={t('space.card.roleTitle')} />
-        <Card className="py-0">
-          <Item size="lg">
-            <ItemMedia variant="icon">
+        <h3 className="mb-2.5 px-1">{t('space.card.roleTitle')}</h3>
+        <Card variant="list">
+          <Item size="md">
+            <ItemMedia>
               <Icon name="shield" />
             </ItemMedia>
             <ItemContent>
@@ -272,9 +277,10 @@ function OwnerSections({
               <ItemDescription>{t('space.card.roleHint')}</ItemDescription>
             </ItemContent>
             <ItemActions>
+              {/* The prototype's select: auto width at 40px. */}
               <Select
                 aria-label={t('space.card.roleLabel')}
-                className="w-auto"
+                className="w-auto [&_select]:min-h-10 [&_select]:px-3 [&_select]:py-2"
                 value={profile.role}
                 onChange={(event) => {
                   const next = event.target.value
@@ -291,22 +297,11 @@ function OwnerSections({
             </ItemActions>
           </Item>
         </Card>
-        <p className="mt-2.5 px-1 text-sm text-muted-foreground">
-          {t('admin.space.lastOwnerNote')}
-        </p>
       </section>
 
       <section>
-        <SectionHeader
-          title={t('space.card.accessTitle')}
-          action={
-            <Button size="sm" variant="secondary" onClick={() => setIssueOpen(true)}>
-              <Icon name="plus" />
-              {t('space.card.issueCode')}
-            </Button>
-          }
-        />
-        <Card className="py-0">
+        <h3 className="mb-2.5 px-1">{t('space.card.accessTitle')}</h3>
+        <Card variant="list">
           {codeStatus.isPending ? (
             <div className="grid place-items-center py-6">
               <Spinner className="size-5" />
@@ -314,8 +309,8 @@ function OwnerSections({
           ) : codeStatus.isError ? (
             <ErrorState onRetry={() => void codeStatus.refetch()} />
           ) : codeStatus.data === null ? (
-            <Item size="lg">
-              <ItemMedia variant="icon">
+            <Item size="md">
+              <ItemMedia>
                 <Icon name="lock" />
               </ItemMedia>
               <ItemContent>
@@ -324,8 +319,8 @@ function OwnerSections({
               </ItemContent>
             </Item>
           ) : (
-            <Item size="lg">
-              <ItemMedia variant="icon">
+            <Item size="md">
+              <ItemMedia>
                 <Icon name="lock" />
               </ItemMedia>
               <ItemContent>
@@ -341,6 +336,9 @@ function OwnerSections({
                   {t(codeStatusPill[codeStatus.data.status].label)}
                 </Badge>
                 {codeStatus.data.status === 'issued' ? (
+                  // A live code can still be called back; the prototype
+                  // depicts only the spent states, so the action stays a
+                  // row action of the issued state.
                   <Button
                     variant="ghost"
                     size="sm"
@@ -353,88 +351,114 @@ function OwnerSections({
               </ItemActions>
             </Item>
           )}
+          <Item size="md">
+            <ItemMedia>
+              <Icon name="repeat" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{t('space.card.reissueTitle')}</ItemTitle>
+              <ItemDescription>{t('space.card.reissueHint')}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button variant="secondary" size="sm" onClick={() => setIssueOpen(true)}>
+                {t('space.card.issueSubmit')}
+              </Button>
+            </ItemActions>
+          </Item>
         </Card>
-        <p className="mt-2.5 px-1 text-sm text-muted-foreground">{t('space.card.accessHint')}</p>
       </section>
 
       <section>
-        <SectionHeader
-          title={t('space.card.devicesTitle')}
-          action={
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive"
-              onClick={() => setConfirmDisconnect(true)}
-              disabled={devices.isPending || (devices.data?.length ?? 0) === 0}
-            >
-              {t('space.card.disconnectAll')}
-            </Button>
-          }
-        />
+        <h3 className="mb-2.5 px-1">{t('space.card.devicesTitle')}</h3>
         {devices.isPending ? (
           <div className="grid place-items-center py-6">
             <Spinner className="size-5" />
           </div>
         ) : devices.isError ? (
           <ErrorState onRetry={() => void devices.refetch()} />
-        ) : devices.data.length === 0 ? (
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="phone" />
-              </EmptyMedia>
-              <EmptyTitle>{t('space.card.devicesEmpty')}</EmptyTitle>
-            </Empty>
+        ) : deviceRows.length === 0 ? (
+          // The empty state is a single row of the same card, like the
+          // prototype's post-disconnect state.
+          <Card variant="list">
+            <Item size="default">
+              <ItemMedia>
+                <Icon name="cloud-off" />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{t('space.card.devicesNoneTitle')}</ItemTitle>
+                <ItemDescription>{t('space.card.devicesNoneHint')}</ItemDescription>
+              </ItemContent>
+            </Item>
           </Card>
         ) : (
-          <Card className="py-0">
+          <Card variant="list">
             <ItemGroup>
-              {devices.data.map((device) => (
-                <Item key={device.id} size="lg">
-                  <ItemMedia variant="icon">
-                    <Icon name="phone" />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{deviceName(device)}</ItemTitle>
-                    <ItemDescription>
-                      {t('accounts.devices.sub', {
-                        created: dateFormatter.format(new Date(device.createdAt)),
-                        used: dateFormatter.format(new Date(device.lastUsedAt)),
-                      })}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-              ))}
+              {deviceRows.map((device) => {
+                const isCurrent = device.id === currentDeviceId
+                // A lone device keeps the action beside its pill: with one
+                // row the owner must not lose the only lever (recorded in
+                // docs/design/README.md).
+                const showDisconnect = !isCurrent || deviceRows.length === 1
+                return (
+                  <Item key={device.id} size="default">
+                    <ItemMedia>
+                      <Icon name="install" />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{deviceName(device)}</ItemTitle>
+                      <ItemDescription>
+                        {t('accounts.devices.sub', {
+                          created: dateFormatter.format(new Date(device.createdAt)),
+                          used: dateFormatter.format(new Date(device.lastUsedAt)),
+                        })}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      {isCurrent ? (
+                        <Badge variant="ok">{t('space.card.currentDevicePill')}</Badge>
+                      ) : null}
+                      {showDisconnect ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => setConfirmDisconnect(true)}
+                        >
+                          {t('space.card.disconnectAll')}
+                        </Button>
+                      ) : null}
+                    </ItemActions>
+                  </Item>
+                )
+              })}
             </ItemGroup>
           </Card>
         )}
-        <p className="mt-2.5 px-1 text-sm text-muted-foreground">{t('space.card.devicesHint')}</p>
       </section>
 
       <section>
-        <SectionHeader title={t('space.card.spaceSection')} />
-        <Card className="py-0">
-          <Item size="lg">
-            <ItemMedia variant="icon">
+        <h3 className="mb-2.5 px-1">{t('space.card.spaceSection')}</h3>
+        <Card variant="list">
+          {/* The whole row is the danger action, like the prototype's
+              `list-row danger`. */}
+          <Item
+            variant="danger"
+            size="md"
+            render={
+              <button
+                type="button"
+                disabled={isLastOwner}
+                onClick={() => setConfirmArchive(true)}
+              />
+            }
+          >
+            <ItemMedia>
               <Icon name="archive" />
             </ItemMedia>
             <ItemContent>
               <ItemTitle>{t('space.card.archiveRow', { name: displayName })}</ItemTitle>
               <ItemDescription>{t('space.card.archiveRowSub')}</ItemDescription>
             </ItemContent>
-            <ItemActions>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive"
-                disabled={isLastOwner}
-                aria-label={t('space.card.archiveRow', { name: displayName })}
-                onClick={() => setConfirmArchive(true)}
-              >
-                {t('space.card.archiveConfirm')}
-              </Button>
-            </ItemActions>
           </Item>
         </Card>
       </section>
@@ -707,11 +731,11 @@ function OwnerSections({
 
 /*
  * The archived card (docs/design/screens/member-card.html, the archived
- * state): the explain card says what the archive keeps and what it hides,
- * and the restore issues the new code — the one action that brings the
- * member back with everything intact (issue #23, ADR-0005). Once the
- * private state is purged, the restore is no longer offered, and the card
- * says so instead.
+ * state): one card carries the explain row — what the archive keeps and
+ * what it hides — and the restore issues the new code, the one action
+ * that brings the member back with everything intact (issue #23,
+ * ADR-0005). Once the private state is purged, the restore is no longer
+ * offered, and the card says so instead.
  */
 function ArchivedOwnerSections({
   memberId,
@@ -733,45 +757,35 @@ function ArchivedOwnerSections({
 
   return (
     <>
-      <section>
-        <Card className="py-0">
-          <Item size="lg">
-            <ItemContent>
-              <ItemTitle>
-                {archivedAt === undefined
-                  ? null
-                  : t('space.card.archivedSinceTitle', {
-                      name: displayName,
-                      date: dateFormatter.format(new Date(archivedAt)),
-                    })}
-              </ItemTitle>
-            </ItemContent>
-          </Item>
-          <Item size="lg">
-            <ItemMedia variant="icon">
-              <Icon name="check" className="text-ok" />
-            </ItemMedia>
-            <ItemContent>
-              <ItemDescription>{t('space.card.archivedKept')}</ItemDescription>
-            </ItemContent>
-          </Item>
-          <Item size="lg">
-            <ItemMedia variant="icon">
-              <Icon name="x" className="text-destructive" />
-            </ItemMedia>
-            <ItemContent>
-              <ItemDescription>{t('space.card.archivedHidden')}</ItemDescription>
-            </ItemContent>
-          </Item>
-        </Card>
-      </section>
+      <Card variant="list">
+        <Item>
+          <ItemContent>
+            <ItemTitle>
+              {archivedAt === undefined
+                ? null
+                : t('space.card.archivedSinceTitle', {
+                    name: displayName,
+                    date: dateFormatter.format(new Date(archivedAt)),
+                  })}
+            </ItemTitle>
+            {/* The two status lines, with their 16px marks leading. */}
+            <span className="mt-2 flex items-start gap-2 text-sm leading-normal text-muted-foreground">
+              <Icon name="check" className="mt-0.5 size-4 shrink-0 text-ok" />
+              <span>{t('space.card.archivedKept')}</span>
+            </span>
+            <span className="mt-1.5 flex items-start gap-2 text-sm leading-normal text-muted-foreground">
+              <Icon name="x" className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <span>{t('space.card.archivedHidden')}</span>
+            </span>
+          </ItemContent>
+        </Item>
+      </Card>
 
       {isPurged ? (
         <p className="px-1 text-sm text-muted-foreground">{t('space.card.purgedNote')}</p>
       ) : (
         <section>
-          <Button size="lg" className="w-full" onClick={() => setConfirmRestore(true)}>
-            <Icon name="restore" />
+          <Button size="lg" onClick={() => setConfirmRestore(true)}>
             {t('space.card.restoreButton')}
           </Button>
           <p className="mt-2.5 px-1 text-center text-sm text-muted-foreground">

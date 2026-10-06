@@ -137,8 +137,10 @@ describe('MemberCardScreen', () => {
     renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
 
     await screen.findByText('Код входа')
-    await user.click(screen.getByRole('button', { name: 'Выпустить код' }))
-    await user.click(await screen.findByRole('button', { name: 'Выпустить' }))
+    // The reissue row's small secondary button opens the dialog.
+    await user.click(screen.getByRole('button', { name: 'Выпустить' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Выпустить' }))
 
     expect(apiPost).toHaveBeenCalledWith(
       '/api/v1/members/{memberId}/access-code',
@@ -165,9 +167,9 @@ describe('MemberCardScreen', () => {
     renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
 
     expect(await screen.findByText('Кода ещё нет')).toBeInTheDocument()
-    expect(
-      screen.getByText('Сессий нет — участник не входил или устройства отключены'),
-    ).toBeInTheDocument()
+    // The empty device state is a single row (issue #76).
+    expect(screen.getByText('Устройств нет')).toBeInTheDocument()
+    expect(screen.getByText('Участник войдёт заново по новому коду')).toBeInTheDocument()
   })
 
   it('disconnects every device of the member', async () => {
@@ -487,7 +489,7 @@ describe('MemberCardScreen', () => {
         screen.queryByRole('combobox', { name: 'Права в пространстве' }),
       ).not.toBeInTheDocument()
     })
-    expect(screen.queryByRole('button', { name: 'Выпустить код' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Выпустить' })).not.toBeInTheDocument()
     expect(screen.getByText('Обычный участник')).toBeInTheDocument()
   })
 })
@@ -510,6 +512,67 @@ function apiPatchMock() {
   })
 }
 
+describe('MemberCardScreen — design parity (issue #76)', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.clearAllMocks()
+    seedRegistry()
+    mockOwnerApi()
+  })
+
+  it('is titled «Участник» in the top bar and backs to the members list', async () => {
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    expect(await screen.findByRole('heading', { name: 'Дима' })).toBeInTheDocument()
+    // The top bar carries the area's name, not the member's (the h1 keeps it).
+    expect(screen.getByText('Участник')).toBeInTheDocument()
+    const back = screen.getByRole('link', { name: 'Назад' })
+    expect(back).toHaveAttribute('href', '/members')
+  })
+
+  it('carries the reissue row with its small secondary button', async () => {
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    await screen.findByText('Код входа')
+    expect(screen.getByText('Перевыпустить код')).toBeInTheDocument()
+    expect(screen.getByText('понадобится, если участник потеряет доступ')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Выпустить' })).toBeInTheDocument()
+  })
+
+  it('marks the current device with the ok pill and puts the disconnect in the row', async () => {
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    const currentRow = await screen.findByText('Chrome на iPhone').then((row) => {
+      const item = row.closest<HTMLElement>('[data-slot="item"]')
+      if (item === null) throw new Error('No Chrome row rendered')
+      return item
+    })
+    // The most recently used device is the member's current one.
+    expect(within(currentRow).getByText('Текущее')).toBeInTheDocument()
+    expect(
+      within(currentRow).queryByRole('button', { name: 'Отключить всё' }),
+    ).not.toBeInTheDocument()
+
+    const otherRow = screen.getByText('Android').closest<HTMLElement>('[data-slot="item"]')
+    if (otherRow === null) throw new Error('No Android row rendered')
+    expect(within(otherRow).getByRole('button', { name: 'Отключить всё' })).toBeInTheDocument()
+  })
+
+  it('shows the empty device state as a single row', async () => {
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') return okBody(OWNER_ME)
+      if (path === '/api/v1/members') return okBody(PROFILES)
+      if (path === '/api/v1/members/{memberId}/access-code') return okBody(CODE)
+      if (path === '/api/v1/members/{memberId}/sessions') return okBody([])
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
+
+    expect(await screen.findByText('Устройств нет')).toBeInTheDocument()
+    expect(screen.getByText('Участник войдёт заново по новому коду')).toBeInTheDocument()
+  })
+})
+
 describe('MemberCardScreen — the archive (issue #23)', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -524,7 +587,8 @@ describe('MemberCardScreen — the archive (issue #23)', () => {
     renderWithProviders(<MemberCardScreen memberId={DIMA_ID} />)
 
     await screen.findByRole('heading', { name: 'Дима' })
-    await user.click(screen.getByRole('button', { name: 'Архивировать Дима' }))
+    // The whole danger row is the action (issue #76).
+    await user.click(screen.getByRole('button', { name: /Архивировать Дима/ }))
 
     const dialog = within(await screen.findByRole('dialog'))
     await user.click(dialog.getByRole('button', { name: 'Архивировать' }))
