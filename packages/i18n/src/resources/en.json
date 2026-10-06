@@ -110,7 +110,7 @@
     "space": {
       "back": "Spaces",
       "createdOn": "created {date}",
-      "timezoneMeta": "time zone: {zone}",
+      "trashRetention": "trash kept for {count, plural, one {# day} other {# days}}",
       "settings": "Settings",
       "settingsTitle": "Space settings",
       "nameLabel": "Name",
@@ -149,7 +149,8 @@
       "lastOwnerNote": "The owner role can be passed on, but not taken from the last owner",
       "noMembers": "Nobody is here yet — add the first member",
       "tooShort": "At least {count, plural, one {# character} other {# characters}} — check the value",
-      "archivedHint": "Restoring brings the member back with all their data — the new code is shown once"
+      "archivedHint": "Restoring brings the member back with all their data — the new code is shown once",
+      "archiveMember": "Archive the member"
     },
     "codes": {
       "title": "Access codes",
@@ -162,6 +163,8 @@
       "shownOnce": "Shown once — pass the code on in person",
       "meta": "Lives 24 hours · one sign-in",
       "done": "Done",
+      "copy": "Copy",
+      "copiedToast": "Code copied",
       "issuedToast": "The code {code} is issued",
       "empty": "No codes yet — issue the first one for a member",
       "forMember": "for {member}",
@@ -189,7 +192,8 @@
       "trashRetentionOption": "{days, plural, one {# day} other {# days}}",
       "trashRetentionHint": "When the time runs out, entries are deleted for good. The default is 30 days.",
       "trashRetentionSave": "Save the retention",
-      "trashSavedToast": "The retention is updated"
+      "trashSavedToast": "The retention is updated",
+      "privacyNote": "Families' data stays on this server · no telemetry"
     },
     "errors": {
       "validation_failed": "Check the fields — some values are not acceptable",

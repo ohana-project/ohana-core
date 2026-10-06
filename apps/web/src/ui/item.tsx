@@ -160,7 +160,11 @@ function ItemTitle({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="item-title"
       className={cn(
-        'flex w-fit items-center gap-2 truncate text-body leading-snug font-medium',
+        // `w-fit` hugs short titles; `max-w-full` clamps it to the row's
+        // clipped column — under `truncate`'s nowrap the fit-content
+        // floors at the longest word and would otherwise reach into the
+        // trailing content (issue #80).
+        'flex w-fit max-w-full items-center gap-2 truncate text-body leading-snug font-medium',
         className,
       )}
       {...props}
@@ -168,12 +172,20 @@ function ItemTitle({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function ItemDescription({ className, ...props }: React.ComponentProps<'p'>) {
+function ItemDescription({
+  className,
+  singleLine = false,
+  ...props
+}: React.ComponentProps<'p'> & {
+  /** One clipped line instead of two: rows that must hold their height (issue #80). */
+  singleLine?: boolean
+}) {
   return (
     <p
       data-slot="item-description"
       className={cn(
-        'line-clamp-2 text-left text-sm leading-normal font-normal text-muted-foreground [&>a]:underline [&>a]:underline-offset-3 [&>a:hover]:text-primary',
+        'text-left text-sm leading-normal font-normal text-muted-foreground [&>a]:underline [&>a]:underline-offset-3 [&>a:hover]:text-primary',
+        singleLine ? 'truncate' : 'line-clamp-2',
         className,
       )}
       {...props}

@@ -8,6 +8,7 @@ import {
   useIssueAccessCode,
   useRevokeAccessCode,
 } from '@/features/admin/use-access-codes.ts'
+import { useAdminSettings } from '@/features/admin/use-admin-settings.ts'
 import {
   type AdminMember,
   adminSpaceErrorMessage,
@@ -19,9 +20,11 @@ import {
   useSpaceMembers,
   useUpdateSpace,
 } from '@/features/admin/use-admin-spaces.ts'
+import { writeClipboard } from '@/lib/clipboard.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
+import { AvatarStack } from '@/ui/avatar-stack.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -61,19 +64,26 @@ import {
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group.tsx'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip.tsx'
 
 /*
  * The administrative space screen (docs/design/screens/admin-space.html):
- * the space header, its members with roles, the access codes with their
- * statuses, and a settings sheet for the name and default time zone. The
- * plaintext code is shown once in the issue dialog — only its hash lives
- * on the server, so the list shows statuses, not codes.
+ * the space header with the members' avatar stack, its members with
+ * roles, and the access codes with their statuses. The prototype's
+ * values are the h3 section headings (4px inset, 10px below), the 60px
+ * rows with 40px avatars and 36px icon actions under tooltips, the bare
+ * 20px icons on the code rows, the 12.5px hints, and the issue dialog's
+ * labelled copy button beside «Готово» — one primary action
+ * («Выпустить код») in the viewport. The plaintext code is shown once
+ * in the issue dialog — only its hash lives on the server, so the list
+ * shows statuses, not codes.
  */
 
 export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
   const { t, i18n } = useTranslation()
   const space = useAdminSpace(spaceId)
   const members = useSpaceMembers(spaceId)
+  const settings = useAdminSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [provisionOpen, setProvisionOpen] = useState(false)
 
@@ -100,88 +110,110 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
   const active = list.filter((member) => member.archivedAt === undefined)
   const archived = list.filter((member) => member.archivedAt !== undefined)
   const owners = active.filter((member) => member.role === 'owner').length
+  // The prototype's header stack (admin-space.html): the space's members'
+  // monograms, the demo showing three. No API field orders them by
+  // activity, so the list order stands, capped at the demo's three.
+  const headerStack = active.slice(0, 3)
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      {/* The prototype's `row` header (gap: 14px, 24px below): the stack,
+          the title block, and — the implementation's own entry, without a
+          prototype — the space settings button on the end. */}
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-x-3.5 gap-y-3">
         <div className="flex min-w-0 items-center gap-3.5">
-          <Avatar size="lg" hue={hueFromId(current.id)}>
-            <AvatarFallback>{monogramOf(current.name)}</AvatarFallback>
-          </Avatar>
+          <AvatarStack>
+            {headerStack.map((member) => (
+              <Avatar key={member.id} hue={hueFromId(member.id)}>
+                <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
+              </Avatar>
+            ))}
+          </AvatarStack>
           <div className="min-w-0">
             <h1 className="text-display-lg">{current.name}</h1>
+            {/* The prototype's subtitle line: the creation date and this
+                installation's trash retention. The time zone lives in the
+                settings sheet. */}
             <p className="mt-0.5 text-sm text-muted-foreground">
               {t('admin.space.createdOn', {
                 date: dateFormatter.format(new Date(current.createdAt)),
               })}
-              {' · '}
-              {t('admin.space.timezoneMeta', { zone: current.timezone })}
+              {settings.data !== undefined
+                ? ` · ${t('admin.space.trashRetention', { count: settings.data.trashRetentionDays })}`
+                : null}
             </p>
           </div>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => setSettingsOpen(true)}>
+        <Button variant="secondary" onClick={() => setSettingsOpen(true)}>
           <Icon name="settings" />
           {t('admin.space.settings')}
         </Button>
       </header>
 
-      <section>
-        <SectionHeader
-          title={t('admin.space.members')}
-          action={
-            <Button size="sm" onClick={() => setProvisionOpen(true)}>
-              <Icon name="plus" />
-              {t('admin.space.addMember')}
-            </Button>
-          }
-        />
-        {list.length === 0 ? (
-          <Card>
+      {/* The prototype's 26px between sections. */}
+      <div className="flex flex-col gap-6.5">
+        <section>
+          <SectionHeader
+            level={3}
+            title={t('admin.space.members')}
+            action={
+              // No prototype: the members section header carries no button,
+              // so «Добавить участника» rides it as a secondary — the
+              // screen's one primary stays «Выпустить код».
+              <Button variant="secondary" size="sm" onClick={() => setProvisionOpen(true)}>
+                <Icon name="plus" />
+                {t('admin.space.addMember')}
+              </Button>
+            }
+          />
+          {list.length === 0 ? (
             <Empty>
               <EmptyMedia>
                 <Icon name="users" />
               </EmptyMedia>
               <EmptyTitle>{t('admin.space.noMembers')}</EmptyTitle>
             </Empty>
-          </Card>
-        ) : (
-          <>
-            <Card className="py-0">
-              <ItemGroup>
-                {active.map((member) => (
-                  <MemberRow
-                    key={member.id}
-                    member={member}
-                    spaceId={spaceId}
-                    canDemote={member.role === 'owner' && owners > 1}
-                  />
-                ))}
-              </ItemGroup>
-            </Card>
+          ) : (
+            <TooltipProvider>
+              <Card variant="list">
+                <ItemGroup>
+                  {active.map((member) => (
+                    <MemberRow
+                      key={member.id}
+                      member={member}
+                      spaceId={spaceId}
+                      canDemote={member.role === 'owner' && owners > 1}
+                    />
+                  ))}
+                </ItemGroup>
+              </Card>
 
-            {archived.length > 0 ? (
-              <section className="mt-4">
-                <SectionHeader title={t('space.members.archivedTitle')} />
-                <Card className="py-0">
-                  <ItemGroup>
-                    {archived.map((member) => (
-                      <ArchivedMemberRow key={member.id} member={member} spaceId={spaceId} />
-                    ))}
-                  </ItemGroup>
-                </Card>
-                <p className="mt-2.5 px-1 text-sm text-muted-foreground">
-                  {t('admin.space.archivedHint')}
-                </p>
-              </section>
-            ) : null}
-          </>
-        )}
-        <p className="mt-2.5 px-1 text-sm text-muted-foreground">
-          {t('admin.space.lastOwnerNote')}
-        </p>
-      </section>
+              {archived.length > 0 ? (
+                <section className="mt-6.5">
+                  <SectionHeader level={3} title={t('space.members.archivedTitle')} />
+                  <Card variant="list">
+                    <ItemGroup>
+                      {archived.map((member) => (
+                        <ArchivedMemberRow key={member.id} member={member} spaceId={spaceId} />
+                      ))}
+                    </ItemGroup>
+                  </Card>
+                  <p className="mt-2.5 px-1 text-meta text-muted-foreground">
+                    {t('admin.space.archivedHint')}
+                  </p>
+                </section>
+              ) : null}
+            </TooltipProvider>
+          )}
+          {/* The prototype's field hint under the card (12.5px, the 4px
+              inset, 10px above). */}
+          <p className="mt-2.5 px-1 text-meta text-muted-foreground">
+            {t('admin.space.lastOwnerNote')}
+          </p>
+        </section>
 
-      <AccessCodesSection spaceId={spaceId} members={list} dateFormatter={dateFormatter} />
+        <AccessCodesSection spaceId={spaceId} members={list} dateFormatter={dateFormatter} />
+      </div>
 
       <SpaceSettingsSheet
         spaceId={spaceId}
@@ -256,46 +288,69 @@ function MemberRow({
   }
 
   return (
-    <Item size="lg">
-      <Avatar size="sm" hue={hueFromId(member.id)}>
+    // The prototype's 60px row with the 40px avatar; the 36px round
+    // actions carry the prototype's tooltips.
+    <Item size="md">
+      <Avatar hue={hueFromId(member.id)}>
         <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
       </Avatar>
       <ItemContent>
         <ItemTitle>{member.name}</ItemTitle>
-        {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
+        {contacts.length > 0 ? <ItemDescription singleLine>{contacts}</ItemDescription> : null}
       </ItemContent>
       <ItemActions>
         <Badge variant={member.role === 'owner' ? 'primary' : 'neutral'}>
           {t(member.role === 'owner' ? 'admin.space.ownerPill' : 'admin.space.regularPill')}
         </Badge>
         {member.role === 'regular' ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('admin.space.makeOwner')}
-            onClick={() => setConfirmRole('owner')}
-          >
-            <Icon name="crown" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('admin.space.makeOwner')}
+                  onClick={() => setConfirmRole('owner')}
+                >
+                  <Icon name="crown" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t('admin.space.makeOwner')}</TooltipContent>
+          </Tooltip>
         ) : canDemote ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t('admin.space.makeRegular')}
-            onClick={() => setConfirmRole('regular')}
-          >
-            <Icon name="user" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('admin.space.makeRegular')}
+                  onClick={() => setConfirmRole('regular')}
+                >
+                  <Icon name="user" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t('admin.space.makeRegular')}</TooltipContent>
+          </Tooltip>
         ) : null}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-destructive"
-          aria-label={t('space.card.archiveRow', { name: member.name })}
-          onClick={() => setConfirmArchive(true)}
-        >
-          <Icon name="archive" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-destructive"
+                aria-label={t('admin.space.archiveMember')}
+                onClick={() => setConfirmArchive(true)}
+              >
+                <Icon name="archive" />
+              </Button>
+            }
+          />
+          <TooltipContent>{t('admin.space.archiveMember')}</TooltipContent>
+        </Tooltip>
       </ItemActions>
       {confirmArchive ? (
         // A mid-flight archiving owns the dialog: it cannot be dismissed
@@ -380,13 +435,13 @@ function ArchivedMemberRow({ member, spaceId }: { member: AdminMember; spaceId: 
   const isPurged = member.privateStatePurgedAt !== undefined
 
   return (
-    <Item size="lg" className="opacity-70">
-      <Avatar size="sm" hue={hueFromId(member.id)}>
+    <Item size="md" className="opacity-70">
+      <Avatar hue={hueFromId(member.id)}>
         <AvatarFallback>{monogramOf(member.name)}</AvatarFallback>
       </Avatar>
       <ItemContent>
         <ItemTitle>{member.name}</ItemTitle>
-        <ItemDescription>
+        <ItemDescription singleLine>
           {member.archivedAt === undefined
             ? null
             : t('space.members.archivedSince', {
@@ -463,11 +518,12 @@ function ArchivedMemberRow({ member, spaceId }: { member: AdminMember; spaceId: 
               <DialogTitle>{t('space.card.issuedTitle')}</DialogTitle>
               <DialogDescription>{t('space.card.shownOnce')}</DialogDescription>
             </DialogHeader>
-            <CodeDisplay code={issued} />
-            <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+            <CodeDisplay code={issued} copy="none" />
+            <p className="text-center font-mono text-meta text-muted-foreground uppercase">
               {t('admin.codes.meta')}
             </p>
             <DialogFooter>
+              <CodeCopyButton code={issued} label={t('admin.codes.copy')} />
               <Button onClick={() => setIssued(undefined)}>{t('admin.codes.done')}</Button>
             </DialogFooter>
           </DialogContent>
@@ -805,8 +861,33 @@ function ProvisionMemberSheet({
  * входа»): the space's codes with their statuses, one issue dialog
  * that shows the plaintext once, and a revoke confirmation. The list never
  * shows codes — the server stores only hashes — so each row names its
- * member instead.
+ * member instead. The rows lead with the prototype's bare 20px icon and
+ * carry the same 60px height as the member rows.
  */
+
+/*
+ * The issue dialog's labelled copy button (admin-space.html): a secondary
+ * button with the copy icon in the footer, beside the primary «Готово».
+ * The clipboard may be absent (or refuse) — the code stays selectable in
+ * the display, and the success toast names the copy only after it landed.
+ */
+function CodeCopyButton({ code, label }: { code: string; label: string }) {
+  const { t } = useTranslation()
+  const copy = async () => {
+    if (await writeClipboard(code)) toast(t('admin.codes.copiedToast'))
+  }
+  return (
+    <Button
+      variant="secondary"
+      onClick={() => {
+        void copy()
+      }}
+    >
+      <Icon name="copy" />
+      {label}
+    </Button>
+  )
+}
 
 const statusPill: Record<
   AdminAccessCode['status'],
@@ -862,6 +943,7 @@ function AccessCodesSection({
   return (
     <section>
       <SectionHeader
+        level={3}
         title={t('admin.codes.title')}
         action={
           <Button size="sm" onClick={() => setIssueOpen(true)} disabled={members.length === 0}>
@@ -877,16 +959,14 @@ function AccessCodesSection({
       ) : codes.isError ? (
         <ErrorState onRetry={() => void codes.refetch()} />
       ) : codes.data.length === 0 ? (
-        <Card>
-          <Empty>
-            <EmptyMedia>
-              <Icon name="lock" />
-            </EmptyMedia>
-            <EmptyTitle>{t('admin.codes.empty')}</EmptyTitle>
-          </Empty>
-        </Card>
+        <Empty>
+          <EmptyMedia>
+            <Icon name="lock" />
+          </EmptyMedia>
+          <EmptyTitle>{t('admin.codes.empty')}</EmptyTitle>
+        </Empty>
       ) : (
-        <Card className="py-0">
+        <Card variant="list">
           <ItemGroup>
             {codes.data.map((code) => (
               <AccessCodeRow
@@ -900,7 +980,7 @@ function AccessCodesSection({
           </ItemGroup>
         </Card>
       )}
-      <p className="mt-2.5 px-1 text-sm text-muted-foreground">{t('admin.codes.hint')}</p>
+      <p className="mt-2.5 px-1 text-meta text-muted-foreground">{t('admin.codes.hint')}</p>
 
       <IssueCodeDialog
         spaceId={spaceId}
@@ -939,13 +1019,15 @@ function AccessCodeRow({
   }
 
   return (
-    <Item size="lg">
-      <ItemMedia variant="icon">
+    // The prototype's 60px code row: the bare 20px leading icon, the
+    // member's name, and the status pill.
+    <Item size="md">
+      <ItemMedia>
         <Icon name={meta.icon} />
       </ItemMedia>
       <ItemContent>
         <ItemTitle>{memberName}</ItemTitle>
-        <ItemDescription>
+        <ItemDescription singleLine>
           {t(statusSub[code.status], {
             member: memberName,
             date: dateFormatter.format(new Date(code.statusChangedAt)),
@@ -1104,11 +1186,15 @@ function IssueCodeDialog({
               <DialogTitle>{t('admin.codes.issueTitle')}</DialogTitle>
               <DialogDescription>{t('admin.codes.shownOnce')}</DialogDescription>
             </DialogHeader>
-            <CodeDisplay code={issued.code} />
-            <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+            <CodeDisplay code={issued.code} copy="none" />
+            {/* The prototype's centred meta line under the code. */}
+            <p className="text-center font-mono text-meta text-muted-foreground uppercase">
               {t('admin.codes.meta')}
             </p>
+            {/* The prototype's two equal buttons: the labelled copy beside
+                «Готово». */}
             <DialogFooter>
+              <CodeCopyButton code={issued.code} label={t('admin.codes.copy')} />
               <Button onClick={() => onOpenChange(false)} disabled={issue.isPending}>
                 {t('admin.codes.done')}
               </Button>

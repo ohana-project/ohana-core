@@ -77,6 +77,13 @@ function mockApi() {
     if (path === '/api/v1/spaces/{spaceId}/access-codes') {
       return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
     }
+    if (path === '/api/v1/admin/settings') {
+      return {
+        data: { trashRetentionDays: 30 },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
+    }
     throw new Error(`Unexpected GET ${String(path)}`)
   })
 }
@@ -95,7 +102,7 @@ describe('AdminSpaceDetail', () => {
     renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
 
     expect(await screen.findByRole('heading', { name: 'Наша семья' })).toBeInTheDocument()
-    expect(screen.getByText('создано 12 августа · часовой пояс: Europe/Moscow')).toBeInTheDocument()
+    expect(screen.getByText('создано 12 августа · корзина хранится 30 дней')).toBeInTheDocument()
     expect(screen.getByText('Аня')).toBeInTheDocument()
     expect(screen.getByText('Аня Смирнова · anya@example.com')).toBeInTheDocument()
     expect(screen.getByText('Владелец')).toBeInTheDocument()
@@ -510,5 +517,103 @@ describe('AdminSpaceDetail — the archive (issue #23)', () => {
     expect(
       within(archiveSection).getByRole('button', { name: 'Восстановить участника' }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('AdminSpaceDetail — design parity (issue #80)', () => {
+  it('renders the section headings as h3, the prototype’s admin form', async () => {
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    expect(screen.getByRole('heading', { name: 'Участники', level: 3 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Коды входа', level: 3 })).toBeInTheDocument()
+  })
+
+  it('leads the header with the members’ avatar stack, like the prototype', async () => {
+    const { container } = renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    const stack = container.querySelector('[data-slot=avatar-stack]')
+    expect(stack).not.toBeNull()
+    // The stack carries the space's members, not the space monogram.
+    expect(within(stack as HTMLElement).getAllByText('А')).toHaveLength(1)
+    expect(within(stack as HTMLElement).getAllByText('Д')).toHaveLength(1)
+  })
+
+  it('offers the labelled copy button beside «Готово» in the issue dialog', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    apiPost.mockResolvedValue(okBody({ ...accessCode('issued'), code: 'QWEE-4455' }, 201))
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Выпустить код' }))
+    await user.selectOptions(screen.getByLabelText('Участник'), DIMA_ID)
+    await user.click(screen.getByRole('button', { name: 'Выпустить' }))
+
+    // The issued-code toast is a dialog too; scope to the modal popup.
+    const popup = screen.getAllByRole('dialog').find((element) => element.dataset.slot !== 'toast')
+    if (popup === undefined) throw new Error('the issue dialog never rendered')
+    const dialog = within(popup)
+    const copy = await dialog.findByRole('button', { name: 'Скопировать' })
+    expect(dialog.getByRole('button', { name: 'Готово' })).toBeInTheDocument()
+    await user.click(copy)
+
+    expect(writeText).toHaveBeenCalledWith('QWEE-4455')
+    expect(await screen.findByText('Код скопирован')).toBeInTheDocument()
+    // The dialog stays open: «Готово» is the way out.
+    expect(dialog.getByRole('button', { name: 'Готово' })).toBeInTheDocument()
+  })
+
+  it('keeps the subtitle to the creation date when the settings are unreachable', async () => {
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/spaces/{spaceId}') {
+        return { data: SPACE, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/members') {
+        return { data: MEMBERS, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      if (path === '/api/v1/spaces/{spaceId}/access-codes') {
+        return { data: [], error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    expect(await screen.findByText('создано 12 августа')).toBeInTheDocument()
+  })
+
+  it('survives an absent clipboard API and a refused copy', async () => {
+    const user = userEvent.setup()
+    apiPost.mockResolvedValue(okBody({ ...accessCode('issued'), code: 'QWEE-4455' }, 201))
+    // No clipboard at all: touching it must not throw outside the handler.
+    Object.defineProperty(window.navigator, 'clipboard', { value: undefined, configurable: true })
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Выпустить код' }))
+    await user.selectOptions(screen.getByLabelText('Участник'), DIMA_ID)
+    await user.click(screen.getByRole('button', { name: 'Выпустить' }))
+
+    const popup = screen.getAllByRole('dialog').find((element) => element.dataset.slot !== 'toast')
+    if (popup === undefined) throw new Error('the issue dialog never rendered')
+    const dialog = within(popup)
+    await user.click(await dialog.findByRole('button', { name: 'Скопировать' }))
+    expect(screen.queryByText('Код скопирован')).not.toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: 'Готово' })).toBeInTheDocument()
+
+    // A refused write answers the same way: no toast, the dialog stays.
+    const refused = vi.fn().mockRejectedValue(new Error('denied'))
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: refused },
+      configurable: true,
+    })
+    await user.click(dialog.getByRole('button', { name: 'Скопировать' }))
+    expect(refused).toHaveBeenCalledWith('QWEE-4455')
+    expect(screen.queryByText('Код скопирован')).not.toBeInTheDocument()
   })
 })

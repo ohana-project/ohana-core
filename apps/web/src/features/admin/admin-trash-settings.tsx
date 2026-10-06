@@ -5,6 +5,7 @@ import { useAdminSettings, useAdminUpdateSettings } from '@/features/admin/use-a
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Field, FieldDescription, FieldLabel } from '@/ui/field.tsx'
+import { SectionHeader } from '@/ui/section-header.tsx'
 import { Select } from '@/ui/select.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
@@ -12,10 +13,12 @@ import { toast } from '@/ui/toast.tsx'
 /*
  * The trash retention (docs/design/screens/admin-settings.html, "Корзина",
  * issue #16): how long a trashed entry is kept before the worker purges
- * it. The prototype's four choices are the picker's options; the contract
- * itself accepts any whole number of days from 1 to 365. The hint keeps
- * only the promise this installation makes — the prototype's per-space
- * schedule line is a known defect, recorded in docs/design/README.md.
+ * it. The prototype's padded card holds the labelled select — capped at
+ * the prototype's own 280px — over its 12.5px hint. The prototype's four
+ * choices are the picker's options; the contract itself accepts any whole
+ * number of days from 1 to 365. The hint keeps only the promise this
+ * installation makes — the prototype's per-space schedule line is a known
+ * defect, recorded in docs/design/README.md.
  */
 
 const RETENTION_CHOICES = [7, 14, 30, 90]
@@ -52,9 +55,9 @@ export function AdminTrashSettings() {
 
   if (settings.isPending) {
     return (
-      <section className="flex flex-col gap-2.5">
-        <h3 className="px-1">{t('admin.settings.trashTitle')}</h3>
-        <Card>
+      <section>
+        <SectionHeader level={3} title={t('admin.settings.trashTitle')} />
+        <Card variant="padded">
           <div className="grid place-items-center py-8">
             <Spinner className="size-6" />
           </div>
@@ -64,15 +67,16 @@ export function AdminTrashSettings() {
   }
 
   return (
-    <section className="flex flex-col gap-2.5">
-      <h3 className="px-1">{t('admin.settings.trashTitle')}</h3>
-      <Card>
+    <section>
+      <SectionHeader level={3} title={t('admin.settings.trashTitle')} />
+      <Card variant="padded">
         <Field>
           <FieldLabel htmlFor="admin-trash-retention">
             {t('admin.settings.trashRetentionLabel')}
           </FieldLabel>
           <Select
             id="admin-trash-retention"
+            className="max-w-70"
             value={selectedDays === undefined ? undefined : String(selectedDays)}
             onChange={(event) => setSelectedDays(Number(event.target.value))}
           >
@@ -84,8 +88,11 @@ export function AdminTrashSettings() {
           </Select>
           <FieldDescription>{t('admin.settings.trashRetentionHint')}</FieldDescription>
         </Field>
-        <div className="mt-3.5 flex items-center gap-2.5">
+        {/* No prototype: the save rides under the field as a secondary —
+            «Сменить пароль» stays the screen's one primary. */}
+        <div className="mt-4.5 flex items-center gap-2.5">
           <Button
+            variant="secondary"
             onClick={save}
             disabled={
               update.isPending ||

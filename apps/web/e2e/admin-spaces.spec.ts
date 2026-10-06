@@ -12,6 +12,7 @@ const SPACES = '**/api/v1/spaces'
 const SPACE = /\/api\/v1\/spaces\/[0-9a-f-]+$/
 const MEMBERS = /\/api\/v1\/spaces\/[0-9a-f-]+\/members$/
 const MEMBER = /\/api\/v1\/spaces\/[0-9a-f-]+\/members\/[0-9a-f-]+$/
+const CODES = /\/access-codes$/
 
 interface MockSpace {
   id: string
@@ -34,6 +35,15 @@ interface MockMember {
   revision: string
   createdAt: string
   updatedAt: string
+}
+
+interface MockCode {
+  id: string
+  memberId: string
+  status: 'issued' | 'redeemed' | 'expired' | 'replaced' | 'revoked'
+  createdAt: string
+  expiresAt: string
+  statusChangedAt: string
 }
 
 function jsonBody(body: unknown, status = 200) {
@@ -59,6 +69,7 @@ async function mockAdminApi(
   options: {
     spaces?: Array<Partial<MockSpace>>
     members?: Array<Partial<MockMember>>
+    codes?: Array<Partial<MockCode>>
   } = {},
 ) {
   const spaces: MockSpace[] = (
@@ -91,6 +102,20 @@ async function mockAdminApi(
     updatedAt: '2026-09-01T10:00:00.000Z',
     ...member,
   })) as MockMember[]
+
+  const codes: MockCode[] = (
+    options.codes ?? [
+      { memberId: members[0]?.id ?? '', status: 'issued' },
+      { memberId: members[1]?.id ?? '', status: 'redeemed' },
+      { memberId: members[2]?.id ?? '', status: 'revoked' },
+    ]
+  ).map((code, index) => ({
+    id: nextId(),
+    createdAt: '2026-09-20T10:00:00.000Z',
+    expiresAt: '2026-09-21T10:00:00.000Z',
+    statusChangedAt: `2026-09-20T10:0${index}:00.000Z`,
+    ...code,
+  })) as MockCode[]
 
   await page.route(SESSION, async (route) => {
     const method = route.request().method()
@@ -197,7 +222,33 @@ async function mockAdminApi(
     return route.fulfill({ status: 405 })
   })
 
-  return { spaces, members }
+  await page.route(CODES, async (route) => {
+    const request = route.request()
+    const spaceId = request.url().match(/spaces\/([0-9a-f-]+)\/access-codes$/)?.[1] ?? ''
+    if (request.method() === 'GET') {
+      // The mock codes all live in the first space.
+      return route.fulfill(jsonBody(spaceId === familySpace.id ? codes : []))
+    }
+    if (request.method() === 'POST') {
+      // The issuance rides the member's URL (…/members/{id}/access-codes);
+      // the response carries the plaintext, shown once — the record the
+      // later list answers serve keeps only the hash-shaped fields.
+      const memberId = request.url().match(/members\/([0-9a-f-]+)\/access-codes$/)?.[1] ?? ''
+      const record: MockCode = {
+        id: nextId(),
+        memberId,
+        status: 'issued',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        statusChangedAt: new Date().toISOString(),
+      }
+      codes.unshift(record)
+      return route.fulfill(jsonBody({ ...record, code: 'QWEE-4455' }, 201))
+    }
+    return route.fulfill({ status: 405 })
+  })
+
+  return { spaces, members, codes }
 }
 
 test.describe('administrative spaces list', () => {
@@ -301,13 +352,17 @@ test.describe('administrative space screen', () => {
 
     await expect(page).toHaveURL(/\/admin\/spaces\/[0-9a-f-]+$/)
     await expect(page.getByRole('heading', { name: 'Наша семья' })).toBeVisible()
-    await expect(page.getByText('создано 12 августа · часовой пояс: Europe/Moscow')).toBeVisible()
-    const anyaRow = page.locator('[data-slot=item]', { hasText: 'Аня' })
-    await expect(anyaRow).toContainText('Владелец')
-    const mishaRow = page.locator('[data-slot=item]', { hasText: 'Миша' })
-    await expect(mishaRow).toContainText('+7 900 000-00-00')
-    const ludaRow = page.locator('[data-slot=item]', { hasText: 'Люда' })
-    await expect(ludaRow).toContainText('бабушка Люда')
+    await expect(page.getByText('создано 12 августа · корзина хранится 30 дней')).toBeVisible()
+    // Member rows carry the monogram avatar; the code rows naming «Аня»
+    // lead with an icon instead.
+    const memberRow = (name: string) =>
+      page
+        .locator('[data-slot=item]')
+        .filter({ has: page.locator('[data-slot=avatar]') })
+        .filter({ hasText: name })
+    await expect(memberRow('Аня')).toContainText('Владелец')
+    await expect(memberRow('Миша')).toContainText('+7 900 000-00-00')
+    await expect(memberRow('Люда')).toContainText('бабушка Люда')
     await expect(
       page.getByText('Роль владельца можно передать, но не снять с последнего'),
     ).toBeVisible()
@@ -355,7 +410,9 @@ test.describe('administrative space screen', () => {
 
     await expect(page.getByText('Изменения сохранены')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Семья Смирновых' })).toBeVisible()
-    await expect(page.getByText(/часовой пояс: Asia\/Novosibirsk/)).toBeVisible()
+    // The header subtitle carries the retention (issue #80); the time zone
+    // lives in the settings sheet.
+    await expect(page.getByText(/корзина хранится 30 дней/)).toBeVisible()
     expect(model.spaces[0]).toMatchObject({ name: 'Семья Смирновых', timezone: 'Asia/Novosibirsk' })
   })
 
@@ -364,7 +421,10 @@ test.describe('administrative space screen', () => {
     await page.goto('/admin')
     await page.getByRole('link', { name: /Наша семья/ }).click()
 
-    const dimaRow = page.locator('[data-slot=item]', { hasText: 'Дима' })
+    const dimaRow = page
+      .locator('[data-slot=item]')
+      .filter({ has: page.locator('[data-slot=avatar]') })
+      .filter({ hasText: 'Дима' })
     await dimaRow.getByRole('button', { name: 'Сделать владельцем' }).click()
     await expect(page.getByText('Дима станет владельцем?')).toBeVisible()
     await page.getByRole('button', { name: 'Сделать владельцем', exact: true }).click()
@@ -392,5 +452,327 @@ test.describe('administrative space screen', () => {
     await expect(page).toHaveURL(/\/admin\/settings$/)
     await expect(page.getByRole('heading', { name: 'Настройки инстанса' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Пароль администратора' })).toBeVisible()
+  })
+})
+
+/*
+ * Measuring specs for the design parity of the space and settings screens
+ * (issue #80): every value below is the prototype stylesheet's own
+ * (admin-space.html, admin-settings.html), read from the rendered app.
+ */
+
+test.describe('administrative space screen parity', () => {
+  // Member rows lead with the monogram avatar; code rows naming the same
+  // member lead with an icon.
+  function memberRow(page: Page, name: string) {
+    return page
+      .locator('[data-slot=item]')
+      .filter({ has: page.locator('[data-slot=avatar]') })
+      .filter({ hasText: name })
+  }
+
+  async function openSpace(page: Page) {
+    await mockAdminApi(page)
+    await page.goto('/admin')
+    await page.getByRole('link', { name: /Наша семья/ }).click()
+    await expect(page.getByRole('heading', { name: 'Наша семья' })).toBeVisible()
+    // The metrics read styles and boxes; the webfonts must be settled.
+    await page.evaluate(() => document.fonts.ready)
+  }
+
+  test('carries the prototype values at 390px and 1280px (ru)', async ({ page }) => {
+    await openSpace(page)
+
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(page.getByRole('heading', { name: 'Участники', level: 3 })).toBeVisible()
+
+      // Section headings: h3, 16px sans, the 4px inset and 10px below on
+      // the header row.
+      for (const name of ['Участники', 'Коды входа']) {
+        const heading = page.getByRole('heading', { name, level: 3 })
+        const styles = await heading.evaluate((el) => {
+          const row = getComputedStyle(el.parentElement as HTMLElement)
+          return {
+            tag: el.tagName,
+            size: getComputedStyle(el).fontSize,
+            inset: row.paddingLeft,
+            below: row.marginBottom,
+          }
+        })
+        expect(styles, `${name} at ${width}px`).toEqual({
+          tag: 'H3',
+          size: '16px',
+          inset: '4px',
+          below: '10px',
+        })
+      }
+
+      // Member rows: 60px with 40px avatars and 36px round actions.
+      const anyaRow = memberRow(page, 'Аня')
+      expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
+      const avatar = anyaRow.locator('[data-slot=avatar]')
+      expect(await avatar.evaluate((el) => getComputedStyle(el).width)).toBe('40px')
+      for (const button of await anyaRow.getByRole('button').all()) {
+        const box = await button.boundingBox()
+        if (!box) throw new Error('the row action never rendered a box')
+        expect(box.width, `action width at ${width}px`).toBe(36)
+        expect(box.height).toBe(36)
+      }
+
+      // Code rows: the bare 20px leading icon.
+      const codeRow = page.locator('[data-slot=item]', { hasText: 'Выпущен' })
+      const media = codeRow.locator('[data-slot=item-media]')
+      expect(await media.getAttribute('data-variant')).toBe('default')
+      expect(
+        await media.evaluate((el) => {
+          const svg = el.querySelector('svg')
+          if (svg === null) throw new Error('the row icon never rendered')
+          return getComputedStyle(svg).width
+        }),
+      ).toBe('20px')
+
+      // The 12.5px hints under the cards.
+      for (const hint of ['Роль владельца можно передать', 'Код работает один раз']) {
+        const line = page.getByText(hint, { exact: false })
+        expect(await line.evaluate((el) => getComputedStyle(el).fontSize), hint).toBe('12.5px')
+      }
+
+      // One primary button in the viewport.
+      expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
+
+      // Nothing scrolls horizontally.
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
+  })
+
+  test('separates the sections by the prototype’s 26px under a 24px header', async ({ page }) => {
+    await openSpace(page)
+    await page.setViewportSize({ width: 1280, height: 900 })
+
+    const gap = await page.evaluate(() => {
+      const headingOf = (name: string) =>
+        [...document.querySelectorAll('main h3')].find((el) => el.textContent === name)
+      const members = headingOf('Участники')?.closest('section')
+      const codes = headingOf('Коды входа')?.closest('section')
+      if (!members || !codes) throw new Error('the sections never rendered')
+      return codes.getBoundingClientRect().top - members.getBoundingClientRect().bottom
+    })
+    expect(gap).toBe(26)
+  })
+
+  test('holds the member rows at 360px without wrapping', async ({ page }) => {
+    await openSpace(page)
+    await page.setViewportSize({ width: 360, height: 800 })
+    await expect(page.getByRole('heading', { name: 'Участники', level: 3 })).toBeVisible()
+
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0)
+
+    // Every member row keeps its single 60px line: the description clips
+    // instead of wrapping the row taller.
+    for (const row of await page.locator('[data-slot=item]').all()) {
+      const box = await row.boundingBox()
+      if (!box) throw new Error('the row never rendered a box')
+      expect(box.height).toBeLessThanOrEqual(70)
+    }
+    // Миша's row carries the phone line: it clips instead of wrapping.
+    const mishaSub = memberRow(page, 'Миша').locator('[data-slot=item-description]')
+    expect(await mishaSub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap')
+
+    // Nothing collides inside the clipped row: the name stays inside its
+    // column and the buttons start after the role pill, even on the
+    // tightest row (the pill leads the actions group).
+    const dimaRow = memberRow(page, 'Дима')
+    const title = await dimaRow.locator('[data-slot=item-title]').boundingBox()
+    const badge = await dimaRow.locator('[data-slot=badge]').boundingBox()
+    if (!title || !badge) throw new Error('the row never rendered fully')
+    expect(title.x + title.width).toBeLessThanOrEqual(badge.x)
+    for (const button of await dimaRow.getByRole('button').all()) {
+      const box = await button.boundingBox()
+      if (!box) throw new Error('the row action never rendered a box')
+      expect(box.x).toBeGreaterThanOrEqual(badge.x + badge.width)
+    }
+  })
+
+  test('tooltips name the row actions (ru)', async ({ page }) => {
+    await openSpace(page)
+
+    // Base UI's popup carries no tooltip role; the content slot is the
+    // contract here.
+    const tooltip = page.locator('[data-slot=tooltip-content]')
+    const crown = memberRow(page, 'Дима').getByRole('button', { name: 'Сделать владельцем' })
+    await crown.hover()
+    await expect(tooltip).toContainText('Сделать владельцем')
+
+    await page.mouse.move(0, 0)
+    await expect(tooltip).toHaveCount(0)
+  })
+
+  test('issues a code through the dialog: centred meta, two equal buttons, copy, done (ru)', async ({
+    page,
+  }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await openSpace(page)
+
+    await page.getByRole('button', { name: 'Выпустить код' }).click()
+    await page.getByLabel('Участник', { exact: true }).selectOption({ label: 'Дима' })
+    await page.getByRole('button', { name: 'Выпустить', exact: true }).click()
+
+    // The result state: the plaintext once, the centred meta line, and the
+    // two equal footer buttons.
+    await expect(page.getByText('QWEE-4455', { exact: true })).toBeVisible()
+    const meta = page.getByText('Живёт 24 часа · один вход')
+    await expect(meta).toHaveCSS('text-align', 'center')
+    const copy = page.getByRole('button', { name: 'Скопировать' })
+    const done = page.getByRole('button', { name: 'Готово' })
+    const copyBox = await copy.boundingBox()
+    const doneBox = await done.boundingBox()
+    if (!copyBox || !doneBox) throw new Error('the footer buttons never rendered')
+    expect(Math.abs(copyBox.width - doneBox.width)).toBeLessThanOrEqual(1)
+
+    // The labelled copy lands the plaintext on the clipboard and answers
+    // with the toast; the dialog stays open.
+    await copy.click()
+    await expect(page.getByText('Код скопирован')).toBeVisible()
+    const onClipboard = await page.evaluate(() => navigator.clipboard.readText())
+    expect(onClipboard).toBe('QWEE-4455')
+    await expect(done).toBeVisible()
+
+    // «Готово» is the way out.
+    await done.click()
+    await expect(page.getByText('QWEE-4455', { exact: true })).toHaveCount(0)
+  })
+
+  test('keeps the prototype values in the dark theme', async ({ page }) => {
+    await page.addInitScript(() => window.localStorage.setItem('ohana.theme', 'dark'))
+    await openSpace(page)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      const anyaRow = memberRow(page, 'Аня')
+      expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
+      expect(
+        await anyaRow.locator('[data-slot=avatar]').evaluate((el) => getComputedStyle(el).width),
+      ).toBe('40px')
+      expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
+  })
+})
+
+test.describe('administrative settings parity', () => {
+  async function openSettings(page: Page, options: { dark?: boolean } = {}) {
+    if (options.dark) {
+      await page.addInitScript(() => window.localStorage.setItem('ohana.theme', 'dark'))
+    }
+    await mockAdminApi(page)
+    await page.goto('/admin/settings')
+    await expect(page.getByRole('heading', { name: 'Настройки инстанса' })).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+  }
+
+  test('carries the prototype values (ru)', async ({ page }) => {
+    await openSettings(page)
+
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(page.getByRole('heading', { name: 'Корзина', level: 3 })).toBeVisible()
+
+      // The 760px column, centred, at the desktop width.
+      if (width >= 1280) {
+        const main = await page.locator('main').boundingBox()
+        if (!main) throw new Error('main never rendered a box')
+        expect(main.width).toBe(760)
+        expect(main.x).toBe((1280 - 760) / 2)
+      }
+
+      // 24px after the header, 26px between the sections.
+      const rhythm = await page.evaluate(() => {
+        const header = document.querySelector('main header')
+        const headingOf = (name: string) =>
+          [...document.querySelectorAll('main h3')].find((el) => el.textContent === name)
+        const trash = headingOf('Корзина')?.closest('section')
+        const password = headingOf('Пароль администратора')?.closest('section')
+        if (!header || !trash || !password) throw new Error('the sections never rendered')
+        return {
+          afterHeader: trash.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
+          between: password.getBoundingClientRect().top - trash.getBoundingClientRect().bottom,
+        }
+      })
+      expect(rhythm.afterHeader, `header gap at ${width}px`).toBe(24)
+      expect(rhythm.between).toBe(26)
+
+      // The padded cards and the 280px retention select.
+      for (const card of await page.locator('[data-slot=card][data-variant=padded]').all()) {
+        expect(
+          await card.evaluate((el) => getComputedStyle(el).padding),
+          `card at ${width}px`,
+        ).toBe('20px')
+      }
+      const select = page.locator('[data-slot=select]')
+      expect(await select.evaluate((el) => getComputedStyle(el).maxWidth)).toBe('280px')
+
+      // Section headings: h3, 16px, the 4px inset, 10px below.
+      const heading = page.getByRole('heading', { name: 'Корзина', level: 3 })
+      const styles = await heading.evaluate((el) => {
+        const row = getComputedStyle(el.parentElement as HTMLElement)
+        return {
+          tag: el.tagName,
+          size: getComputedStyle(el).fontSize,
+          inset: row.paddingLeft,
+          below: row.marginBottom,
+        }
+      })
+      expect(styles).toEqual({ tag: 'H3', size: '16px', inset: '4px', below: '10px' })
+
+      // One primary button in the viewport («Сменить пароль»); the
+      // retention save is the no-prototype secondary.
+      expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
+
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
+
+    // The prototype's closing meta line.
+    await expect(
+      page.getByText('Данные семей остаются на этом сервере', { exact: false }),
+    ).toBeVisible()
+  })
+
+  test('keeps the values in the dark theme and holds at 360px', async ({ page }) => {
+    await openSettings(page, { dark: true })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(page.getByRole('heading', { name: 'Корзина', level: 3 })).toBeVisible()
+      expect(await page.locator('[data-slot=card][data-variant=padded]').count()).toBe(2)
+      expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
+    // At the desktop width the dark column is the prototype's 760px.
+    const main = await page.locator('main').boundingBox()
+    if (!main) throw new Error('main never rendered a box')
+    expect(main.width).toBe(760)
   })
 })
