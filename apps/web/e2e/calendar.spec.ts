@@ -292,7 +292,7 @@ test.describe('the calendar', () => {
     // zone it keeps, and the all-day one with its plain date.
     await expect(page.getByText('Ужин у бабушки')).toBeVisible()
     await expect(page.getByText('15:00 – 18:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
-    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+    await expect(page.getByText(/пн, 19 октября · весь день/)).toBeVisible()
 
     // The 2nd of October holds the dinner; the day's sheet opens from the
     // grid and lists it.
@@ -369,7 +369,7 @@ test.describe('the calendar away from UTC', () => {
 
     // The birthday is still the 19th; the dinner reads in Pacific time —
     // 08:00 against its 18:00 Moscow origin.
-    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+    await expect(page.getByText(/пн, 19 октября · весь день/)).toBeVisible()
     await expect(page.getByText('08:00 – 11:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
   })
 })
@@ -410,15 +410,10 @@ test.describe('a repeating series', () => {
     await expect(page.getByText('Событие отменено')).toBeVisible()
     await expect(page).toHaveURL(/\/calendar$/)
 
-    // The cancelled Monday is off the calendar: the day's sheet is empty,
-    // the next Monday still carries the series.
-    await page.getByRole('button', { name: '5 октября, 0 событий', exact: true }).click()
-    const sheet = page.getByRole('dialog', { name: '5 октября' })
-    await expect(sheet).toBeVisible()
-    await expect(sheet.getByText('В этот день событий нет')).toBeVisible()
-    // the day sheet has no close X (issue #59): Escape dismisses it
-    await page.keyboard.press('Escape')
-    await expect(sheet).toBeHidden()
+    // The cancelled Monday is off the calendar: a day without events is a
+    // plain cell, never a button — the day sheet's door is a day with
+    // events (issue #73). The next Monday still carries the series.
+    await expect(page.getByRole('button', { name: /5 октября/ })).toHaveCount(0)
     await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
     await expect(
       page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка'),

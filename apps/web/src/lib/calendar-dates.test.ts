@@ -3,6 +3,7 @@ import {
   dayOfWeek,
   formatDateOnly,
   formatDayFull,
+  formatDayShort,
   formatLocalTime,
   formatZonedTime,
   localDateKey,
@@ -108,6 +109,11 @@ describe('formatting', () => {
     // The device runs in UTC; Moscow differs, UTC does not.
     expect(zoneDiffersFromDevice('Europe/Moscow', new Date('2026-10-03T15:00:00Z'))).toBe(true)
     expect(zoneDiffersFromDevice('UTC', new Date('2026-10-03T15:00:00Z'))).toBe(false)
+  })
+
+  test('the short weekday line the agenda month groups lead with (issue #73)', () => {
+    expect(formatDayShort({ year: 2026, month: 10, day: 3 }, 'ru')).toBe('сб, 3 октября')
+    expect(formatDayShort({ year: 2026, month: 10, day: 3 }, 'en')).toBe('Sat, October 3')
   })
 })
 
