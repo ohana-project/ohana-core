@@ -892,6 +892,7 @@
     "allDay": "All day",
     "allDayHint": "no start or end time",
     "allDayLine": "all day · {date}",
+    "allDayShort": "all day",
     "unspecifiedTime": "no time given",
     "timeRange": "{start} – {end}",
     "originZoneLine": "{time} · {zone}",

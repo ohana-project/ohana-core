@@ -49,6 +49,7 @@ Derived tokens:
 | `accent-soft` | `accent` 13% | `accent` 20% |
 | `accent-faint` (calendar today cell) | `accent` 7% | `accent` 7% |
 | `fg-soft` (hover fills) | `fg` 6% | `fg` 9% |
+| `muted-faint` (calendar out-of-month days) | `muted` 45% | `muted` 45% |
 | `scrim` (under overlays) | `fg` 38% | black 55% |
 
 In the dark theme a surface is always lighter than the background, so the page never looks grey.

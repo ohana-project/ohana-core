@@ -215,7 +215,6 @@ describe('CalendarScreen (the month and the agenda)', () => {
     expect(screen.getByText('15:00 – 16:00 · 18:00 – 19:00 · Moscow (UTC+3)')).toBeInTheDocument()
     // The all-day event keeps its plain date and never shows a time.
     expect(screen.getByText('День рождения Люды')).toBeInTheDocument()
-    expect(screen.getByText('весь день · 19 октября')).toBeInTheDocument()
     // The agenda reads «Сегодня» first — always present, a muted row when
     // the day holds nothing —, then tomorrow's group, then the month the
     // remaining days fall in (issue #73).
@@ -226,6 +225,37 @@ describe('CalendarScreen (the month and the agenda)', () => {
     expect(labels[0]).toHaveTextContent('Сегодня · 1 октября')
     expect(labels[1]).toHaveTextContent('Завтра · 2 октября')
     expect(labels[2]).toHaveTextContent('Октябрь')
+    // The month group's row leads with its day, the prototype's dated
+    // subtitle; the all-day kind drops the date its prefix now carries.
+    expect(screen.getByText(/пн, 19 октября · весь день/)).toBeInTheDocument()
+  })
+
+  it('the month group rows lead with their day, and only those rows do', async () => {
+    const first = timedEvent({
+      id: '01900000-0000-7000-8000-000000000406',
+      title: 'Первое собрание',
+      startsAt: '2026-10-05T15:00:00.000Z',
+      endsAt: '2026-10-05T16:00:00.000Z',
+    })
+    const second = timedEvent({
+      id: '01900000-0000-7000-8000-000000000407',
+      title: 'Второе собрание',
+      startsAt: '2026-10-12T16:00:00.000Z',
+      endsAt: '2026-10-12T17:00:00.000Z',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([first, second]))
+    renderWithProviders(<CalendarScreen />)
+
+    await screen.findByText('Первое собрание')
+    // Two timed rows in one month card: each names its own day. The date
+    // prefix is the description's own text node, the time line the span
+    // inside it.
+    expect(screen.getByText(/пн, 5 октября ·/)).toBeInTheDocument()
+    expect(screen.getByText(/пн, 12 октября ·/)).toBeInTheDocument()
+    // Tomorrow's row keeps the bare time line — its group label names the
+    // day.
+    expect(screen.getByText('15:00 – 16:00 · 18:00 – 19:00 · Moscow (UTC+3)')).toBeInTheDocument()
   })
 
   it('the month grid follows the prototype: the today cell, the dots, the dimmed out days', async () => {
@@ -275,9 +305,7 @@ describe('CalendarScreen (the month and the agenda)', () => {
     // An out-of-month past day dims: its number at the prototype's muted
     // 45%, its dot at 0.4.
     const outCell = screen.getByRole('button', { name: /30 сентября, 1 событие/ })
-    expect(outCell.firstElementChild).toHaveClass(
-      'text-[color-mix(in_oklch,var(--muted)_45%,transparent)]',
-    )
+    expect(outCell.firstElementChild).toHaveClass('text-muted-faint')
     expect(outCell.querySelector('i')).toHaveClass('opacity-40')
 
     // A day without events is a plain cell, never a button (the day

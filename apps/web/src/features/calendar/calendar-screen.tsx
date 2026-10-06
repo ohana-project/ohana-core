@@ -6,11 +6,13 @@ import {
   type DateOnly,
   formatDateOnly,
   formatDayLong,
+  formatDayShort,
   formatMonthName,
   formatMonthTitle,
   type MonthDay,
   monthGrid,
   nextMonth,
+  parseDateOnly,
   previousMonth,
   shiftDateKey,
   todayDateOnly,
@@ -28,6 +30,7 @@ import { type AgendaGroup, agendaGroups } from './agenda-groups.ts'
 import {
   type CalendarOccurrence,
   calendarOccurrences,
+  eventDateKey,
   eventsByDate,
   occurrenceLink,
   upcomingEvents,
@@ -192,7 +195,14 @@ export function CalendarScreen() {
                               </ItemContent>
                             </Item>
                           ) : (
-                            group.events.map((event) => <EventRow key={event.id} event={event} />)
+                            group.events.map((event) => (
+                              <EventRow
+                                key={event.id}
+                                event={event}
+                                locale={locale}
+                                withDate={group.kind === 'month'}
+                              />
+                            ))
                           )}
                         </ItemGroup>
                       </Card>
@@ -240,16 +250,25 @@ function agendaLabelText(
 /** One event row, the list row the agenda and the day sheet share: the
  *  38px leading tile — warn for the all-day kind, surface-2 otherwise —,
  *  the title, the time line, the trailing chevron; 64px, the prototype's
- *  `.list-row` at its event height. */
+ *  `.list-row` at its event height. A month group's row leads with its
+ *  day («сб, 3 октября · …»), the prototype's dated subtitles; today's
+ *  and tomorrow's rows carry no date — the group label names it — and
+ *  the day sheet names it in its title. */
 function EventRow({
   event,
+  locale,
   dimmed = false,
+  withDate = false,
   onClick,
 }: {
   event: CalendarOccurrence
+  locale: Locale
   dimmed?: boolean
+  withDate?: boolean
   onClick?: () => void
 }) {
+  const { t } = useTranslation()
+  const day = withDate ? orDate(event) : undefined
   return (
     <Item
       size="lg"
@@ -262,12 +281,20 @@ function EventRow({
       <ItemContent>
         <ItemTitle>{event.title}</ItemTitle>
         <ItemDescription>
-          <EventTimeLine event={event} />
+          {day !== undefined && `${formatDayShort(day, locale)} · `}
+          {event.allDay ? t('calendar.allDayShort') : <EventTimeLine event={event} />}
         </ItemDescription>
       </ItemContent>
       <Icon name="chevron-right" className="text-muted-foreground" />
     </Item>
   )
+}
+
+/** The event's device-local day, parsed for a label; undefined when the
+ *  row names no day (the agenda's buckets always do). */
+function orDate(event: CalendarOccurrence): DateOnly | undefined {
+  const key = eventDateKey(event)
+  return key === undefined ? undefined : parseDateOnly(key)
 }
 
 /** The drawn weeks' bounds, the wall-date window the occurrences expand
@@ -317,7 +344,13 @@ function DaySheet({
               </Item>
             ) : (
               dayEvents.map((event) => (
-                <EventRow key={event.id} event={event} dimmed={past} onClick={onClose} />
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  locale={locale}
+                  dimmed={past}
+                  onClick={onClose}
+                />
               ))
             )}
           </ItemGroup>

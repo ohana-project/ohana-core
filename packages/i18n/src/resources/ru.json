@@ -892,6 +892,7 @@
     "allDay": "Весь день",
     "allDayHint": "без времени начала и конца",
     "allDayLine": "весь день · {date}",
+    "allDayShort": "весь день",
     "unspecifiedTime": "время не указано",
     "timeRange": "{start} – {end}",
     "originZoneLine": "{time} · {zone}",

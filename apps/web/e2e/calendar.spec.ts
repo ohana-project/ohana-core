@@ -292,7 +292,7 @@ test.describe('the calendar', () => {
     // zone it keeps, and the all-day one with its plain date.
     await expect(page.getByText('Ужин у бабушки')).toBeVisible()
     await expect(page.getByText('15:00 – 18:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
-    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+    await expect(page.getByText(/пн, 19 октября · весь день/)).toBeVisible()
 
     // The 2nd of October holds the dinner; the day's sheet opens from the
     // grid and lists it.
@@ -369,7 +369,7 @@ test.describe('the calendar away from UTC', () => {
 
     // The birthday is still the 19th; the dinner reads in Pacific time —
     // 08:00 against its 18:00 Moscow origin.
-    await expect(page.getByText('весь день · 19 октября')).toBeVisible()
+    await expect(page.getByText(/пн, 19 октября · весь день/)).toBeVisible()
     await expect(page.getByText('08:00 – 11:00 · 18:00 – 21:00 · Moscow (UTC+3)')).toBeVisible()
   })
 })

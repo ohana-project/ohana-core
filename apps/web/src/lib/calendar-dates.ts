@@ -159,6 +159,14 @@ export function formatDayLong(date: DateOnly, locale: Locale): string {
   )
 }
 
+/** «сб, 3 октября» — the day with its short weekday, the agenda's
+ *  month-group rows lead with it (docs/design/screens/calendar.html). */
+export function formatDayShort(date: DateOnly, locale: Locale): string {
+  return utcFormatter(locale, { weekday: 'short', day: 'numeric', month: 'long' }).format(
+    new Date(Date.UTC(date.year, date.month - 1, date.day)),
+  )
+}
+
 /** «31 января 2027 г.» — the day's label with its year: the year is part
  *  of a series' end date, where «до 31 января» alone could be any of them
  *  (issue #21). Anchored at the UTC midnight like the zoneless labels, so

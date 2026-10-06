@@ -66,8 +66,8 @@ function DayCell({
             ? 'bg-primary font-medium text-primary-foreground'
             : inMonth
               ? 'text-foreground'
-              : // The out-of-month dim: the prototype's muted at 45%.
-                'text-[color-mix(in_oklch,var(--muted)_45%,transparent)]',
+              : // The out-of-month dim, the prototype's muted at 45%.
+                'text-muted-faint',
         )}
       >
         {date.day}
