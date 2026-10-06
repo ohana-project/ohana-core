@@ -136,9 +136,9 @@ export function SpaceSettingsScreen() {
   }
 
   return (
-    <SettingsShell title={t('space.settings.title')}>
-      <div className="flex flex-col gap-6 pt-6">
-        <header>
+    <SettingsShell title={t('space.settings.shortTitle')}>
+      <div className="flex flex-col pt-5">
+        <header className="mb-5.5">
           <h1 className="text-display-lg">{t('space.settings.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {current !== undefined
@@ -157,66 +157,75 @@ export function SpaceSettingsScreen() {
           </div>
         ) : (
           <>
-            <section>
-              <SectionHeader title={t('space.settings.sectionsSection')} />
-              <Card className="py-0">
-                <ItemGroup>
-                  {SECTION_ROWS.map((row) => (
-                    <Item key={row.id} size="lg">
-                      <ItemMedia variant="icon" tone="primary">
-                        <Icon name={row.icon} />
-                      </ItemMedia>
-                      <ItemContent>
-                        <ItemTitle>{t(row.labelKey)}</ItemTitle>
-                        <ItemDescription>
-                          {visibility[row.id] ? t(row.onKey) : t('space.settings.sectionHiddenSub')}
-                        </ItemDescription>
-                      </ItemContent>
-                      <ItemActions>
-                        <Switch
-                          checked={visibility[row.id]}
-                          onCheckedChange={(checked) => toggleSection(row.id, checked)}
-                          disabled={updateSections.isPending}
-                          aria-label={t('space.settings.sectionShowSwitch', {
-                            section: t(row.labelKey),
-                          })}
-                        />
-                      </ItemActions>
-                    </Item>
-                  ))}
-                </ItemGroup>
-              </Card>
-              <p className="mt-2.5 px-1 text-sm text-muted-foreground">
-                {t('space.settings.sectionsHint')}
-              </p>
-            </section>
-
-            <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+            <div className="flex flex-col gap-6.5">
               <section>
-                <SectionHeader title={t('space.settings.timezoneSection')} />
-                <Field>
-                  <FieldLabel htmlFor="space-settings-timezone">
-                    {t('space.settings.timezoneLabel')}
-                  </FieldLabel>
-                  <Select
-                    id="space-settings-timezone"
-                    value={effectiveTimezone}
-                    onChange={(event) => setTimezone(event.target.value)}
-                  >
-                    {zones.map((zone) => (
-                      <option key={zone.value} value={zone.value}>
-                        {zone.label}
-                      </option>
+                <SectionHeader level={3} title={t('space.settings.sectionsSection')} />
+                <Card variant="list">
+                  <ItemGroup>
+                    {SECTION_ROWS.map((row) => (
+                      <Item key={row.id} size="md">
+                        {/* The prototype's bare 20px muted leading icon —
+                            no tile (issue #77). */}
+                        <ItemMedia>
+                          <Icon name={row.icon} />
+                        </ItemMedia>
+                        <ItemContent>
+                          <ItemTitle>{t(row.labelKey)}</ItemTitle>
+                          <ItemDescription>
+                            {visibility[row.id]
+                              ? t(row.onKey)
+                              : t('space.settings.sectionHiddenSub')}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <Switch
+                            checked={visibility[row.id]}
+                            onCheckedChange={(checked) => toggleSection(row.id, checked)}
+                            disabled={updateSections.isPending}
+                            aria-label={t('space.settings.sectionShowSwitch', {
+                              section: t(row.labelKey),
+                            })}
+                          />
+                        </ItemActions>
+                      </Item>
                     ))}
-                  </Select>
-                  <FieldDescription>{t('space.settings.timezoneHint')}</FieldDescription>
-                </Field>
+                  </ItemGroup>
+                </Card>
+                <p className="mt-2.5 px-1 text-meta text-muted-foreground">
+                  {t('space.settings.sectionsHint')}
+                </p>
               </section>
-              <Button type="submit" size="lg" disabled={!dirty || updateTimezone.isPending}>
-                {t('space.settings.save')}
-              </Button>
-              <p className="px-1 text-sm text-muted-foreground">{t('space.settings.syncNote')}</p>
-            </form>
+
+              <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+                <section>
+                  <SectionHeader level={3} title={t('space.settings.timezoneSection')} />
+                  <Field>
+                    <FieldLabel htmlFor="space-settings-timezone">
+                      {t('space.settings.timezoneLabel')}
+                    </FieldLabel>
+                    <Select
+                      id="space-settings-timezone"
+                      value={effectiveTimezone}
+                      onChange={(event) => setTimezone(event.target.value)}
+                    >
+                      {zones.map((zone) => (
+                        <option key={zone.value} value={zone.value}>
+                          {zone.label}
+                        </option>
+                      ))}
+                    </Select>
+                    <FieldDescription>{t('space.settings.timezoneHint')}</FieldDescription>
+                  </Field>
+                </section>
+                <Button type="submit" size="lg" disabled={!dirty || updateTimezone.isPending}>
+                  {t('space.settings.save')}
+                </Button>
+              </form>
+            </div>
+
+            <p className="mt-6 px-1 font-mono text-meta text-muted-foreground uppercase">
+              {t('space.settings.syncNote')}
+            </p>
           </>
         )}
       </div>
