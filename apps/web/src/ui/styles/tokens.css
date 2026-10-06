@@ -27,6 +27,10 @@
 
   /* derived */
   --accent-soft: color-mix(in oklch, var(--accent) 13%, transparent);
+  /* the calendar's today cell (issue #73): the prototype's 7% tint, the
+     same share in both themes — the day's number sits on the filled
+     accent circle, never on the tint, so no contrast correction applies */
+  --accent-faint: color-mix(in oklch, var(--accent) 7%, transparent);
   --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
   --scrim: color-mix(in oklch, var(--fg) 38%, transparent);
   /* hover accent: darkens 12% in light, lightens 10% in dark (README

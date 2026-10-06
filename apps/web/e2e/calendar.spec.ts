@@ -410,15 +410,10 @@ test.describe('a repeating series', () => {
     await expect(page.getByText('Событие отменено')).toBeVisible()
     await expect(page).toHaveURL(/\/calendar$/)
 
-    // The cancelled Monday is off the calendar: the day's sheet is empty,
-    // the next Monday still carries the series.
-    await page.getByRole('button', { name: '5 октября, 0 событий', exact: true }).click()
-    const sheet = page.getByRole('dialog', { name: '5 октября' })
-    await expect(sheet).toBeVisible()
-    await expect(sheet.getByText('В этот день событий нет')).toBeVisible()
-    // the day sheet has no close X (issue #59): Escape dismisses it
-    await page.keyboard.press('Escape')
-    await expect(sheet).toBeHidden()
+    // The cancelled Monday is off the calendar: a day without events is a
+    // plain cell, never a button — the day sheet's door is a day with
+    // events (issue #73). The next Monday still carries the series.
+    await expect(page.getByRole('button', { name: /5 октября/ })).toHaveCount(0)
     await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
     await expect(
       page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка'),

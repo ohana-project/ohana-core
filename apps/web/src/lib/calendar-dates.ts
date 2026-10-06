@@ -182,11 +182,17 @@ export function formatDayFull(date: DateOnly, locale: Locale): string {
 /** «Октябрь 2026» — the month heading: the standalone month name and the
  *  year, the capital the prototype's heading carries. */
 export function formatMonthTitle(year: number, month: number, locale: Locale): string {
+  return `${formatMonthName(year, month, locale)} ${year}`
+}
+
+/** «Октябрь» — the month's name alone, the agenda's group label
+ *  (docs/design/screens/calendar.html): the year the heading carries is
+ *  absent here, like the prototype's own agenda label. */
+export function formatMonthName(year: number, month: number, locale: Locale): string {
   const name = utcFormatter(locale, { month: 'long' }).format(
     new Date(Date.UTC(year, month - 1, 1)),
   )
-  const capitalised = name.charAt(0).toLocaleUpperCase(locale) + name.slice(1)
-  return `${capitalised} ${year}`
+  return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1)
 }
 
 /** «Пн» … «Вс» — the grid's day-of-week headers, Monday first. */

@@ -204,7 +204,8 @@ describe('CalendarScreen (the month and the agenda)', () => {
       </>,
     )
 
-    // The month the device sits in, and the space's zone hint.
+    // The month the device sits in, and the space's zone hint below the
+    // card.
     expect(await screen.findByText('Октябрь 2026')).toBeInTheDocument()
     expect(await screen.findByText('Часовой пояс пространства: Moscow (UTC+3)')).toBeInTheDocument()
 
@@ -215,12 +216,100 @@ describe('CalendarScreen (the month and the agenda)', () => {
     // The all-day event keeps its plain date and never shows a time.
     expect(screen.getByText('День рождения Люды')).toBeInTheDocument()
     expect(screen.getByText('весь день · 19 октября')).toBeInTheDocument()
-    // The agenda reads day by day: tomorrow's group first, the birthday's
-    // own day after it — the all-day kind never jumps the queue.
-    expect(screen.getByText('Завтра')).toBeInTheDocument()
-    const groups = screen.getAllByText(/^(Завтра|19 октября)$/)
-    expect(groups[0]).toHaveTextContent('Завтра')
-    expect(groups[1]).toHaveTextContent('19 октября')
+    // The agenda reads «Сегодня» first — always present, a muted row when
+    // the day holds nothing —, then tomorrow's group, then the month the
+    // remaining days fall in (issue #73).
+    expect(screen.getByText('Сегодня · 1 октября')).toBeInTheDocument()
+    expect(screen.getByText('Событий нет — хороший день для дневника')).toBeInTheDocument()
+    const labels = screen.getAllByText(/^(Сегодня · 1 октября|Завтра · 2 октября|Октябрь)$/)
+    expect(labels).toHaveLength(3)
+    expect(labels[0]).toHaveTextContent('Сегодня · 1 октября')
+    expect(labels[1]).toHaveTextContent('Завтра · 2 октября')
+    expect(labels[2]).toHaveTextContent('Октябрь')
+  })
+
+  it('the month grid follows the prototype: the today cell, the dots, the dimmed out days', async () => {
+    const now = timedEvent({
+      id: '01900000-0000-7000-8000-000000000403',
+      title: 'Сегодняшняя встреча',
+      startsAt: '2026-10-01T15:00:00.000Z',
+      endsAt: '2026-10-01T16:00:00.000Z',
+    })
+    const doctor = timedEvent()
+    const birthday = allDayEvent()
+    const past = allDayEvent({
+      id: '01900000-0000-7000-8000-000000000404',
+      title: 'Прошедшая дача',
+      date: '2026-09-30',
+    })
+    const crowd = [1, 2, 3, 4].map((n) =>
+      timedEvent({
+        id: `01900000-0000-7000-8000-00000000050${n}`,
+        title: `Встреча ${n}`,
+        startsAt: `2026-10-15T1${n}:00:00.000Z`,
+        endsAt: `2026-10-15T1${n}:30:00.000Z`,
+      }),
+    )
+    seedRegistry()
+    await applySyncResult(ME, syncResult([now, doctor, birthday, past, ...crowd]))
+    renderWithProviders(<CalendarScreen />)
+
+    await screen.findByText('Миша — зубной врач')
+
+    // Today holds an event: its cell is the 7% accent tint and the
+    // number sits in the filled accent circle (issue #73).
+    const todayCell = screen.getByRole('button', { name: /1 октября, 1 событие/ })
+    expect(todayCell).toHaveClass('bg-primary-faint')
+    expect(todayCell.firstChild).toHaveClass('bg-primary', 'text-primary-foreground')
+
+    // The timed event's dot is accent, the all-day one warn.
+    const doctorCell = screen.getByRole('button', { name: /2 октября, 1 событие/ })
+    expect(doctorCell.querySelector('i')).toHaveClass('bg-primary')
+    const birthdayCell = screen.getByRole('button', { name: /19 октября, 1 событие/ })
+    expect(birthdayCell.querySelector('i')).toHaveClass('bg-warn')
+
+    // A day with four events shows three dots, the fourth and later hidden.
+    const crowdCell = screen.getByRole('button', { name: /15 октября, 4 события/ })
+    expect(crowdCell.querySelectorAll('i')).toHaveLength(3)
+
+    // An out-of-month past day dims: its number at the prototype's muted
+    // 45%, its dot at 0.4.
+    const outCell = screen.getByRole('button', { name: /30 сентября, 1 событие/ })
+    expect(outCell.firstElementChild).toHaveClass(
+      'text-[color-mix(in_oklch,var(--muted)_45%,transparent)]',
+    )
+    expect(outCell.querySelector('i')).toHaveClass('opacity-40')
+
+    // A day without events is a plain cell, never a button (the day
+    // sheet's door is a day with events).
+    expect(screen.queryByRole('button', { name: /7 октября/ })).not.toBeInTheDocument()
+    expect(screen.getByText('9', { exact: true }).parentElement).toHaveClass('aspect-square')
+
+    // Every cell is square with the prototype's gaps.
+    expect(todayCell).toHaveClass('aspect-square', 'gap-[7px]')
+  })
+
+  it('navigating to a past month dims its past days at half opacity', async () => {
+    const past = timedEvent({
+      id: '01900000-0000-7000-8000-000000000405',
+      title: 'Собрание',
+      startsAt: '2026-09-25T17:00:00.000Z',
+      endsAt: '2026-09-25T18:00:00.000Z',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([past]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<CalendarScreen />)
+
+    await screen.findByText('Октябрь 2026')
+    // The month navigation is the prototype's desktop-only `.cal-nav`.
+    await user.click(screen.getByRole('button', { name: 'Предыдущий месяц' }))
+    expect(await screen.findByText('Сентябрь 2026')).toBeInTheDocument()
+
+    // The 25th is a past in-month day: its dot carries the half opacity,
+    // the neighbouring out days keep their own dim.
+    const cell = screen.getByRole('button', { name: /25 сентября, 1 событие/ })
+    expect(cell.querySelector('i')).toHaveClass('opacity-50')
   })
 
   it("opens a day sheet with that day's events from the month grid", async () => {
@@ -256,7 +345,11 @@ describe('CalendarScreen (the month and the agenda)', () => {
     )
     await waitFor(() => expect(client).toBeDefined())
     await landSync(client as QueryClient, syncResult([]))
-    expect(await screen.findByText('Событий пока нет')).toBeInTheDocument()
+    // An honest empty calendar, a partition having landed whole: the
+    // agenda still opens with «Сегодня» — always present, its muted row
+    // saying the day holds nothing (issue #73).
+    expect(await screen.findByText('Сегодня · 1 октября')).toBeInTheDocument()
+    expect(screen.getByText('Событий нет — хороший день для дневника')).toBeInTheDocument()
   })
 })
 
