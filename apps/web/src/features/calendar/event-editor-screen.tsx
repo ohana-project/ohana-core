@@ -386,120 +386,120 @@ export function EventEditorScreen({
                 the prototype's plain h3, inset 4px with 10px below. */}
             <div className="flex flex-col gap-6.5">
               <div className="flex flex-col gap-3.5">
-              <Field data-invalid={(touched && titleBlank) || undefined}>
-                <FieldLabel htmlFor="event-title">{t('calendar.titleField')}</FieldLabel>
-                <Input
-                  id="event-title"
-                  value={effective.title}
-                  maxLength={200}
-                  placeholder={t('calendar.titlePlaceholder')}
-                  onChange={(event) => setTitle(event.target.value)}
-                  aria-invalid={(touched && titleBlank) || undefined}
-                />
-                {touched && titleBlank ? (
-                  <FieldError>{t('calendar.titleRequired')}</FieldError>
-                ) : null}
-              </Field>
-
-              {/* The prototype's all-day row: a list card's 56px row, the
-                  title and its sub beside the switch. */}
-              <Card variant="list">
-                <Item>
-                  <ItemContent>
-                    <ItemTitle>{t('calendar.allDay')}</ItemTitle>
-                    <ItemDescription>{t('calendar.allDayHint')}</ItemDescription>
-                  </ItemContent>
-                  <ItemActions>
-                    <Switch
-                      aria-label={t('calendar.allDay')}
-                      checked={effective.allDay}
-                      onCheckedChange={(checked) => {
-                        const next = checked === true
-                        setAllDay(next)
-                        // An event that becomes timed needs a wall pair to
-                        // compose; the evening default the new-event form
-                        // carries is seeded rather than blocking Save on
-                        // fields the member never saw.
-                        if (!next) {
-                          if (effective.startTime === '') setStartTime('18:00')
-                          if (effective.endTime === '') setEndTime('21:00')
-                        }
-                      }}
-                    />
-                  </ItemActions>
-                </Item>
-              </Card>
-
-              {/* The prototype greys the pair out instead of removing it
-                  (issue #75): visible but disabled, so unchecking brings
-                  the member's own wall time back. */}
-              <div className="flex gap-3">
-                <Field className="flex-1">
-                  <FieldLabel htmlFor="event-start">{t('calendar.startTimeField')}</FieldLabel>
+                <Field data-invalid={(touched && titleBlank) || undefined}>
+                  <FieldLabel htmlFor="event-title">{t('calendar.titleField')}</FieldLabel>
                   <Input
-                    id="event-start"
-                    type="time"
-                    value={effective.startTime}
-                    disabled={effective.allDay}
-                    onChange={(event) => setStartTime(event.target.value)}
-                    aria-invalid={(touched && timesBlank) || undefined}
+                    id="event-title"
+                    value={effective.title}
+                    maxLength={200}
+                    placeholder={t('calendar.titlePlaceholder')}
+                    onChange={(event) => setTitle(event.target.value)}
+                    aria-invalid={(touched && titleBlank) || undefined}
                   />
-                </Field>
-                <Field className="flex-1">
-                  <FieldLabel htmlFor="event-end">{t('calendar.endTimeField')}</FieldLabel>
-                  <Input
-                    id="event-end"
-                    type="time"
-                    value={effective.endTime}
-                    disabled={effective.allDay}
-                    onChange={(event) => setEndTime(event.target.value)}
-                    aria-invalid={(touched && (endBeforeStart || timesBlank)) || undefined}
-                  />
-                  {touched && timesBlank ? (
-                    <FieldError>{t('calendar.timesRequired')}</FieldError>
-                  ) : touched && endBeforeStart ? (
-                    <FieldError>{t('calendar.errors.event_end_before_start')}</FieldError>
+                  {touched && titleBlank ? (
+                    <FieldError>{t('calendar.titleRequired')}</FieldError>
                   ) : null}
                 </Field>
-              </div>
 
-              <Field data-invalid={(touched && dateBlank) || undefined}>
-                <FieldLabel htmlFor="event-date">{t('calendar.dateField')}</FieldLabel>
-                <Input
-                  id="event-date"
-                  type="date"
-                  min="1900-01-01"
-                  max="2200-12-31"
-                  value={effective.date}
-                  onChange={(event) => setDate(event.target.value)}
-                  aria-invalid={(touched && dateBlank) || undefined}
-                />
-                {touched && dateBlank ? (
-                  <FieldError>{t('calendar.dateRequired')}</FieldError>
-                ) : null}
-              </Field>
+                {/* The prototype's all-day row: a list card's 56px row, the
+                  title and its sub beside the switch. */}
+                <Card variant="list">
+                  <Item>
+                    <ItemContent>
+                      <ItemTitle>{t('calendar.allDay')}</ItemTitle>
+                      <ItemDescription>{t('calendar.allDayHint')}</ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <Switch
+                        aria-label={t('calendar.allDay')}
+                        checked={effective.allDay}
+                        onCheckedChange={(checked) => {
+                          const next = checked === true
+                          setAllDay(next)
+                          // An event that becomes timed needs a wall pair to
+                          // compose; the evening default the new-event form
+                          // carries is seeded rather than blocking Save on
+                          // fields the member never saw.
+                          if (!next) {
+                            if (effective.startTime === '') setStartTime('18:00')
+                            if (effective.endTime === '') setEndTime('21:00')
+                          }
+                        }}
+                      />
+                    </ItemActions>
+                  </Item>
+                </Card>
 
-              {/* The zone stays readable for an all-day event — disabled,
+                {/* The prototype greys the pair out instead of removing it
+                  (issue #75): visible but disabled, so unchecking brings
+                  the member's own wall time back. */}
+                <div className="flex gap-3">
+                  <Field className="flex-1">
+                    <FieldLabel htmlFor="event-start">{t('calendar.startTimeField')}</FieldLabel>
+                    <Input
+                      id="event-start"
+                      type="time"
+                      value={effective.startTime}
+                      disabled={effective.allDay}
+                      onChange={(event) => setStartTime(event.target.value)}
+                      aria-invalid={(touched && timesBlank) || undefined}
+                    />
+                  </Field>
+                  <Field className="flex-1">
+                    <FieldLabel htmlFor="event-end">{t('calendar.endTimeField')}</FieldLabel>
+                    <Input
+                      id="event-end"
+                      type="time"
+                      value={effective.endTime}
+                      disabled={effective.allDay}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      aria-invalid={(touched && (endBeforeStart || timesBlank)) || undefined}
+                    />
+                    {touched && timesBlank ? (
+                      <FieldError>{t('calendar.timesRequired')}</FieldError>
+                    ) : touched && endBeforeStart ? (
+                      <FieldError>{t('calendar.errors.event_end_before_start')}</FieldError>
+                    ) : null}
+                  </Field>
+                </div>
+
+                <Field data-invalid={(touched && dateBlank) || undefined}>
+                  <FieldLabel htmlFor="event-date">{t('calendar.dateField')}</FieldLabel>
+                  <Input
+                    id="event-date"
+                    type="date"
+                    min="1900-01-01"
+                    max="2200-12-31"
+                    value={effective.date}
+                    onChange={(event) => setDate(event.target.value)}
+                    aria-invalid={(touched && dateBlank) || undefined}
+                  />
+                  {touched && dateBlank ? (
+                    <FieldError>{t('calendar.dateRequired')}</FieldError>
+                  ) : null}
+                </Field>
+
+                {/* The zone stays readable for an all-day event — disabled,
                   like the times: the field the prototype keeps in place. */}
-              <Field>
-                <FieldLabel htmlFor="event-tz">{t('calendar.timezoneField')}</FieldLabel>
-                <Select
-                  id="event-tz"
-                  value={effective.timezone}
-                  disabled={effective.allDay}
-                  onChange={(event) => {
-                    setTimezone(event.target.value)
-                    setTimezoneTouched(true)
-                  }}
-                >
-                  {zoneChoices.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-                <FieldDescription>{t('calendar.timezoneHint')}</FieldDescription>
-              </Field>
+                <Field>
+                  <FieldLabel htmlFor="event-tz">{t('calendar.timezoneField')}</FieldLabel>
+                  <Select
+                    id="event-tz"
+                    value={effective.timezone}
+                    disabled={effective.allDay}
+                    onChange={(event) => {
+                      setTimezone(event.target.value)
+                      setTimezoneTouched(true)
+                    }}
+                  >
+                    {zoneChoices.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <FieldDescription>{t('calendar.timezoneHint')}</FieldDescription>
+                </Field>
               </div>
 
               {!occurrenceMode && (
@@ -598,7 +598,9 @@ export function EventEditorScreen({
                           return (
                             <PickRow
                               key={profile.id}
-                              aria-label={mine ? `${memberName} ${t('calendar.recipientYou')}` : memberName}
+                              aria-label={
+                                mine ? `${memberName} ${t('calendar.recipientYou')}` : memberName
+                              }
                               pressed={
                                 !effectiveReminderEveryone &&
                                 effectiveReminderMembers.includes(profile.id)
@@ -608,7 +610,9 @@ export function EventEditorScreen({
                                 // Leaving «все» starts the named list from
                                 // the one row the tap pressed — the
                                 // prototype's rows all read unpressed there.
-                                const base = effectiveReminderEveryone ? [] : effectiveReminderMembers
+                                const base = effectiveReminderEveryone
+                                  ? []
+                                  : effectiveReminderMembers
                                 setReminderMembers(
                                   pressed
                                     ? [...base, profile.id]
