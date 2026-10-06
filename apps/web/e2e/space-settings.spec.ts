@@ -98,6 +98,9 @@ async function mockOwnerApi(page: Page) {
   // The archiving state (issue #23): the archive POST flips it, and the
   // members list answers from it — the way the real member row behaves.
   let dimaArchivedAt: string | undefined
+  // The disconnect ends every session, so a later GET answers the empty
+  // list, the way the real rows behave.
+  let dimaDevices: typeof DIMA_DEVICES = DIMA_DEVICES
   // The space answers from this object, so a PATCH in one screen is the
   // GET everywhere else — the way the real space row behaves.
   const space = {
@@ -174,7 +177,8 @@ async function mockOwnerApi(page: Page) {
   await page.route(SESSIONS, (route) => {
     const memberId = route.request().headers()['x-ohana-member']
     if (memberId !== OWNER_ID) return route.fulfill(json(403, {}))
-    if (route.request().method() === 'GET') return route.fulfill(json(200, DIMA_DEVICES))
+    if (route.request().method() === 'GET') return route.fulfill(json(200, dimaDevices))
+    dimaDevices = []
     return route.fulfill(json(204, null))
   })
 
@@ -245,11 +249,14 @@ test.describe('owner management of members and codes', () => {
     await page.getByRole('menuitem', { name: 'Участники' }).click()
     await expect(page).toHaveURL(/\/members$/)
     await expect(page.getByRole('heading', { name: 'Участники' })).toBeVisible()
+    // The prototype's section headings (issue #76).
+    await expect(page.getByRole('heading', { name: 'Активные' })).toBeVisible()
     await expect(page.getByText('Аня Смирнова')).toBeVisible()
     await expect(page.getByText('Дима')).toBeVisible()
 
-    // The invite flow provisions the member and shows the code once.
-    await page.getByRole('link', { name: 'Пригласить' }).click()
+    // The invite flow provisions the member and shows the code once. The
+    // invite rides the top bar on desktop (the prototype's d-only action).
+    await page.getByRole('link', { name: 'Пригласить' }).first().click()
     await expect(page).toHaveURL(/\/members\/invite$/)
     await page.getByRole('textbox', { name: 'Имя', exact: true }).fill('Миша')
     const provisionPromise = page.waitForRequest(
@@ -260,21 +267,27 @@ test.describe('owner management of members and codes', () => {
     expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)
     expect((await provisionPromise).postDataJSON()).toEqual({ name: 'Миша', role: 'regular' })
 
-    // The member card shows the code status and the devices; disconnecting
-    // every device goes through a confirmation.
+    // The member card shows the code status and the devices; the top bar
+    // carries the area's title, and the device row holds the disconnect.
     await page.getByRole('button', { name: 'Готово' }).click()
     await expect(page).toHaveURL(/\/members$/)
     await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
+    await expect(page.getByText('Участник', { exact: true })).toBeVisible()
     // Exact: the devices hint mentions «код входа» in the same words.
     await expect(page.getByText('Код входа', { exact: true })).toBeVisible()
+    await expect(page.getByText('Перевыпустить код')).toBeVisible()
     await expect(page.getByText('Ждёт первого входа')).toBeVisible()
     await expect(page.getByText('Safari на iPhone')).toBeVisible()
+    // The only device is also the current one: pill and disconnect share
+    // the row (docs/design/README.md).
+    await expect(page.getByText('Текущее')).toBeVisible()
     await page.getByRole('button', { name: 'Отключить всё' }).click()
     await expect(page.getByRole('heading', { name: 'Отключить все устройства?' })).toBeVisible()
     await page
       .getByRole('dialog', { name: 'Отключить все устройства?' })
       .getByRole('button', { name: 'Отключить', exact: true })
       .click()
+    await expect(page.getByText('Устройств нет')).toBeVisible()
 
     // The space settings change the default time zone.
     await page.getByRole('button', { name: 'Меню пользователя' }).click()
@@ -362,9 +375,10 @@ test.describe('archiving and restoring members', () => {
     await page.getByRole('menuitem', { name: 'Участники' }).click()
     await expect(page).toHaveURL(/\/members$/)
 
-    // The archiving runs from the member's card, behind a confirmation.
+    // The archiving runs from the member's card — the whole danger row is
+    // the action — behind a confirmation.
     await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
-    await page.getByRole('button', { name: 'Архивировать Дима' }).click()
+    await page.getByRole('button', { name: /Архивировать Дима/ }).click()
     // ICU cannot decline names, so the title reads the nominative form
     // (docs/design/README.md); the toast is a dialog too, hence the name.
     const archiveDialog = page.getByRole('dialog', { name: /Архивировать/ })
@@ -382,8 +396,8 @@ test.describe('archiving and restoring members', () => {
     await page.getByRole('menuitem', { name: 'Участники' }).click()
     await expect(page).toHaveURL(/\/members$/)
     await expect(page.getByRole('heading', { name: 'Архив', exact: true })).toBeVisible()
-    await expect(page.getByText('в архиве с 3 сентября')).toBeVisible()
-    await expect(page.getByText('В архиве').last()).toBeVisible()
+    await expect(page.getByText('в архиве с 3 сентября').first()).toBeVisible()
+    await expect(page.getByText('Архив', { exact: true }).last()).toBeVisible()
 
     // The restore is the code issuance: the new code shows once.
     await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
@@ -396,5 +410,25 @@ test.describe('archiving and restoring members', () => {
     await restoreDialog.getByRole('button', { name: 'Восстановить' }).click()
     await expect(page.getByText('SASF-KQLV')).toBeVisible()
     await expect(page.getByText('Дима снова участник пространства')).toBeVisible()
+  })
+
+  test('the member card backs to the members list on a phone', async ({ page }) => {
+    await mockOwnerApi(page)
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(OWNER_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Участники' }).click()
+    await expect(page).toHaveURL(/\/members$/)
+    await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
+    // The card's top bar is the area's title, the h1 the member's own.
+    await expect(page.getByText('Участник', { exact: true })).toBeVisible()
+    // The back arrow leads to the members list (issue #76).
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/members$/)
   })
 })

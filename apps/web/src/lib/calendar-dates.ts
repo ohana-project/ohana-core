@@ -159,6 +159,14 @@ export function formatDayLong(date: DateOnly, locale: Locale): string {
   )
 }
 
+/** «сб, 3 октября» — the day with its short weekday, the agenda's
+ *  month-group rows lead with it (docs/design/screens/calendar.html). */
+export function formatDayShort(date: DateOnly, locale: Locale): string {
+  return utcFormatter(locale, { weekday: 'short', day: 'numeric', month: 'long' }).format(
+    new Date(Date.UTC(date.year, date.month - 1, date.day)),
+  )
+}
+
 /** «31 января 2027 г.» — the day's label with its year: the year is part
  *  of a series' end date, where «до 31 января» alone could be any of them
  *  (issue #21). Anchored at the UTC midnight like the zoneless labels, so
@@ -182,11 +190,17 @@ export function formatDayFull(date: DateOnly, locale: Locale): string {
 /** «Октябрь 2026» — the month heading: the standalone month name and the
  *  year, the capital the prototype's heading carries. */
 export function formatMonthTitle(year: number, month: number, locale: Locale): string {
+  return `${formatMonthName(year, month, locale)} ${year}`
+}
+
+/** «Октябрь» — the month's name alone, the agenda's group label
+ *  (docs/design/screens/calendar.html): the year the heading carries is
+ *  absent here, like the prototype's own agenda label. */
+export function formatMonthName(year: number, month: number, locale: Locale): string {
   const name = utcFormatter(locale, { month: 'long' }).format(
     new Date(Date.UTC(year, month - 1, 1)),
   )
-  const capitalised = name.charAt(0).toLocaleUpperCase(locale) + name.slice(1)
-  return `${capitalised} ${year}`
+  return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1)
 }
 
 /** «Пн» … «Вс» — the grid's day-of-week headers, Monday first. */

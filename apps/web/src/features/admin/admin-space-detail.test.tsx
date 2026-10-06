@@ -507,10 +507,11 @@ describe('AdminSpaceDetail — the archive (issue #23)', () => {
     renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
 
     expect(await screen.findByText('Пётр')).toBeInTheDocument()
-    const archiveSection = screen.getByText('Архив').closest('section')
+    const archiveSection = screen.getByRole('heading', { name: 'Архив' }).closest('section')
     if (archiveSection === null) throw new Error('No archive section rendered')
     expect(within(archiveSection).getByText('Пётр')).toBeInTheDocument()
-    expect(within(archiveSection).getByText('В архиве')).toBeInTheDocument()
+    // The pill reads «Архив», like the members screen's (issue #76).
+    expect(within(archiveSection).getAllByText('Архив').length).toBeGreaterThan(0)
     expect(within(archiveSection).getByText('в архиве с 3 сентября')).toBeInTheDocument()
     // The archived row carries the restore action, not the role controls.
     expect(

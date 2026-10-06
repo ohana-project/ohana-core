@@ -6,14 +6,16 @@ import {
   type DateOnly,
   formatDateOnly,
   formatDayLong,
+  formatDayShort,
+  formatMonthName,
   formatMonthTitle,
   type MonthDay,
   monthGrid,
   nextMonth,
+  parseDateOnly,
   previousMonth,
   shiftDateKey,
   todayDateOnly,
-  weekdayHeaders,
   zoneLabel,
 } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
@@ -21,8 +23,10 @@ import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Fab } from '@/ui/fab.tsx'
 import { Icon } from '@/ui/icon.tsx'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
+import { type AgendaGroup, agendaGroups } from './agenda-groups.ts'
 import {
   type CalendarOccurrence,
   calendarOccurrences,
@@ -33,16 +37,21 @@ import {
 } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
 import { EventTimeLine } from './event-time.tsx'
+import { MonthGrid } from './month-grid.tsx'
 import { useCalendarData } from './use-calendar.ts'
 
 /*
- * The calendar (docs/design/screens/calendar.html): the month grid with a
- * dot per busy day beside the agenda of what is coming. Both read the
- * member's synchronised partition (issue #20), so the screen answers the
- * same online and offline (ADR-0002); a repeating event (issue #21) joins
- * its occurrences for the window the screen draws, the expansion the
- * device runs itself. A tap on a day opens the sheet with that day's
- * events, the prototype's move.
+ * The calendar (docs/design/screens/calendar.html, issue #73): the month
+ * card of square cells with a dot per busy day beside the agenda of what
+ * is coming. Both read the member's synchronised partition (issue #20),
+ * so the screen answers the same online and offline (ADR-0002); a
+ * repeating event (issue #21) joins its occurrences for the window the
+ * screen draws, the expansion the device runs itself. A tap on a day
+ * with events opens the sheet with that day's list, the prototype's
+ * move. The prototype's split — the 1.6fr / 1fr grid with the sticky
+ * agenda from 920px — carries the month navigation and the new-event
+ * button only on desktop; on a phone the FAB carries the action and the
+ * month is the one the device sits in.
  */
 export function CalendarScreen() {
   const { t, i18n } = useTranslation()
@@ -84,158 +93,126 @@ export function CalendarScreen() {
         </Button>
       }
     >
-      <div className="flex flex-col gap-5 pt-6 pb-24 lg:flex-row lg:items-start lg:gap-8">
-        <section aria-label={t('calendar.monthView')} className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-            <h1 className="text-[22px] leading-tight font-semibold">
-              {formatMonthTitle(view.year, view.month, locale)}
-            </h1>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setView({ year: today.year, month: today.month })}
-              >
-                {t('calendar.today')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t('calendar.previousMonth')}
-                onClick={() => setView((current) => previousMonth(current.year, current.month))}
-              >
-                <Icon name="chevron-left" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t('calendar.nextMonth')}
-                onClick={() => setView((current) => nextMonth(current.year, current.month))}
-              >
-                <Icon name="chevron-right" />
-              </Button>
-            </div>
+      {/* The prototype's `.cal-head` spans the whole content width — the
+          navigation reaches the split's right edge — with the desktop-only
+          controls at its tail (a phone shows the month it sits in). */}
+      <div className="pt-5">
+        <div className="mb-3.5 flex items-center gap-1.5">
+          <h1 className="mr-auto font-display text-[22px] leading-[1.2] font-semibold tracking-[-0.015em]">
+            {formatMonthTitle(view.year, view.month, locale)}
+          </h1>
+          <div className="hidden items-center gap-1 desktop:flex">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setView({ year: today.year, month: today.month })}
+            >
+              {t('calendar.today')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('calendar.previousMonth')}
+              onClick={() => setView((current) => previousMonth(current.year, current.month))}
+            >
+              <Icon name="chevron-left" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('calendar.nextMonth')}
+              onClick={() => setView((current) => nextMonth(current.year, current.month))}
+            >
+              <Icon name="chevron-right" />
+            </Button>
           </div>
+        </div>
 
-          {snapshot.isPending ? (
-            <div className="grid place-items-center py-10">
-              <Spinner className="size-6" />
-            </div>
-          ) : !downloaded ? (
-            // A device with nothing downloaded says so for the whole
-            // section: drawing a month of dots from a fraction of the
-            // calendar would be a claim the device cannot make (ADR-0014).
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="cloud-off" />
-                </EmptyMedia>
-                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-                <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-              </Empty>
-            </Card>
-          ) : (
-            <Card className="py-4">
-              <div className="grid grid-cols-7 gap-y-1 px-2 pb-1 text-center font-mono text-meta tracking-wide text-muted-foreground uppercase">
-                {weekdayHeaders(locale).map((day) => (
-                  <span key={day}>{day}</span>
-                ))}
+        {/* The prototype's `.cal-split`: a 28px column below 920px, the
+            1.6fr / 1fr grid with a 36px gap and the sticky agenda above. */}
+        <div className="flex flex-col gap-7 desktop:grid desktop:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] desktop:items-start desktop:gap-9">
+          <section aria-label={t('calendar.monthView')} className="min-w-0">
+            {snapshot.isPending ? (
+              <div className="grid place-items-center py-10">
+                <Spinner className="size-6" />
               </div>
-              <div className="grid grid-cols-7 gap-y-1 px-2">
-                {grid.map(({ date, inMonth }) => {
-                  const key = formatDateOnly(date)
-                  const dayEvents = byDate.get(key) ?? []
-                  const isToday =
-                    date.year === today.year && date.month === today.month && date.day === today.day
+            ) : !downloaded ? (
+              // A device with nothing downloaded says so for the whole
+              // section: drawing a month of dots from a fraction of the
+              // calendar would be a claim the device cannot make (ADR-0014).
+              <Card>
+                <Empty>
+                  <EmptyMedia>
+                    <Icon name="cloud-off" />
+                  </EmptyMedia>
+                  <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+                  <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+                </Empty>
+              </Card>
+            ) : (
+              <>
+                {/* The prototype's `.cal-card`: 16px all around. */}
+                <Card size="sm" variant="padded">
+                  <MonthGrid
+                    grid={grid}
+                    byDate={byDate}
+                    today={today}
+                    locale={locale}
+                    onOpenDay={setOpenDay}
+                  />
+                </Card>
+                <p className="mt-3 px-1 text-meta text-muted-foreground">
+                  {t('calendar.spaceZone', { zone: zoneLabel(space?.timezone ?? 'UTC') })}
+                </p>
+              </>
+            )}
+          </section>
+
+          <aside
+            aria-label={t('calendar.agenda')}
+            className="min-w-0 desktop:sticky desktop:top-[calc(var(--topbar-h)+24px)]"
+          >
+            {snapshot.isPending || !downloaded ? null : (
+              <div className="flex flex-col">
+                {agendaGroups(upcoming, today).map((group) => {
+                  const key =
+                    group.kind === 'month'
+                      ? `${group.date.year}-${group.date.month}`
+                      : formatDateOnly(group.date)
                   return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setOpenDay(date)}
-                      aria-label={t('calendar.dayWithEvents', {
-                        count: dayEvents.length,
-                        day: formatDayLong(date, locale),
-                      })}
-                      className={[
-                        'flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-md py-1 transition-colors',
-                        inMonth ? 'text-foreground' : 'text-muted-foreground/60',
-                        // The today tint is the soft accent (primary-soft):
-                        // `accent-soft` is not a Tailwind colour at all, so
-                        // the class used to compile to nothing (issue #57).
-                        isToday ? 'bg-primary-soft font-semibold' : 'hover:bg-accent',
-                      ].join(' ')}
-                    >
-                      <span className="text-body">{date.day}</span>
-                      <span className="flex h-1.5 items-center gap-0.5" aria-hidden="true">
-                        {dayEvents.slice(0, 3).map((event) => (
-                          <i
-                            key={event.id}
-                            className={[
-                              'size-1.5 rounded-full',
-                              event.allDay ? 'bg-primary' : 'bg-foreground/45',
-                            ].join(' ')}
-                          />
-                        ))}
-                      </span>
-                    </button>
+                    <section key={key} className="mt-[22px] first:mt-0">
+                      <p className="mb-2.5 flex items-center gap-3 font-mono text-[12px] tracking-[0.08em] text-muted-foreground uppercase">
+                        {agendaLabelText(group, t, locale)}
+                        <span aria-hidden="true" className="flex-1 border-t border-border" />
+                      </p>
+                      <Card variant="list">
+                        <ItemGroup>
+                          {group.events.length === 0 ? (
+                            // The prototype's muted row for an empty «Сегодня».
+                            <Item>
+                              <ItemContent>
+                                <ItemDescription>{t('calendar.agendaNoEvents')}</ItemDescription>
+                              </ItemContent>
+                            </Item>
+                          ) : (
+                            group.events.map((event) => (
+                              <EventRow
+                                key={event.id}
+                                event={event}
+                                locale={locale}
+                                withDate={group.kind === 'month'}
+                              />
+                            ))
+                          )}
+                        </ItemGroup>
+                      </Card>
+                    </section>
                   )
                 })}
               </div>
-              <p className="px-5 pt-3 font-mono text-meta tracking-wide text-muted-foreground">
-                {t('calendar.spaceZone', { zone: zoneLabel(space?.timezone ?? 'UTC') })}
-              </p>
-            </Card>
-          )}
-        </section>
-
-        <aside aria-label={t('calendar.agenda')} className="w-full lg:w-[380px] lg:shrink-0">
-          {snapshot.isPending || !downloaded ? null : upcoming.length === 0 ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="calendar" />
-                </EmptyMedia>
-                <EmptyTitle>{t('calendar.emptyTitle')}</EmptyTitle>
-                <EmptyDescription>{t('calendar.emptyText')}</EmptyDescription>
-              </Empty>
-            </Card>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {agendaGroups(upcoming).map(([key, groupEvents]) => (
-                <div key={key} className="flex flex-col gap-2">
-                  <p className="px-1 font-mono text-meta tracking-wide text-muted-foreground uppercase">
-                    {t(agendaLabelKey(key, today), { day: formatDayLong(parseKey(key), locale) })}
-                  </p>
-                  <Card className="py-0">
-                    <ul className="divide-y divide-border">
-                      {groupEvents.map((event) => (
-                        <li key={event.id}>
-                          <Link
-                            to="/calendar/$eventId"
-                            {...occurrenceLink(event)}
-                            className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-accent"
-                          >
-                            <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
-                              <Icon name={event.allDay ? 'sun' : 'clock'} className="size-5" />
-                            </span>
-                            <span className="flex min-w-0 flex-1 flex-col">
-                              <span className="truncate text-sm font-semibold">{event.title}</span>
-                              <EventTimeLine
-                                event={event}
-                                className="truncate text-sm text-muted-foreground"
-                              />
-                            </span>
-                            <Icon name="chevron-right" className="text-muted-foreground" />
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </Card>
-                </div>
-              ))}
-            </div>
-          )}
-        </aside>
+            )}
+          </aside>
+        </div>
       </div>
 
       <Fab
@@ -248,6 +225,7 @@ export function CalendarScreen() {
         <DaySheet
           day={openDay}
           dayEvents={byDate.get(formatDateOnly(openDay)) ?? []}
+          today={today}
           locale={locale}
           onClose={() => setOpenDay(undefined)}
         />
@@ -256,34 +234,67 @@ export function CalendarScreen() {
   )
 }
 
-/** The agenda's groups in order, keyed by the device-local day. */
-function agendaGroups(upcoming: CalendarOccurrence[]): Array<[string, CalendarOccurrence[]]> {
-  const groups = new Map<string, CalendarOccurrence[]>()
-  for (const event of upcoming) {
-    const key = eventDateKey(event)
-    if (key === undefined) continue
-    const group = groups.get(key)
-    if (group === undefined) groups.set(key, [event])
-    else group.push(event)
-  }
-  return [...groups]
+/** The group's heading: «Сегодня · 28 сентября», «Завтра · 29 сентября»,
+ *  or the month's name alone, the prototype's labels. */
+function agendaLabelText(
+  group: AgendaGroup,
+  t: (key: 'calendar.agendaToday' | 'calendar.agendaTomorrow', values: { day: string }) => string,
+  locale: Locale,
+): string {
+  const day = formatDayLong(group.date, locale)
+  if (group.kind === 'today') return t('calendar.agendaToday', { day })
+  if (group.kind === 'tomorrow') return t('calendar.agendaTomorrow', { day })
+  return formatMonthName(group.date.year, group.date.month, locale)
 }
 
-/** The group's heading: today, tomorrow, or the day itself. */
-function agendaLabelKey(
-  key: string,
-  today: DateOnly,
-): 'calendar.today' | 'calendar.tomorrow' | 'calendar.dayTitle' {
-  const tomorrow = new Date(today.year, today.month - 1, today.day + 1)
-  const tomorrowKey = formatDateOnly({
-    year: tomorrow.getFullYear(),
-    month: tomorrow.getMonth() + 1,
-    day: tomorrow.getDate(),
-  })
-  const todayKey = formatDateOnly(today)
-  if (key === todayKey) return 'calendar.today'
-  if (key === tomorrowKey) return 'calendar.tomorrow'
-  return 'calendar.dayTitle'
+/** One event row, the list row the agenda and the day sheet share: the
+ *  38px leading tile — warn for the all-day kind, surface-2 otherwise —,
+ *  the title, the time line, the trailing chevron; 64px, the prototype's
+ *  `.list-row` at its event height. A month group's row leads with its
+ *  day («сб, 3 октября · …»), the prototype's dated subtitles; today's
+ *  and tomorrow's rows carry no date — the group label names it — and
+ *  the day sheet names it in its title. */
+function EventRow({
+  event,
+  locale,
+  dimmed = false,
+  withDate = false,
+  onClick,
+}: {
+  event: CalendarOccurrence
+  locale: Locale
+  dimmed?: boolean
+  withDate?: boolean
+  onClick?: () => void
+}) {
+  const { t } = useTranslation()
+  const day = withDate ? orDate(event) : undefined
+  return (
+    <Item
+      size="lg"
+      render={<Link to="/calendar/$eventId" {...occurrenceLink(event)} onClick={onClick} />}
+      className={dimmed ? 'opacity-[0.62]' : undefined}
+    >
+      <ItemMedia variant="icon" tone={event.allDay ? 'warn' : 'neutral'}>
+        <Icon name={event.allDay ? 'sun' : event.seriesId !== undefined ? 'repeat' : 'clock'} />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>{event.title}</ItemTitle>
+        <ItemDescription>
+          {day !== undefined && `${formatDayShort(day, locale)} · `}
+          {event.allDay ? t('calendar.allDayShort') : <EventTimeLine event={event} />}
+        </ItemDescription>
+      </ItemContent>
+      <Icon name="chevron-right" className="text-muted-foreground" />
+    </Item>
+  )
+}
+
+/** The event's device-local day, parsed for a label; undefined when the
+ *  row names no day (the agenda's buckets always do). */
+function orDate(event: CalendarOccurrence): DateOnly | undefined {
+  const key = eventDateKey(event)
+  return key === undefined ? undefined : parseDateOnly(key)
 }
 
 /** The drawn weeks' bounds, the wall-date window the occurrences expand
@@ -296,26 +307,22 @@ function gridWindow(grid: MonthDay[]): { from: string; to: string } {
   return { from: formatDateOnly(first), to: formatDateOnly(last) }
 }
 
-function parseKey(key: string): DateOnly {
-  return {
-    year: Number(key.slice(0, 4)),
-    month: Number(key.slice(5, 7)),
-    day: Number(key.slice(8, 10)),
-  }
-}
-
 function DaySheet({
   day,
   dayEvents,
+  today,
   locale,
   onClose,
 }: {
   day: DateOnly
   dayEvents: CalendarOccurrence[]
+  today: DateOnly
   locale: Locale
   onClose: () => void
 }) {
   const { t } = useTranslation()
+  // A past day's rows dim, the prototype's `opacity: .62`.
+  const past = formatDateOnly(day) < formatDateOnly(today)
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent>
@@ -325,30 +332,29 @@ function DaySheet({
         </SheetHeader>
         {/* the sheet scrolls as a whole (issue #59), so the list needs
             no scroll area of its own */}
-        <div className="flex flex-col gap-1">
-          {dayEvents.length === 0 ? (
-            <p className="px-1 py-2 text-sm text-muted-foreground">{t('calendar.dayEmpty')}</p>
-          ) : (
-            dayEvents.map((event) => (
-              <Link
-                key={event.id}
-                to="/calendar/$eventId"
-                {...occurrenceLink(event)}
-                className="flex min-h-16 items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
-                onClick={onClose}
-              >
-                <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-surface-2 text-muted-foreground">
-                  <Icon name={event.allDay ? 'sun' : 'clock'} className="size-5" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-semibold">{event.title}</span>
-                  <EventTimeLine event={event} className="truncate text-sm text-muted-foreground" />
-                </span>
-                <Icon name="chevron-right" className="text-muted-foreground" />
-              </Link>
-            ))
-          )}
-        </div>
+        <Card variant="list">
+          <ItemGroup>
+            {dayEvents.length === 0 ? (
+              // The sheet only opens for a day with events; a sync that
+              // empties it while open still says so.
+              <Item>
+                <ItemContent>
+                  <ItemDescription>{t('calendar.dayEmpty')}</ItemDescription>
+                </ItemContent>
+              </Item>
+            ) : (
+              dayEvents.map((event) => (
+                <EventRow
+                  key={event.id}
+                  event={event}
+                  locale={locale}
+                  dimmed={past}
+                  onClick={onClose}
+                />
+              ))
+            )}
+          </ItemGroup>
+        </Card>
       </SheetContent>
     </Sheet>
   )

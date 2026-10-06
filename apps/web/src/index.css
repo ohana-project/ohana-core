@@ -57,6 +57,8 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-primary-soft: var(--accent-soft);
+  --color-primary-faint: var(--accent-faint);
+  --color-muted-faint: var(--muted-faint);
   --color-accent-strong: var(--accent-strong);
   --color-scrim: var(--scrim);
 
