@@ -132,6 +132,17 @@ function seedRegistry() {
   window.localStorage.setItem('ohana.activeMember', ME)
 }
 
+/**
+ * The editor's save button: the form mounts two carriers — the mobile
+ * action bar's and the desktop top bar's — and clicking either runs the
+ * save. (jsdom renders both; the width picks one on a real screen.)
+ */
+function saveButton() {
+  const button = screen.getAllByRole('button', { name: 'Сохранить' }).at(0)
+  if (button === undefined) throw new Error('the editor has no save button')
+  return button
+}
+
 function mockQuietSync() {
   apiGet.mockImplementation(async (path: never) => {
     if (path === '/api/v1/me') {
@@ -410,7 +421,7 @@ describe('EventEditorScreen (a new event)', () => {
     renderWithProviders(<EventEditorScreen />)
 
     await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [path, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -439,13 +450,13 @@ describe('EventEditorScreen (a new event)', () => {
 
     await user.type(await screen.findByLabelText('Название'), 'Вечеринка')
     await user.clear(screen.getByLabelText('Начало'))
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
     expect(screen.getByText('Укажите время начала и конца')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
 
     await user.type(screen.getByLabelText('Начало'), '18:00')
     await user.clear(screen.getByLabelText('Дата'))
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
     expect(screen.getByText('Выберите дату')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
   })
@@ -468,7 +479,7 @@ describe('EventEditorScreen (a new event)', () => {
 
     await user.type(await screen.findByLabelText('Название'), 'Созвон со школой')
     await user.selectOptions(screen.getByLabelText('Часовой пояс'), 'Asia/Novosibirsk')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -496,7 +507,7 @@ describe('EventEditorScreen (a new event)', () => {
 
     await user.type(await screen.findByLabelText('Название'), 'День рождения Люды')
     await user.click(screen.getByRole('switch', { name: 'Весь день' }))
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -519,7 +530,7 @@ describe('EventEditorScreen (a new event)', () => {
     await user.type(await screen.findByLabelText('Название'), 'Вечеринка')
     await user.clear(screen.getByLabelText('Конец'))
     await user.type(screen.getByLabelText('Конец'), '17:00')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     expect(screen.getByText('Конец должен быть позже начала')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
@@ -545,7 +556,7 @@ describe('EventEditorScreen (an edit)', () => {
     // event into the space's.
     await user.clear(await screen.findByLabelText('Название'))
     await user.type(screen.getByLabelText('Название'), 'Миша — зубной врач, кабинет 4')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [, options] = apiPut.mock.calls.at(-1) as unknown as [
@@ -578,7 +589,7 @@ describe('EventEditorScreen (an edit)', () => {
     // never touched. The event has no zone of its own, so the PUT sends
     // none — the API composes against the space's zone as it stands.
     await user.click(await screen.findByRole('switch', { name: 'Весь день' }))
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [, options] = apiPut.mock.calls.at(-1) as unknown as [
@@ -694,7 +705,7 @@ describe('EventEditorScreen (the prototype’s editor, issue #75)', () => {
 
     await user.selectOptions(lead, '60')
     await user.type(screen.getByLabelText('Название'), 'Ужин у бабушки')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -732,7 +743,7 @@ describe('EventEditorScreen (the prototype’s editor, issue #75)', () => {
     expect(screen.getByRole('button', { name: 'Дима' })).toHaveAttribute('aria-pressed', 'true')
 
     await user.selectOptions(lead, 'none')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [, options] = apiPut.mock.calls.at(-1) as unknown as [
@@ -770,7 +781,7 @@ describe('EventEditorScreen (the prototype’s editor, issue #75)', () => {
 
     await user.selectOptions(screen.getByLabelText('За сколько напомнить'), '120')
     await user.type(screen.getByLabelText('Название'), 'Ужин у бабушки')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -794,7 +805,7 @@ describe('EventEditorScreen (the prototype’s editor, issue #75)', () => {
     await user.click(dima)
     await user.click(dima)
     await user.type(screen.getByLabelText('Название'), 'Ужин у бабушки')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     expect(screen.getByText('Выберите хотя бы одного получателя')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
@@ -922,7 +933,7 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
     await user.selectOptions(screen.getByLabelText('Как повторять'), 'weekly')
     await user.type(screen.getByLabelText('Дата окончания'), '2027-01-31')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -942,7 +953,7 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
     await user.selectOptions(screen.getByLabelText('Как повторять'), 'monthly')
     await user.type(screen.getByLabelText('Дата окончания'), '2020-01-01')
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     expect(
       screen.getByText('Дата окончания не может быть раньше первого события'),
@@ -980,7 +991,7 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     // not here, the zone field still is.
     expect(screen.queryByLabelText('Как повторять')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Часовой пояс')).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await user.click(saveButton())
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [path, options] = apiPut.mock.calls.at(-1) as unknown as [
