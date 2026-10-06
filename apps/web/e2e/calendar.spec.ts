@@ -436,8 +436,9 @@ test.describe('the event editor on a phone', () => {
     await page.getByRole('button', { name: 'Войти' }).click()
     await page.getByRole('button', { name: 'Календарь' }).first().click()
 
-    // A phone reaches the editor through the FAB.
-    await page.getByRole('button', { name: 'Событие' }).click()
+    // A phone reaches the editor through the FAB (exact: the calendar's
+    // day cells carry «… 1 событие» in their names).
+    await page.getByRole('button', { name: 'Событие', exact: true }).click()
     await expect(page).toHaveURL(/\/calendar\/new$/)
 
     const bar = page.locator('[data-slot="action-bar"]')
