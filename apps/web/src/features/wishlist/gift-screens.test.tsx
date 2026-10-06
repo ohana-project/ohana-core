@@ -299,6 +299,8 @@ describe('the favorites screen (issue #19)', () => {
             id: '01900000-0000-7000-8000-000000000302',
             authorId: LYUDA,
             title: 'Шёлковый платок',
+            // Without a hint the sub line stops at the wishlist's name.
+            details: undefined,
           }),
         ],
         [
@@ -324,7 +326,11 @@ describe('the favorites screen (issue #19)', () => {
 
     expect(await screen.findByText('Налобный фонарь Petzl Actik Core')).toBeInTheDocument()
     expect(screen.getByText('Шёлковый платок')).toBeInTheDocument()
-    expect(screen.getByText('Из вишлиста: Дима')).toBeInTheDocument()
+    // The sub line carries the wishlist the idea came from and the wish's
+    // own hint after the separator, like the prototype's metadata line.
+    expect(
+      screen.getByText('Из вишлиста: Дима · чтобы ходить в горы в темноте'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Из вишлиста: Люда')).toBeInTheDocument()
     expect(screen.getByText('2 идеи · видно только вам')).toBeInTheDocument()
 

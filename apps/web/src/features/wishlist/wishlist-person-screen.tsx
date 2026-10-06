@@ -77,6 +77,10 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
   const name = authorName(memberId, profiles, t('wishlist.authorUnknown'))
   const open = openWishesOf(wishes, memberId)
   const updated = wishlistUpdatedAt(open)
+  // The viewers the footer names: the space's active members — an archived
+  // member's profile still travels for attribution, but they cannot sign
+  // in, and the line must not claim they see the list (issue #23).
+  const activeProfiles = profiles.filter((candidate) => candidate.archivedAt === undefined)
 
   const toggleFavorite = (wishId: string, on: boolean) => {
     const mutate = on ? unfavoriteWish : favoriteWish
@@ -163,7 +167,9 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
               <AvatarFallback>{monogramOf(name)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-display-lg">{name}</h1>
+              {/* break-words, not truncate: a name of the contract's 200
+                  characters wraps — nothing of it is hidden. */}
+              <h1 className="break-words text-display-lg">{name}</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {updated === undefined
                   ? t('wishlist.openCount', { count: open.length })
@@ -220,11 +226,13 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
           )}
 
           {/* The prototype's footer meta line, with the real membership in
-              place of the demo world's names (`.meta`, uppercase). */}
+              place of the demo world's names (`.meta`, uppercase). The
+              archived members cannot sign in, so the line names the active
+              ones only. */}
           <p className="mx-1 mt-4.5 font-mono text-meta uppercase text-muted-foreground">
             {t('wishlist.personViewers', {
-              count: profiles.length,
-              names: viewersLine(profiles, t('wishlist.authorUnknown'), i18n.language),
+              count: activeProfiles.length,
+              names: viewersLine(activeProfiles, t('wishlist.authorUnknown'), i18n.language),
             })}
           </p>
         </div>
@@ -311,8 +319,9 @@ function personMoment(iso: string, locale: string): string {
     .toLocaleLowerCase(locale)
 }
 
-/** The footer's viewers line, "Аня, Дима и Миша": the space's members as
- *  the locale's conjunction list, uppercased by the line's own styling. */
+/** The footer's viewers line, "Аня, Дима и Миша": the given (active)
+ *  members as the locale's conjunction list, uppercased by the line's own
+ *  styling. */
 function viewersLine(profiles: StoredMemberProfile[], fallback: string, locale: string): string {
   return new Intl.ListFormat(locale, { type: 'conjunction' }).format(
     profiles.map((candidate) => authorName(candidate.id, profiles, fallback)),

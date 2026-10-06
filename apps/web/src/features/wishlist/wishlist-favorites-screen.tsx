@@ -146,8 +146,12 @@ function FavoriteRow({
             {/* break-words: a title of the contract's 200 characters must
                 wrap instead of overflowing. */}
             <span className="text-body font-medium break-words">{wish.title}</span>
+            {/* The prototype's sub line: the wishlist the idea came from,
+                then the wish's own hint after the separator (the price is
+                another ticket's). */}
             <span className="mt-px text-sm break-words text-muted-foreground">
               {t('wishlist.favoritesFrom', { name: author })}
+              {wish.details !== undefined && <> · {wish.details}</>}
             </span>
           </Link>
         </div>

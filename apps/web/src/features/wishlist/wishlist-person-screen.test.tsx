@@ -55,7 +55,10 @@ function wish(overrides?: Partial<StoredWish>): StoredWish {
   }
 }
 
-function syncResult(wishes: StoredWish[]): SyncResult {
+function syncResult(
+  wishes: StoredWish[],
+  extras: Array<SyncResult['changes'][number]> = [],
+): SyncResult {
   return {
     revision: '7',
     changes: [
@@ -69,6 +72,7 @@ function syncResult(wishes: StoredWish[]): SyncResult {
         },
       },
       ...PROFILES.map((member) => ({ entity: 'member' as const, member })),
+      ...extras,
       ...wishes.map((row) => ({ entity: 'wishlist_wish' as const, wish: row })),
     ],
     tombstones: [],
@@ -168,6 +172,50 @@ describe('WishlistPersonScreen (one member wishlist)', () => {
     expect(note).not.toBeNull()
     expect(note).toHaveTextContent('Дима не видит брони и вашего избранного')
     expect(screen.getByText('Список видят Аня Смирнова и Дима')).toBeInTheDocument()
+  })
+
+  it('never names an archived member in the viewers line', async () => {
+    seedRegistry()
+    await applySyncResult(
+      ME,
+      syncResult(
+        [wish()],
+        [
+          {
+            entity: 'member',
+            // Архивный Миша's profile still travels for attribution, but he
+            // cannot sign in — the footer must not claim he sees the list.
+            member: {
+              id: '01900000-0000-7000-8000-000000000004',
+              name: 'Миша',
+              role: 'regular',
+              archivedAt: '2026-09-01T10:00:00.000Z',
+              createdAt: '2026-08-16T10:00:00.000Z',
+            },
+          },
+        ],
+      ),
+    )
+    mockQuietSync()
+    renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
+
+    expect(await screen.findByText('Налобный фонарь Petzl Actik Core')).toBeInTheDocument()
+    expect(screen.getByText('Список видят Аня Смирнова и Дима')).toBeInTheDocument()
+  })
+
+  it('wraps a long member name instead of truncating it', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    mockQuietSync()
+    renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
+
+    // The name is the contract's own 200 characters: the heading wraps it
+    // (break-words) instead of hiding its end. The classes pin the
+    // wrapping — a truncating heading keeps the text in the DOM and would
+    // pass a text-only assertion green.
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Дима' })
+    expect(heading).toHaveClass('break-words')
+    expect(heading).not.toHaveClass('truncate')
   })
 
   it('leaves received wishes out of the open list', async () => {
