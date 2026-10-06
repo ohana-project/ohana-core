@@ -48,9 +48,11 @@ function Card({
         variant === 'padded' && 'p-(--card-spacing)',
         // A list card's rows sit flush with the corners, so a row's own
         // :focus-visible ring — drawn outside the element — is clipped by
-        // the card's overflow. The card carries the ring instead (issue
-        // #76); the row keeps it where its box has room around it.
-        variant === 'list' && 'has-focus-visible:outline-2 has-focus-visible:outline-ring',
+        // the card's overflow. The card carries the ring instead, at the
+        // global rule's 2px offset (issue #76); the row keeps it where its
+        // box has room around it.
+        variant === 'list' &&
+          'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring',
         hoverable && cardHoverableClass,
         className,
       )}

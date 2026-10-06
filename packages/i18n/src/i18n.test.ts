@@ -44,7 +44,10 @@ describe('createI18n', () => {
     const en = createI18n({ locale: 'en' })
     expect(en.t('space.members.activeCount', { active: 1 })).toBe('1 active')
     expect(en.t('space.members.activeCount', { active: 4 })).toBe('4 active')
+    expect(en.t('space.members.activeCount', { active: 21 })).toBe('21 active')
+    expect(en.t('space.members.activeCount', { active: 101 })).toBe('101 active')
     expect(en.t('space.members.archivedCount', { count: 4 })).toBe('4 archived')
+    expect(en.t('space.members.archivedCount', { count: 101 })).toBe('101 archived')
   })
 
   it('builds the sidebar’s space line with the count and the owner note (issue #62)', () => {
