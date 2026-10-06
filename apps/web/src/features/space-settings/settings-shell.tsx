@@ -20,11 +20,14 @@ export function SettingsShell({
   title,
   backTo = '/',
   width = 'narrow',
+  desktopActions,
   children,
 }: {
   title: string
   backTo?: '/' | '/members'
   width?: 'default' | 'narrow'
+  /** The screen's desktop-only top-bar actions, like the prototype's `d-only`. */
+  desktopActions?: ReactNode
   children: ReactNode
 }) {
   const shell = useMemberShell()
@@ -45,6 +48,7 @@ export function SettingsShell({
       title={title}
       width={width}
       userMenuItems={shell.userMenuItems}
+      desktopActions={desktopActions}
       back={<ShellBackLink to={backTo} />}
       onSectionClick={shell.onSectionClick}
     >
