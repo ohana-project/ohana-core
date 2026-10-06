@@ -273,7 +273,12 @@ function OwnerSections({
               <Icon name="shield" />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>{t('space.card.roleLabel')}</ItemTitle>
+              {/* The title wraps beside the select, like the prototype's
+                  `.title` — the row is the one place a long title and a
+                  wide trailing control share a 390px row. */}
+              <ItemTitle className="whitespace-normal">
+                {t('space.card.roleLabel')}
+              </ItemTitle>
               <ItemDescription>{t('space.card.roleHint')}</ItemDescription>
             </ItemContent>
             <ItemActions>

@@ -69,7 +69,10 @@ export function MembersScreen() {
                     {' · '}
                     {t('space.members.activeCount', { active: active.length })}
                     {archived.length > 0 ? (
-                      <>{', '}{t('space.members.archivedCount', { count: archived.length })}</>
+                      <>
+                        {', '}
+                        {t('space.members.archivedCount', { count: archived.length })}
+                      </>
                     ) : null}
                   </>
                 ) : null}
@@ -134,7 +137,9 @@ export function MembersScreen() {
                               </span>
                             ) : null}
                           </ItemTitle>
-                          {contacts.length > 0 ? <ItemDescription>{contacts}</ItemDescription> : null}
+                          {contacts.length > 0 ? (
+                            <ItemDescription>{contacts}</ItemDescription>
+                          ) : null}
                         </ItemContent>
                         <ItemActions>
                           {/* The pill marks the owner's row only; a regular

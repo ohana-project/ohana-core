@@ -185,9 +185,7 @@ describe('MembersScreen — design parity (issue #76)', () => {
     })
     renderWithProviders(<MembersScreen />)
 
-    expect(
-      await screen.findByText('«Наша семья» · 2 активных, 1 в архиве'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('«Наша семья» · 2 активных, 1 в архиве')).toBeInTheDocument()
     // The archived row says the member is archived and the entries are kept.
     expect(screen.getByText('в архиве с 3 сентября · записи сохранены')).toBeInTheDocument()
   })
@@ -255,14 +253,14 @@ describe('MembersScreen — the archive (issue #23)', () => {
     // The archived member does not sit in the active list: their pill is
     // the archive one, and their row sits under the archive heading.
     expect(await screen.findByRole('heading', { name: 'Участники' })).toBeInTheDocument()
-    const archiveSection = screen
-      .getByRole('heading', { name: 'Архив' })
-      .closest('section')
+    const archiveSection = screen.getByRole('heading', { name: 'Архив' }).closest('section')
     if (archiveSection === null) throw new Error('No archive section rendered')
     expect(archiveSection).toBeInTheDocument()
     expect(within(archiveSection).getByText('Пётр')).toBeInTheDocument()
     expect(within(archiveSection).getAllByText('Архив').length).toBeGreaterThan(0)
-    expect(within(archiveSection).getByText('в архиве с 3 сентября · записи сохранены')).toBeInTheDocument()
+    expect(
+      within(archiveSection).getByText('в архиве с 3 сентября · записи сохранены'),
+    ).toBeInTheDocument()
     expect(
       within(archiveSection).getByText(
         'Архивный не входит в пространство: дневник, события и вишлист остаются, но скрываются из списков',
