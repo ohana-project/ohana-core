@@ -29,7 +29,13 @@ import {
   wishlistErrorMessage,
 } from './use-wishlist.ts'
 import { WishRow } from './wish-row.tsx'
-import { authorName, openWishesOf, reservationFor, wishlistUpdatedAt } from './wishlist-entries.ts'
+import {
+  authorName,
+  formatMoment,
+  openWishesOf,
+  reservationFor,
+  wishlistUpdatedAt,
+} from './wishlist-entries.ts'
 import { WishlistShell } from './wishlist-shell.tsx'
 
 /*
@@ -174,7 +180,7 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
                 {updated === undefined
                   ? t('wishlist.openCount', { count: open.length })
                   : `${t('wishlist.openCount', { count: open.length })} · ${t('wishlist.updated', {
-                      moment: personMoment(updated, i18n.language),
+                      moment: formatMoment(updated, i18n.language),
                     })}`}
               </p>
             </div>
@@ -304,19 +310,6 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
       )}
     </WishlistShell>
   )
-}
-
-/** The person screen's meta line, "вчера в 21:04" style kept simple: the
- *  localized moment the list was last touched. */
-function personMoment(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-    .format(new Date(iso))
-    .toLocaleLowerCase(locale)
 }
 
 /** The footer's viewers line, "Аня, Дима и Миша": the given (active)

@@ -1,9 +1,9 @@
+import type { KeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { StoredWish } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
-import { hueFromId, monogramOf } from '@/lib/monogram.ts'
-import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
+import { cn } from '@/lib/cn'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import {
@@ -15,14 +15,13 @@ import {
   DialogTitle,
 } from '@/ui/dialog.tsx'
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
-import { Fab } from '@/ui/fab.tsx'
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
+import { Field, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
+import { NoteBlock } from '@/ui/note-block.tsx'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { Switch } from '@/ui/switch.tsx'
-import { Textarea } from '@/ui/textarea.tsx'
 import { toast } from '@/ui/toast.tsx'
 import {
   useClearWishReceived,
@@ -37,19 +36,24 @@ import {
   wishlistErrorMessage,
 } from './use-wishlist.ts'
 import { WishRow } from './wish-row.tsx'
-import { authorName, wishById, wishesOf } from './wishlist-entries.ts'
+import { formatMoment, wishById, wishesOf, wishlistUpdatedAt } from './wishlist-entries.ts'
 import { WishlistShell } from './wishlist-shell.tsx'
 
 /*
- * The member's own wishlist (docs/design/screens/wishlist-mine.html): every
- * wish they have made, creation order, received ones marked and struck
- * through. The editor is the sheet the prototype draws — one field set for
- * adding and editing, with the received switch and the removal beside it —
- * because an edit replaces the wish's whole triple (issue #18).
+ * The member's own wishlist (docs/design/screens/wishlist-mine.html, issue
+ * #68): the display heading with the muted visibility line, the surprise
+ * note, the wish rows with their edit control, the dashed add tile closing
+ * the list, and the mono footer line. The back arrow rides the top bar
+ * below 920px, and no top-bar action or FAB competes with the tile — the
+ * list's one main action. Every wish they have made, creation order,
+ * received ones marked and struck through. The editor is the sheet the
+ * prototype draws — one field set for adding and editing, with the
+ * received switch and the removal beside it — because an edit replaces the
+ * wish's whole triple (issue #18).
  */
 export function WishlistMineScreen() {
-  const { t } = useTranslation()
-  const { snapshot, wishes, profiles, downloaded } = useWishlistData()
+  const { t, i18n } = useTranslation()
+  const { snapshot, wishes, downloaded } = useWishlistData()
   const meId = getActiveMemberId()
   // The id, not the row: while the sheet is open a sync may re-deliver the
   // wish, and the editor must edit the wish as it is now, not a snapshot
@@ -66,44 +70,50 @@ export function WishlistMineScreen() {
   }, [editingId, editing])
 
   const mine = meId === undefined ? [] : wishesOf(wishes, meId)
-  const author = meId === undefined ? undefined : authorName(meId, profiles, t('wishlist.me'))
-
-  const addWish = (
-    <Button size="sm" onClick={() => setEditingId('new')}>
-      <Icon name="plus" />
-      {t('wishlist.addWish')}
-    </Button>
-  )
+  const updated = wishlistUpdatedAt(mine)
 
   return (
-    <WishlistShell title={t('wishlist.mineTitle')} width="narrow" desktopActions={addWish}>
-      <div className="flex flex-col gap-6 pt-6">
-        <div className="flex items-center gap-2.5">
-          <Avatar size="sm" hue={hueFromId(meId ?? '')}>
-            <AvatarFallback>{monogramOf(author ?? '·')}</AvatarFallback>
-          </Avatar>
-          <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
-            {t('wishlist.mineVisibleToFamily')}
-          </span>
+    <WishlistShell title={t('wishlist.mineTitle')} backTo="/wishlist" width="narrow">
+      {snapshot.isPending ? (
+        <div className="grid place-items-center py-10">
+          <Spinner className="size-6" />
         </div>
+      ) : !downloaded ? (
+        <Card className="mt-5">
+          <Empty>
+            <EmptyMedia>
+              <Icon name="cloud-off" />
+            </EmptyMedia>
+            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+          </Empty>
+        </Card>
+      ) : (
+        // The prototype's column: the header's 14px under it, the note's
+        // 18px, the list's 12px between rows, the footer's 18px — the
+        // margins the prototype sets between the blocks.
+        <div className="flex flex-col pt-5">
+          <header className="mb-3.5">
+            <h1 className="text-display-lg">{t('wishlist.mineTitle')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {updated === undefined
+                ? t('wishlist.mineVisibleToFamily')
+                : `${t('wishlist.mineVisibleToFamily')} · ${t('wishlist.updated', {
+                    moment: formatMoment(updated, i18n.language),
+                  })}`}
+            </p>
+          </header>
 
-        {snapshot.isPending ? (
-          <div className="grid place-items-center py-10">
-            <Spinner className="size-6" />
-          </div>
-        ) : !downloaded ? (
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="cloud-off" />
-              </EmptyMedia>
-              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-            </Empty>
-          </Card>
-        ) : mine.length === 0 ? (
-          <Card>
-            <Empty>
+          {/* The surprise rule (the prototype's venue-note): reservations on
+              the member's wishes never reach their author. */}
+          <NoteBlock icon="eye-off" className="mb-4.5">
+            <p className="leading-normal">{t('wishlist.mineSurpriseNote')}</p>
+          </NoteBlock>
+
+          {mine.length === 0 ? (
+            // The prototype's empty state, bare: the list — the tile with
+            // it — yields to the round plate, the text and the button.
+            <Empty className="py-14">
               <EmptyMedia>
                 <Icon name="gift" />
               </EmptyMedia>
@@ -116,17 +126,20 @@ export function WishlistMineScreen() {
                 </Button>
               </EmptyContent>
             </Empty>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {mine.map((wish) => (
-              <WishRow key={wish.id} wish={wish} editable onEdit={() => setEditingId(wish.id)} />
-            ))}
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {mine.map((wish) => (
+                <WishRow key={wish.id} wish={wish} editable onEdit={() => setEditingId(wish.id)} />
+              ))}
+              <AddWishTile onClick={() => setEditingId('new')} />
+            </div>
+          )}
 
-      <Fab aria-label={t('wishlist.addWish')} onClick={() => setEditingId('new')} />
+          <p className="mx-1 mt-4.5 font-mono text-meta uppercase text-muted-foreground">
+            {t('wishlist.mineFooter')}
+          </p>
+        </div>
+      )}
 
       {editingId === 'new' && (
         <WishEditorSheet wish={undefined} onClose={() => setEditingId(undefined)} />
@@ -139,13 +152,39 @@ export function WishlistMineScreen() {
 }
 
 /**
- * The add-or-edit sheet (the prototype's wish sheet): the whole
- * title-details-link triple, the received switch when editing, and the
- * removal with its confirm. Saving sends the triple's replace first and
- * the mark or its clearing second, so a refused triple changes nothing and
- * a refused mark leaves the switch honest. The fields are seeded from the
- * wish at mount and then hold the member's typing — a save is this
- * sheet's last word on the triple, over whatever a mid-edit sync
+ * The prototype's `.attach-tile` closing the list (issue #68): a
+ * full-width dashed tile at the prototype's 52px floor that turns accent
+ * on hover — the screen's one main action, the top bar's `d-only` button
+ * and the FAB having left with the demo chrome. Feature code, like the
+ * other wish pieces: no other screen draws this tile.
+ */
+function AddWishTile({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex min-h-13 w-full flex-none items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed border-[color-mix(in_oklch,var(--fg)_25%,var(--border))] p-3.5',
+        'text-meta text-muted-foreground transition-colors duration-(--t-fast) ease-(--ease)',
+        'hover:border-primary hover:bg-primary-soft hover:text-primary',
+      )}
+    >
+      <Icon name="plus" className="size-4.5" />
+      {t('wishlist.addWish')}
+    </button>
+  )
+}
+
+/**
+ * The add-or-edit sheet (the prototype's wish sheet, issue #68): the
+ * title, the link and the single-line hint in the prototype's order, the
+ * received switch when editing, and the removal with its confirm. Saving
+ * sends the triple's replace first and the mark or its clearing second, so
+ * a refused triple changes nothing and a refused mark leaves the switch
+ * honest. Enter from any field saves, like the prototype. The fields are
+ * seeded from the wish at mount and then hold the member's typing — a save
+ * is this sheet's last word on the triple, over whatever a mid-edit sync
  * delivered (last write wins; the sheet never remounts under a
  * re-delivered wish, so the typing survives). What the sheet does read
  * from the store on every render is the wish's identity, its received
@@ -230,6 +269,18 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
     })()
   }
 
+  // Enter from any field saves — the prototype's keydown handler verbatim
+  // (`if (e.key === 'Enter' && e.target.closest('.input')) save()`). It
+  // rides a keydown, not a form: Base UI's button is always a plain
+  // type="button", and a form would either double-fire through the save
+  // button's click or never fire at all where clicks do not activate.
+  const sheetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && (event.target as HTMLElement).closest('input')) {
+      event.preventDefault()
+      save()
+    }
+  }
+
   const removeWish = () => {
     if (wish === undefined) return
     remove.mutate(
@@ -261,7 +312,8 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
           </SheetTitle>
           <SheetDescription>{t('wishlist.editorSubtitle')}</SheetDescription>
         </SheetHeader>
-        <div className="flex flex-col gap-4">
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: the prototype's keydown handler on the sheet's body — Enter from any field saves; the fields are the interactive elements the key lands on */}
+        <div className="flex flex-col gap-4" onKeyDown={sheetKeyDown}>
           <Field data-invalid={(attempted && titleBlank) || undefined}>
             <FieldLabel htmlFor="wish-title">{t('wishlist.titleField')}</FieldLabel>
             <Input
@@ -277,17 +329,6 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
               <FieldError id="wish-title-error">{t('wishlist.titleRequired')}</FieldError>
             )}
           </Field>
-          <Field>
-            <FieldLabel htmlFor="wish-details">{t('wishlist.detailsField')}</FieldLabel>
-            <Textarea
-              id="wish-details"
-              value={details}
-              maxLength={WISH_DETAILS_MAX_LENGTH}
-              onChange={(event) => setDetails(event.target.value)}
-              placeholder={t('wishlist.detailsPlaceholder')}
-            />
-            <FieldDescription>{t('wishlist.detailsHint')}</FieldDescription>
-          </Field>
           <Field data-invalid={(attempted && linkInvalid) || undefined}>
             <FieldLabel htmlFor="wish-link">{t('wishlist.linkField')}</FieldLabel>
             <Input
@@ -301,16 +342,29 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
               aria-invalid={(attempted && linkInvalid) || undefined}
               aria-describedby={attempted && linkInvalid ? 'wish-link-error' : undefined}
             />
-            {attempted && linkInvalid ? (
+            {attempted && linkInvalid && (
               <FieldError id="wish-link-error">{t('wishlist.linkRequired')}</FieldError>
-            ) : (
-              <FieldDescription>{t('wishlist.linkHint')}</FieldDescription>
             )}
           </Field>
+          {/* The prototype's «Подсказка» — the wire's `details`, a single
+              line like the prototype's input. */}
+          <Field>
+            <FieldLabel htmlFor="wish-details">{t('wishlist.detailsField')}</FieldLabel>
+            <Input
+              id="wish-details"
+              inputMode="text"
+              value={details}
+              maxLength={WISH_DETAILS_MAX_LENGTH}
+              onChange={(event) => setDetails(event.target.value)}
+              placeholder={t('wishlist.detailsPlaceholder')}
+            />
+          </Field>
           {wish !== undefined && (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-border px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3.5 py-3">
               <span className="flex min-w-0 flex-col">
-                <span className="text-sm font-medium">{t('wishlist.receivedSwitch')}</span>
+                {/* The prototype sets no small size on the title — it rides
+                    the sheet's body size; only its hint line is small. */}
+                <span className="font-medium">{t('wishlist.receivedSwitch')}</span>
                 <span className="text-sm text-muted-foreground">{t('wishlist.receivedHint')}</span>
               </span>
               <Switch
@@ -320,22 +374,22 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
               />
             </div>
           )}
-        </div>
-        <div className="mt-2 flex flex-col">
-          <Button size="lg" disabled={pending} onClick={save}>
-            {wish === undefined ? t('wishlist.add') : t('wishlist.save')}
-          </Button>
-          {wish !== undefined && (
-            <Button
-              variant="destructive"
-              size="lg"
-              className="mt-2.5"
-              disabled={pending}
-              onClick={() => setConfirmRemove(true)}
-            >
-              {t('wishlist.removeWish')}
+          <div className="mt-2 flex flex-col">
+            <Button size="lg" disabled={pending} onClick={save}>
+              {wish === undefined ? t('wishlist.add') : t('wishlist.save')}
             </Button>
-          )}
+            {wish !== undefined && (
+              <Button
+                variant="destructive"
+                size="lg"
+                className="mt-2.5"
+                disabled={pending}
+                onClick={() => setConfirmRemove(true)}
+              >
+                {t('wishlist.removeWish')}
+              </Button>
+            )}
+          </div>
         </div>
       </SheetContent>
 

@@ -24,8 +24,12 @@ vi.mock('@/data/api.ts', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...rest }: { children: React.ReactNode; to?: string }) => (
-    <a href={rest.to}>{children}</a>
+  // The back link rides aria-label; the mock carries it like the real
+  // Link does.
+  Link: ({ children, to, ...rest }: { children: React.ReactNode; to?: string }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
   ),
   useNavigate: () => async () => {},
   Navigate: () => null,
@@ -323,7 +327,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
         body: { title: 'Термос Stanley', details: '1 литр', link: 'https://ozon.ru/thermos' },
       }),
     )
-    expect(await screen.findByText('Желание добавлено в ваш список')).toBeInTheDocument()
+    expect(await screen.findByText('Желание добавлено')).toBeInTheDocument()
   })
 
   it('edits a wish through the sheet, replacing the whole triple', async () => {
@@ -359,7 +363,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
         body: { title: 'Фонарь Petzl', details: undefined, link: lamp.link },
       }),
     )
-    expect(await screen.findByText('Сохранено')).toBeInTheDocument()
+    expect(await screen.findByText('Желание обновлено')).toBeInTheDocument()
   })
 
   it('refuses a save without a real link, and never sends the received mark beside it', async () => {
@@ -414,7 +418,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
         params: { path: { wishId: lamp.id } },
       }),
     )
-    expect(await screen.findByText('Сохранено')).toBeInTheDocument()
+    expect(await screen.findByText('Желание обновлено')).toBeInTheDocument()
   })
 
   it('a refused save changes nothing, and the retry marks the wish exactly once', async () => {
@@ -457,7 +461,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
 
     await waitFor(() => expect(screen.getByText(/Проверьте поля/)).toBeInTheDocument())
     expect(marks).toBe(0)
-    expect(screen.queryByText('Сохранено')).not.toBeInTheDocument()
+    expect(screen.queryByText('Желание обновлено')).not.toBeInTheDocument()
 
     // The retried save succeeds: the replace lands, then the mark rides
     // once — a later save cannot send it again, the wish the store holds
@@ -476,7 +480,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
 
     await waitFor(() => {
       expect(marks).toBe(1)
-      expect(screen.getByText('Сохранено')).toBeInTheDocument()
+      expect(screen.getByText('Желание обновлено')).toBeInTheDocument()
     })
   })
 
@@ -498,7 +502,10 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     await user.click(await screen.findByRole('button', { name: 'Удалить желание' }))
 
     // The confirm stands between: no delete before it.
-    expect(await screen.findByText(/исчезнет из вашего списка у всех/)).toBeInTheDocument()
+    expect(await screen.findByText('Удалить желание?')).toBeInTheDocument()
+    // The confirm names what the removal does to the reservations the
+    // author never saw (the prototype's copy, issue #68).
+    expect(screen.getByText(/Брони, если были, снимутся/)).toBeInTheDocument()
     expect(apiDelete).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Удалить' }))
@@ -599,7 +606,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     // otherwise the save would pass on a stale wish for the wrong reason.
     expect(await screen.findByText('Получено')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-    await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Желание обновлено')).toBeInTheDocument())
     expect(apiPut).toHaveBeenCalledTimes(1)
     expect(apiPost).not.toHaveBeenCalled()
     expect(apiDelete).not.toHaveBeenCalled()
@@ -650,7 +657,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     // the mid-edit sync reached the component first.
     await waitFor(() => expect(screen.queryByText('Получено')).not.toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-    await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Желание обновлено')).toBeInTheDocument())
     expect(apiPut).toHaveBeenCalledTimes(1)
     expect(apiPost).not.toHaveBeenCalled()
     expect(apiDelete).not.toHaveBeenCalled()
@@ -707,7 +714,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     // The save sends the triple only: the mark already sits on the row the
     // sheet reads live, so the moved switch does not send it a second time.
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-    await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Желание обновлено')).toBeInTheDocument())
     expect(apiPut).toHaveBeenCalledTimes(1)
     expect(apiPost).not.toHaveBeenCalled()
     expect(apiDelete).not.toHaveBeenCalled()
@@ -747,7 +754,7 @@ describe('WishlistMineScreen (the own wishlist)', () => {
         body: { title: lamp.title, details: lamp.details, link: 'https://Ozon.ru/X' },
       }),
     )
-    expect(await screen.findByText('Сохранено')).toBeInTheDocument()
+    expect(await screen.findByText('Желание обновлено')).toBeInTheDocument()
   })
 
   it('says nothing is downloaded while the wishlist replay has not landed', async () => {
@@ -815,5 +822,175 @@ describe('WishlistMineScreen (the own wishlist)', () => {
     expect(await screen.findByText('Раздел скрыт владельцем пространства.')).toBeInTheDocument()
     expect(screen.getByText(/Ничего не удалено/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Добавить желание' })).not.toBeInTheDocument()
+  })
+})
+
+describe('the own wishlist follows its prototype (issue #68)', () => {
+  it('opens with the heading, the visibility line, the surprise note and the footer line', async () => {
+    const lamp = wish()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await screen.findByText('Налобный фонарь')
+
+    // The prototype's header: the display heading with the muted
+    // visibility line — the real last-updated moment beside «Виден семье».
+    expect(screen.getByRole('heading', { level: 1, name: 'Мой вишлист' })).toHaveClass(
+      'text-display-lg',
+    )
+    expect(screen.getByText(/Виден семье · обновлено/)).toBeInTheDocument()
+
+    // The prototype's venue-note: the author never sees the reservations.
+    const note = document.querySelector('[data-slot="note-block"]')
+    expect(note).not.toBeNull()
+    expect(note).toHaveTextContent('Близкие могут забронировать ваши желания')
+
+    // The prototype's closing meta line (uppercase is the line's own
+    // styling, not the copy).
+    const footer = screen.getByText('Ваш список не виден в других пространствах')
+    expect(footer).toHaveClass('font-mono', 'uppercase')
+
+    // The prototype's `.m-only` back arrow rides the top bar; the top-bar
+    // `d-only` action and the FAB have left with the demo chrome.
+    expect(screen.getByRole('link', { name: 'Назад' })).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="fab"]')).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Добавить желание' })).toHaveLength(1)
+  })
+
+  it('closes the list with the 52px dashed add tile, the last element, and it opens the sheet', async () => {
+    const lamp = wish()
+    const second = wish({
+      id: '01900000-0000-7000-8000-000000000308',
+      title: 'Поездка на Байкал',
+      details: 'мечта — копим вместе',
+      link: undefined,
+      createdAt: '2026-09-26T12:00:00.000Z',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp, second]))
+    mockQuietSync()
+    mockWishCreated(
+      wish({
+        id: '01900000-0000-7000-8000-000000000399',
+        title: 'Термос Stanley',
+        details: undefined,
+        link: undefined,
+      }),
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await screen.findByText('Поездка на Байкал')
+
+    // The prototype's `.attach-tile` overrides: full width, the 52px
+    // floor, dashed hairline — and accent on hover.
+    const tile = screen.getByRole('button', { name: 'Добавить желание' })
+    expect(tile).toHaveClass('min-h-13', 'w-full', 'border-dashed', 'rounded-lg')
+    // The tile stands after the wishes: new ones insert above it, the way
+    // the prototype inserts before it.
+    const lastWishTitle = screen.getByText('Поездка на Байкал')
+    expect(
+      lastWishTitle.compareDocumentPosition(tile) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    await user.click(tile)
+    expect(await screen.findByText('Новое желание')).toBeInTheDocument()
+  })
+
+  it('shows the empty state bare, its primary button below the text', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    mockQuietSync()
+    renderWithProviders(<WishlistMineScreen />)
+
+    expect(await screen.findByText('Здесь пока ничего нет')).toBeInTheDocument()
+    // The prototype's copy: the quiet reservation is the point.
+    expect(
+      screen.getByText(
+        'Добавьте первое желание — близкие увидят его и смогут тихо забронировать подарок.',
+      ),
+    ).toBeInTheDocument()
+
+    // Bare: no card wraps the empty state, and the button sits in the
+    // content slot — never inside the round icon plate.
+    const empty = document.querySelector('[data-slot="empty"]')
+    expect(empty).not.toBeNull()
+    expect(empty?.closest('[data-slot="card"]')).toBeNull()
+    const addButton = screen.getByRole('button', { name: 'Добавить желание' })
+    expect(addButton.closest('[data-slot="empty-icon"]')).toBeNull()
+    expect(addButton.closest('[data-slot="empty-content"]')).not.toBeNull()
+  })
+
+  it('opens the sheet in the prototype field order, the hint a single line, no close control', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Добавить желание' }))
+    await screen.findByText('Новое желание')
+
+    // The prototype's order: title, then the link, then the hint.
+    const title = screen.getByLabelText('Название')
+    const link = screen.getByLabelText('Ссылка')
+    const hint = screen.getByLabelText('Подсказка')
+    expect(title.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(link.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The hint is the prototype's single-line input, not the old textarea.
+    expect(hint.tagName).toBe('INPUT')
+    // The prototype's sheet-sub, promising what the author never sees.
+    expect(
+      screen.getByText('Видно семье; брони вы не увидите — сюрприз сохранится'),
+    ).toBeInTheDocument()
+
+    // The prototype's sheet has no close X: Esc and the scrim close it.
+    expect(document.querySelector('[data-slot="sheet-close"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: /закрыть/i })).not.toBeInTheDocument()
+    // A new wish carries one button — the removal belongs to an edit.
+    expect(screen.getByRole('button', { name: 'Добавить' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Удалить желание' })).not.toBeInTheDocument()
+
+    // The prototype saves on Enter from any input.
+    mockWishCreated(
+      wish({
+        id: '01900000-0000-7000-8000-000000000398',
+        title: 'Термос Stanley',
+        details: undefined,
+        link: undefined,
+      }),
+    )
+    await user.type(title, 'Термос Stanley')
+    await user.keyboard('{Enter}')
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith('/api/v1/wishlist/wishes', {
+        body: { title: 'Термос Stanley', details: undefined, link: undefined },
+      }),
+    )
+  })
+
+  it('edits with the received switch row at body size and the two buttons', async () => {
+    const lamp = wish()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([lamp]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(<WishlistMineScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Изменить' }))
+    await screen.findByText('Изменить желание')
+
+    // The switch row's title is at the body size — the prototype sets no
+    // `small` on it; only its hint line takes the small size.
+    const switchTitle = screen.getByText('Уже получено')
+    expect(switchTitle).toHaveClass('font-medium')
+    expect(switchTitle).not.toHaveClass('text-sm')
+    expect(screen.getByText('В списке появится отметка «получено»')).toHaveClass('text-sm')
+
+    // The prototype's two buttons: the primary save and the danger removal.
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Удалить желание' })).toBeInTheDocument()
   })
 })
