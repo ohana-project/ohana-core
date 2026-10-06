@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/cn'
 
 import { ThemeToggle } from '@/app/theme-toggle.tsx'
 import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
+import { cn } from '@/lib/cn'
 import { AdminTopBar } from '@/ui/admin-top-bar.tsx'
 import { Icon } from '@/ui/icon.tsx'
 

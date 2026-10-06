@@ -113,7 +113,7 @@ async function mockAdminApi(
     id: nextId(),
     createdAt: '2026-09-20T10:00:00.000Z',
     expiresAt: '2026-09-21T10:00:00.000Z',
-    statusChangedAt: '2026-09-20T10:0' + String(index) + ':00.000Z',
+    statusChangedAt: `2026-09-20T10:0${index}:00.000Z`,
     ...code,
   })) as MockCode[]
 
@@ -521,9 +521,13 @@ test.describe('administrative space screen parity', () => {
       const codeRow = page.locator('[data-slot=item]', { hasText: 'Выпущен' })
       const media = codeRow.locator('[data-slot=item-media]')
       expect(await media.getAttribute('data-variant')).toBe('default')
-      expect(await media.evaluate((el) => getComputedStyle(el.querySelector('svg')!).width)).toBe(
-        '20px',
-      )
+      expect(
+        await media.evaluate((el) => {
+          const svg = el.querySelector('svg')
+          if (svg === null) throw new Error('the row icon never rendered')
+          return getComputedStyle(svg).width
+        }),
+      ).toBe('20px')
 
       // The 12.5px hints under the cards.
       for (const hint of ['Роль владельца можно передать', 'Код работает один раз']) {

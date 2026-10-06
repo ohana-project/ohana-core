@@ -62,8 +62,8 @@ import {
 } from '@/ui/sheet.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip.tsx'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group.tsx'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip.tsx'
 
 /*
  * The administrative space screen (docs/design/screens/admin-space.html):
@@ -173,38 +173,36 @@ export function AdminSpaceDetail({ spaceId }: { spaceId: string }) {
               <EmptyTitle>{t('admin.space.noMembers')}</EmptyTitle>
             </Empty>
           ) : (
-            <>
-              <TooltipProvider>
-                <Card variant="list">
-                  <ItemGroup>
-                    {active.map((member) => (
-                      <MemberRow
-                        key={member.id}
-                        member={member}
-                        spaceId={spaceId}
-                        canDemote={member.role === 'owner' && owners > 1}
-                      />
-                    ))}
-                  </ItemGroup>
-                </Card>
+            <TooltipProvider>
+              <Card variant="list">
+                <ItemGroup>
+                  {active.map((member) => (
+                    <MemberRow
+                      key={member.id}
+                      member={member}
+                      spaceId={spaceId}
+                      canDemote={member.role === 'owner' && owners > 1}
+                    />
+                  ))}
+                </ItemGroup>
+              </Card>
 
-                {archived.length > 0 ? (
-                  <section className="mt-6.5">
-                    <SectionHeader level={3} title={t('space.members.archivedTitle')} />
-                    <Card variant="list">
-                      <ItemGroup>
-                        {archived.map((member) => (
-                          <ArchivedMemberRow key={member.id} member={member} spaceId={spaceId} />
-                        ))}
-                      </ItemGroup>
-                    </Card>
-                    <p className="mt-2.5 px-1 text-meta text-muted-foreground">
-                      {t('admin.space.archivedHint')}
-                    </p>
-                  </section>
-                ) : null}
-              </TooltipProvider>
-            </>
+              {archived.length > 0 ? (
+                <section className="mt-6.5">
+                  <SectionHeader level={3} title={t('space.members.archivedTitle')} />
+                  <Card variant="list">
+                    <ItemGroup>
+                      {archived.map((member) => (
+                        <ArchivedMemberRow key={member.id} member={member} spaceId={spaceId} />
+                      ))}
+                    </ItemGroup>
+                  </Card>
+                  <p className="mt-2.5 px-1 text-meta text-muted-foreground">
+                    {t('admin.space.archivedHint')}
+                  </p>
+                </section>
+              ) : null}
+            </TooltipProvider>
           )}
           {/* The prototype's field hint under the card (12.5px, the 4px
               inset, 10px above). */}
