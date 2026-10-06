@@ -608,9 +608,7 @@ test.describe('administrative space screen parity', () => {
     const anyaRow = memberRow(page, 'Аня')
     expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
     expect(
-      await anyaRow
-        .locator('[data-slot=avatar]')
-        .evaluate((el) => getComputedStyle(el).width),
+      await anyaRow.locator('[data-slot=avatar]').evaluate((el) => getComputedStyle(el).width),
     ).toBe('40px')
     expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
     expect(
@@ -656,10 +654,8 @@ test.describe('administrative settings parity', () => {
         const password = headingOf('Пароль администратора')?.closest('section')
         if (!header || !trash || !password) throw new Error('the sections never rendered')
         return {
-          afterHeader:
-            trash.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
-          between:
-            password.getBoundingClientRect().top - trash.getBoundingClientRect().bottom,
+          afterHeader: trash.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
+          between: password.getBoundingClientRect().top - trash.getBoundingClientRect().bottom,
         }
       })
       expect(rhythm.afterHeader, `header gap at ${width}px`).toBe(24)
@@ -667,9 +663,10 @@ test.describe('administrative settings parity', () => {
 
       // The padded cards and the 280px retention select.
       for (const card of await page.locator('[data-slot=card][data-variant=padded]').all()) {
-        expect(await card.evaluate((el) => getComputedStyle(el).padding), `card at ${width}px`).toBe(
-          '20px',
-        )
+        expect(
+          await card.evaluate((el) => getComputedStyle(el).padding),
+          `card at ${width}px`,
+        ).toBe('20px')
       }
       const select = page.locator('[data-slot=select]')
       expect(await select.evaluate((el) => getComputedStyle(el).maxWidth)).toBe('280px')

@@ -102,9 +102,7 @@ describe('AdminSpaceDetail', () => {
     renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
 
     expect(await screen.findByRole('heading', { name: 'Наша семья' })).toBeInTheDocument()
-    expect(
-      screen.getByText('создано 12 августа · корзина хранится 30 дней'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('создано 12 августа · корзина хранится 30 дней')).toBeInTheDocument()
     expect(screen.getByText('Аня')).toBeInTheDocument()
     expect(screen.getByText('Аня Смирнова · anya@example.com')).toBeInTheDocument()
     expect(screen.getByText('Владелец')).toBeInTheDocument()
@@ -557,9 +555,7 @@ describe('AdminSpaceDetail — design parity (issue #80)', () => {
     await user.click(screen.getByRole('button', { name: 'Выпустить' }))
 
     // The issued-code toast is a dialog too; scope to the modal popup.
-    const popup = screen
-      .getAllByRole('dialog')
-      .find((element) => element.dataset.slot !== 'toast')
+    const popup = screen.getAllByRole('dialog').find((element) => element.dataset.slot !== 'toast')
     if (popup === undefined) throw new Error('the issue dialog never rendered')
     const dialog = within(popup)
     const copy = await dialog.findByRole('button', { name: 'Скопировать' })
