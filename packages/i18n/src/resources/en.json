@@ -510,6 +510,7 @@
     },
     "invite": {
       "title": "Invite a member",
+      "shortTitle": "Invitation",
       "description": "Say who is joining and show them the code in person — it works once.",
       "nameLabel": "Name",
       "nameRequired": "Write the member's name",

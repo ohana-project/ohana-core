@@ -145,7 +145,7 @@ export function InviteMemberScreen() {
 
   if (provisioned !== undefined) {
     return (
-      <SettingsShell title={t('space.invite.title')} backTo="/members">
+      <SettingsShell title={t('space.invite.shortTitle')} backTo="/members">
         <div className="flex flex-col pt-8">
           <header className="mb-6 flex flex-col items-center text-center">
             <span className="mb-3.5 grid size-16 place-items-center rounded-2xl bg-primary-soft text-primary">
@@ -259,7 +259,7 @@ export function InviteMemberScreen() {
   }
 
   return (
-    <SettingsShell title={t('space.invite.title')} backTo="/members">
+    <SettingsShell title={t('space.invite.shortTitle')} backTo="/members">
       <div className="flex flex-col gap-6 pt-6">
         <header>
           <h1 className="text-display-lg">{t('space.invite.title')}</h1>

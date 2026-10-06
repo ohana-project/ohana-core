@@ -156,14 +156,17 @@ describe('InviteMemberScreen', () => {
     })
     renderWithProviders(<InviteMemberScreen />)
 
-    // The prototype's data-back points at the members list (issue #77).
+    // The prototype's data-back points at the members list (issue #77),
+    // and its data-title names the top bar on both steps.
     const back = await screen.findByRole('link', { name: 'Назад' })
     expect(back).toHaveAttribute('href', '/members')
+    expect(screen.getByText('Приглашение', { exact: true })).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Имя'), 'Дима')
     await user.click(screen.getByRole('button', { name: 'Пригласить и выпустить код' }))
     await screen.findByText('SASF-KQLV')
     expect(screen.getByRole('link', { name: 'Назад' })).toHaveAttribute('href', '/members')
+    expect(screen.getByText('Приглашение', { exact: true })).toBeInTheDocument()
   })
 
   it('copies the code from the large primary and names it in the toast', async () => {
