@@ -932,7 +932,7 @@
     "endTimeField": "End",
     "dateField": "Date",
     "timezoneField": "Time zone",
-    "timezoneHint": "Everyone sees the time in their own zone; defaults to the space's zone",
+    "timezoneHint": "Shown to every recipient in their own time zone",
     "hiddenHint": "An owner has hidden the calendar for this space.",
     "errors": {
       "event_not_found": "Event not found",
@@ -969,7 +969,7 @@
     "occurrenceCancelledTitle": "This event is cancelled",
     "occurrenceCancelledText": "The series goes on without this date.",
     "reminderLabel": "Reminder",
-    "reminderHint": "The recipients get a push notification ahead of the event.",
+    "reminderHint": "An event can carry one reminder",
     "reminderLead": "Lead time",
     "reminderLead15": "15 minutes before",
     "reminderLead60": "An hour before",
@@ -980,7 +980,10 @@
     "reminderLeadWeek": "A week before",
     "reminderRecipientsHint": "Only the picked members get the reminder",
     "reminderRecipientsRequired": "Pick at least one recipient",
-    "reminderLeadCustom": "{minutes} minutes before"
+    "reminderLeadCustom": "{minutes} minutes before",
+    "reminderNone": "No reminder",
+    "recipientYou": "· you",
+    "repeatHowLabel": "Repeats"
   },
   "notifications": {
     "menuItem": "Notifications",

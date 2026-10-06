@@ -43,6 +43,7 @@ const apiPut = vi.mocked(api.PUT)
 const apiDelete = vi.mocked(api.DELETE)
 
 const ME = '01900000-0000-7000-8000-000000000001'
+const OTHER_ID = '01900000-0000-7000-8000-000000000002'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
 
 // 2026-10-01 is a Thursday; the month view shows September behind it.
@@ -409,7 +410,7 @@ describe('EventEditorScreen (a new event)', () => {
     renderWithProviders(<EventEditorScreen />)
 
     await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [path, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -438,13 +439,13 @@ describe('EventEditorScreen (a new event)', () => {
 
     await user.type(await screen.findByLabelText('Название'), 'Вечеринка')
     await user.clear(screen.getByLabelText('Начало'))
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
     expect(screen.getByText('Укажите время начала и конца')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
 
     await user.type(screen.getByLabelText('Начало'), '18:00')
     await user.clear(screen.getByLabelText('Дата'))
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
     expect(screen.getByText('Выберите дату')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
   })
@@ -467,7 +468,7 @@ describe('EventEditorScreen (a new event)', () => {
 
     await user.type(await screen.findByLabelText('Название'), 'Созвон со школой')
     await user.selectOptions(screen.getByLabelText('Часовой пояс'), 'Asia/Novosibirsk')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -495,7 +496,7 @@ describe('EventEditorScreen (a new event)', () => {
 
     await user.type(await screen.findByLabelText('Название'), 'День рождения Люды')
     await user.click(screen.getByRole('switch', { name: 'Весь день' }))
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -518,7 +519,7 @@ describe('EventEditorScreen (a new event)', () => {
     await user.type(await screen.findByLabelText('Название'), 'Вечеринка')
     await user.clear(screen.getByLabelText('Конец'))
     await user.type(screen.getByLabelText('Конец'), '17:00')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     expect(screen.getByText('Конец должен быть позже начала')).toBeInTheDocument()
     expect(apiPost).not.toHaveBeenCalled()
@@ -544,7 +545,7 @@ describe('EventEditorScreen (an edit)', () => {
     // event into the space's.
     await user.clear(await screen.findByLabelText('Название'))
     await user.type(screen.getByLabelText('Название'), 'Миша — зубной врач, кабинет 4')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [, options] = apiPut.mock.calls.at(-1) as unknown as [
@@ -577,7 +578,7 @@ describe('EventEditorScreen (an edit)', () => {
     // never touched. The event has no zone of its own, so the PUT sends
     // none — the API composes against the space's zone as it stands.
     await user.click(await screen.findByRole('switch', { name: 'Весь день' }))
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [, options] = apiPut.mock.calls.at(-1) as unknown as [
@@ -603,6 +604,238 @@ describe('EventEditorScreen (an edit)', () => {
     // The fields the member never touched come back as they were.
     expect(screen.getByLabelText('Начало')).toHaveValue('18:00')
     expect(screen.getByLabelText('Конец')).toHaveValue('19:00')
+  })
+})
+
+// The editor's design parity (issue #75): the prototype's four sections,
+// the always-visible reminder select with its recipients card, the
+// all-day switch that disables the time and zone fields in place, and
+// the actions that ride the top bar from 920px and the action bar below.
+describe('EventEditorScreen (the prototype’s editor, issue #75)', () => {
+  it('the all-day switch disables the time and zone fields in place', async () => {
+    seedRegistry()
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    const start = await screen.findByLabelText('Начало')
+    const end = screen.getByLabelText('Конец')
+    const zone = screen.getByLabelText('Часовой пояс')
+    expect(start).toBeEnabled()
+    expect(end).toBeEnabled()
+    expect(zone).toBeEnabled()
+
+    await user.click(screen.getByRole('switch', { name: 'Весь день' }))
+
+    // Visible but disabled — the prototype's greyed fields, never removed.
+    expect(start).toBeDisabled()
+    expect(end).toBeDisabled()
+    expect(zone).toBeDisabled()
+
+    await user.click(screen.getByRole('switch', { name: 'Весь день' }))
+    expect(start).toBeEnabled()
+    expect(end).toBeEnabled()
+    expect(zone).toBeEnabled()
+  })
+
+  it('an all-day event keeps the disabled time and zone fields visible', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([allDayEvent()]))
+    renderWithProviders(<EventEditorScreen eventId={allDayEvent().id} />)
+
+    await screen.findByLabelText('Начало')
+    expect(screen.getByLabelText('Начало')).toBeDisabled()
+    expect(screen.getByLabelText('Конец')).toBeDisabled()
+    expect(screen.getByLabelText('Часовой пояс')).toBeDisabled()
+  })
+
+  it('the repeat, reminder, and recipients sections carry the prototype’s headings', async () => {
+    seedRegistry()
+    renderWithProviders(<EventEditorScreen />)
+
+    expect(await screen.findByRole('heading', { name: 'Повтор' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Напоминание' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Получатели' })).toBeInTheDocument()
+    // The repeat select keeps the prototype's own label under its heading.
+    expect(screen.getByLabelText('Как повторять')).toBeInTheDocument()
+  })
+
+  it('an occurrence edit shows no repeat, reminder, or recipients section', async () => {
+    seedRegistry()
+    const series = timedEvent({
+      recurrence: { frequency: 'weekly' },
+      reminder: { leadMinutes: 120, recipients: { everyone: true } },
+    })
+    await applySyncResult(ME, syncResult([series]))
+    renderWithProviders(<EventEditorScreen eventId={series.id} occurrenceDate="2026-10-09" />)
+
+    await screen.findByLabelText('Название')
+    // The reminder rides the series: an occurrence's replacement carries
+    // none of its own, so the two sections stay out (issue #22).
+    expect(screen.queryByRole('heading', { name: 'Повтор' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Напоминание' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Получатели' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('За сколько напомнить')).not.toBeInTheDocument()
+  })
+
+  it('the reminder select stands alone, and a lead picked for a new event is sent', async () => {
+    seedRegistry()
+    apiPost.mockResolvedValue({
+      data: timedEvent(),
+      error: undefined,
+      response: new Response(null, { status: 201 }),
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    // Always visible, never behind a switch; a new event carries none yet.
+    const lead = await screen.findByLabelText('За сколько напомнить')
+    expect(lead).toHaveValue('none')
+    expect(screen.queryByRole('switch', { name: 'Напоминание' })).not.toBeInTheDocument()
+
+    await user.selectOptions(lead, '60')
+    await user.type(screen.getByLabelText('Название'), 'Ужин у бабушки')
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalled())
+    const [, options] = apiPost.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({
+      reminder: { leadMinutes: 60, recipients: { everyone: true } },
+    })
+  })
+
+  it('a stored reminder seeds the select, and «без напоминания» clears it', async () => {
+    seedRegistry()
+    const doctor = timedEvent({
+      reminder: { leadMinutes: 10080, recipients: { memberIds: [OTHER_ID] } },
+    })
+    await applySyncResult(ME, syncResult([doctor]))
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}') {
+        return { data: doctor, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
+
+    const lead = await screen.findByLabelText('За сколько напомнить')
+    expect(lead).toHaveValue('10080')
+    // The stored named list reads back: the everyone row released, Дима's
+    // own pressed.
+    expect(screen.getByRole('button', { name: 'Все участники' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(screen.getByRole('button', { name: 'Дима' })).toHaveAttribute('aria-pressed', 'true')
+
+    await user.selectOptions(lead, 'none')
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
+    const [, options] = apiPut.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).not.toHaveProperty('reminder')
+  })
+
+  it('the recipients card keeps «все» and named rows apart, marking the own row «· вы»', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    apiPost.mockResolvedValue({
+      data: timedEvent(),
+      error: undefined,
+      response: new Response(null, { status: 201 }),
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    // A new event starts from everyone, the prototype's pressed all-row.
+    const everyone = await screen.findByRole('button', { name: 'Все участники' })
+    expect(everyone).toHaveAttribute('aria-pressed', 'true')
+    // The active member's row carries the «· вы» suffix; Дима's does not.
+    const anya = screen.getByRole('button', { name: 'Аня Смирнова · вы' })
+    const dima = screen.getByRole('button', { name: 'Дима' })
+    expect(anya).toHaveAttribute('aria-pressed', 'false')
+    expect(dima).toHaveAttribute('aria-pressed', 'false')
+
+    // Picking a name releases the all-row and starts the named list from
+    // that one pick.
+    await user.click(dima)
+    expect(dima).toHaveAttribute('aria-pressed', 'true')
+    expect(everyone).toHaveAttribute('aria-pressed', 'false')
+
+    await user.selectOptions(screen.getByLabelText('За сколько напомнить'), '120')
+    await user.type(screen.getByLabelText('Название'), 'Ужин у бабушки')
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalled())
+    const [, options] = apiPost.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({
+      reminder: { leadMinutes: 120, recipients: { memberIds: [OTHER_ID] } },
+    })
+  })
+
+  it('a named list with nobody picked holds the save', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen />)
+
+    await screen.findByLabelText('За сколько напомнить')
+    const dima = screen.getByRole('button', { name: 'Дима' })
+    await user.selectOptions(screen.getByLabelText('За сколько напомнить'), '120')
+    await user.click(dima)
+    await user.click(dima)
+    await user.type(screen.getByLabelText('Название'), 'Ужин у бабушки')
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
+
+    expect(screen.getByText('Выберите хотя бы одного получателя')).toBeInTheDocument()
+    expect(apiPost).not.toHaveBeenCalled()
+  })
+
+  it('the actions ride the shared action bar and the desktop top bar', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    renderWithProviders(<EventEditorScreen />)
+
+    await screen.findByLabelText('Название')
+    // Both carriers are mounted — the shared bar below 920px (issue #61)
+    // and the top bar's d-only slot from 920px up — and only the width
+    // decides which shows (asserted with the layout in the e2e spec).
+    expect(document.querySelector('[data-slot="action-bar"]')).not.toBeNull()
+    expect(document.querySelector('[data-slot="topbar-actions-desktop"]')).not.toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Сохранить' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Отмена' })).toHaveLength(2)
+  })
+
+  it('the empty and refused states mount neither carrier', async () => {
+    const doctors = timedEvent({ creatorId: OTHER_ID })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([doctors]))
+    // Дима's event, Аня regular: the editor refuses before the form.
+    const result = syncResult([doctors])
+    result.changes = result.changes.map((change) =>
+      change.entity === 'member' && change.member.id === ME
+        ? { entity: 'member', member: { ...change.member, role: 'regular' as const } }
+        : change,
+    )
+    window.localStorage.clear()
+    seedRegistry()
+    await applySyncResult(ME, result)
+    renderWithProviders(<EventEditorScreen eventId={doctors.id} />)
+
+    await screen.findByText(
+      'Изменить или удалить событие может только его создатель — или владелец',
+    )
+    expect(document.querySelector('[data-slot="action-bar"]')).toBeNull()
+    expect(document.querySelector('[data-slot="topbar-actions-desktop"]')).toBeNull()
   })
 })
 
@@ -687,9 +920,9 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     renderWithProviders(<EventEditorScreen />)
 
     await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
-    await user.selectOptions(screen.getByLabelText('Повтор'), 'weekly')
+    await user.selectOptions(screen.getByLabelText('Как повторять'), 'weekly')
     await user.type(screen.getByLabelText('Дата окончания'), '2027-01-31')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPost).toHaveBeenCalled())
     const [, options] = apiPost.mock.calls.at(-1) as unknown as [
@@ -707,9 +940,9 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     renderWithProviders(<EventEditorScreen />)
 
     await user.type(await screen.findByLabelText('Название'), 'Ужин у бабушки')
-    await user.selectOptions(screen.getByLabelText('Повтор'), 'monthly')
+    await user.selectOptions(screen.getByLabelText('Как повторять'), 'monthly')
     await user.type(screen.getByLabelText('Дата окончания'), '2020-01-01')
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     expect(
       screen.getByText('Дата окончания не может быть раньше первого события'),
@@ -723,7 +956,7 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     await applySyncResult(ME, syncResult([series]))
     renderWithProviders(<EventEditorScreen eventId={series.id} />)
 
-    expect(await screen.findByLabelText('Повтор')).toHaveValue('weekly')
+    expect(await screen.findByLabelText('Как повторять')).toHaveValue('weekly')
     expect(screen.getByLabelText('Дата окончания')).toHaveValue('2027-01-02')
   })
 
@@ -745,9 +978,9 @@ describe('EventEditorScreen (repeating, issue #21)', () => {
     await user.type(screen.getByLabelText('Название'), 'Ужин в кафе')
     // A single occurrence has no rule of its own: the repeat fields are
     // not here, the zone field still is.
-    expect(screen.queryByLabelText('Повтор')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Как повторять')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Часовой пояс')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(screen.getAllByRole('button', { name: 'Сохранить' })[0]!)
 
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     const [path, options] = apiPut.mock.calls.at(-1) as unknown as [

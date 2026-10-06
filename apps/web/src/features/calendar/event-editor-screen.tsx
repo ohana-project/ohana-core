@@ -12,14 +12,17 @@ import {
 } from '@/lib/calendar-dates.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { timezoneOptions } from '@/lib/timezones.ts'
+import { ActionBar } from '@/ui/action-bar.tsx'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field.tsx'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item.tsx'
 import { PickRow } from '@/ui/pick-row.tsx'
+import { SectionHeader } from '@/ui/section-header.tsx'
 import { Select } from '@/ui/select.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { Switch } from '@/ui/switch.tsx'
@@ -109,9 +112,11 @@ export function EventEditorScreen({
   // The reminder (issue #22): the editor holds the attempt like the other
   // fields; the stored reminder seeds it. An occurrence's replacement has
   // no reminder of its own, so the section only shows for a new event or
-  // the whole series.
-  const [reminderOn, setReminderOn] = useState<boolean | undefined>(undefined)
-  const [reminderLead, setReminderLead] = useState<number | undefined>(undefined)
+  // the whole series. The prototype's select is the always-visible control
+  // (issue #75): its «без напоминания» choice is the off the prototype's
+  // demo event never shows, because the data model keeps events without
+  // one and editing must not invent a reminder.
+  const [reminderChoice, setReminderChoice] = useState<string | undefined>(undefined)
   const [reminderEveryone, setReminderEveryone] = useState<boolean | undefined>(undefined)
   const [reminderMembers, setReminderMembers] = useState<string[] | undefined>(undefined)
   // The zone the member actually chose: left alone, the field shows the
@@ -138,12 +143,15 @@ export function EventEditorScreen({
   const occurrenceMode = occurrenceDate !== undefined
 
   // The reminder's effective fields: the member's edits, the stored
-  // reminder where nothing was touched, the prototype's start (two hours,
-  // the whole space) for one being added now.
+  // reminder where nothing was touched. A new event starts from «без
+  // напоминания» — the select's first choice — so opening the form never
+  // invents a notification; picking a lead turns it on.
   const storedReminder = source?.reminder
   const reminderVisible = !occurrenceMode
-  const effectiveReminderOn = reminderOn ?? storedReminder !== undefined
-  const effectiveReminderLead = reminderLead ?? storedReminder?.leadMinutes ?? 120
+  const effectiveReminderChoice =
+    reminderChoice ?? (storedReminder === undefined ? 'none' : String(storedReminder.leadMinutes))
+  const effectiveReminderOn = effectiveReminderChoice !== 'none'
+  const effectiveReminderLead = Number(effectiveReminderChoice)
   const effectiveReminderEveryone =
     reminderEveryone ??
     (storedReminder?.recipients.everyone === true || storedReminder === undefined)
@@ -178,6 +186,15 @@ export function EventEditorScreen({
       : occurrenceMode
         ? t('calendar.editorOccurrenceTitle')
         : t('calendar.editorEditTitle')
+
+  // The form (and with it the two action carriers) mounts only where the
+  // member can actually edit: none of the loading, offline, not-found and
+  // refused states carries a save.
+  const formReady =
+    !snapshot.isPending &&
+    !missingOccurrence &&
+    editable &&
+    (eventId === undefined || existing !== undefined)
 
   const goBack = () => {
     if (existing !== undefined) {
@@ -282,8 +299,24 @@ export function EventEditorScreen({
       title={editorTitle}
       backTo={existing === undefined ? '/calendar' : `/calendar/${existing.id}`}
       width="narrow"
+      desktopActions={
+        formReady ? (
+          <>
+            {/* the prototype's d-only top-bar pair (event-editor.html) */}
+            <Button variant="secondary" size="sm" onClick={goBack}>
+              {t('calendar.cancel')}
+            </Button>
+            <Button size="sm" disabled={pending} onClick={save}>
+              {pending ? <Spinner /> : null}
+              {t('calendar.save')}
+            </Button>
+          </>
+        ) : undefined
+      }
     >
-      <div className="flex flex-col gap-5 pt-6 pb-32">
+      {/* The prototype's 20px top padding; the bottom room is the member
+          layout's own reserve — the action bar's while the form is up. */}
+      <div className="flex flex-col gap-5 pt-5">
         {snapshot.isPending ? (
           // Both kinds wait for the partition read: the edit needs its row,
           // the new event the space's zone to show as the default.
@@ -347,7 +380,12 @@ export function EventEditorScreen({
               </p>
             )}
 
-            <FieldGroup>
+            {/* The prototype's four sections (event-editor.html), 26px
+                apart: the details fields (the prototype's first section
+                carries no heading), then Повтор, Напоминание, Получатели —
+                the prototype's plain h3, inset 4px with 10px below. */}
+            <div className="flex flex-col gap-6.5">
+              <div className="flex flex-col gap-3.5">
               <Field data-invalid={(touched && titleBlank) || undefined}>
                 <FieldLabel htmlFor="event-title">{t('calendar.titleField')}</FieldLabel>
                 <Input
@@ -363,62 +401,67 @@ export function EventEditorScreen({
                 ) : null}
               </Field>
 
-              <Card className="py-0">
-                <div className="flex min-h-16 items-center gap-3 px-5 py-3">
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-sm font-semibold">{t('calendar.allDay')}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {t('calendar.allDayHint')}
-                    </span>
-                  </span>
-                  <Switch
-                    aria-label={t('calendar.allDay')}
-                    checked={effective.allDay}
-                    onCheckedChange={(checked) => {
-                      const next = checked === true
-                      setAllDay(next)
-                      // An event that becomes timed needs a wall pair to
-                      // compose; the evening default the new-event form
-                      // carries is seeded rather than blocking Save on
-                      // fields the member never saw.
-                      if (!next) {
-                        if (effective.startTime === '') setStartTime('18:00')
-                        if (effective.endTime === '') setEndTime('21:00')
-                      }
-                    }}
-                  />
-                </div>
+              {/* The prototype's all-day row: a list card's 56px row, the
+                  title and its sub beside the switch. */}
+              <Card variant="list">
+                <Item>
+                  <ItemContent>
+                    <ItemTitle>{t('calendar.allDay')}</ItemTitle>
+                    <ItemDescription>{t('calendar.allDayHint')}</ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <Switch
+                      aria-label={t('calendar.allDay')}
+                      checked={effective.allDay}
+                      onCheckedChange={(checked) => {
+                        const next = checked === true
+                        setAllDay(next)
+                        // An event that becomes timed needs a wall pair to
+                        // compose; the evening default the new-event form
+                        // carries is seeded rather than blocking Save on
+                        // fields the member never saw.
+                        if (!next) {
+                          if (effective.startTime === '') setStartTime('18:00')
+                          if (effective.endTime === '') setEndTime('21:00')
+                        }
+                      }}
+                    />
+                  </ItemActions>
+                </Item>
               </Card>
 
-              {!effective.allDay && (
-                <div className="flex gap-3">
-                  <Field className="flex-1">
-                    <FieldLabel htmlFor="event-start">{t('calendar.startTimeField')}</FieldLabel>
-                    <Input
-                      id="event-start"
-                      type="time"
-                      value={effective.startTime}
-                      onChange={(event) => setStartTime(event.target.value)}
-                      aria-invalid={(touched && timesBlank) || undefined}
-                    />
-                  </Field>
-                  <Field className="flex-1">
-                    <FieldLabel htmlFor="event-end">{t('calendar.endTimeField')}</FieldLabel>
-                    <Input
-                      id="event-end"
-                      type="time"
-                      value={effective.endTime}
-                      onChange={(event) => setEndTime(event.target.value)}
-                      aria-invalid={(touched && (endBeforeStart || timesBlank)) || undefined}
-                    />
-                    {touched && timesBlank ? (
-                      <FieldError>{t('calendar.timesRequired')}</FieldError>
-                    ) : touched && endBeforeStart ? (
-                      <FieldError>{t('calendar.errors.event_end_before_start')}</FieldError>
-                    ) : null}
-                  </Field>
-                </div>
-              )}
+              {/* The prototype greys the pair out instead of removing it
+                  (issue #75): visible but disabled, so unchecking brings
+                  the member's own wall time back. */}
+              <div className="flex gap-3">
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="event-start">{t('calendar.startTimeField')}</FieldLabel>
+                  <Input
+                    id="event-start"
+                    type="time"
+                    value={effective.startTime}
+                    disabled={effective.allDay}
+                    onChange={(event) => setStartTime(event.target.value)}
+                    aria-invalid={(touched && timesBlank) || undefined}
+                  />
+                </Field>
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="event-end">{t('calendar.endTimeField')}</FieldLabel>
+                  <Input
+                    id="event-end"
+                    type="time"
+                    value={effective.endTime}
+                    disabled={effective.allDay}
+                    onChange={(event) => setEndTime(event.target.value)}
+                    aria-invalid={(touched && (endBeforeStart || timesBlank)) || undefined}
+                  />
+                  {touched && timesBlank ? (
+                    <FieldError>{t('calendar.timesRequired')}</FieldError>
+                  ) : touched && endBeforeStart ? (
+                    <FieldError>{t('calendar.errors.event_end_before_start')}</FieldError>
+                  ) : null}
+                </Field>
+              </div>
 
               <Field data-invalid={(touched && dateBlank) || undefined}>
                 <FieldLabel htmlFor="event-date">{t('calendar.dateField')}</FieldLabel>
@@ -436,176 +479,187 @@ export function EventEditorScreen({
                 ) : null}
               </Field>
 
-              {!effective.allDay && (
-                <Field>
-                  <FieldLabel htmlFor="event-tz">{t('calendar.timezoneField')}</FieldLabel>
-                  <Select
-                    id="event-tz"
-                    value={effective.timezone}
-                    onChange={(event) => {
-                      setTimezone(event.target.value)
-                      setTimezoneTouched(true)
-                    }}
-                  >
-                    {zoneChoices.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
-                  <FieldDescription>{t('calendar.timezoneHint')}</FieldDescription>
-                </Field>
-              )}
+              {/* The zone stays readable for an all-day event — disabled,
+                  like the times: the field the prototype keeps in place. */}
+              <Field>
+                <FieldLabel htmlFor="event-tz">{t('calendar.timezoneField')}</FieldLabel>
+                <Select
+                  id="event-tz"
+                  value={effective.timezone}
+                  disabled={effective.allDay}
+                  onChange={(event) => {
+                    setTimezone(event.target.value)
+                    setTimezoneTouched(true)
+                  }}
+                >
+                  {zoneChoices.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+                <FieldDescription>{t('calendar.timezoneHint')}</FieldDescription>
+              </Field>
+              </div>
 
               {!occurrenceMode && (
                 <>
-                  <Field>
-                    <FieldLabel htmlFor="event-repeat">{t('calendar.repeatLabel')}</FieldLabel>
-                    <Select
-                      id="event-repeat"
-                      value={effective.repeat}
-                      onChange={(event) => setRepeat(event.target.value as RepeatChoice)}
-                    >
-                      {REPEAT_CHOICES.map((choice) => (
-                        <option key={choice} value={choice}>
-                          {t(repeatChoiceLabelKey(choice))}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-
-                  {effective.repeat !== 'none' && (
-                    <Field data-invalid={(touched && untilBeforeStart) || undefined}>
-                      <FieldLabel htmlFor="event-until">{t('calendar.repeatUntil')}</FieldLabel>
-                      <Input
-                        id="event-until"
-                        type="date"
-                        min="1900-01-01"
-                        max="2200-12-31"
-                        value={effective.until}
-                        onChange={(event) => setUntil(event.target.value)}
-                        aria-invalid={(touched && untilBeforeStart) || undefined}
-                      />
-                      <FieldDescription>{t('calendar.repeatUntilHint')}</FieldDescription>
-                      {touched && untilBeforeStart ? (
-                        <FieldError>{t('calendar.errors.invalid_recurrence_until')}</FieldError>
-                      ) : null}
-                    </Field>
-                  )}
-                </>
-              )}
-
-              {reminderVisible && (
-                <Card className="py-0">
-                  <div className="flex min-h-16 items-center gap-3 px-5 py-3">
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-sm font-semibold">{t('calendar.reminderLabel')}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {t('calendar.reminderHint')}
-                      </span>
-                    </span>
-                    <Switch
-                      aria-label={t('calendar.reminderLabel')}
-                      checked={effectiveReminderOn}
-                      onCheckedChange={(checked) => {
-                        setReminderOn(checked === true)
-                        // "Everyone" is the start: a named list begins as
-                        // the creator themself, never an empty one.
-                        if (
-                          checked &&
-                          !effectiveReminderEveryone &&
-                          effectiveReminderMembers.length === 0
-                        ) {
-                          const me = getActiveMemberId()
-                          if (me !== undefined) setReminderMembers([me])
-                        }
-                      }}
-                    />
-                  </div>
-                  {effectiveReminderOn && (
-                    <div className="flex flex-col gap-4 border-t border-border px-5 py-4">
+                  <div>
+                    <SectionHeader level={3} title={t('calendar.repeatLabel')} />
+                    <div className="flex flex-col gap-3">
                       <Field>
-                        <FieldLabel htmlFor="event-reminder-lead">
-                          {t('calendar.reminderLead')}
+                        <FieldLabel htmlFor="event-repeat">
+                          {t('calendar.repeatHowLabel')}
                         </FieldLabel>
                         <Select
-                          id="event-reminder-lead"
-                          value={String(effectiveReminderLead)}
-                          onChange={(event) => setReminderLead(Number(event.target.value))}
+                          id="event-repeat"
+                          value={effective.repeat}
+                          onChange={(event) => setRepeat(event.target.value as RepeatChoice)}
                         >
-                          {(REMINDER_LEAD_CHOICES.some(
-                            (choice) => choice.minutes === effectiveReminderLead,
-                          )
-                            ? REMINDER_LEAD_CHOICES
-                            : [
-                                {
-                                  minutes: effectiveReminderLead,
-                                  labelKey: 'calendar.reminderLeadCustom',
-                                },
-                                ...REMINDER_LEAD_CHOICES,
-                              ]
-                          ).map((choice) => (
-                            <option key={choice.minutes} value={String(choice.minutes)}>
-                              {t(choice.labelKey, { minutes: choice.minutes })}
+                          {REPEAT_CHOICES.map((choice) => (
+                            <option key={choice} value={choice}>
+                              {t(repeatChoiceLabelKey(choice))}
                             </option>
                           ))}
                         </Select>
                       </Field>
-                      <div className="-mx-5 -mb-4 border-t border-border">
-                        <PickRow
-                          pressed={effectiveReminderEveryone}
-                          onPressedChange={() => setReminderEveryone(true)}
-                        >
-                          {t('calendar.reminderEveryone')}
-                        </PickRow>
-                        {profiles
-                          .filter((profile) => profile.archivedAt === undefined)
-                          .map((profile) => (
+
+                      {effective.repeat !== 'none' && (
+                        <Field data-invalid={(touched && untilBeforeStart) || undefined}>
+                          <FieldLabel htmlFor="event-until">{t('calendar.repeatUntil')}</FieldLabel>
+                          <Input
+                            id="event-until"
+                            type="date"
+                            min="1900-01-01"
+                            max="2200-12-31"
+                            value={effective.until}
+                            onChange={(event) => setUntil(event.target.value)}
+                            aria-invalid={(touched && untilBeforeStart) || undefined}
+                          />
+                          <FieldDescription>{t('calendar.repeatUntilHint')}</FieldDescription>
+                          {touched && untilBeforeStart ? (
+                            <FieldError>{t('calendar.errors.invalid_recurrence_until')}</FieldError>
+                          ) : null}
+                        </Field>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <SectionHeader level={3} title={t('calendar.reminderLabel')} />
+                    {/* The prototype's always-visible select: no switch
+                        before it, the hint under it. */}
+                    <Field>
+                      <FieldLabel htmlFor="event-reminder-lead">
+                        {t('calendar.reminderLead')}
+                      </FieldLabel>
+                      <Select
+                        id="event-reminder-lead"
+                        value={effectiveReminderChoice}
+                        onChange={(event) => setReminderChoice(event.target.value)}
+                      >
+                        <option value="none">{t('calendar.reminderNone')}</option>
+                        {effectiveReminderOn &&
+                          !REMINDER_LEAD_CHOICES.some(
+                            (choice) => String(choice.minutes) === effectiveReminderChoice,
+                          ) && (
+                            <option value={effectiveReminderChoice}>
+                              {t('calendar.reminderLeadCustom', { minutes: effectiveReminderLead })}
+                            </option>
+                          )}
+                        {REMINDER_LEAD_CHOICES.map((choice) => (
+                          <option key={choice.minutes} value={String(choice.minutes)}>
+                            {t(choice.labelKey)}
+                          </option>
+                        ))}
+                      </Select>
+                      <FieldDescription>{t('calendar.reminderHint')}</FieldDescription>
+                    </Field>
+                  </div>
+
+                  <div>
+                    <SectionHeader level={3} title={t('calendar.reminderRecipients')} />
+                    {/* The prototype's pick card: everyone first with the
+                        20px users glyph, then a 32px monogram per active
+                        member, the «· вы» suffix on the viewer's own row. */}
+                    <Card variant="list">
+                      <PickRow
+                        pressed={effectiveReminderEveryone}
+                        onPressedChange={() => setReminderEveryone(true)}
+                        leading={<Icon name="users" className="text-muted-foreground" />}
+                      >
+                        {t('calendar.reminderEveryone')}
+                      </PickRow>
+                      {profiles
+                        .filter((profile) => profile.archivedAt === undefined)
+                        .map((profile) => {
+                          const memberName = profile.displayName ?? profile.name
+                          const mine = profile.id === getActiveMemberId()
+                          return (
                             <PickRow
                               key={profile.id}
-                              pressed={effectiveReminderMembers.includes(profile.id)}
+                              aria-label={mine ? `${memberName} ${t('calendar.recipientYou')}` : memberName}
+                              pressed={
+                                !effectiveReminderEveryone &&
+                                effectiveReminderMembers.includes(profile.id)
+                              }
                               onPressedChange={(pressed) => {
                                 setReminderEveryone(false)
+                                // Leaving «все» starts the named list from
+                                // the one row the tap pressed — the
+                                // prototype's rows all read unpressed there.
+                                const base = effectiveReminderEveryone ? [] : effectiveReminderMembers
                                 setReminderMembers(
                                   pressed
-                                    ? [...effectiveReminderMembers, profile.id]
-                                    : effectiveReminderMembers.filter((id) => id !== profile.id),
+                                    ? [...base, profile.id]
+                                    : base.filter((id) => id !== profile.id),
                                 )
                               }}
                               leading={
-                                <Avatar size="sm" hue={hueFromId(profile.id)}>
-                                  <AvatarFallback>
-                                    {monogramOf(profile.displayName ?? profile.name)}
-                                  </AvatarFallback>
+                                // The monogram duplicates the name that
+                                // follows: decorative for the row's name.
+                                <Avatar aria-hidden="true" size="sm" hue={hueFromId(profile.id)}>
+                                  <AvatarFallback>{monogramOf(memberName)}</AvatarFallback>
                                 </Avatar>
                               }
                             >
-                              {profile.displayName ?? profile.name}
+                              {memberName}
+                              {mine && (
+                                <span className="font-normal text-muted-foreground">
+                                  {' '}
+                                  {t('calendar.recipientYou')}
+                                </span>
+                              )}
                             </PickRow>
-                          ))}
-                        <p className="px-3.5 py-2.5 text-sm text-muted-foreground">
-                          {reminderIncomplete
-                            ? t('calendar.reminderRecipientsRequired')
-                            : t('calendar.reminderRecipientsHint')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </Card>
+                          )
+                        })}
+                    </Card>
+                    {reminderIncomplete ? (
+                      <FieldError className="mt-2.5 px-1">
+                        {t('calendar.reminderRecipientsRequired')}
+                      </FieldError>
+                    ) : (
+                      <FieldDescription className="mt-2.5 px-1">
+                        {t('calendar.reminderRecipientsHint')}
+                      </FieldDescription>
+                    )}
+                  </div>
+                </>
               )}
-            </FieldGroup>
-
-            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-4 backdrop-blur lg:sticky lg:bottom-auto lg:mt-2 lg:border-0 lg:bg-transparent lg:p-0">
-              <div className="mx-auto flex max-w-xl gap-2 lg:justify-end">
-                <Button variant="secondary" className="flex-1 lg:flex-none" onClick={goBack}>
-                  {t('calendar.cancel')}
-                </Button>
-                <Button className="flex-1 lg:flex-none" disabled={pending} onClick={save}>
-                  {pending ? <Spinner /> : <Icon name="check" />}
-                  {t('calendar.save')}
-                </Button>
-              </div>
             </div>
+
+            {/* The prototype's `.editor-bar` (issue #61): the shared glass
+                bar carries the same pair below 920px, fixed above the tab
+                bar; the member layout reserves its room while it is up. */}
+            <ActionBar>
+              <Button variant="secondary" className="min-w-0 flex-1" onClick={goBack}>
+                {t('calendar.cancel')}
+              </Button>
+              <Button className="min-w-0 flex-1" disabled={pending} onClick={save}>
+                {pending ? <Spinner /> : null}
+                {t('calendar.save')}
+              </Button>
+            </ActionBar>
           </>
         )}
       </div>
