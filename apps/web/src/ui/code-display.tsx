@@ -8,12 +8,23 @@ import { toast } from '@/ui/toast.tsx'
 /*
  * Ohana code display (`.code-display` in the prototype): an access
  * code shown once, mono on a dashed accent fill, selectable with one
- * tap (user-select: all), with a copy action beside it.
+ * tap (user-select: all), with a copy action beside it. `copy="none"`
+ * drops the beside-button for screens that carry the copy in their own
+ * footer — the administrative issue dialog's labelled button beside
+ * «Готово» (admin-space.html).
  */
-export function CodeDisplay({ code, className }: { code: string; className?: string }) {
+export function CodeDisplay({
+  code,
+  copy = 'beside',
+  className,
+}: {
+  code: string
+  copy?: 'beside' | 'none'
+  className?: string
+}) {
   const { t } = useTranslation()
 
-  const copy = async () => {
+  const write = async () => {
     try {
       await navigator.clipboard.writeText(code)
       toast(t('ui.copied'))
@@ -30,16 +41,18 @@ export function CodeDisplay({ code, className }: { code: string; className?: str
       >
         {code}
       </div>
-      <Button
-        variant="secondary"
-        size="icon"
-        aria-label={t('ui.copy')}
-        onClick={() => {
-          void copy()
-        }}
-      >
-        <Icon name="copy" />
-      </Button>
+      {copy === 'beside' ? (
+        <Button
+          variant="secondary"
+          size="icon"
+          aria-label={t('ui.copy')}
+          onClick={() => {
+            void write()
+          }}
+        >
+          <Icon name="copy" />
+        </Button>
+      ) : null}
     </div>
   )
 }

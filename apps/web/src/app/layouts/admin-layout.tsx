@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import type * as React from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/cn'
 
 import { ThemeToggle } from '@/app/theme-toggle.tsx'
 import { UpdatePrompt } from '@/features/update/update-prompt.tsx'
@@ -14,14 +15,18 @@ import { Icon } from '@/ui/icon.tsx'
  * actions. A space's screen passes `back`, and the bar carries «‹
  * Пространства» in place of the logo (issue #79) — the prototype's
  * `gap: 8px` row with an 18px muted chevron and a small muted label.
+ * The instance settings narrow the column to the prototype's own 760px
+ * (`width="narrow"`, admin-settings.html).
  */
 export function AdminLayout({
   actions,
   back = false,
+  width = 'default',
   children,
 }: {
   actions?: React.ReactNode
   back?: boolean
+  width?: 'default' | 'narrow'
   children: React.ReactNode
 }) {
   const { t } = useTranslation()
@@ -47,7 +52,13 @@ export function AdminLayout({
           </>
         }
       />
-      <main className="mx-auto max-w-[var(--admin-w)] px-(--pad) pt-7 pb-14">
+      <main
+        className={cn(
+          'mx-auto w-full px-(--pad) pt-7 pb-14',
+          width === 'default' && 'max-w-[var(--admin-w)]',
+          width === 'narrow' && 'max-w-[var(--content-w-narrow)]',
+        )}
+      >
         <UpdatePrompt />
         {children}
       </main>

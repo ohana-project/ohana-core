@@ -5,6 +5,7 @@ import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Input } from '@/ui/input.tsx'
+import { SectionHeader } from '@/ui/section-header.tsx'
 import { toast } from '@/ui/toast.tsx'
 
 interface PasswordFieldErrors {
@@ -15,8 +16,10 @@ interface PasswordFieldErrors {
 
 /*
  * The administrator password form (docs/design/screens/admin-settings.html,
- * "Пароль администратора"): current, new, and repeat fields with the
- * minimum-length and match rules checked before the API is called.
+ * "Пароль администратора"): the prototype's padded card, the three fields
+ * 14px apart, and the submit row 18px below them — the screen's one
+ * primary button with its hint beside it. The minimum-length and match
+ * rules are checked before the API is called.
  */
 export function AdminPasswordForm() {
   const { t } = useTranslation()
@@ -60,9 +63,9 @@ export function AdminPasswordForm() {
   }
 
   return (
-    <section className="flex flex-col gap-2.5">
-      <h3 className="px-1">{t('admin.password.title')}</h3>
-      <Card>
+    <section>
+      <SectionHeader level={3} title={t('admin.password.title')} />
+      <Card variant="padded">
         <form onSubmit={submit} noValidate className="flex flex-col gap-3.5">
           <Field data-invalid={fieldErrors.currentPassword !== undefined || undefined}>
             <FieldLabel htmlFor="admin-current-password">
@@ -118,7 +121,9 @@ export function AdminPasswordForm() {
               <FieldError>{fieldErrors.repeatedPassword}</FieldError>
             ) : null}
           </Field>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
+          {/* The prototype's submit row: its own 18px on top of the
+              form's 14px field gap. */}
+          <div className="mt-4.5 flex flex-wrap items-center gap-2.5">
             <Button type="submit" disabled={changePassword.isPending}>
               {t('admin.password.submit')}
             </Button>
