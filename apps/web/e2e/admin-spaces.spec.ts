@@ -350,12 +350,16 @@ test.describe('administrative space screen', () => {
     await expect(page).toHaveURL(/\/admin\/spaces\/[0-9a-f-]+$/)
     await expect(page.getByRole('heading', { name: 'Наша семья' })).toBeVisible()
     await expect(page.getByText('создано 12 августа · корзина хранится 30 дней')).toBeVisible()
-    const anyaRow = page.locator('[data-slot=item]', { hasText: 'Аня' })
-    await expect(anyaRow).toContainText('Владелец')
-    const mishaRow = page.locator('[data-slot=item]', { hasText: 'Миша' })
-    await expect(mishaRow).toContainText('+7 900 000-00-00')
-    const ludaRow = page.locator('[data-slot=item]', { hasText: 'Люда' })
-    await expect(ludaRow).toContainText('бабушка Люда')
+    // Member rows carry the monogram avatar; the code rows naming «Аня»
+    // lead with an icon instead.
+    const memberRow = (name: string) =>
+      page
+        .locator('[data-slot=item]')
+        .filter({ has: page.locator('[data-slot=avatar]') })
+        .filter({ hasText: name })
+    await expect(memberRow('Аня')).toContainText('Владелец')
+    await expect(memberRow('Миша')).toContainText('+7 900 000-00-00')
+    await expect(memberRow('Люда')).toContainText('бабушка Люда')
     await expect(
       page.getByText('Роль владельца можно передать, но не снять с последнего'),
     ).toBeVisible()
@@ -403,7 +407,9 @@ test.describe('administrative space screen', () => {
 
     await expect(page.getByText('Изменения сохранены')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Семья Смирновых' })).toBeVisible()
-    await expect(page.getByText(/часовой пояс: Asia\/Novosibirsk/)).toBeVisible()
+    // The header subtitle carries the retention (issue #80); the time zone
+    // lives in the settings sheet.
+    await expect(page.getByText(/корзина хранится 30 дней/)).toBeVisible()
     expect(model.spaces[0]).toMatchObject({ name: 'Семья Смирновых', timezone: 'Asia/Novosibirsk' })
   })
 
@@ -412,7 +418,10 @@ test.describe('administrative space screen', () => {
     await page.goto('/admin')
     await page.getByRole('link', { name: /Наша семья/ }).click()
 
-    const dimaRow = page.locator('[data-slot=item]', { hasText: 'Дима' })
+    const dimaRow = page
+      .locator('[data-slot=item]')
+      .filter({ has: page.locator('[data-slot=avatar]') })
+      .filter({ hasText: 'Дима' })
     await dimaRow.getByRole('button', { name: 'Сделать владельцем' }).click()
     await expect(page.getByText('Дима станет владельцем?')).toBeVisible()
     await page.getByRole('button', { name: 'Сделать владельцем', exact: true }).click()
@@ -450,6 +459,15 @@ test.describe('administrative space screen', () => {
  */
 
 test.describe('administrative space screen parity', () => {
+  // Member rows lead with the monogram avatar; code rows naming the same
+  // member lead with an icon.
+  function memberRow(page: Page, name: string) {
+    return page
+      .locator('[data-slot=item]')
+      .filter({ has: page.locator('[data-slot=avatar]') })
+      .filter({ hasText: name })
+  }
+
   async function openSpace(page: Page) {
     await mockAdminApi(page)
     await page.goto('/admin')
@@ -488,7 +506,7 @@ test.describe('administrative space screen parity', () => {
       }
 
       // Member rows: 60px with 40px avatars and 36px round actions.
-      const anyaRow = page.locator('[data-slot=item]', { hasText: 'Аня' })
+      const anyaRow = memberRow(page, 'Аня')
       expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
       const avatar = anyaRow.locator('[data-slot=avatar]')
       expect(await avatar.evaluate((el) => getComputedStyle(el).width)).toBe('40px')
@@ -558,23 +576,22 @@ test.describe('administrative space screen parity', () => {
       if (!box) throw new Error('the row never rendered a box')
       expect(box.height).toBeLessThanOrEqual(70)
     }
-    const dimaSub = page
-      .locator('[data-slot=item]', { hasText: 'Дима' })
-      .locator('[data-slot=item-description]')
+    const dimaSub = memberRow(page, 'Дима').locator('[data-slot=item-description]')
     expect(await dimaSub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap')
   })
 
   test('tooltips name the row actions (ru)', async ({ page }) => {
     await openSpace(page)
 
-    const crown = page
-      .locator('[data-slot=item]', { hasText: 'Дима' })
-      .getByRole('button', { name: 'Сделать владельцем' })
+    // Base UI's popup carries no tooltip role; the content slot is the
+    // contract here.
+    const tooltip = page.locator('[data-slot=tooltip-content]')
+    const crown = memberRow(page, 'Дима').getByRole('button', { name: 'Сделать владельцем' })
     await crown.hover()
-    await expect(page.getByRole('tooltip')).toContainText('Сделать владельцем')
+    await expect(tooltip).toContainText('Сделать владельцем')
 
     await page.mouse.move(0, 0)
-    await expect(page.getByRole('tooltip')).toHaveCount(0)
+    await expect(tooltip).toHaveCount(0)
   })
 
   test('keeps the prototype values in the dark theme', async ({ page }) => {
@@ -583,7 +600,7 @@ test.describe('administrative space screen parity', () => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 
-    const anyaRow = page.locator('[data-slot=item]', { hasText: 'Аня' })
+    const anyaRow = memberRow(page, 'Аня')
     expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
     expect(
       await anyaRow
