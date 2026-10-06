@@ -192,9 +192,10 @@ describe('the person screen gift controls (issue #19)', () => {
     const user = userEvent.setup()
     renderWithProviders(<WishlistPersonScreen memberId={DIMA} />)
 
-    // The label carries the state; there is no pressed attribute beside it.
+    // The label carries the state, and the pressed state rides aria-pressed
+    // like the prototype's fav-btn (issue #67).
     const heart = await screen.findByRole('button', { name: 'В избранное' })
-    expect(heart).not.toHaveAttribute('aria-pressed')
+    expect(heart).toHaveAttribute('aria-pressed', 'false')
     await user.click(heart)
 
     expect(apiPost).toHaveBeenCalledWith(
@@ -326,6 +327,12 @@ describe('the favorites screen (issue #19)', () => {
     expect(screen.getByText('Из вишлиста: Дима')).toBeInTheDocument()
     expect(screen.getByText('Из вишлиста: Люда')).toBeInTheDocument()
     expect(screen.getByText('2 идеи · видно только вам')).toBeInTheDocument()
+
+    // One link per card (issue #67): the whole row leads to the wishlist it
+    // came from, the removal standing beside it, not inside the link.
+    const row = screen.getByText('Налобный фонарь Petzl Actik Core').closest('[data-slot="card"]')
+    expect(row).not.toBeNull()
+    expect(within(row as HTMLElement).getAllByRole('link')).toHaveLength(1)
 
     // The way back out of the shortlist.
     const removeButtons = screen.getAllByRole('button', { name: 'Убрать' })

@@ -159,6 +159,15 @@ describe('WishlistPersonScreen (one member wishlist)', () => {
     expect(screen.getByText('чтобы ходить в горы в темноте')).toBeInTheDocument()
     expect(screen.getByText('wildberries.ru')).toBeInTheDocument()
     expect(screen.getByText('ozon.ru')).toBeInTheDocument()
+
+    // The prototype's header (issue #67): the member's name is the screen's
+    // serif heading, and the list is open to the space — the note block and
+    // the mono footer line say so.
+    expect(screen.getByRole('heading', { level: 1, name: 'Дима' })).toBeInTheDocument()
+    const note = document.querySelector('[data-slot="note-block"]')
+    expect(note).not.toBeNull()
+    expect(note).toHaveTextContent('Дима не видит брони и вашего избранного')
+    expect(screen.getByText('Список видят Аня Смирнова и Дима')).toBeInTheDocument()
   })
 
   it('leaves received wishes out of the open list', async () => {

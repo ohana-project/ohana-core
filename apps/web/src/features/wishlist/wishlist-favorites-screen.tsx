@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import type { StoredGiftFavorite } from '@/data/local-store.ts'
+import type { StoredGiftFavorite, StoredWish } from '@/data/local-store.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
@@ -17,6 +17,11 @@ import { WishlistShell } from './wishlist-shell.tsx'
  * wishlists. The rows read from the synchronised partition — the favorites
  * travel to this member alone, so the screen answers offline like the rest
  * of the section (ADR-0002) — and each leads to the wishlist it came from.
+ *
+ * The screen follows its prototype (issue #67): a serif heading over the
+ * muted count line, each card one link with the ghost removal and the
+ * trailing chevron, the bare empty state with its way to the wishlists,
+ * and the mono footer line.
  */
 export function WishlistFavoritesScreen() {
   const { t } = useTranslation()
@@ -44,7 +49,7 @@ export function WishlistFavoritesScreen() {
       ) : !downloaded ? (
         // A device with nothing downloaded says so instead of counting the
         // rows it happens to hold (ADR-0014, architecture.md web rules).
-        <Card className="mt-6">
+        <Card className="mt-5">
           <Empty>
             <EmptyMedia>
               <Icon name="cloud-off" />
@@ -53,70 +58,107 @@ export function WishlistFavoritesScreen() {
             <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
           </Empty>
         </Card>
-      ) : joined.length === 0 ? (
-        <Card className="mt-6">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="heart" />
-            </EmptyMedia>
-            <EmptyTitle>{t('wishlist.favoritesEmptyTitle')}</EmptyTitle>
-            <EmptyDescription>{t('wishlist.favoritesEmptyText')}</EmptyDescription>
-            <EmptyContent>
-              <Button render={<Link to="/wishlist" />}>{t('wishlist.favoritesEmptyAction')}</Button>
-            </EmptyContent>
-          </Empty>
-        </Card>
       ) : (
-        <div className="flex flex-col gap-6 pt-6">
-          <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
-            {t('wishlist.favoritesCount', { count: joined.length })} ·{' '}
-            {t('wishlist.favoritesPrivate')}
-          </span>
-          <div className="flex flex-col gap-3">
-            {joined.map(({ favorite, wish }) => {
-              const author = authorName(wish.authorId, profiles, t('wishlist.authorUnknown'))
-              return (
-                <Card key={favorite.id} className="gap-0 py-0" hoverable>
-                  <div className="flex items-start gap-3 px-5 py-4">
-                    <Icon name="heart" className="mt-1 size-5 shrink-0 fill-current text-primary" />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <Link
-                        to="/wishlist/$memberId"
-                        params={{ memberId: wish.authorId }}
-                        className="flex min-w-0 flex-col gap-0.5"
-                      >
-                        <span className="text-h3 break-words">{wish.title}</span>
-                        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          {t('wishlist.favoritesFrom', { name: author })}
-                        </span>
-                      </Link>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={unfavoriteWish.isPending}
-                        onClick={() => remove(favorite)}
-                      >
-                        {t('wishlist.favoritesRemove')}
-                      </Button>
-                      <Link
-                        to="/wishlist/$memberId"
-                        params={{ memberId: wish.authorId }}
-                        aria-label={t('wishlist.favoritesOpen', { name: author })}
-                        className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                      >
-                        <Icon name="chevron-right" className="size-5" />
-                      </Link>
-                    </div>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-          <p className="text-meta text-muted-foreground">{t('wishlist.favoritesHint')}</p>
+        <div className="flex flex-col pt-5">
+          <header className="mb-4.5">
+            <h1 className="text-display-lg">{t('wishlist.favoritesTitle')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('wishlist.favoritesCount', { count: joined.length })} ·{' '}
+              {t('wishlist.favoritesPrivate')}
+            </p>
+          </header>
+
+          {joined.length === 0 ? (
+            // The prototype's bare empty state (`.empty`, no card around
+            // it), its button in the content slot.
+            <Empty className="py-14">
+              <EmptyMedia>
+                <Icon name="heart" />
+              </EmptyMedia>
+              <EmptyTitle>{t('wishlist.favoritesEmptyTitle')}</EmptyTitle>
+              <EmptyDescription>{t('wishlist.favoritesEmptyText')}</EmptyDescription>
+              <EmptyContent>
+                <Button render={<Link to="/wishlist" />}>
+                  {t('wishlist.favoritesEmptyAction')}
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {joined.map(({ favorite, wish }) => {
+                const author = authorName(wish.authorId, profiles, t('wishlist.authorUnknown'))
+                return (
+                  <FavoriteRow
+                    key={favorite.id}
+                    wish={wish}
+                    author={author}
+                    removePending={unfavoriteWish.isPending}
+                    onRemove={() => remove(favorite)}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          <p className="mx-1 mt-4.5 font-mono text-meta uppercase text-muted-foreground">
+            {t('wishlist.favoritesHint')}
+          </p>
         </div>
       )}
     </WishlistShell>
+  )
+}
+
+/**
+ * One bookmark (the prototype's `card-link` row): the accent heart leads,
+ * the title and its wishlist travel in the body, and the trailing ghost
+ * removal and 18px chevron close the row. One link per card — the
+ * stretched link covers the card the way the prototype's anchor wraps the
+ * whole row, with the removal a positioned sibling above it: valid HTML
+ * where the prototype nests a button inside the link.
+ */
+function FavoriteRow({
+  wish,
+  author,
+  removePending,
+  onRemove,
+}: {
+  wish: StoredWish
+  author: string
+  removePending: boolean
+  onRemove: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Card variant="list" hoverable className="relative">
+      <div className="flex items-center gap-3.5 px-3.5 py-3.5">
+        {/* The prototype's accent heart (`.leading`, the outline glyph
+            tinted with the accent — the sprite's own fill="none" keeps even
+            the inline `fill:currentColor` of the prototype an outline
+            heart). */}
+        <Icon name="heart" className="size-5 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <Link
+            to="/wishlist/$memberId"
+            params={{ memberId: wish.authorId }}
+            className="after:absolute after:inset-0 flex min-w-0 flex-col"
+          >
+            {/* break-words: a title of the contract's 200 characters must
+                wrap instead of overflowing. */}
+            <span className="text-body font-medium break-words">{wish.title}</span>
+            <span className="mt-px text-sm break-words text-muted-foreground">
+              {t('wishlist.favoritesFrom', { name: author })}
+            </span>
+          </Link>
+        </div>
+        <div className="relative flex flex-none items-center gap-2 text-muted-foreground">
+          <Button variant="ghost" size="sm" disabled={removePending} onClick={onRemove}>
+            {t('wishlist.favoritesRemove')}
+          </Button>
+          {/* The prototype's trailing chevron (`.trailing svg`, 18px). */}
+          <Icon name="chevron-right" className="size-4.5" />
+        </div>
+      </div>
+    </Card>
   )
 }
