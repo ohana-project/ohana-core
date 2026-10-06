@@ -585,4 +585,34 @@ describe('AdminSpaceDetail — design parity (issue #80)', () => {
 
     expect(await screen.findByText('создано 12 августа')).toBeInTheDocument()
   })
+
+  it('survives an absent clipboard API and a refused copy', async () => {
+    const user = userEvent.setup()
+    apiPost.mockResolvedValue(okBody({ ...accessCode('issued'), code: 'QWEE-4455' }, 201))
+    // No clipboard at all: touching it must not throw outside the handler.
+    Object.defineProperty(window.navigator, 'clipboard', { value: undefined, configurable: true })
+    renderWithProviders(<AdminSpaceDetail spaceId={SPACE_ID} />)
+
+    await screen.findByText('Аня')
+    await user.click(screen.getByRole('button', { name: 'Выпустить код' }))
+    await user.selectOptions(screen.getByLabelText('Участник'), DIMA_ID)
+    await user.click(screen.getByRole('button', { name: 'Выпустить' }))
+
+    const popup = screen.getAllByRole('dialog').find((element) => element.dataset.slot !== 'toast')
+    if (popup === undefined) throw new Error('the issue dialog never rendered')
+    const dialog = within(popup)
+    await user.click(await dialog.findByRole('button', { name: 'Скопировать' }))
+    expect(screen.queryByText('Код скопирован')).not.toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: 'Готово' })).toBeInTheDocument()
+
+    // A refused write answers the same way: no toast, the dialog stays.
+    const refused = vi.fn().mockRejectedValue(new Error('denied'))
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: refused },
+      configurable: true,
+    })
+    await user.click(dialog.getByRole('button', { name: 'Скопировать' }))
+    expect(refused).toHaveBeenCalledWith('QWEE-4455')
+    expect(screen.queryByText('Код скопирован')).not.toBeInTheDocument()
+  })
 })

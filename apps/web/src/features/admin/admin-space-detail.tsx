@@ -867,19 +867,24 @@ function ProvisionMemberSheet({
 /*
  * The issue dialog's labelled copy button (admin-space.html): a secondary
  * button with the copy icon in the footer, beside the primary «Готово».
+ * The clipboard may be absent (or refuse) — the code stays selectable in
+ * the display, and the success toast names the copy only after it landed.
  */
 function CodeCopyButton({ code, label }: { code: string; label: string }) {
   const { t } = useTranslation()
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      toast(t('admin.codes.copiedToast'))
+    } catch {
+      // The code stays selectable in the display; nothing to report.
+    }
+  }
   return (
     <Button
       variant="secondary"
       onClick={() => {
-        void navigator.clipboard
-          .writeText(code)
-          .then(() => toast(t('admin.codes.copiedToast')))
-          .catch(() => {
-            // The code stays selectable in the display; nothing to report.
-          })
+        void copy()
       }}
     >
       <Icon name="copy" />

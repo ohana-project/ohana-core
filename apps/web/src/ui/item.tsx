@@ -160,7 +160,11 @@ function ItemTitle({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="item-title"
       className={cn(
-        'flex w-fit items-center gap-2 truncate text-body leading-snug font-medium',
+        // `w-fit` hugs short titles; `max-w-full` clamps it to the row's
+        // clipped column — under `truncate`'s nowrap the fit-content
+        // floors at the longest word and would otherwise reach into the
+        // trailing content (issue #80).
+        'flex w-fit max-w-full items-center gap-2 truncate text-body leading-snug font-medium',
         className,
       )}
       {...props}

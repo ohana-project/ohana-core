@@ -12,7 +12,7 @@ const SPACES = '**/api/v1/spaces'
 const SPACE = /\/api\/v1\/spaces\/[0-9a-f-]+$/
 const MEMBERS = /\/api\/v1\/spaces\/[0-9a-f-]+\/members$/
 const MEMBER = /\/api\/v1\/spaces\/[0-9a-f-]+\/members\/[0-9a-f-]+$/
-const CODES = /\/api\/v1\/spaces\/[0-9a-f-]+\/access-codes$/
+const CODES = /\/access-codes$/
 
 interface MockSpace {
   id: string
@@ -230,14 +230,19 @@ async function mockAdminApi(
       return route.fulfill(jsonBody(spaceId === familySpace.id ? codes : []))
     }
     if (request.method() === 'POST') {
-      const body = request.postDataJSON() as { memberId: string }
-      const code: MockCode = {
-        id: nextId(),
-        memberId: body.memberId,
-        status: 'issued',
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-        statusChangedAt: new Date().toISOString(),
+      // The issuance rides the member's URL (…/members/{id}/access-codes);
+      // the response carries the plaintext, shown once.
+      const memberId = request.url().match(/members\/([0-9a-f-]+)\/access-codes$/)?.[1] ?? ''
+      const code = {
+        ...({
+          id: nextId(),
+          memberId,
+          status: 'issued',
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+          statusChangedAt: new Date().toISOString(),
+        } satisfies MockCode),
+        code: 'QWEE-4455',
       }
       codes.unshift(code)
       return route.fulfill(jsonBody(code, 201))
@@ -583,6 +588,20 @@ test.describe('administrative space screen parity', () => {
     // Миша's row carries the phone line: it clips instead of wrapping.
     const mishaSub = memberRow(page, 'Миша').locator('[data-slot=item-description]')
     expect(await mishaSub.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap')
+
+    // Nothing collides inside the clipped row: the name stays inside its
+    // column and the buttons start after the role pill, even on the
+    // tightest row (the pill leads the actions group).
+    const dimaRow = memberRow(page, 'Дима')
+    const title = await dimaRow.locator('[data-slot=item-title]').boundingBox()
+    const badge = await dimaRow.locator('[data-slot=badge]').boundingBox()
+    if (!title || !badge) throw new Error('the row never rendered fully')
+    expect(title.x + title.width).toBeLessThanOrEqual(badge.x)
+    for (const button of await dimaRow.getByRole('button').all()) {
+      const box = await button.boundingBox()
+      if (!box) throw new Error('the row action never rendered a box')
+      expect(box.x).toBeGreaterThanOrEqual(badge.x + badge.width)
+    }
   })
 
   test('tooltips name the row actions (ru)', async ({ page }) => {
@@ -599,23 +618,60 @@ test.describe('administrative space screen parity', () => {
     await expect(tooltip).toHaveCount(0)
   })
 
+  test('issues a code through the dialog: centred meta, two equal buttons, copy, done (ru)', async ({
+    page,
+  }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await openSpace(page)
+
+    await page.getByRole('button', { name: 'Выпустить код' }).click()
+    await page.getByLabel('Участник', { exact: true }).selectOption({ label: 'Дима' })
+    await page.getByRole('button', { name: 'Выпустить', exact: true }).click()
+
+    // The result state: the plaintext once, the centred meta line, and the
+    // two equal footer buttons.
+    await expect(page.getByText('QWEE-4455', { exact: true })).toBeVisible()
+    const meta = page.getByText('Живёт 24 часа · один вход')
+    await expect(meta).toHaveCSS('text-align', 'center')
+    const copy = page.getByRole('button', { name: 'Скопировать' })
+    const done = page.getByRole('button', { name: 'Готово' })
+    const copyBox = await copy.boundingBox()
+    const doneBox = await done.boundingBox()
+    if (!copyBox || !doneBox) throw new Error('the footer buttons never rendered')
+    expect(Math.abs(copyBox.width - doneBox.width)).toBeLessThanOrEqual(1)
+
+    // The labelled copy lands the plaintext on the clipboard and answers
+    // with the toast; the dialog stays open.
+    await copy.click()
+    await expect(page.getByText('Код скопирован')).toBeVisible()
+    const onClipboard = await page.evaluate(() => navigator.clipboard.readText())
+    expect(onClipboard).toBe('QWEE-4455')
+    await expect(done).toBeVisible()
+
+    // «Готово» is the way out.
+    await done.click()
+    await expect(page.getByText('QWEE-4455', { exact: true })).toHaveCount(0)
+  })
+
   test('keeps the prototype values in the dark theme', async ({ page }) => {
     await page.addInitScript(() => window.localStorage.setItem('ohana.theme', 'dark'))
     await openSpace(page)
-    await page.setViewportSize({ width: 1280, height: 900 })
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 
-    const anyaRow = memberRow(page, 'Аня')
-    expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
-    expect(
-      await anyaRow.locator('[data-slot=avatar]').evaluate((el) => getComputedStyle(el).width),
-    ).toBe('40px')
-    expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      ),
-    ).toBeLessThanOrEqual(0)
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      const anyaRow = memberRow(page, 'Аня')
+      expect(await anyaRow.evaluate((el) => getComputedStyle(el).minHeight)).toBe('60px')
+      expect(
+        await anyaRow.locator('[data-slot=avatar]').evaluate((el) => getComputedStyle(el).width),
+      ).toBe('40px')
+      expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
   })
 })
 
@@ -703,15 +759,22 @@ test.describe('administrative settings parity', () => {
 
   test('keeps the values in the dark theme and holds at 360px', async ({ page }) => {
     await openSettings(page, { dark: true })
-    await page.setViewportSize({ width: 360, height: 900 })
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 
-    expect(await page.locator('[data-slot=card][data-variant=padded]').count()).toBe(2)
-    expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      ),
-    ).toBeLessThanOrEqual(0)
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(page.getByRole('heading', { name: 'Корзина', level: 3 })).toBeVisible()
+      expect(await page.locator('[data-slot=card][data-variant=padded]').count()).toBe(2)
+      expect(await page.locator('button.bg-primary:visible').count()).toBe(1)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0)
+    }
+    // At the desktop width the dark column is the prototype's 760px.
+    const main = await page.locator('main').boundingBox()
+    if (!main) throw new Error('main never rendered a box')
+    expect(main.width).toBe(760)
   })
 })

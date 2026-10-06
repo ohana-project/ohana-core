@@ -66,63 +66,65 @@ export function AdminPasswordForm() {
     <section>
       <SectionHeader level={3} title={t('admin.password.title')} />
       <Card variant="padded">
-        <form onSubmit={submit} noValidate className="flex flex-col gap-3.5">
-          <Field data-invalid={fieldErrors.currentPassword !== undefined || undefined}>
-            <FieldLabel htmlFor="admin-current-password">
-              {t('admin.password.currentLabel')}
-            </FieldLabel>
-            <Input
-              id="admin-current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) => {
-                setCurrentPassword(event.target.value)
-                setFieldErrors((previous) => ({ ...previous, currentPassword: undefined }))
-              }}
-            />
-            {fieldErrors.currentPassword !== undefined ? (
-              <FieldError>{fieldErrors.currentPassword}</FieldError>
-            ) : null}
-          </Field>
-          <Field data-invalid={fieldErrors.newPassword !== undefined || undefined}>
-            <FieldLabel htmlFor="admin-new-password">{t('admin.password.newLabel')}</FieldLabel>
-            <Input
-              id="admin-new-password"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(event) => {
-                setNewPassword(event.target.value)
-                setFieldErrors((previous) => ({ ...previous, newPassword: undefined }))
-              }}
-            />
-            {fieldErrors.newPassword !== undefined ? (
-              <FieldError>{fieldErrors.newPassword}</FieldError>
-            ) : (
-              <FieldDescription>{t('admin.password.newHint')}</FieldDescription>
-            )}
-          </Field>
-          <Field data-invalid={fieldErrors.repeatedPassword !== undefined || undefined}>
-            <FieldLabel htmlFor="admin-repeat-password">
-              {t('admin.password.repeatLabel')}
-            </FieldLabel>
-            <Input
-              id="admin-repeat-password"
-              type="password"
-              autoComplete="new-password"
-              value={repeatedPassword}
-              onChange={(event) => {
-                setRepeatedPassword(event.target.value)
-                setFieldErrors((previous) => ({ ...previous, repeatedPassword: undefined }))
-              }}
-            />
-            {fieldErrors.repeatedPassword !== undefined ? (
-              <FieldError>{fieldErrors.repeatedPassword}</FieldError>
-            ) : null}
-          </Field>
-          {/* The prototype's submit row: its own 18px on top of the
-              form's 14px field gap. */}
+        <form onSubmit={submit} noValidate>
+          {/* The prototype's field stack: the three fields 14px apart, the
+              submit row outside it, 18px below (admin-settings.html). */}
+          <div className="flex flex-col gap-3.5">
+            <Field data-invalid={fieldErrors.currentPassword !== undefined || undefined}>
+              <FieldLabel htmlFor="admin-current-password">
+                {t('admin.password.currentLabel')}
+              </FieldLabel>
+              <Input
+                id="admin-current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => {
+                  setCurrentPassword(event.target.value)
+                  setFieldErrors((previous) => ({ ...previous, currentPassword: undefined }))
+                }}
+              />
+              {fieldErrors.currentPassword !== undefined ? (
+                <FieldError>{fieldErrors.currentPassword}</FieldError>
+              ) : null}
+            </Field>
+            <Field data-invalid={fieldErrors.newPassword !== undefined || undefined}>
+              <FieldLabel htmlFor="admin-new-password">{t('admin.password.newLabel')}</FieldLabel>
+              <Input
+                id="admin-new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => {
+                  setNewPassword(event.target.value)
+                  setFieldErrors((previous) => ({ ...previous, newPassword: undefined }))
+                }}
+              />
+              {fieldErrors.newPassword !== undefined ? (
+                <FieldError>{fieldErrors.newPassword}</FieldError>
+              ) : (
+                <FieldDescription>{t('admin.password.newHint')}</FieldDescription>
+              )}
+            </Field>
+            <Field data-invalid={fieldErrors.repeatedPassword !== undefined || undefined}>
+              <FieldLabel htmlFor="admin-repeat-password">
+                {t('admin.password.repeatLabel')}
+              </FieldLabel>
+              <Input
+                id="admin-repeat-password"
+                type="password"
+                autoComplete="new-password"
+                value={repeatedPassword}
+                onChange={(event) => {
+                  setRepeatedPassword(event.target.value)
+                  setFieldErrors((previous) => ({ ...previous, repeatedPassword: undefined }))
+                }}
+              />
+              {fieldErrors.repeatedPassword !== undefined ? (
+                <FieldError>{fieldErrors.repeatedPassword}</FieldError>
+              ) : null}
+            </Field>
+          </div>
           <div className="mt-4.5 flex flex-wrap items-center gap-2.5">
             <Button type="submit" disabled={changePassword.isPending}>
               {t('admin.password.submit')}
