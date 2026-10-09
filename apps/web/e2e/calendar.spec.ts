@@ -59,7 +59,8 @@ const SPACE = {
 }
 
 // A timed event at 18:00 Moscow is 15:00 UTC — the e2e browser runs in
-// UTC, so that is the local time the screen shows.
+// UTC, so that is the local time the screen shows. The reminder rides the
+// DTO like the real row's (issue #22).
 const SEEDED_DINNER = {
   id: '01900000-0000-7000-8000-000000000401',
   creatorId: ANYA_ID,
@@ -68,6 +69,7 @@ const SEEDED_DINNER = {
   startsAt: '2026-10-02T15:00:00.000Z',
   endsAt: '2026-10-02T18:00:00.000Z',
   timezone: 'Europe/Moscow',
+  reminder: { leadMinutes: 120, recipients: { everyone: true } },
   createdAt: '2026-09-28T10:00:00.000Z',
   updatedAt: '2026-09-28T10:00:00.000Z',
 }
@@ -332,10 +334,15 @@ test.describe('the calendar', () => {
     await page.getByRole('button', { name: 'Календарь' }).first().click()
 
     // The event screen opens from the agenda; the edit replaces the whole
-    // event — the title here — and the saved toast follows.
+    // event — the title here — and the saved toast follows. The small edit
+    // rides the top bar (issue #74); the phone's bar copy is hidden here,
+    // so the topbar slot names the one the click means.
     await page.getByText('День рождения Люды').click()
     await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_BIRTHDAY.id}$`))
-    await page.getByRole('link', { name: /Изменить/ }).click()
+    await page
+      .locator('[data-slot="topbar"]')
+      .getByRole('link', { name: /Изменить/ })
+      .click()
     await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_BIRTHDAY.id}/edit$`))
     const title = page.getByLabel('Название')
     await expect(title).toHaveValue('День рождения Люды')
@@ -344,13 +351,46 @@ test.describe('the calendar', () => {
     await expect(page.getByText('Изменения сохранены')).toBeVisible()
     await expect(page.getByText('День рождения Люды — тортик')).toBeVisible()
 
-    // The removal stands behind its confirm.
-    await page.getByRole('button', { name: /Удалить/ }).click()
+    // The removal stands behind its confirm, through the desktop menu.
+    await page.getByRole('button', { name: 'Ещё' }).click()
+    await page.getByRole('menuitem', { name: /Удалить/ }).click()
     await expect(page.getByText('Удалить «День рождения Люды — тортик»?')).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Удалить', exact: true }).click()
     await expect(page.getByText('Событие удалено')).toBeVisible()
     await expect(page).toHaveURL(/\/calendar$/)
     await expect(page.getByText('День рождения Люды — тортик')).toHaveCount(0)
+  })
+
+  test('the event screen carries the details card, the creator line, and the bar actions on a phone', async ({
+    page,
+  }) => {
+    await mockCalendarApi(page)
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // A timed event with a reminder for everyone: the card shows the one
+    // time-and-duration row, the reminder and its recipients (issue #74).
+    await page.getByText('Ужин у бабушки').click()
+    await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_DINNER.id}$`))
+    await expect(page.getByText('длительность 3 часа')).toBeVisible()
+    await expect(page.getByText('Создал: Аня Смирнова · 28 сентября')).toBeVisible()
+    await expect(page.getByText('Все участники')).toBeVisible()
+
+    // On the phone the edit and the delete live in the action bar; the
+    // top bar keeps neither. The screen's own head is a header too, so
+    // the top bar's slot names it; the one-time edit is a link in the
+    // bar as in the top bar.
+    const bar = page.locator('[data-slot="action-bar"]')
+    await expect(bar.getByRole('link', { name: /Изменить/ })).toBeVisible()
+    await expect(bar.getByRole('button', { name: /Удалить/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Ещё' })).toBeHidden()
+    await expect(
+      page.locator('[data-slot="topbar"]').getByRole('link', { name: /Изменить/ }),
+    ).toBeHidden()
   })
 })
 
@@ -508,13 +548,12 @@ test.describe('a repeating series', () => {
     await expect(page.getByText(/до 31 января 2027/)).toBeVisible()
 
     // The delete asks what to cancel; the occurrence route takes the
-    // series' first date.
-    await page.getByRole('button', { name: /Удалить/ }).click()
-    await expect(page.getByText('Отменить это событие или удалить всю серию?')).toBeVisible()
-    await page
-      .getByRole('dialog')
-      .getByRole('button', { name: 'Отменить только это событие' })
-      .click()
+    // series' first date. On the desktop the delete rides the top bar's
+    // menu — the bar's own sits under the phone-only styling.
+    await page.getByRole('button', { name: 'Ещё' }).click()
+    await page.getByRole('menuitem', { name: /Удалить/ }).click()
+    await expect(page.getByText('Удалить повторяющееся событие?')).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Только это событие' }).click()
     await expect(page.getByText('Событие отменено')).toBeVisible()
     await expect(page).toHaveURL(/\/calendar$/)
 
@@ -530,8 +569,11 @@ test.describe('a repeating series', () => {
     // The edit asks what to change; the whole series is replaced.
     await page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка').click()
     await expect(page).toHaveURL(/\/calendar\/[\w-]+\?date=2026-10-12$/)
-    await page.getByRole('button', { name: /Изменить/ }).click()
-    await expect(page.getByText('Что изменить?')).toBeVisible()
+    await page
+      .locator('[data-slot="topbar"]')
+      .getByRole('button', { name: /Изменить/ })
+      .click()
+    await expect(page.getByText('Изменить повторяющееся событие?')).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Всю серию' }).click()
     await expect(page).toHaveURL(/\/edit$/)
     await expect(page.getByLabel('Как повторять')).toHaveValue('weekly')
@@ -593,7 +635,10 @@ test.describe('a repeating series, one occurrence edited', () => {
     await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
     await page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка').click()
     await expect(page).toHaveURL(/date=2026-10-12$/)
-    await page.getByRole('button', { name: /Изменить/ }).click()
+    await page
+      .locator('[data-slot="topbar"]')
+      .getByRole('button', { name: /Изменить/ })
+      .click()
     await page.getByRole('dialog').getByRole('button', { name: 'Только это событие' }).click()
     await expect(page).toHaveURL(/\/edit\?date=2026-10-12$/)
     // A single occurrence has no rule of its own.

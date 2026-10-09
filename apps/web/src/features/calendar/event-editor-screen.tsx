@@ -29,6 +29,7 @@ import { Switch } from '@/ui/switch.tsx'
 import { toast } from '@/ui/toast.tsx'
 import { canEditEvent, eventById } from './calendar-entries.ts'
 import { CalendarShell } from './calendar-shell.tsx'
+import { REMINDER_LEAD_CHOICES, reminderLeadLabel } from './event-time.tsx'
 import { occurrenceOf, type Recurrence } from './recurrence.ts'
 import {
   calendarErrorMessage,
@@ -56,16 +57,6 @@ import {
 const REPEAT_CHOICES = ['none', 'daily', 'weekly', 'monthly', 'yearly'] as const
 
 type RepeatChoice = (typeof REPEAT_CHOICES)[number]
-
-/** The lead choices the editor offers (issue #22), the prototype's set:
- *  the API takes any minute count; these are the ones a family plans in. */
-const REMINDER_LEAD_CHOICES = [
-  { minutes: 15, labelKey: 'calendar.reminderLead15' },
-  { minutes: 60, labelKey: 'calendar.reminderLead60' },
-  { minutes: 120, labelKey: 'calendar.reminderLead120' },
-  { minutes: 1440, labelKey: 'calendar.reminderLeadDay' },
-  { minutes: 10080, labelKey: 'calendar.reminderLeadWeek' },
-] as const
 
 export function EventEditorScreen({
   eventId,
@@ -151,6 +142,14 @@ export function EventEditorScreen({
     reminderChoice ?? (storedReminder === undefined ? 'none' : String(storedReminder.leadMinutes))
   const effectiveReminderOn = effectiveReminderChoice !== 'none'
   const effectiveReminderLead = Number(effectiveReminderChoice)
+  // The lead options: the shared set, plus a stored off-list lead the
+  // member kept (the API takes any minute count) so the select never
+  // shows a value it has no option for.
+  const leadChoices: number[] =
+    effectiveReminderOn &&
+    !(REMINDER_LEAD_CHOICES as readonly number[]).includes(effectiveReminderLead)
+      ? [effectiveReminderLead, ...REMINDER_LEAD_CHOICES]
+      : [...REMINDER_LEAD_CHOICES]
   const effectiveReminderEveryone =
     reminderEveryone ??
     (storedReminder?.recipients.everyone === true || storedReminder === undefined)
@@ -558,17 +557,9 @@ export function EventEditorScreen({
                         onChange={(event) => setReminderChoice(event.target.value)}
                       >
                         <option value="none">{t('calendar.reminderNone')}</option>
-                        {effectiveReminderOn &&
-                          !REMINDER_LEAD_CHOICES.some(
-                            (choice) => String(choice.minutes) === effectiveReminderChoice,
-                          ) && (
-                            <option value={effectiveReminderChoice}>
-                              {t('calendar.reminderLeadCustom', { minutes: effectiveReminderLead })}
-                            </option>
-                          )}
-                        {REMINDER_LEAD_CHOICES.map((choice) => (
-                          <option key={choice.minutes} value={String(choice.minutes)}>
-                            {t(choice.labelKey)}
+                        {leadChoices.map((minutes) => (
+                          <option key={minutes} value={String(minutes)}>
+                            {reminderLeadLabel(minutes, t)}
                           </option>
                         ))}
                       </Select>
