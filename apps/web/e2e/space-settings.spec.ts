@@ -267,9 +267,16 @@ test.describe('owner management of members and codes', () => {
     expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)
     expect((await provisionPromise).postDataJSON()).toEqual({ name: 'Миша', role: 'regular' })
 
-    // The member card shows the code status and the devices; the top bar
-    // carries the area's title, and the device row holds the disconnect.
-    await page.getByRole('button', { name: 'Готово' }).click()
+    // The code step is the prototype's own (issue #77): the copy is the
+    // large labelled primary over the secondary reroll.
+    await expect(page.getByRole('button', { name: 'Скопировать код' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Перевыпустить' })).toBeVisible()
+    await expect(page.getByText('Живёт 24 часа · один вход')).toBeVisible()
+
+    // The prototype has no «Готово» on the code step — the shell's
+    // navigation is the way back (the menu's members entry on the desktop).
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Участники' }).click()
     await expect(page).toHaveURL(/\/members$/)
     await page.getByRole('link', { name: 'Открыть карточку: Дима' }).click()
     await expect(page.getByText('Участник', { exact: true })).toBeVisible()
@@ -428,6 +435,26 @@ test.describe('archiving and restoring members', () => {
     // The card's top bar is the area's title, the h1 the member's own.
     await expect(page.getByText('Участник', { exact: true })).toBeVisible()
     // The back arrow leads to the members list (issue #76).
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/members$/)
+  })
+
+  test('the invite backs to the members list on a phone', async ({ page }) => {
+    await mockOwnerApi(page)
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(OWNER_CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    await page.getByRole('button', { name: 'Меню пользователя' }).click()
+    await page.getByRole('menuitem', { name: 'Участники' }).click()
+    await expect(page).toHaveURL(/\/members$/)
+    // Below 920px the header's own invite serves the phone.
+    await page.getByRole('link', { name: 'Пригласить' }).click()
+    await expect(page).toHaveURL(/\/members\/invite$/)
+    // The prototype's data-back points at the members list (issue #77).
     await page.getByRole('link', { name: 'Назад' }).click()
     await expect(page).toHaveURL(/\/members$/)
   })

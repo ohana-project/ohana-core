@@ -116,6 +116,133 @@ describe('InviteMemberScreen', () => {
     expect(await screen.findByText('SASF-KQLV')).toBeInTheDocument()
     expect(screen.getAllByText('SASF-KQLV').length).toBe(1)
     expect(screen.getByText('Живёт 24 часа · один вход')).toBeInTheDocument()
+
+    // The prototype's code step (docs/design/screens/invite.html): the
+    // padded card caps at the prototype's 420px and centres, the copy is
+    // the large labelled primary, and the beside-button copy is gone.
+    const codeCard = screen.getByText('SASF-KQLV').closest('[data-slot="card"]')
+    if (codeCard === null) throw new Error('the code never rendered inside a card')
+    expect(codeCard).toHaveAttribute('data-variant', 'padded')
+    expect(codeCard).toHaveClass('max-w-[420px]', 'mx-auto')
+    const copy = screen.getByRole('button', { name: 'Скопировать код' })
+    expect(copy).toHaveClass('min-h-[52px]', 'w-full')
+    expect(screen.queryByRole('button', { name: 'Копировать' })).not.toBeInTheDocument()
+    // The reroll rides under the copy as the secondary.
+    const reroll = screen.getByRole('button', { name: 'Перевыпустить' })
+    expect(reroll).toHaveClass('bg-card')
+    expect(copy).toHaveClass('bg-primary')
+    expect(copy.compareDocumentPosition(reroll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('backs to the members list from both steps', async () => {
+    const user = userEvent.setup()
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/members') return okBody(NEW_MEMBER, 201)
+      if (path === '/api/v1/members/{memberId}/access-code') {
+        return okBody(
+          {
+            id: '01900000-0000-7000-8000-000000000003',
+            memberId: NEW_MEMBER.id,
+            code: 'SASF-KQLV',
+            status: 'issued',
+            createdAt: '2026-09-29T10:00:00.000Z',
+            expiresAt: '2026-09-30T10:00:00.000Z',
+            statusChangedAt: '2026-09-29T10:00:00.000Z',
+          },
+          201,
+        )
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    renderWithProviders(<InviteMemberScreen />)
+
+    // The prototype's data-back points at the members list (issue #77),
+    // and its data-title names the top bar on both steps.
+    const back = await screen.findByRole('link', { name: 'Назад' })
+    expect(back).toHaveAttribute('href', '/members')
+    expect(screen.getByText('Приглашение', { exact: true })).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Имя'), 'Дима')
+    await user.click(screen.getByRole('button', { name: 'Пригласить и выпустить код' }))
+    await screen.findByText('SASF-KQLV')
+    expect(screen.getByRole('link', { name: 'Назад' })).toHaveAttribute('href', '/members')
+    expect(screen.getByText('Приглашение', { exact: true })).toBeInTheDocument()
+  })
+
+  it('copies the code from the large primary and names it in the toast', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/members') return okBody(NEW_MEMBER, 201)
+      if (path === '/api/v1/members/{memberId}/access-code') {
+        return okBody(
+          {
+            id: '01900000-0000-7000-8000-000000000003',
+            memberId: NEW_MEMBER.id,
+            code: 'SASF-KQLV',
+            status: 'issued',
+            createdAt: '2026-09-29T10:00:00.000Z',
+            expiresAt: '2026-09-30T10:00:00.000Z',
+            statusChangedAt: '2026-09-29T10:00:00.000Z',
+          },
+          201,
+        )
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    renderWithProviders(<InviteMemberScreen />)
+
+    await screen.findByRole('heading', { name: 'Пригласить участника' })
+    await user.type(screen.getByLabelText('Имя'), 'Дима')
+    await user.click(screen.getByRole('button', { name: 'Пригласить и выпустить код' }))
+    await screen.findByText('SASF-KQLV')
+
+    await user.click(screen.getByRole('button', { name: 'Скопировать код' }))
+    expect(writeText).toHaveBeenCalledWith('SASF-KQLV')
+    // The prototype's toast says where the code goes (issue #77).
+    expect(
+      await screen.findByText('Код SASF-KQLV скопирован — отправьте лично'),
+    ).toBeInTheDocument()
+  })
+
+  it('carries the note block and the closing mono line', async () => {
+    const user = userEvent.setup()
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/members') return okBody(NEW_MEMBER, 201)
+      if (path === '/api/v1/members/{memberId}/access-code') {
+        return okBody(
+          {
+            id: '01900000-0000-7000-8000-000000000003',
+            memberId: NEW_MEMBER.id,
+            code: 'SASF-KQLV',
+            status: 'issued',
+            createdAt: '2026-09-29T10:00:00.000Z',
+            expiresAt: '2026-09-30T10:00:00.000Z',
+            statusChangedAt: '2026-09-29T10:00:00.000Z',
+          },
+          201,
+        )
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    renderWithProviders(<InviteMemberScreen />)
+
+    await screen.findByRole('heading', { name: 'Пригласить участника' })
+    await user.type(screen.getByLabelText('Имя'), 'Дима')
+    await user.click(screen.getByRole('button', { name: 'Пригласить и выпустить код' }))
+    await screen.findByText('SASF-KQLV')
+
+    // The hint is the shared note block (issue #61), not a plain paragraph.
+    const note = screen.getByText('Сообщите код лично').closest('[data-slot="note-block"]')
+    expect(note).not.toBeNull()
+    // The prototype's closing line under the note.
+    expect(
+      screen.getByText('Новый участник поймёт всё за минуту — без почты и паролей'),
+    ).toBeInTheDocument()
   })
 
   it('rerolls the code from the issued state', async () => {
