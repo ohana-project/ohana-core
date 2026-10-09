@@ -938,7 +938,7 @@
     "endTimeField": "Конец",
     "dateField": "Дата",
     "timezoneField": "Часовой пояс",
-    "timezoneHint": "Каждый видит время в своём поясе; по умолчанию — пояс пространства",
+    "timezoneHint": "Показывается всем получателям в их поясе",
     "hiddenHint": "Владелец скрыл календарь для этого пространства.",
     "errors": {
       "event_not_found": "Событие не найдено",
@@ -975,7 +975,7 @@
     "occurrenceCancelledTitle": "Это событие отменено",
     "occurrenceCancelledText": "Серия продолжается без этой даты.",
     "reminderLabel": "Напоминание",
-    "reminderHint": "Получатели получат push-уведомление заранее.",
+    "reminderHint": "К событию можно привязать одно напоминание",
     "reminderLead": "За сколько напомнить",
     "reminderLead15": "За 15 минут",
     "reminderLead60": "За час",
@@ -986,7 +986,10 @@
     "reminderLeadWeek": "За неделю",
     "reminderRecipientsHint": "Напоминание придёт только выбранным людям",
     "reminderRecipientsRequired": "Выберите хотя бы одного получателя",
-    "reminderLeadCustom": "За {minutes} мин"
+    "reminderLeadCustom": "За {minutes} мин",
+    "reminderNone": "Без напоминания",
+    "recipientYou": "· вы",
+    "repeatHowLabel": "Как повторять"
   },
   "notifications": {
     "menuItem": "Уведомления",

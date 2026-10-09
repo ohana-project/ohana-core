@@ -354,6 +354,114 @@ test.describe('the calendar', () => {
   })
 })
 
+// The editor's design parity (issue #75): the prototype's four sections
+// with their headings, the always-visible reminder select with its
+// recipients card, the all-day switch that greys the time and zone
+// fields in place, and the desktop top-bar pair — the action bar's
+// geometry on a phone has its own spec below.
+test.describe('the event editor, design parity', () => {
+  test('the sections, the reminder select, and the recipients card match the prototype', async ({
+    page,
+  }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+    await page.getByRole('link', { name: 'Событие' }).click()
+
+    // The repeat, reminder, and recipients headings; the repeat select
+    // keeps the prototype's own label under its heading.
+    await expect(page.getByRole('heading', { name: 'Повтор' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Напоминание' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Получатели' })).toBeVisible()
+    await expect(page.getByLabel('Как повторять')).toHaveValue('none')
+
+    // The reminder select stands alone — no switch before it — and a new
+    // event carries none until a lead is picked. The recipients card
+    // starts from everyone, the viewer's own row marked «· вы».
+    const lead = page.getByLabel('За сколько напомнить')
+    await expect(lead).toHaveValue('none')
+    await expect(page.getByRole('button', { name: 'Все участники' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await expect(page.getByRole('button', { name: 'Аня Смирнова · вы' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+
+    // The all-day switch greys the time and zone fields in place.
+    await page.getByRole('switch', { name: 'Весь день' }).click()
+    await expect(page.getByLabel('Начало')).toBeDisabled()
+    await expect(page.getByLabel('Конец')).toBeDisabled()
+    await expect(page.getByLabel('Часовой пояс')).toBeDisabled()
+    await page.getByRole('switch', { name: 'Весь день' }).click()
+
+    // Picking a name releases the all-row; the save sends the named
+    // recipients with the picked lead.
+    await page.getByRole('button', { name: 'Аня Смирнова · вы' }).click()
+    await expect(page.getByRole('button', { name: 'Все участники' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    await page.getByLabel('Название').fill('Прогулка по парку')
+    await lead.selectOption('60')
+
+    // From 920px up the pair sits in the top bar; the phone bar is hidden.
+    await expect(page.locator('[data-slot="action-bar"]')).toBeHidden()
+    const requestPromise = page.waitForRequest(
+      (request) => request.method() === 'POST' && request.url().includes('/api/v1/calendar/events'),
+    )
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    const body = (await requestPromise).postDataJSON() as Record<string, unknown>
+    expect(body).toMatchObject({
+      reminder: { leadMinutes: 60, recipients: { memberIds: [ANYA_ID] } },
+    })
+    await expect(page.getByText('Событие создано')).toBeVisible()
+  })
+})
+
+// On a phone the same pair rides the shared action bar (issue #61):
+// fixed above the tab bar, its buttons never reaching into it.
+test.describe('the event editor on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('the save pair rides the action bar above the tab bar', async ({ page }) => {
+    await mockCalendarApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Календарь' }).first().click()
+
+    // A phone reaches the editor through the FAB (exact: the calendar's
+    // day cells carry «… 1 событие» in their names).
+    await page.getByRole('button', { name: 'Событие', exact: true }).click()
+    await expect(page).toHaveURL(/\/calendar\/new$/)
+
+    const bar = page.locator('[data-slot="action-bar"]')
+    await expect(bar).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Сохранить' })).toHaveCount(1)
+
+    // The bar's buttons stay above the tab bar's top edge — the bar
+    // itself may tuck the few pixels the prototype tucks, but the
+    // controls never slide under the glass.
+    const tabBar = page.locator('[data-slot="tabbar"]')
+    const tabBox = (await tabBar.boundingBox()) as { y: number; height: number }
+    const saveBox = (await bar.getByRole('button', { name: 'Сохранить' }).boundingBox()) as {
+      y: number
+      height: number
+    }
+    expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(tabBox.y + 1)
+
+    // Cancel returns to the month without saving.
+    await page.getByRole('button', { name: 'Отмена' }).click()
+    await expect(page).toHaveURL(/\/calendar$/)
+  })
+})
+
 // The same reads away from UTC (issue #20): the all-day date stays where
 // it was created, and the timed event's local time follows the device.
 test.describe('the calendar away from UTC', () => {
@@ -390,7 +498,7 @@ test.describe('a repeating series', () => {
     await page.getByRole('link', { name: 'Событие' }).click()
     await page.getByLabel('Название').fill('Утренняя зарядка')
     await page.getByLabel('Дата').fill('2026-10-05')
-    await page.getByLabel('Повтор').selectOption('weekly')
+    await page.getByLabel('Как повторять').selectOption('weekly')
     await page.getByLabel('Дата окончания').fill('2027-01-31')
     await page.getByRole('button', { name: 'Сохранить' }).click()
     await expect(page.getByText('Событие создано')).toBeVisible()
@@ -426,7 +534,7 @@ test.describe('a repeating series', () => {
     await expect(page.getByText('Что изменить?')).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Всю серию' }).click()
     await expect(page).toHaveURL(/\/edit$/)
-    await expect(page.getByLabel('Повтор')).toHaveValue('weekly')
+    await expect(page.getByLabel('Как повторять')).toHaveValue('weekly')
     await page.getByLabel('Название').fill('Утренняя зарядка — с разминкой')
     await page.getByRole('button', { name: 'Сохранить' }).click()
     await expect(page.getByText('Изменения сохранены')).toBeVisible()
@@ -445,7 +553,7 @@ test.describe('a repeating series', () => {
     await page.getByRole('link', { name: 'Событие' }).click()
 
     // The choices the ticket keeps: none and the four frequencies.
-    const repeat = page.getByLabel('Повтор')
+    const repeat = page.getByLabel('Как повторять')
     await expect(repeat).toHaveValue('none')
     await repeat.selectOption('daily')
     await page.getByLabel('Дата окончания').fill('2020-01-01')
@@ -471,7 +579,7 @@ test.describe('a repeating series, one occurrence edited', () => {
     await page.getByRole('link', { name: 'Событие' }).click()
     await page.getByLabel('Название').fill('Утренняя зарядка')
     await page.getByLabel('Дата').fill('2026-10-05')
-    await page.getByLabel('Повтор').selectOption('weekly')
+    await page.getByLabel('Как повторять').selectOption('weekly')
     await page.getByRole('button', { name: 'Сохранить' }).click()
     await expect(page.getByText('Событие создано')).toBeVisible()
 
@@ -489,7 +597,7 @@ test.describe('a repeating series, one occurrence edited', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Только это событие' }).click()
     await expect(page).toHaveURL(/\/edit\?date=2026-10-12$/)
     // A single occurrence has no rule of its own.
-    await expect(page.getByLabel('Повтор')).toHaveCount(0)
+    await expect(page.getByLabel('Как повторять')).toHaveCount(0)
     await page.getByLabel('Название').fill('Зарядка у Димы')
     await page.getByRole('button', { name: 'Сохранить' }).click()
     await expect(page.getByText('Изменения сохранены')).toBeVisible()
