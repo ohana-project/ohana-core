@@ -161,6 +161,14 @@ function mockQuietSync() {
   })
 }
 
+/** The screen's first edit control: the top bar's and the bar's share the
+ *  name, and the series' edit is a button in both. */
+function firstEditButton() {
+  const button = screen.getAllByRole('button', { name: /Изменить/ })[0]
+  if (button === undefined) throw new Error('The screen carries no edit button')
+  return button
+}
+
 function CaptureClient({ capture }: { capture: (client: QueryClient) => void }) {
   const client = useQueryClient()
   useEffect(() => {
@@ -607,24 +615,163 @@ describe('EventEditorScreen (an edit)', () => {
 })
 
 describe('EventScreen (one event)', () => {
-  it('shows the device-local time, the origin zone, and the creator', async () => {
+  it('shows the device-local time, the origin zone, and the creator line', async () => {
     const doctor = timedEvent({
       creatorId: '01900000-0000-7000-8000-000000000002',
     })
     seedRegistry()
     await applySyncResult(ME, syncResult([doctor]))
-    renderWithProviders(<EventScreen eventId={doctor.id} />)
+    const { container } = renderWithProviders(<EventScreen eventId={doctor.id} />)
 
     expect(await screen.findByText('Миша — зубной врач')).toBeInTheDocument()
     // The date line, the local time first, the origin zone beside it.
     expect(screen.getByText('пятница, 2 октября 2026 г.')).toBeInTheDocument()
-    expect(screen.getAllByText('15:00 – 16:00').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('18:00 – 19:00 · Moscow (UTC+3)').length).toBeGreaterThan(0)
-    expect(screen.getByText('1 час')).toBeInTheDocument()
-    expect(screen.getByText('Дима')).toBeInTheDocument()
-    // Аня is an owner: the event is Дима's, the moderation is hers.
-    expect(screen.getByRole('link', { name: /Изменить/ })).toBeInTheDocument()
+    expect(screen.getByText('15:00 – 16:00 · 18:00 – 19:00 · Moscow (UTC+3)')).toBeInTheDocument()
+    // Time and duration are one card row (the prototype's first row).
+    const rows = container.querySelectorAll('[data-slot="item"]')
+    expect(rows[0]).toHaveTextContent('15:00 – 16:00')
+    expect(rows[0]).toHaveTextContent('длительность 1 час')
+    // The creator stands in the mono line under the card.
+    expect(screen.getByText('Создал: Дима · 28 сентября')).toBeInTheDocument()
+    // Аня is an owner: the event is Дима's, the moderation is hers — the
+    // small edit in the top bar and the bar's own, the menu keeps the delete.
+    expect(screen.getAllByRole('link', { name: /Изменить/ })).toHaveLength(2)
     expect(screen.getByRole('button', { name: /Удалить/ })).toBeInTheDocument()
+  })
+
+  it("the rows are 60px with bare 20px icons, the prototype's card", async () => {
+    const dinner = timedEvent({
+      title: 'Ужин у бабушки',
+      startsAt: '2026-10-02T15:00:00.000Z',
+      endsAt: '2026-10-02T18:00:00.000Z',
+      reminder: { leadMinutes: 120, recipients: { everyone: true } },
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([dinner]))
+    const { container } = renderWithProviders(<EventScreen eventId={dinner.id} />)
+
+    await screen.findByText('Ужин у бабушки')
+    // One-time, no rule: time+duration, reminder, recipients.
+    const rows = container.querySelectorAll('[data-slot="item"]')
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      expect(row).toHaveClass('min-h-15')
+      expect(row.querySelector('[data-slot="item-media"]')).toHaveAttribute(
+        'data-variant',
+        'default',
+      )
+    }
+  })
+
+  it('shows the reminder and the recipients from the stored event', async () => {
+    const dinner = timedEvent({
+      title: 'Ужин у бабушки',
+      startsAt: '2026-10-02T15:00:00.000Z',
+      endsAt: '2026-10-02T18:00:00.000Z',
+      reminder: { leadMinutes: 120, recipients: { everyone: true } },
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([dinner]))
+    renderWithProviders(<EventScreen eventId={dinner.id} />)
+
+    await screen.findByText('Ужин у бабушки')
+    // «Напоминание за 2 часа» — the fire moment is the start minus the
+    // lead, in the device's time (15:00Z − 2h on a Friday).
+    expect(screen.getByText('Напоминание за 2 часа')).toBeInTheDocument()
+    expect(screen.getByText('в 13:00, в пятницу')).toBeInTheDocument()
+    // Everyone: the row names the members and carries their stack.
+    expect(screen.getByText('Все участники')).toBeInTheDocument()
+    expect(screen.getByText('Аня Смирнова и Дима')).toBeInTheDocument()
+    const recipientsRow = screen.getByText('Аня Смирнова и Дима').closest('[data-slot="item"]')
+    const stack = recipientsRow?.querySelector('[data-slot="avatar-stack"]')
+    expect(stack).toBeInTheDocument()
+    expect(stack).toHaveAttribute('aria-hidden', 'true')
+    expect(stack?.querySelectorAll('[data-slot="avatar"]')).toHaveLength(2)
+  })
+
+  it('a named recipient list shows the names and only their monograms', async () => {
+    const dinner = timedEvent({
+      title: 'Ужин у бабушки',
+      reminder: {
+        leadMinutes: 60,
+        recipients: { memberIds: ['01900000-0000-7000-8000-000000000002'] },
+      },
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([dinner]))
+    renderWithProviders(<EventScreen eventId={dinner.id} />)
+
+    await screen.findByText('Ужин у бабушки')
+    expect(screen.getByText('Напоминание за час')).toBeInTheDocument()
+    expect(screen.getByText('в 14:00, в пятницу')).toBeInTheDocument()
+    expect(screen.getByText('Получатели')).toBeInTheDocument()
+    expect(screen.getByText('Дима')).toBeInTheDocument()
+    // The row's stack carries the named recipient alone — the shell's own
+    // stack in the sidebar is a different one.
+    const recipientsRow = screen.getByText('Получатели').closest('[data-slot="item"]')
+    const stack = recipientsRow?.querySelector('[data-slot="avatar-stack"]')
+    expect(stack?.querySelectorAll('[data-slot="avatar"]')).toHaveLength(1)
+    expect(stack?.textContent).toBe('Д')
+  })
+
+  it('an event without a reminder shows no reminder rows', async () => {
+    const doctor = timedEvent()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([doctor]))
+    const { container } = renderWithProviders(<EventScreen eventId={doctor.id} />)
+
+    await screen.findByText('Миша — зубной врач')
+    expect(screen.queryByText(/Напоминание за/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Все участники')).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="item"] [data-slot="avatar-stack"]'),
+    ).not.toBeInTheDocument()
+    // The card keeps time+duration and, for a one-time event, nothing else.
+    expect(container.querySelectorAll('[data-slot="item"]')).toHaveLength(1)
+  })
+
+  it('an all-day event keeps its plain date and no duration', async () => {
+    const birthday = allDayEvent()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([birthday]))
+    const { container } = renderWithProviders(<EventScreen eventId={birthday.id} />)
+
+    await screen.findByText('День рождения Люды')
+    // The line the header shows and the row repeats: no time, no duration.
+    expect(screen.getAllByText('весь день · 19 октября')).toHaveLength(2)
+    expect(container.querySelector('[data-slot="item"]')).not.toHaveTextContent('длительность')
+  })
+
+  it("an all-day reminder reads the morning anchor in the space's zone", async () => {
+    const birthday = allDayEvent({
+      reminder: { leadMinutes: 120, recipients: { everyone: true } },
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([birthday]))
+    renderWithProviders(<EventScreen eventId={birthday.id} />)
+
+    await screen.findByText('День рождения Люды')
+    // The anchor is 09:00 in the space's zone (Europe/Moscow) — 06:00 for
+    // the UTC device — and the lead subtracts from it: 04:00 on Monday.
+    expect(screen.getByText('Напоминание за 2 часа')).toBeInTheDocument()
+    expect(screen.getByText('в 04:00, в понедельник')).toBeInTheDocument()
+  })
+
+  it('the desktop top bar keeps the small edit and a menu with the delete', async () => {
+    const doctor = timedEvent()
+    seedRegistry()
+    await applySyncResult(ME, syncResult([doctor]))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventScreen eventId={doctor.id} />)
+
+    await screen.findByText('Миша — зубной врач')
+    // The overflow menu opens from the top bar's "Ещё" and carries the
+    // destructive delete; it stands behind the one-time confirm.
+    await user.click(screen.getByRole('button', { name: 'Ещё' }))
+    const menu = await screen.findByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: /Удалить/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Удалить «Миша — зубной врач»?')).toBeInTheDocument()
   })
 
   it('a regular member who is not the creator reads without the edit and delete', async () => {
@@ -769,22 +916,65 @@ describe('EventScreen (a series, issue #21)', () => {
       recurrence: { frequency: 'weekly' },
     })
 
-  it('shows the series line, and asks what the edit is for', async () => {
+  it("shows the series line, and asks what the edit is for with the prototype's choices", async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([series()]))
-    renderWithProviders(<EventScreen eventId={series().id} />)
+    const { container } = renderWithProviders(<EventScreen eventId={series().id} />)
 
     expect(await screen.findByText('Каждую неделю')).toBeInTheDocument()
-    await userEvent
-      .setup({ advanceTimers: vi.advanceTimersByTime })
-      .click(screen.getByRole('button', { name: /Изменить/ }))
+    // The repeat row names the series' start and its open end.
+    const repeatRow = container.querySelectorAll('[data-slot="item"]')[1]
+    expect(repeatRow).toHaveTextContent('Каждую неделю')
+    expect(repeatRow).toHaveTextContent('с 2 октября 2026 г. · без даты окончания')
+    // The recurring explainer stands under the created-by line.
+    expect(
+      screen.getByText(
+        'Это повторяющееся событие. При изменении или удалении можно затронуть только это событие — или всю серию сразу.',
+      ),
+    ).toBeInTheDocument()
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    await user.click(firstEditButton())
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText('Что изменить?')).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Только это событие' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Всю серию' })).toBeInTheDocument()
+    expect(within(dialog).getByText('Изменить повторяющееся событие?')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('«Миша — зубной врач» повторяется каждую неделю. Что изменить?'),
+    ).toBeInTheDocument()
+    // Three stacked full-width choices: this occurrence, the whole series
+    // (the primary), and the ghost cancel.
+    const occurrence = within(dialog).getByRole('button', { name: 'Только это событие' })
+    const whole = within(dialog).getByRole('button', { name: 'Всю серию' })
+    const cancel = within(dialog).getByRole('button', { name: 'Отмена' })
+    expect(occurrence).toHaveClass('bg-card')
+    expect(whole).toHaveClass('bg-primary')
+    expect(cancel).not.toHaveClass('bg-primary')
+    for (const button of [occurrence, whole, cancel]) {
+      expect(button.parentElement).toHaveClass('flex-col')
+    }
+    // The cancel closes without navigating.
+    await user.click(cancel)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('the delete asks what to cancel, and the occurrence’s cancel hits the occurrence route', async () => {
+  it('a bounded series names its end in the repeat row and the dialog text', async () => {
+    seedRegistry()
+    const bounded = timedEvent({ recurrence: { frequency: 'monthly', until: '2027-01-02' } })
+    await applySyncResult(ME, syncResult([bounded]))
+    const { container } = renderWithProviders(<EventScreen eventId={bounded.id} />)
+
+    await screen.findByText('Миша — зубной врач')
+    expect(container.querySelectorAll('[data-slot="item"]')[1]).toHaveTextContent(
+      'с 2 октября 2026 г. · до 2 января 2027 г.',
+    )
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    await user.click(firstEditButton())
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByText('«Миша — зубной врач» повторяется каждый месяц. Что изменить?'),
+    ).toBeInTheDocument()
+  })
+
+  it('the delete dialog offers the same three choices, the series one in danger', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([series()]))
     apiDelete.mockImplementation(async (path: never) => {
@@ -801,10 +991,15 @@ describe('EventScreen (a series, issue #21)', () => {
     expect(screen.getByText('пятница, 9 октября 2026 г.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Удалить/ }))
     const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Удалить повторяющееся событие?')).toBeInTheDocument()
     expect(
-      within(dialog).getByText('Отменить это событие или удалить всю серию?'),
+      within(dialog).getByText('«Миша — зубной врач» повторяется каждую неделю. Что удалить?'),
     ).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Отменить только это событие' }))
+    // The series choice is the danger button here.
+    expect(within(dialog).getByRole('button', { name: 'Всю серию' })).toHaveClass(
+      'bg-(--danger-tint)',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Только это событие' }))
 
     await waitFor(() => expect(apiDelete).toHaveBeenCalled())
     const [path, options] = apiDelete.mock.calls.at(-1) as unknown as [
@@ -868,7 +1063,7 @@ describe('EventScreen (a series opened without a date, issue #21)', () => {
     await screen.findByText('Миша — зубной врач')
     await user.click(screen.getByRole('button', { name: /Удалить/ }))
     const dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Отменить только это событие' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Только это событие' }))
 
     // The cancel names the first occurrence's date, not an empty one.
     await waitFor(() => expect(apiDelete).toHaveBeenCalled())
@@ -900,14 +1095,14 @@ describe('EventScreen (a series whose first occurrence is cancelled, review roun
     expect(screen.queryByText('Это событие отменено')).not.toBeInTheDocument()
     expect(screen.getByText('пятница, 9 октября 2026 г.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Изменить/ }))
+    await user.click(firstEditButton())
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('button', { name: 'Только это событие' })).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Всю серию' }))
     await user.click(await screen.findByRole('button', { name: /Удалить/ }))
     const deleteDialog = await screen.findByRole('dialog')
     expect(
-      within(deleteDialog).getByRole('button', { name: 'Отменить только это событие' }),
+      within(deleteDialog).getByRole('button', { name: 'Только это событие' }),
     ).toBeInTheDocument()
   })
 
