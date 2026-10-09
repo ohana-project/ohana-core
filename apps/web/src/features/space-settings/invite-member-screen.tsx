@@ -2,6 +2,7 @@ import { Navigate, useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
+import { writeClipboard } from '@/lib/clipboard.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { CodeDisplay } from '@/ui/code-display.tsx'
@@ -17,6 +18,7 @@ import { Empty, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Input } from '@/ui/input.tsx'
+import { NoteBlock } from '@/ui/note-block.tsx'
 import { Select } from '@/ui/select.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
@@ -35,6 +37,9 @@ import {
  * a member and is handed their access code — shown once, copied or read
  * aloud, never stored anywhere but the owner's eyes (issue #12). Rerolling
  * replaces the code; the member and their data are untouched (ADR-0005).
+ * The code step is the prototype's own (issue #77): the padded card capped
+ * at 420px, the large labelled copy over the secondary reroll, the note
+ * block and the closing mono line.
  */
 export function InviteMemberScreen() {
   const { t } = useTranslation()
@@ -88,6 +93,15 @@ export function InviteMemberScreen() {
     )
   }
 
+  const copyIssued = async () => {
+    // The clipboard may be absent or refuse; the code stays selectable.
+    if (issued === undefined) return
+    if (await writeClipboard(issued.code)) {
+      // The prototype's toast says where the code goes.
+      toast(t('space.invite.copiedToast', { code: issued.code }))
+    }
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (provisionMember.isPending || issueCode.isPending) return
@@ -131,14 +145,14 @@ export function InviteMemberScreen() {
 
   if (provisioned !== undefined) {
     return (
-      <SettingsShell title={t('space.invite.title')}>
-        <div className="flex flex-col gap-5 pt-6">
-          <header className="flex flex-col items-center gap-3 text-center">
-            <span className="grid size-16 place-items-center rounded-2xl bg-primary-soft text-primary">
+      <SettingsShell title={t('space.invite.shortTitle')} backTo="/members">
+        <div className="flex flex-col pt-8">
+          <header className="mb-6 flex flex-col items-center text-center">
+            <span className="mb-3.5 grid size-16 place-items-center rounded-2xl bg-primary-soft text-primary">
               <Icon name="users" className="size-7" />
             </span>
             <h1 className="text-display-lg">{t('space.invite.codeTitle')}</h1>
-            <p className="text-body text-muted-foreground">
+            <p className="mt-1.5 text-body text-muted-foreground">
               {t('space.invite.codeDescription', { name: provisioned.name })}
             </p>
           </header>
@@ -146,6 +160,7 @@ export function InviteMemberScreen() {
           {issued === undefined && issueCode.isError ? (
             // The member exists but the code never arrived: retry issuance —
             // resubmitting the whole form would create a duplicate member.
+            // No prototype covers this step (docs/design/README.md).
             <>
               <Card>
                 <Empty>
@@ -155,7 +170,7 @@ export function InviteMemberScreen() {
                   <EmptyTitle>{formError ?? t('space.errors.unexpected')}</EmptyTitle>
                 </Empty>
               </Card>
-              <div className="flex flex-col gap-2.5">
+              <div className="mt-4.5 flex flex-col gap-2.5">
                 <Button onClick={() => issue(provisioned.memberId)} disabled={issueCode.isPending}>
                   <Icon name="repeat" />
                   {t('space.invite.retryIssue')}
@@ -171,25 +186,40 @@ export function InviteMemberScreen() {
             </div>
           ) : (
             <>
-              <CodeDisplay code={issued.code} />
-              <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
-                {t('space.invite.expiresMeta')}
+              <Card variant="padded" className="mx-auto w-full max-w-[420px]">
+                {/* The code is copied from the large primary below; the
+                    beside-button would double it (issue #77). */}
+                <CodeDisplay code={issued.code} copy="none" />
+                <p className="mt-2.5 text-center font-mono text-meta text-muted-foreground uppercase">
+                  {t('space.invite.expiresMeta')}
+                </p>
+                <div className="mt-4.5 flex flex-col gap-2.5">
+                  <Button size="lg" onClick={() => void copyIssued()}>
+                    <Icon name="copy" />
+                    {t('space.invite.copy')}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setRerollOpen(true)}>
+                    <Icon name="repeat" />
+                    {t('space.invite.reroll')}
+                  </Button>
+                </div>
+                {formError !== undefined ? (
+                  <p className="mt-2.5 text-sm text-destructive">{formError}</p>
+                ) : null}
+              </Card>
+
+              <NoteBlock icon="shield" className="mx-auto mt-4.5 w-full max-w-[420px]">
+                <p className="leading-normal">
+                  <b>{t('space.invite.noteLead')}</b>
+                  {t('space.invite.noteRest')}
+                </p>
+              </NoteBlock>
+
+              <p className="mt-6.5 text-center font-mono text-meta text-muted-foreground uppercase">
+                {t('space.invite.footer')}
               </p>
-              <div className="flex flex-col gap-2.5">
-                <Button variant="secondary" onClick={() => setRerollOpen(true)}>
-                  <Icon name="repeat" />
-                  {t('space.invite.reroll')}
-                </Button>
-                <Button size="lg" onClick={() => void navigate({ to: '/members' })}>
-                  {t('space.invite.done')}
-                </Button>
-              </div>
             </>
           )}
-          {issued !== undefined && formError !== undefined ? (
-            <p className="text-sm text-destructive">{formError}</p>
-          ) : null}
-          <p className="text-sm leading-relaxed text-muted-foreground">{t('space.invite.hint')}</p>
         </div>
 
         {rerollOpen ? (
@@ -229,7 +259,7 @@ export function InviteMemberScreen() {
   }
 
   return (
-    <SettingsShell title={t('space.invite.title')}>
+    <SettingsShell title={t('space.invite.shortTitle')} backTo="/members">
       <div className="flex flex-col gap-6 pt-6">
         <header>
           <h1 className="text-display-lg">{t('space.invite.title')}</h1>
