@@ -335,10 +335,14 @@ test.describe('the calendar', () => {
 
     // The event screen opens from the agenda; the edit replaces the whole
     // event — the title here — and the saved toast follows. The small edit
-    // rides the top bar (issue #74).
+    // rides the top bar (issue #74); the phone's bar copy is hidden here,
+    // so the topbar slot names the one the click means.
     await page.getByText('День рождения Люды').click()
     await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_BIRTHDAY.id}$`))
-    await page.getByRole('link', { name: /Изменить/ }).click()
+    await page
+      .locator('[data-slot="topbar"]')
+      .getByRole('link', { name: /Изменить/ })
+      .click()
     await expect(page).toHaveURL(new RegExp(`/calendar/${SEEDED_BIRTHDAY.id}/edit$`))
     const title = page.getByLabel('Название')
     await expect(title).toHaveValue('День рождения Люды')
@@ -377,12 +381,16 @@ test.describe('the calendar', () => {
     await expect(page.getByText('Все участники')).toBeVisible()
 
     // On the phone the edit and the delete live in the action bar; the
-    // top bar keeps neither.
+    // top bar keeps neither. The screen's own head is a header too, so
+    // the top bar's slot names it; the one-time edit is a link in the
+    // bar as in the top bar.
     const bar = page.locator('[data-slot="action-bar"]')
-    await expect(bar.getByRole('button', { name: /Изменить/ })).toBeVisible()
+    await expect(bar.getByRole('link', { name: /Изменить/ })).toBeVisible()
     await expect(bar.getByRole('button', { name: /Удалить/ })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Ещё' })).toBeHidden()
-    await expect(page.locator('header').getByRole('link', { name: /Изменить/ })).toBeHidden()
+    await expect(
+      page.locator('[data-slot="topbar"]').getByRole('link', { name: /Изменить/ }),
+    ).toBeHidden()
   })
 })
 
@@ -432,8 +440,10 @@ test.describe('a repeating series', () => {
     await expect(page.getByText(/до 31 января 2027/)).toBeVisible()
 
     // The delete asks what to cancel; the occurrence route takes the
-    // series' first date.
-    await page.getByRole('button', { name: /Удалить/ }).click()
+    // series' first date. On the desktop the delete rides the top bar's
+    // menu — the bar's own sits under the phone-only styling.
+    await page.getByRole('button', { name: 'Ещё' }).click()
+    await page.getByRole('menuitem', { name: /Удалить/ }).click()
     await expect(page.getByText('Удалить повторяющееся событие?')).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Только это событие' }).click()
     await expect(page.getByText('Событие отменено')).toBeVisible()
@@ -451,7 +461,10 @@ test.describe('a repeating series', () => {
     // The edit asks what to change; the whole series is replaced.
     await page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка').click()
     await expect(page).toHaveURL(/\/calendar\/[\w-]+\?date=2026-10-12$/)
-    await page.getByRole('button', { name: /Изменить/ }).click()
+    await page
+      .locator('[data-slot="topbar"]')
+      .getByRole('button', { name: /Изменить/ })
+      .click()
     await expect(page.getByText('Изменить повторяющееся событие?')).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Всю серию' }).click()
     await expect(page).toHaveURL(/\/edit$/)
@@ -514,7 +527,10 @@ test.describe('a repeating series, one occurrence edited', () => {
     await page.getByRole('button', { name: '12 октября, 1 событие', exact: true }).click()
     await page.getByRole('dialog', { name: '12 октября' }).getByText('Утренняя зарядка').click()
     await expect(page).toHaveURL(/date=2026-10-12$/)
-    await page.getByRole('button', { name: /Изменить/ }).click()
+    await page
+      .locator('[data-slot="topbar"]')
+      .getByRole('button', { name: /Изменить/ })
+      .click()
     await page.getByRole('dialog').getByRole('button', { name: 'Только это событие' }).click()
     await expect(page).toHaveURL(/\/edit\?date=2026-10-12$/)
     // A single occurrence has no rule of its own.
