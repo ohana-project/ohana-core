@@ -753,6 +753,39 @@ describe('EventEditorScreen (the prototype’s editor, issue #75)', () => {
     expect(options.body).not.toHaveProperty('reminder')
   })
 
+  it('a stored lead outside the choices keeps its own option and round-trips', async () => {
+    seedRegistry()
+    // The API takes any minute count (issue #22); a series edited on
+    // another device may carry one the editor never offered (45). The
+    // select must keep it — a value with no option shows the wrong one.
+    const doctor = timedEvent({
+      reminder: { leadMinutes: 45, recipients: { everyone: true } },
+    })
+    await applySyncResult(ME, syncResult([doctor]))
+    apiPut.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/calendar/events/{eventId}') {
+        return { data: doctor, error: undefined, response: new Response(null, { status: 200 }) }
+      }
+      throw new Error(`Unexpected PUT ${String(path)}`)
+    })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderWithProviders(<EventEditorScreen eventId={doctor.id} />)
+
+    const lead = await screen.findByLabelText('За сколько напомнить')
+    expect(lead).toHaveValue('45')
+    expect(screen.getByRole('option', { name: 'За 45 мин' })).toBeInTheDocument()
+
+    // An untouched save round-trips the lead it seeded.
+    await user.click(saveButton())
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalled())
+    const [, options] = apiPut.mock.calls.at(-1) as unknown as [
+      string,
+      { body: Record<string, unknown> },
+    ]
+    expect(options.body).toMatchObject({ reminder: { leadMinutes: 45 } })
+  })
+
   it('the recipients card keeps «все» and named rows apart, marking the own row «· вы»', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([]))
