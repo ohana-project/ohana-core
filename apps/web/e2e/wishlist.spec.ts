@@ -373,10 +373,9 @@ test.describe('the wishlist', () => {
     await expect(page).toHaveURL(/\/wishlist\/mine$/)
     await expect(page.getByText('Здесь пока ничего нет')).toBeVisible()
 
-    // The empty state shows without the action sitting in the round
+    // The empty state shows bare, without the action sitting in the round
     // icon plate — the button lives in the empty state's content slot
-    // (issue #58). Scoped to the empty state: the top bar's action and
-    // the mobile FAB carry the same name.
+    // (issues #58 and #68).
     const empty = page.locator('[data-slot="empty"]').first()
     await expect(empty).toBeVisible()
     const addButton = empty.getByRole('button', { name: 'Добавить желание' })
@@ -393,7 +392,7 @@ test.describe('the wishlist', () => {
     await page.getByLabel('Ссылка').fill('https://www.wildberries.ru/search?q=вышивание')
     await page.getByRole('button', { name: 'Добавить', exact: true }).click()
 
-    await expect(page.getByText('Желание добавлено в ваш список')).toBeVisible()
+    await expect(page.getByText('Желание добавлено')).toBeVisible()
     await expect(page.getByText('Набор для вышивания «Маки»')).toBeVisible()
   })
 
@@ -416,7 +415,7 @@ test.describe('the wishlist', () => {
     await page.getByRole('switch', { name: 'Уже получено' }).click()
     await page.getByRole('button', { name: 'Сохранить' }).click()
 
-    await expect(page.getByText('Сохранено')).toBeVisible()
+    await expect(page.getByText('Желание обновлено')).toBeVisible()
     await expect(page.getByText('Получено')).toBeVisible()
   })
 
@@ -486,6 +485,56 @@ test.describe('the shell of the wishlist area (issue #62)', () => {
     await expect(page.getByRole('link', { name: 'Назад' })).toBeVisible()
     await page.getByRole('link', { name: 'Назад' }).click()
     await expect(page).toHaveURL(/\/wishlist$/)
+  })
+
+  test('the own wishlist follows its prototype: the arrow back, no FAB, the closing add tile (issue #68)', async ({
+    page,
+  }) => {
+    await mockWishlistApi(page)
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Вишлисты' }).first().click()
+    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await expect(page).toHaveURL(/\/wishlist\/mine$/)
+
+    // The prototype's chrome: the display heading with the muted
+    // visibility line, the surprise note, and the mono footer line.
+    await expect(page.getByRole('heading', { level: 1, name: 'Мой вишлист' })).toBeVisible()
+    await expect(page.getByText(/Виден семье/)).toBeVisible()
+    await expect(page.getByText('Близкие могут забронировать ваши желания')).toBeVisible()
+    await expect(page.getByText('Ваш список не виден в других пространствах')).toBeVisible()
+
+    // The empty list is bare; its button stands below the text, and no
+    // FAB competes with it — the tile carries the action once there are
+    // wishes.
+    await expect(page.locator('[data-slot="fab"]')).toHaveCount(0)
+
+    // The arrow leads back to the overview below 920px.
+    await expect(page.getByRole('link', { name: 'Назад' })).toBeVisible()
+    await page.getByRole('link', { name: 'Назад' }).click()
+    await expect(page).toHaveURL(/\/wishlist$/)
+
+    // With a wish on the list, the dashed tile closes it and opens the
+    // sheet — the screen's one add action, top bar and FAB being gone.
+    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await page.getByRole('button', { name: 'Добавить желание' }).click()
+    // Enter from a field saves, like the prototype's keydown handler.
+    await page.getByLabel('Название').fill('Кашемировый свитер')
+    await page.keyboard.press('Enter')
+    await expect(page.getByText('Желание добавлено')).toBeVisible()
+    await expect(page.getByText('Кашемировый свитер')).toBeVisible()
+    await page.getByRole('button', { name: 'Добавить желание' }).click()
+    await expect(page.getByText('Новое желание')).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    // From 920px up: the arrow gives way to the sidebar, and the top bar
+    // carries no add action — the tile stays the one way to add.
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(page.getByRole('link', { name: 'Назад' })).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Добавить желание' })).toHaveCount(1)
   })
 })
 

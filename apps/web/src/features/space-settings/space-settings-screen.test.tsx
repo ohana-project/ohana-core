@@ -259,4 +259,49 @@ describe('SpaceSettingsScreen', () => {
       expect(screen.getByRole('switch', { name: 'Показывать Дневник' })).toBeChecked(),
     )
   })
+
+  it('names the top bar «Пространство» like the prototype', async () => {
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    await screen.findByRole('heading', { name: 'Настройки пространства' })
+    // The content heading keeps its full words; the top bar carries the
+    // prototype's own data-title (docs/design/screens/space-settings.html).
+    expect(screen.getByText('Пространство', { exact: true })).toBeInTheDocument()
+  })
+
+  it('keeps the section rows at the prototype’s 60px behind bare muted icons', async () => {
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    await screen.findByText(/Скрытие не удаляет данные/)
+    // The shell's sidebar carries the same section names; the row is the
+    // match that sits inside a list row.
+    const row = screen
+      .getAllByText('Дневник')
+      .map((title) => title.closest<HTMLElement>('[data-slot="item"]'))
+      .find((item) => item !== null)
+    if (row === undefined) throw new Error('the journal row never rendered')
+    // The prototype's inline min-height:60px — the list row's md size.
+    expect(row).toHaveClass('min-h-15')
+    const media = row.querySelector('[data-slot="item-media"]')
+    if (media === null) throw new Error('the row never rendered its leading icon')
+    // A bare 20px muted icon, not the 38px accent tile (issue #77).
+    expect(media.getAttribute('data-variant')).toBe('default')
+    expect(media).toHaveClass('text-muted-foreground')
+    expect(media).not.toHaveClass('size-[38px]')
+  })
+
+  it('heads the sections with the plain h3 and closes with the mono line', async () => {
+    renderWithProviders(<SpaceSettingsScreen />)
+
+    await screen.findByRole('heading', { name: 'Настройки пространства' })
+    // The prototype's plain h3 heads (docs/design/README.md, issue #80).
+    expect(screen.getByRole('heading', { name: 'Разделы' }).tagName).toBe('H3')
+    expect(screen.getByRole('heading', { name: 'Часовой пояс' }).tagName).toBe('H3')
+
+    // The hints under the cards are the field's 12.5px, and the closing
+    // line is the prototype's mono meta.
+    expect(screen.getByText(/Скрытие не удаляет данные/)).toHaveClass('text-meta')
+    const footer = screen.getByText(/Изменения увидят участники после синхронизации/)
+    expect(footer).toHaveClass('font-mono', 'text-meta', 'uppercase')
+  })
 })

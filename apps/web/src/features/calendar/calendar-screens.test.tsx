@@ -357,8 +357,10 @@ describe('CalendarScreen (the month and the agenda)', () => {
     expect(await screen.findByText('Сентябрь 2026')).toBeInTheDocument()
 
     // The 25th is a past in-month day: its dot carries the half opacity,
-    // the neighbouring out days keep their own dim.
-    const cell = screen.getByRole('button', { name: /25 сентября, 1 событие/ })
+    // the neighbouring out days keep their own dim. The heading renders
+    // while the synchronised snapshot is still pending, so the cell waits
+    // for the grid to grow the day's events.
+    const cell = await screen.findByRole('button', { name: /25 сентября, 1 событие/ })
     expect(cell.querySelector('i')).toHaveClass('opacity-50')
   })
 
