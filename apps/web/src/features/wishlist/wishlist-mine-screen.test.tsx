@@ -885,9 +885,10 @@ describe('the own wishlist follows its prototype (issue #68)', () => {
     await screen.findByText('Поездка на Байкал')
 
     // The prototype's `.attach-tile` overrides: full width, the 52px
-    // floor, dashed hairline — and accent on hover.
+    // floor, the dashed 1.5px hairline at the prototype's mid radius —
+    // and accent on hover.
     const tile = screen.getByRole('button', { name: 'Добавить желание' })
-    expect(tile).toHaveClass('min-h-13', 'w-full', 'border-dashed', 'rounded-lg')
+    expect(tile).toHaveClass('min-h-13', 'w-full', 'border-dashed', 'rounded-md')
     // The tile stands after the wishes: new ones insert above it, the way
     // the prototype inserts before it.
     const lastWishTitle = screen.getByText('Поездка на Байкал')

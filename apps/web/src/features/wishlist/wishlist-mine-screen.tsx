@@ -165,7 +165,7 @@ function AddWishTile({ onClick }: { onClick: () => void }) {
       type="button"
       onClick={onClick}
       className={cn(
-        'flex min-h-13 w-full flex-none items-center justify-center gap-2 rounded-lg border-[1.5px] border-dashed border-[color-mix(in_oklch,var(--fg)_25%,var(--border))] p-3.5',
+        'flex min-h-13 w-full flex-none items-center justify-center gap-2 rounded-md border-[1.5px] border-dashed border-[color-mix(in_oklch,var(--fg)_25%,var(--border))] p-3.5',
         'text-meta text-muted-foreground transition-colors duration-(--t-fast) ease-(--ease)',
         'hover:border-primary hover:bg-primary-soft hover:text-primary',
       )}
