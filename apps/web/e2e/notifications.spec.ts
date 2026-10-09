@@ -446,10 +446,9 @@ test('the editor sends the reminder the member picked with its recipients', asyn
   await page.getByRole('link', { name: 'Событие' }).click()
   await page.getByLabel('Название').fill('Обед у бабушки')
 
-  // The reminder starts off; the lead defaults to the prototype's two hours.
-  const reminderSwitch = page.getByRole('switch', { name: 'Напоминание' })
-  await reminderSwitch.click()
-  await expect(page.getByLabel('За сколько напомнить')).toHaveValue('120')
+  // The reminder select stands alone (issue #75): a new event carries
+  // none until a lead is picked — no switch before it.
+  await expect(page.getByLabel('За сколько напомнить')).toHaveValue('none')
 
   // An hour before, for everyone.
   await page.getByLabel('За сколько напомнить').selectOption('60')
@@ -491,9 +490,10 @@ test('the editor names the picked members instead of everyone', async ({ page })
   await page.getByRole('link', { name: 'Событие' }).click()
   await page.getByLabel('Название').fill('Сюрприз')
 
-  await page.getByRole('switch', { name: 'Напоминание' }).click()
-  // The pick list begins from "everyone"; picking a person names the list
-  // instead — the creator is seeded, Boris joins.
+  // Picking a lead turns the reminder on (the prototype's two hours);
+  // picking a person names the list instead of everyone — the tapped
+  // row is the whole list (issue #75).
+  await page.getByLabel('За сколько напомнить').selectOption('120')
   await page.getByRole('button', { name: 'Борис Ливанов' }).click()
   await expect(page.getByRole('button', { name: 'Борис Ливанов' })).toHaveAttribute(
     'aria-pressed',
