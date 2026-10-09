@@ -43,15 +43,14 @@ import {
 /*
  * The event editor (docs/design/screens/event-editor.html): the title, the
  * all-day switch, the date, the start and end times, the zone — whose
- * default is the space's (issue #1, story 64) — and, since issue #21, the
- * repeating section: the frequency and the optional end date. The editor
- * edits one thing at a time: a new event or the whole series (the series'
- * replace), or — when the link named an occurrence's original date — that
- * occurrence alone, which has no rule of its own. "This and following" is
- * not offered, by the ticket's design. The reminder's section of the
- * prototype belongs to #22 and is not here yet. The API composes the wall
- * time into instants; the editor's own guards only mirror the contract's
- * bounds.
+ * default is the space's (issue #1, story 64) — the repeating section
+ * (issue #21): the frequency and the optional end date — and, since
+ * #22/#75, the reminder and its recipients. The editor edits one thing at
+ * a time: a new event or the whole series (the series' replace), or — when
+ * the link named an occurrence's original date — that occurrence alone,
+ * which has no rule or reminder of its own. "This and following" is not
+ * offered, by the ticket's design. The API composes the wall time into
+ * instants; the editor's own guards only mirror the contract's bounds.
  */
 
 const REPEAT_CHOICES = ['none', 'daily', 'weekly', 'monthly', 'yearly'] as const
