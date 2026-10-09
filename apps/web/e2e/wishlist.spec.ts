@@ -521,11 +521,20 @@ test.describe('the shell of the wishlist area (issue #62)', () => {
     // sheet — the screen's one add action, top bar and FAB being gone.
     await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
     await page.getByRole('button', { name: 'Добавить желание' }).click()
+    // Enter from a field saves, like the prototype's keydown handler.
     await page.getByLabel('Название').fill('Кашемировый свитер')
-    await page.getByRole('button', { name: 'Добавить', exact: true }).click()
+    await page.keyboard.press('Enter')
     await expect(page.getByText('Желание добавлено')).toBeVisible()
+    await expect(page.getByText('Кашемировый свитер')).toBeVisible()
     await page.getByRole('button', { name: 'Добавить желание' }).click()
     await expect(page.getByText('Новое желание')).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    // From 920px up: the arrow gives way to the sidebar, and the top bar
+    // carries no add action — the tile stays the one way to add.
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expect(page.getByRole('link', { name: 'Назад' })).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Добавить желание' })).toHaveCount(1)
   })
 })
 
