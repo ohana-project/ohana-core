@@ -79,6 +79,22 @@ export function wishlistUpdatedAt(wishes: StoredWish[]): string | undefined {
   return wishes.reduce((latest, wish) => (wish.updatedAt > latest ? wish.updatedAt : latest), '')
 }
 
+/**
+ * The localized moment the meta lines name ("25 сентября, 12:00"): the
+ * headers' «обновлено …» rides it, lowercased like the prototype's own
+ * small print.
+ */
+export function formatMoment(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+    .format(new Date(iso))
+    .toLocaleLowerCase(locale)
+}
+
 /*
  * The gift favorites and the gift reservations (issue #19): pure selection
  * over the synchronised partition, like the wish rules above. The server
