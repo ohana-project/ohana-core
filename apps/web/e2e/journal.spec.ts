@@ -772,8 +772,7 @@ test.describe('the entry editor, design parity', () => {
     // and the photo — whose FileList the browser emptied the moment the
     // picker was reset — still lands on it.
     const uploadPromise = page.waitForRequest(
-      (request) =>
-        request.method() === 'POST' && request.url().includes('/images'),
+      (request) => request.method() === 'POST' && request.url().includes('/images'),
     )
     await page.setInputFiles('input[type="file"]', [
       {
