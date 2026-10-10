@@ -1,9 +1,16 @@
 import type {
+  StoredCalendarEvent,
   StoredGiftFavorite,
   StoredGiftReservation,
   StoredMemberProfile,
   StoredWish,
 } from '@/data/local-store.ts'
+import {
+  type CalendarOccurrence,
+  eventDateKey,
+  upcomingEvents,
+} from '@/features/calendar/calendar-entries.ts'
+import { formatDateOnly } from '@/lib/calendar-dates.ts'
 
 /*
  * The wishlist's read-side derivation (issue #18): pure selection over the
@@ -136,4 +143,97 @@ export function reservationFor(
   wishId: string,
 ): StoredGiftReservation | undefined {
   return reservations.find((reservation) => reservation.wishId === wishId)
+}
+
+/*
+ * The near birthdays (issue #66): the overview's soon-birthday pills and
+ * the aside's birthday note read the calendar's events, because the data
+ * model carries no link between an event and a member — a title that
+ * carries a birthday word and begins a member's name is all there is.
+ * The matching is best-effort by design and claims no more than the
+ * titles say: an event that merely names the member («Миша — зубной
+ * врач») is no birthday, and a title naming nobody matches no one.
+ */
+
+/** How far ahead the overview looks for birthdays: a month of lead time
+ *  to pick a gift and reserve it quietly. */
+export const BIRTHDAY_SOON_DAYS = 30
+
+const BIRTHDAY_TITLE_WORDS = ['день рождения', 'birthday'] as const
+
+export interface NearBirthday {
+  memberId: string
+  /** The birthday's nearest occurrence inside the window. */
+  occurrence: CalendarOccurrence
+  /** The device-local days from today to the birthday, 0 when it is today. */
+  daysUntil: number
+  /** The occurrence's device-local day key (YYYY-MM-DD), the one the
+   *  count above was computed from. */
+  dayKey: string
+}
+
+function isBirthdayTitle(title: string): boolean {
+  const lowered = title.toLocaleLowerCase()
+  return BIRTHDAY_TITLE_WORDS.some((word) => lowered.includes(word))
+}
+
+/**
+ * Whether a title's word begins the member's name: the first three letters
+ * stand at a word's head, so «День рождения Люды» names Люда while «Саня»
+ * does not name Аня. Declined forms that shorten the stem («Ани» from
+ * «Аня») are a known miss — the honest direction for a guess to fail in.
+ */
+function titleNamesMember(title: string, name: string): boolean {
+  const cleaned = name.trim().toLocaleLowerCase()
+  const stem = cleaned.slice(0, Math.min(3, cleaned.length))
+  if (stem === '') return false
+  const words = title.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u)
+  return words.some((word) => word.startsWith(stem))
+}
+
+/** The device-local days from one day key to the other: the keys are
+ *  zoneless wall dates, so the difference is whole days by construction. */
+function daysBetweenKeys(fromKey: string, toKey: string): number {
+  const from = Date.parse(`${fromKey}T00:00:00Z`)
+  const to = Date.parse(`${toKey}T00:00:00Z`)
+  return Math.round((to - from) / 86_400_000)
+}
+
+/**
+ * Each active member's nearest birthday inside the month ahead, by member
+ * id: a calendar event whose title carries a birthday word and begins the
+ * member's name. The occurrences come from the same expansion the agenda
+ * reads, so a repeating birthday series answers through its next
+ * occurrence; an archived member's birthday is nobody's errand.
+ */
+export function nearBirthdays(
+  events: StoredCalendarEvent[],
+  profiles: StoredMemberProfile[],
+  now: Date,
+): Map<string, NearBirthday> {
+  const todayKey = formatDateOnly({
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    day: now.getDate(),
+  })
+  const near = new Map<string, NearBirthday>()
+  for (const occurrence of upcomingEvents(events, now)) {
+    const dayKey = eventDateKey(occurrence)
+    if (dayKey === undefined) continue
+    const daysUntil = daysBetweenKeys(todayKey, dayKey)
+    // A day key the wall calendar cannot place (a malformed stored date
+    // parses to NaN) or one already passing is no birthday ahead.
+    if (!(daysUntil >= 0) || daysUntil > BIRTHDAY_SOON_DAYS) continue
+    if (!isBirthdayTitle(occurrence.title)) continue
+    const member = profiles.find(
+      (profile) =>
+        profile.archivedAt === undefined && titleNamesMember(occurrence.title, profile.name),
+    )
+    if (member === undefined) continue
+    const existing = near.get(member.id)
+    if (existing === undefined || existing.daysUntil > daysUntil) {
+      near.set(member.id, { memberId: member.id, occurrence, daysUntil, dayKey })
+    }
+  }
+  return near
 }

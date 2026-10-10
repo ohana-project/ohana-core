@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn'
  */
 
 export interface AvatarProps extends AvatarPrimitive.Root.Props {
-  size?: 'xs' | 'sm' | 'default' | 'lg'
+  size?: 'xs' | 'sm' | 'meta' | 'default' | 'lg'
   /** Warm hue for the monogram fill, e.g. Аня 60, Дима 145, Миша 25, Люда 340. */
   hue?: number
 }
@@ -20,6 +20,9 @@ export interface AvatarProps extends AvatarPrimitive.Root.Props {
 const avatarSizes = {
   xs: 'size-6 text-[11px]',
   sm: 'size-8 text-[13px]',
+  // The entry card's meta-row avatar (diary.html, home.html): 34px with a
+  // 13.5px monogram — the prototype's own values, like the other sizes.
+  meta: 'size-[34px] text-[13.5px]',
   default: 'size-10 text-[15px]',
   lg: 'size-14 text-[20px]',
 } as const

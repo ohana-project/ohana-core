@@ -110,7 +110,7 @@ function seedRegistry() {
   window.localStorage.setItem('ohana.activeMember', ME)
 }
 
-function mockQuietSync() {
+function mockQuietSync(trash: unknown[] = []) {
   apiGet.mockImplementation(async (path: never) => {
     if (path === '/api/v1/me') {
       return {
@@ -132,6 +132,13 @@ function mockQuietSync() {
     if (path === '/api/v1/sync') {
       return {
         data: { revision: '7', changes: [], tombstones: [] },
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      }
+    }
+    if (path === '/api/v1/journal/trash') {
+      return {
+        data: { entries: trash },
         error: undefined,
         response: new Response(null, { status: 200 }),
       }
@@ -198,7 +205,161 @@ describe('JournalScreen (the shared feed)', () => {
     expect(screen.getByText('1')).toBeInTheDocument()
   })
 
-  it('pages the feed twenty entries at a time', async () => {
+  it('groups the feed under sticky month labels, newest month first', async () => {
+    const nextId = memberCounter()
+    const september = entry({
+      id: nextId(),
+      title: 'Поход к Чёртову креслу',
+      publishedAt: '2026-09-21T14:00:00.000Z',
+    })
+    const august = entry({
+      id: nextId(),
+      title: 'Мишке шесть!',
+      publishedAt: '2026-08-30T14:00:00.000Z',
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([august, september]))
+    mockQuietSync()
+    renderWithProviders(<JournalScreen />)
+
+    // The prototype's month labels (diary.html): «Сентябрь 2026», then
+    // «Август 2026», each once, before its month's cards.
+    expect(await screen.findByText('Поход к Чёртову креслу')).toBeInTheDocument()
+    expect(screen.getByText('Сентябрь 2026')).toBeInTheDocument()
+    expect(screen.getByText('Август 2026')).toBeInTheDocument()
+    const labels = screen
+      .getAllByText(/2026$/)
+      .filter((node) => node.textContent === 'Сентябрь 2026' || node.textContent === 'Август 2026')
+    expect(labels).toHaveLength(2)
+    expect(labels[0]?.textContent).toBe('Сентябрь 2026')
+    // The September label precedes the August one and both precede no
+    // card of a later month (the feed's own order is covered above).
+    expect(labels[0]?.compareDocumentPosition(labels[1] as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('carries the prototype meta row and the padded card (issue #69)', async () => {
+    const photos = [
+      {
+        id: '01900000-0000-7000-8000-000000000201',
+        state: 'ready' as const,
+        originalType: 'image/jpeg',
+      },
+      {
+        id: '01900000-0000-7000-8000-000000000202',
+        state: 'ready' as const,
+        originalType: 'image/jpeg',
+      },
+    ]
+    const hike = entry({
+      title: 'Поход к Чёртову креслу',
+      text: '12 километров, черника у самой тропы.',
+      publishedAt: '2026-09-21T14:00:00.000Z',
+      images: photos,
+    })
+    seedRegistry()
+    await applySyncResult(ME, syncResult([hike]))
+    mockQuietSync()
+    renderWithProviders(<JournalScreen />)
+
+    expect(await screen.findByText('Поход к Чёртову креслу')).toBeInTheDocument()
+    // The one-line meta row (diary.html): author, then the day and the
+    // photo count in one line — rendered uppercase by the meta styles.
+    expect(screen.getByText('21 сентября · Фото ×2')).toBeInTheDocument()
+    // The prototype's `.card.card-pad`: the card carries its own padding,
+    // the content sets its rhythm.
+    const card = screen.getByText('Поход к Чёртову креслу').closest('[data-slot="card"]')
+    expect(card).toHaveAttribute('data-variant', 'padded')
+    // The photo strip is full width with no per-photo counter — the count
+    // lives in the meta row now.
+    expect(screen.queryByText('Фото ×2', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('counts the trash on the corner row when the server has answered', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([entry()]))
+    // The trash is online-only data (issue #16): the badge and the dated
+    // line are the server's answer, never a local claim.
+    mockQuietSync([
+      {
+        id: '01900000-0000-7000-8000-000000000301',
+        authorId: DIMA,
+        text: 'Чужая запись в корзине',
+        previousState: 'published',
+        trashedAt: '2026-10-01T10:15:00.000Z',
+        purgeAt: '2026-10-31T10:15:00.000Z',
+        createdAt: '2026-09-01T10:00:00.000Z',
+        updatedAt: '2026-10-01T10:15:00.000Z',
+      },
+      {
+        id: '01900000-0000-7000-8000-000000000302',
+        authorId: ME,
+        title: 'Моя запись в корзине',
+        text: 'Своя запись в корзине',
+        previousState: 'draft',
+        trashedAt: '2026-10-02T10:15:00.000Z',
+        purgeAt: '2026-11-01T10:15:00.000Z',
+        createdAt: '2026-09-02T10:00:00.000Z',
+        updatedAt: '2026-10-02T10:15:00.000Z',
+      },
+    ])
+    renderWithProviders(<JournalScreen />)
+
+    expect(await screen.findByText('Запись')).toBeInTheDocument()
+    // The sub line names the earliest permanent-deletion date, and the
+    // prototype's count badge rides the trash row's title (diary.html).
+    expect(await screen.findByText('записи удалятся окончательно 31 октября')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+  })
+
+  it('keeps the generic trash line while the trash list has not answered', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([entry()]))
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return {
+          data: {
+            member: {
+              id: ME,
+              name: 'Аня',
+              displayName: 'Аня Смирнова',
+              role: 'owner',
+              createdAt: '2026-08-12T10:00:00.000Z',
+            },
+            space: { id: SPACE_ID, name: 'Наша семья' },
+            needsOnboarding: false,
+          },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      if (path === '/api/v1/sync') {
+        return {
+          data: { revision: '7', changes: [], tombstones: [] },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      // The trash request fails — the device is offline. No badge, no
+      // date: the row says only what is always true.
+      return {
+        data: undefined,
+        error: { error: { code: 'unreachable', message: 'Offline' } },
+        response: new Response(null, { status: 503 }),
+      }
+    })
+    renderWithProviders(<JournalScreen />)
+
+    expect(await screen.findByText('Запись')).toBeInTheDocument()
+    expect(screen.getByText('Корзина')).toBeInTheDocument()
+    expect(
+      screen.getByText('Удалённые записи ждут здесь до окончательного удаления.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/^записи удалятся/)).not.toBeInTheDocument()
+  })
+
+  it('pages the feed twenty entries at a time, the month label printed once', async () => {
     const nextId = memberCounter()
     const many = Array.from({ length: 25 }, (_, index) =>
       entry({
@@ -218,11 +379,15 @@ describe('JournalScreen (the shared feed)', () => {
 
     expect(await screen.findByText('Запись 25')).toBeInTheDocument()
     expect(screen.queryByText('Запись 5')).not.toBeInTheDocument()
+    // Every entry is September's: the label is the month's, so the page
+    // boundary splits the cards, never the heading.
+    expect(screen.getAllByText('Сентябрь 2026')).toHaveLength(1)
 
     await user.click(screen.getByRole('button', { name: 'Показать ещё' }))
 
     await waitFor(() => expect(screen.getByText('Запись 5')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Сентябрь 2026')).toHaveLength(1)
   })
 
   it('says that nothing is available offline when nothing is downloaded', async () => {
@@ -241,6 +406,12 @@ describe('JournalScreen (the shared feed)', () => {
 
     expect(await screen.findByText('В дневнике пока пусто')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Написать первую запись' })).toBeInTheDocument()
+    // The prototype's empty state stands bare (issue #69): no card around
+    // it, its button after the text.
+    const title = screen.getByText('В дневнике пока пусто')
+    expect(title.closest('[data-slot="card"]')).not.toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Написать первую запись' })
+    expect(title.compareDocumentPosition(button)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('says nothing is downloaded while the upgrade replay has not landed', async () => {

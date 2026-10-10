@@ -369,7 +369,10 @@ test.describe('the wishlist', () => {
     await expect(page.getByText('Дима')).toBeVisible()
 
     // The own wishlist opens from the card link.
-    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /Мой вишлист/ })
+      .click()
     await expect(page).toHaveURL(/\/wishlist\/mine$/)
     await expect(page.getByText('Здесь пока ничего нет')).toBeVisible()
 
@@ -403,7 +406,10 @@ test.describe('the wishlist', () => {
     await page.getByLabel('Код входа').fill(CODE)
     await page.getByRole('button', { name: 'Войти' }).click()
     await page.getByRole('button', { name: 'Вишлисты' }).first().click()
-    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /Мой вишлист/ })
+      .click()
     await page.getByRole('button', { name: 'Добавить желание' }).first().click()
     await page.getByLabel('Название').fill('Термос Stanley Quest, 1 л')
     await page.getByRole('button', { name: 'Добавить', exact: true }).click()
@@ -442,7 +448,10 @@ test.describe('the wishlist', () => {
     // the back arrow is mobile-only since issue #62; at the desktop
     // viewport the sidebar's section leads back, like the prototype
     await page.getByRole('button', { name: 'Вишлисты' }).click()
-    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /Мой вишлист/ })
+      .click()
     await page.getByRole('button', { name: 'Добавить желание' }).first().click()
     await page.getByLabel('Название').fill('Билеты на стендап, 2 шт')
     await page.getByRole('button', { name: 'Добавить', exact: true }).click()
@@ -497,7 +506,10 @@ test.describe('the shell of the wishlist area (issue #62)', () => {
     await page.getByLabel('Код входа').fill(CODE)
     await page.getByRole('button', { name: 'Войти' }).click()
     await page.getByRole('button', { name: 'Вишлисты' }).first().click()
-    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /Мой вишлист/ })
+      .click()
     await expect(page).toHaveURL(/\/wishlist\/mine$/)
 
     // The prototype's chrome: the display heading with the muted
@@ -519,7 +531,10 @@ test.describe('the shell of the wishlist area (issue #62)', () => {
 
     // With a wish on the list, the dashed tile closes it and opens the
     // sheet — the screen's one add action, top bar and FAB being gone.
-    await page.getByRole('link').filter({ hasText: 'Мой вишлист' }).click()
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /Мой вишлист/ })
+      .click()
     await page.getByRole('button', { name: 'Добавить желание' }).click()
     // Enter from a field saves, like the prototype's keydown handler.
     await page.getByLabel('Название').fill('Кашемировый свитер')
