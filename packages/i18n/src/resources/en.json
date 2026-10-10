@@ -311,7 +311,14 @@
     "openOriginalHint": "Tap a photo to open it at its original quality",
     "viewerLoadingOriginal": "Loading the original…",
     "viewerOriginalCaption": "Original",
-    "downloadOriginal": "Download the original"
+    "downloadOriginal": "Download the original",
+    "entryMenu": "Entry menu",
+    "shareEntry": "Share…",
+    "copyLink": "Copy link",
+    "linkCopiedToast": "Entry link copied",
+    "allEntries": "All entries",
+    "nextEntry": "Next: “{title}”",
+    "photoOf": "Photo {index} of {total}"
   },
   "wishlist": {
     "title": "Wishlists",

@@ -311,7 +311,14 @@
     "openOriginalHint": "Нажмите на фото, чтобы открыть в оригинальном качестве",
     "viewerLoadingOriginal": "Загружаем оригинал…",
     "viewerOriginalCaption": "Оригинал",
-    "downloadOriginal": "Скачать оригинал"
+    "downloadOriginal": "Скачать оригинал",
+    "entryMenu": "Меню записи",
+    "shareEntry": "Поделиться…",
+    "copyLink": "Скопировать ссылку",
+    "linkCopiedToast": "Ссылка на запись скопирована",
+    "allEntries": "Все записи",
+    "nextEntry": "Следующая: «{title}»",
+    "photoOf": "Фото {index} из {total}"
   },
   "wishlist": {
     "title": "Вишлисты",

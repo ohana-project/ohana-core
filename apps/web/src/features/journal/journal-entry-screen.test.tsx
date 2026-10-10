@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
@@ -51,6 +52,20 @@ function entry(): WireEntry {
     images: [],
     createdAt: '2026-09-21T12:00:00.000Z',
     updatedAt: '2026-09-21T14:00:00.000Z',
+  }
+}
+
+function olderEntry(): WireEntry {
+  return {
+    id: '01900000-0000-7000-8000-000000000102',
+    authorId: ME,
+    title: 'Вареники с бабушкой',
+    text: 'Тесто как у мамы.',
+    state: 'published',
+    publishedAt: '2026-09-14T10:00:00.000Z',
+    images: [],
+    createdAt: '2026-09-14T09:00:00.000Z',
+    updatedAt: '2026-09-14T10:00:00.000Z',
   }
 }
 
@@ -134,19 +149,131 @@ afterEach(async () => {
 })
 
 describe('JournalEntryScreen', () => {
-  it('renders the entry with its author and edit affordance', async () => {
+  it('renders the entry with its author, and the author edits from the top-bar menu (issue #70)', async () => {
     seedRegistry()
     const row = entry()
     await applySyncResult(ME, syncResult([row]))
     mockQuietSync()
+    const user = userEvent.setup()
     renderWithProviders(<JournalEntryScreen entryId={row.id} />)
 
     expect(
       await screen.findByRole('heading', { name: 'Поход к Чёртову креслу' }),
     ).toBeInTheDocument()
     expect(screen.getByText('Вид стоит каждого шага.')).toBeInTheDocument()
-    // The author's own entry offers the edit.
-    expect(screen.getByRole('button', { name: 'Редактировать' })).toBeInTheDocument()
+    // The menu is the top bar's overflow button (the prototype's
+    // data-topbar-actions, every width); the meta row carries no buttons.
+    const menu = await screen.findByRole('button', { name: 'Меню записи' })
+    await user.click(menu)
+    expect(await screen.findByRole('menuitem', { name: 'Редактировать' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Поделиться…' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Скопировать ссылку' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Удалить запись' })).toBeInTheDocument()
+  })
+
+  it('offers the share and the copy to a member who may not act, delete to one who may', async () => {
+    seedRegistry()
+    // Дима's published entry: Аня is the space's owner, so the removal is
+    // hers to offer — but the edit is not.
+    const row = { ...entry(), authorId: '01900000-0000-7000-8000-000000000002' }
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    await screen.findByRole('heading', { name: 'Поход к Чёртову креслу' })
+    await user.click(await screen.findByRole('button', { name: 'Меню записи' }))
+    expect(await screen.findByRole('menuitem', { name: 'Поделиться…' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Редактировать' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Скопировать ссылку' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Удалить запись' })).toBeInTheDocument()
+  })
+
+  it('copies the entry link and says so', async () => {
+    seedRegistry()
+    const row = entry()
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    // The user-event setup stubs the clipboard itself; the mock replaces
+    // it, the way the invite screen's tests pin their copy.
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Меню записи' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Скопировать ссылку' }))
+
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/journal/${row.id}`)
+    expect(await screen.findByText('Ссылка на запись скопирована')).toBeInTheDocument()
+  })
+
+  it('shares through the platform where there is a sheet, and copies where there is not', async () => {
+    seedRegistry()
+    const row = entry()
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    const share = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'share', { value: share, configurable: true })
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    const openShare = async () => {
+      await user.click(await screen.findByRole('button', { name: 'Меню записи' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Поделиться…' }))
+    }
+
+    await openShare()
+    // The sheet carries the entry's address; no toast doubles it.
+    await vi.waitFor(() => {
+      expect(share).toHaveBeenCalledWith({
+        title: 'Поход к Чёртову креслу',
+        url: `${window.location.origin}/journal/${row.id}`,
+      })
+    })
+    expect(screen.queryByText('Ссылка на запись скопирована')).not.toBeInTheDocument()
+
+    // Without the API at all the share lands on the clipboard instead.
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    delete (window.navigator as { share?: unknown }).share
+    await openShare()
+    expect(await screen.findByText('Ссылка на запись скопирована')).toBeInTheDocument()
+
+    // The user's own cancel of a sheet is not a failure to report.
+    const cancelled = vi.fn().mockRejectedValue(new DOMException('cancel', 'AbortError'))
+    Object.defineProperty(window.navigator, 'share', {
+      value: cancelled,
+      configurable: true,
+    })
+    await openShare()
+    await vi.waitFor(() => expect(cancelled).toHaveBeenCalled())
+    expect(screen.getAllByText('Ссылка на запись скопирована')).toHaveLength(1)
+  })
+
+  it("names the feed's next entry in the footer, and omits the line from the feed's last", async () => {
+    seedRegistry()
+    const row = entry()
+    const older = olderEntry()
+    await applySyncResult(ME, syncResult([row, older]))
+    mockQuietSync()
+    // The feed reads newest first: the entry from the 21st is followed by
+    // the one from the 14th.
+    const first = renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+    expect(await screen.findByText(/Следующая: «Вареники с бабушкой»/)).toBeInTheDocument()
+    first.unmount()
+
+    // From the feed's last entry there is no next, and the line is gone.
+    renderWithProviders(<JournalEntryScreen entryId={older.id} />)
+    await screen.findByRole('heading', { name: 'Вареники с бабушкой' })
+    expect(screen.queryByText(/Следующая:/)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Все записи' })).toBeInTheDocument()
   })
 
   it('says the entry is missing under a cursor that has read the journal', async () => {
@@ -285,9 +412,7 @@ describe('JournalEntryScreen', () => {
     ).toBeInTheDocument()
     // The pill counts the photos; the gallery asks for the feed preview.
     expect(screen.getByText('Фото ×1')).toBeInTheDocument()
-    const photo = await screen.findByRole('button', {
-      name: 'Нажмите на фото, чтобы открыть в оригинальном качестве',
-    })
+    const photo = await screen.findByRole('button', { name: 'Фото 1 из 1' })
     const feedUrl =
       '/api/v1/journal/entries/' +
       row.id +
@@ -297,7 +422,8 @@ describe('JournalEntryScreen', () => {
     })
 
     // The tap opens the lightbox on the viewer derivative, upgrading to
-    // the original.
+    // the original. The caption is two-sided: the entry names the photo
+    // on the left, the original's state sits on the right.
     await photo.click()
     const fullUrl = feedUrl.replace('/feed', '/full')
     const originalUrl = feedUrl.replace('/feed', '/original')
@@ -305,7 +431,69 @@ describe('JournalEntryScreen', () => {
       expect(fetchMock.mock.calls.some(([url]) => url === fullUrl)).toBe(true)
       expect(fetchMock.mock.calls.some(([url]) => url === originalUrl)).toBe(true)
     })
+    const caption = await screen.findByText(/Поход к Чёртову креслу · 21 сентября/)
+    expect(caption).toBeInTheDocument()
     expect(await screen.findByText('Оригинал', { exact: true })).toBeInTheDocument()
+
+    // Esc closes, and the focus comes back to the tile that opened it.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Закрыть' }), {
+      key: 'Escape',
+    })
+    await vi.waitFor(() => {
+      expect(screen.queryByText('Оригинал', { exact: true })).not.toBeInTheDocument()
+    })
+    expect(document.activeElement).toBe(photo)
+  })
+
+  it('closes on a press on the scrim and keeps a press on the photo', async () => {
+    seedRegistry()
+    URL.createObjectURL = vi.fn(() => 'blob:photo-preview')
+    URL.revokeObjectURL = vi.fn()
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(new Response(new Blob(['bytes']), { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    const row = {
+      ...entry(),
+      images: [
+        {
+          id: '01900000-0000-7000-8000-000000000204',
+          state: 'ready' as const,
+          width: 800,
+          height: 600,
+          originalType: 'image/jpeg',
+        },
+      ],
+    }
+    await applySyncResult(ME, syncResult([row]))
+    mockQuietSync()
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEntryScreen entryId={row.id} />)
+
+    const openViewer = async () => {
+      await user.click(await screen.findByRole('button', { name: 'Фото 1 из 1' }))
+      return screen.findByRole('dialog', { name: /Поход к Чёртову креслу · 21 сентября/ })
+    }
+
+    // The popup fills the viewport, so a press on the visible scrim is a
+    // press on the popup's own padding — the lightbox must read it as the
+    // scrim's dismiss.
+    let viewer = await openViewer()
+    fireEvent.click(viewer)
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    // The photo's own press keeps the viewer open, whatever the bubble.
+    viewer = await openViewer()
+    fireEvent.click(within(viewer).getByRole('img'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // And the round glass X still dismisses, like the prototype's.
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
   })
 
   it('offers a HEIC original as a download instead of undisplayable bytes', async () => {
@@ -333,9 +521,7 @@ describe('JournalEntryScreen', () => {
     mockQuietSync()
     renderWithProviders(<JournalEntryScreen entryId={row.id} />)
 
-    const photo = await screen.findByRole('button', {
-      name: 'Нажмите на фото, чтобы открыть в оригинальном качестве',
-    })
+    const photo = await screen.findByRole('button', { name: 'Фото 1 из 1' })
     await photo.click()
 
     // The original's bytes are never fetched on open: the viewer

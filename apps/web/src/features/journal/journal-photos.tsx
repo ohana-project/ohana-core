@@ -1,10 +1,12 @@
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { useQuery } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { type RefObject, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError, extractErrorCode } from '@/data/api-error.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { Icon } from '@/ui/icon.tsx'
+import { DialogPortal } from '@/ui/dialog.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 import {
@@ -14,6 +16,7 @@ import {
   memberHeader,
   uploadEntryImage,
 } from './journal-photos.ts'
+import { entryDay, entryTimestamp } from './journal-entries.ts'
 import { journalErrorMessage } from './use-journal.ts'
 
 /*
@@ -56,18 +59,17 @@ function PhotoTile({
 }: {
   entryId: string
   image: StoredJournalEntryImage
-  onOpen?: (image: StoredJournalEntryImage) => void
+  onOpen?: (image: StoredJournalEntryImage, element: HTMLElement) => void
   alt: string
 }) {
   const { t } = useTranslation()
   // The bytes are only asked for once the worker has made them.
   const preview = useEntryImageUrl(entryId, image.id, 'feed', image.state === 'ready')
-  const aspect = image.width && image.height ? image.width / image.height : 4 / 3
 
   if (image.state === 'processing') {
     return (
       <div
-        className="grid aspect-[4/3] place-items-center overflow-hidden rounded-lg bg-muted"
+        className="grid aspect-square place-items-center overflow-hidden rounded-md bg-muted"
         role="status"
         aria-label={t('journal.photoProcessing')}
       >
@@ -78,7 +80,7 @@ function PhotoTile({
   if (image.state === 'failed' || preview.isError) {
     return (
       <div
-        className="grid aspect-[4/3] place-items-center overflow-hidden rounded-lg bg-muted text-muted-foreground"
+        className="grid aspect-square place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground"
         role="img"
         aria-label={t('journal.photoFailed')}
       >
@@ -87,23 +89,24 @@ function PhotoTile({
     )
   }
   return (
+    // the prototype's .photo-grid button: square, 12px radius, the hover
+    // zoom riding the preview inside the clip (transition over --t-base)
     <button
       type="button"
-      className="block w-full overflow-hidden rounded-lg bg-muted"
-      onClick={() => onOpen?.(image)}
+      className="group block w-full overflow-hidden rounded-md bg-muted"
+      onClick={(event) => onOpen?.(image, event.currentTarget)}
       aria-label={alt}
     >
       {preview.data === undefined ? (
-        <div className="grid aspect-[4/3] place-items-center">
+        <div className="grid aspect-square place-items-center">
           <Spinner className="size-5 text-muted-foreground" />
         </div>
       ) : (
         <img
           src={preview.data}
-          alt={alt}
+          alt=""
           loading="lazy"
-          className="h-full w-full object-cover"
-          style={{ aspectRatio: `${aspect}` }}
+          className="aspect-square h-full w-full object-cover transition-transform duration-(--t-base) ease-(--ease) group-hover:scale-[1.03]"
         />
       )}
     </button>
@@ -144,31 +147,52 @@ function StripThumb({ entryId, image }: { entryId: string; image: StoredJournalE
   )
 }
 
-/** The entry screen's gallery (docs/design/screens/diary-entry.html) with the
- *  lightbox: a tap opens the photo, Esc and the scrim close it. */
+/** The entry screen's gallery (docs/design/screens/diary-entry.html):
+ *  three columns of square tiles at every width with the hover zoom, and
+ *  the lightbox on a tap — Esc and the scrim close it. */
 export function EntryPhotoGallery({ entry }: { entry: StoredJournalEntry }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState<StoredJournalEntryImage | undefined>(undefined)
+  // The tile the lightbox opened from: Base UI hands the focus back to it
+  // on the way out, so Esc lands the keyboard where the tap began.
+  const openerRef = useRef<HTMLElement | null>(null)
   const images = entry.images ?? []
   if (images.length === 0) return null
+  // Photos carry no captions of their own, so the lightbox caption is the
+  // honest one the entry gives: its title and its day, the prototype's
+  // «Хребет над озером · 21.09.2026» shape over real data.
+  const caption = [entry.title, entryDay(entryTimestamp(entry), i18n.language)]
+    .filter((part) => part !== undefined)
+    .join(' · ')
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 desktop:grid-cols-3">
-        {images.map((image) => (
+      {/* the prototype's .photo-grid: three columns at every width, 8px
+          gap, 14px above */}
+      <div className="mt-3.5 grid grid-cols-3 gap-2">
+        {images.map((image, index) => (
           <PhotoTile
             key={image.id}
             entryId={entry.id}
             image={image}
-            onOpen={setOpen}
-            alt={t('journal.openOriginalHint')}
+            onOpen={(opened, element) => {
+              openerRef.current = element
+              setOpen(opened)
+            }}
+            alt={t('journal.photoOf', { index: index + 1, total: images.length })}
           />
         ))}
       </div>
-      <p className="mt-2 font-mono text-meta tracking-wide text-muted-foreground uppercase">
+      <p className="mt-2.5 font-mono text-meta tracking-wide text-muted-foreground uppercase">
         {t('journal.openOriginalHint')}
       </p>
       {open !== undefined && (
-        <PhotoLightbox entryId={entry.id} image={open} onClose={() => setOpen(undefined)} />
+        <PhotoLightbox
+          entryId={entry.id}
+          image={open}
+          caption={caption}
+          finalFocusRef={openerRef}
+          onClose={() => setOpen(undefined)}
+        />
       )}
     </div>
   )
@@ -198,10 +222,14 @@ const DOWNLOAD_EXTENSIONS: Record<string, string> = {
 function PhotoLightbox({
   entryId,
   image,
+  caption,
+  finalFocusRef,
   onClose,
 }: {
   entryId: string
   image: StoredJournalEntryImage
+  caption: string
+  finalFocusRef: RefObject<HTMLElement | null>
   onClose: () => void
 }) {
   const { t } = useTranslation()
@@ -249,59 +277,80 @@ function PhotoLightbox({
   }
 
   return (
-    // A plain overlay, not ui/dialog: the lightbox is a photo on a scrim,
-    // not a labelled panel (docs/design/README.md, overlays).
-    // biome-ignore lint/a11y/noStaticElementInteractions: the scrim itself is the close affordance, and the button inside carries the role
-    <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/72 p-4"
-      onClick={onClose}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onClose()
+    // The prototype's lightbox (.overlay.lightbox): a photo on its black
+    // 72% scrim — a plain dialog popup, not the labelled ui/dialog panel.
+    // Base UI traps the focus, closes on Esc and a scrim press, and hands
+    // the focus back to the tile on the way out; the round glass X is the
+    // screen's own explicit dismiss (docs/design/README.md, Overlays).
+    <DialogPrimitive.Root
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose()
       }}
     >
-      <button
-        type="button"
-        className="absolute end-4 top-4 grid size-10 place-items-center rounded-full text-white/90 hover:bg-white/10"
-        onClick={onClose}
-        aria-label={t('ui.close')}
-      >
-        <Icon name="x" />
-      </button>
-      {shown === undefined ? (
-        <Spinner className="size-8 text-white/80" />
-      ) : (
-        // biome-ignore lint/a11y/noStaticElementInteractions: the photo sits on the scrim; the click keeps the viewer open, the scrim's own click closes it
-        // biome-ignore lint/a11y/useKeyWithClickEvents: same — the keyboard path is Escape on the scrim, which closes the viewer
-        <img
-          src={shown}
-          alt=""
-          className="max-h-[82vh] max-w-full rounded-lg object-contain"
-          onError={() => setOriginalBroken(true)}
-          onClick={(event) => event.stopPropagation()}
-        />
-      )}
-      {renderable && !originalBroken && !original.isError && (
-        <span className="font-mono text-meta tracking-wide text-white/70 uppercase">
-          {original.data === undefined
-            ? t('journal.viewerLoadingOriginal')
-            : t('journal.viewerOriginalCaption')}
-        </span>
-      )}
-      {!renderable && (
-        <button
-          type="button"
-          className="flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
-          disabled={downloading}
+      <DialogPortal>
+        <DialogPrimitive.Backdrop className="scrim-lightbox fixed inset-0 isolate z-50 transition-opacity duration-(--t-base) ease-(--ease) data-starting-style:opacity-0 data-ending-style:opacity-0" />
+        <DialogPrimitive.Popup
+          aria-label={caption}
+          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4 outline-none"
+          initialFocus={true}
+          finalFocus={finalFocusRef}
           onClick={(event) => {
-            event.stopPropagation()
-            void downloadOriginal()
+            // The press that lands on the popup's own padding is the
+            // scrim's press: the backdrop sits under a popup that fills
+            // the viewport, so the outside-click dismissal never sees it.
+            if (event.target === event.currentTarget) onClose()
           }}
         >
-          {downloading && <Spinner className="size-4" />}
-          {t('journal.downloadOriginal')}
-        </button>
-      )}
-    </div>
+          <figure className="m-0 w-full max-w-[min(92vw,1080px)]">
+            {shown === undefined ? (
+              <div className="grid h-[60dvh] place-items-center">
+                <Spinner className="size-8 text-white/80" />
+              </div>
+            ) : (
+              <img
+                src={shown}
+                alt={caption}
+                className="mx-auto max-h-[80dvh] w-auto max-w-full rounded-lg object-contain"
+                onError={() => setOriginalBroken(true)}
+              />
+            )}
+            {/* the prototype's .lightbox-fig figcaption: caption left, the
+                original's state right, mono over the photo */}
+            <figcaption className="mt-2.5 flex justify-between gap-3 font-mono text-meta text-white/78">
+              <span className="min-w-0 truncate">{caption}</span>
+              {renderable && !originalBroken && !original.isError && original.data === undefined ? (
+                <span className="shrink-0">{t('journal.viewerLoadingOriginal')}</span>
+              ) : (
+                <span className="shrink-0">{t('journal.viewerOriginalCaption')}</span>
+              )}
+            </figcaption>
+          </figure>
+          {!renderable && (
+            <button
+              type="button"
+              className="mt-3 flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+              disabled={downloading}
+              onClick={() => void downloadOriginal()}
+            >
+              {downloading && <Spinner className="size-4" />}
+              {t('journal.downloadOriginal')}
+            </button>
+          )}
+          <DialogPrimitive.Close
+            render={
+              <button
+                type="button"
+                aria-label={t('ui.close')}
+                className="glass fixed top-3.5 end-3.5 z-10 grid size-11 place-items-center rounded-full text-white transition-colors duration-(--t-fast) ease-(--ease) hover:bg-white/14"
+              />
+            }
+          >
+            <Icon name="x" />
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Popup>
+      </DialogPortal>
+    </DialogPrimitive.Root>
   )
 }
 
