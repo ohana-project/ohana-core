@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { StoredJournalEntry } from '@/data/local-store.ts'
@@ -25,7 +25,6 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
@@ -41,7 +40,9 @@ import {
 
 /*
  * The author's drafts (docs/design/screens/drafts.html): the separate list
- * only the author sees (issue #15). A draft continues in the editor, and
+ * only the author sees (issue #15), one card per row in the prototype's
+ * 12px stack (issue #72). A draft continues in the editor — the row body
+ * is the prototype's `a.body` link, beside the small «Дописать» — and
  * sharing goes through the row's overflow menu — publishing is one-way,
  * so it does not sit a stray tap away, as the prototype puts it. The
  * removal goes through the same menu with a dialog between (issue #16):
@@ -57,11 +58,13 @@ export function JournalDraftsScreen() {
   const drafts = journalDrafts(entries)
 
   return (
-    <JournalShell title={t('journal.draftsTitle')} backTo="/journal" width="narrow">
+    // The prototype's data-title names the screen short — «Черновики» —
+    // where the content heading keeps its full words (issue #72).
+    <JournalShell title={t('journal.draftsTopBarTitle')} backTo="/journal" width="narrow">
       <div className="flex flex-col gap-3 pt-6">
         <header className="mb-1.5">
-          <h1 className="text-display-lg">{t('journal.draftsTitle')}</h1>
-          <p className="mt-1 text-muted-foreground">{t('journal.draftsSubtitle')}</p>
+          <h1 className="text-display">{t('journal.draftsTitle')}</h1>
+          <p className="mt-1.5 text-muted-foreground">{t('journal.draftsSubtitle')}</p>
         </header>
 
         {snapshot.isPending ? null : !downloaded ? (
@@ -77,27 +80,27 @@ export function JournalDraftsScreen() {
             </Empty>
           </Card>
         ) : drafts.length === 0 ? (
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="file-text" />
-              </EmptyMedia>
-              <EmptyTitle>{t('journal.draftsEmptyTitle')}</EmptyTitle>
-              <EmptyDescription>{t('journal.draftsEmptyText')}</EmptyDescription>
-              <EmptyContent>
-                <Button variant="secondary" onClick={() => void navigate({ to: '/journal/new' })}>
-                  <Icon name="plus" />
-                  {t('journal.newEntry')}
-                </Button>
-              </EmptyContent>
-            </Empty>
-          </Card>
+          // The prototype's empty state stands bare, its «Новая запись»
+          // secondary below the text without an icon (issue #72).
+          <Empty>
+            <EmptyMedia>
+              <Icon name="file-text" />
+            </EmptyMedia>
+            <EmptyTitle>{t('journal.draftsEmptyTitle')}</EmptyTitle>
+            <EmptyDescription>{t('journal.draftsEmptyText')}</EmptyDescription>
+            <EmptyContent>
+              <Button variant="secondary" onClick={() => void navigate({ to: '/journal/new' })}>
+                {t('journal.newEntry')}
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : (
-          <Card className="py-0">
-            <ItemGroup>
-              {drafts.map((draft) => (
+          <>
+            {/* One list card per draft (drafts.html): each card clips its
+                own row's corners, the 12px stack spacing them. */}
+            {drafts.map((draft) => (
+              <Card key={draft.id} variant="list">
                 <DraftRow
-                  key={draft.id}
                   draft={draft}
                   locale={i18n.language}
                   onEdit={() =>
@@ -107,15 +110,16 @@ export function JournalDraftsScreen() {
                     })
                   }
                 />
-              ))}
-            </ItemGroup>
-          </Card>
+              </Card>
+            ))}
+            {/* The lock note rides the list — the prototype keeps it
+                inside the stack, so it hides with it (issue #72). */}
+            <p className="flex items-center gap-1.5 px-1 text-sm text-muted-foreground">
+              <Icon name="lock" className="shrink-0" />
+              {t('journal.draftsPrivacyNote')}
+            </p>
+          </>
         )}
-
-        <p className="flex items-center gap-1.5 px-1 text-sm text-muted-foreground">
-          <Icon name="lock" className="size-[15px] shrink-0" />
-          {t('journal.draftsPrivacyNote')}
-        </p>
       </div>
     </JournalShell>
   )
@@ -142,20 +146,39 @@ function DraftRow({
         <Icon name="file-text" />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{draft.title ?? entryExcerpt(draft.text, 60)}</ItemTitle>
-        <ItemDescription>
-          {t('journal.draftEditedAt', {
-            moment: entryMoment(draft.updatedAt, locale),
-          })}
-        </ItemDescription>
+        {/* The row body is the prototype's `a.body`: the whole title and
+            sub block opens the editor, the actions stay outside the link
+            (issue #72). */}
+        <Link
+          to="/journal/$entryId/edit"
+          params={{ entryId: draft.id }}
+          className="flex min-w-0 flex-col gap-px"
+        >
+          <ItemTitle>{draft.title ?? entryExcerpt(draft.text, 60)}</ItemTitle>
+          <ItemDescription>
+            {t('journal.draftEditedAt', {
+              moment: entryMoment(draft.updatedAt, locale),
+            })}
+            {/* The prototype's sub counts the draft's photos after the
+                edit moment; photos travel inside the entry's DTO, so the
+                count is the partition's own (issue #72). */}
+            {(draft.images?.length ?? 0) > 0 && (
+              <> · {t('journal.draftPhotos', { count: draft.images?.length ?? 0 })}</>
+            )}
+          </ItemDescription>
+        </Link>
       </ItemContent>
       <ItemActions>
         <Button variant="secondary" size="sm" onClick={onEdit}>
           {t('journal.continueEditing')}
         </Button>
         <DropdownMenu>
+          {/* The prototype's `.btn-icon.btn-sm`: the 36px round with its
+              18px more-h glyph (issue #72). */}
           <DropdownMenuTrigger
-            render={<Button variant="ghost" size="icon" aria-label={t('journal.draftActions')} />}
+            render={
+              <Button variant="ghost" size="icon-sm" aria-label={t('journal.draftActions')} />
+            }
           >
             <Icon name="more-h" />
           </DropdownMenuTrigger>

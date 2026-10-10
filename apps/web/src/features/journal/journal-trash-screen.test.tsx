@@ -149,6 +149,94 @@ describe('JournalTrashScreen', () => {
     })
   })
 
+  it('gives every trashed entry its own list card and closes with the banner (issue #72)', async () => {
+    seedRegistry()
+    await seedPartition([profile('owner', ME, 'Аня')])
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/trash') {
+        return {
+          data: {
+            entries: [
+              trashedRow({ id: '01900000-0000-7000-8000-000000000201', previousState: 'draft' }),
+              trashedRow({
+                id: '01900000-0000-7000-8000-000000000202',
+                previousState: 'published',
+                title: 'Поход к Чёртову креслу',
+              }),
+            ],
+          },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    renderWithProviders(<JournalTrashScreen />)
+
+    await screen.findByText('Осенний пикник')
+    // One card per row, in the prototype's 12px stack (trash.html).
+    const firstCard = screen.getByText('Осенний пикник').closest('[data-slot="card"]')
+    const secondCard = screen.getByText('Поход к Чёртову креслу').closest('[data-slot="card"]')
+    expect(firstCard).not.toBeNull()
+    expect(secondCard).not.toBeNull()
+    expect(firstCard).not.toBe(secondCard)
+    // The banner stands in the same stack, the prototype's 16px below it.
+    const banner = document.querySelector('[data-slot="banner"]')
+    expect(banner).toHaveTextContent('Восстановить запись можно в один шаг')
+    expect(banner).toHaveClass('mb-4')
+    // The prototype's h1 is `.display.display-xl` — the display size.
+    expect(screen.getByRole('heading', { level: 1, name: 'Корзина' })).toHaveClass('text-display')
+  })
+
+  it('fades a restored row out where it stood before the list closes over it (issue #72)', async () => {
+    seedRegistry()
+    await seedPartition([profile('owner', ME, 'Аня')])
+    const row = trashedRow({ previousState: 'draft' })
+    let restored = false
+    apiGet.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/trash') {
+        return {
+          data: { entries: restored ? [] : [row] },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    apiPost.mockImplementation(async (path: never) => {
+      if (path === '/api/v1/journal/entries/{entryId}/restore') {
+        restored = true
+        return {
+          data: {
+            id: row.id,
+            authorId: ME,
+            text: row.text,
+            state: 'draft',
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+          },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected POST ${String(path)}`)
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<JournalTrashScreen />)
+
+    await user.click(await screen.findByRole('button', { name: 'Восстановить' }))
+    expect(await screen.findByText('Восстановлено — запись снова в дневнике')).toBeInTheDocument()
+    // The row fades out where it stood (trash.html's exit, on the card
+    // the prototype animates): still mounted although the refetch has
+    // already dropped it, and silent to assistive technology while it goes.
+    const title = screen.getByText('Осенний пикник')
+    expect(title.closest('[data-slot="card"]')).toHaveAttribute('aria-hidden', 'true')
+    // The fade runs its course and the row leaves.
+    await waitFor(() => expect(screen.queryByText('Осенний пикник')).not.toBeInTheDocument(), {
+      timeout: 1500,
+    })
+  })
+
   it('restores through the API, refreshes the list, and triggers the sync', async () => {
     seedRegistry()
     await seedPartition([profile('owner', ME, 'Аня')])
@@ -276,6 +364,10 @@ describe('JournalTrashScreen', () => {
     renderWithProviders(<JournalTrashScreen />)
 
     expect(await screen.findByText('Корзина пуста')).toBeInTheDocument()
+    // The prototype's empty state stands bare — no card around it.
+    const empty = document.querySelector('[data-slot="empty"]')
+    expect(empty).not.toBeNull()
+    expect(empty?.closest('[data-slot="card"]')).toBeNull()
   })
 
   it('says the server could not be reached and offers a retry', async () => {
