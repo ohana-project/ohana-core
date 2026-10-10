@@ -1,5 +1,5 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
-import { screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -861,6 +861,70 @@ describe('SpaceHomeScreen (the design-parity columns, issue #65)', () => {
     await renderSeeded(world, sync)
 
     expect(await screen.findByRole('link', { name: /Ужин у бабушки/ })).toBeInTheDocument()
+    expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
+  })
+
+  it('drops the birthday note while the wishlists are hidden or owe their replay', async () => {
+    const world = makeWorld()
+    // The note is an errand over the wishlists: with the section hidden
+    // there is nothing its link could open, and while the wishlist owes
+    // its replay the ideas line would count a fraction of the list.
+    const hidden = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000201', { title: 'День рождения Люды' }),
+      },
+    ])
+    hidden.changes = hidden.changes.map((change) =>
+      change.entity === 'space'
+        ? {
+            entity: 'space',
+            space: {
+              ...change.space,
+              sections: { journal: true, calendar: true, wishlist: false },
+            },
+          }
+        : change,
+    )
+    await renderSeeded(world, hidden)
+
+    const birthday = await screen.findByRole('link', { name: /День рождения Люды/ })
+    expect(birthday.querySelector('[data-slot="badge"]')).not.toBeNull()
+    expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
+
+    // The section visible again, but its replay still owed: the store's
+    // promise is written the way the store's own apply writes it, and the
+    // gate's on-mount sync is held open — a run that applied would clear
+    // the promise, and the note would honestly show again.
+    const owing = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000201', { title: 'День рождения Люды' }),
+      },
+    ])
+    await applySyncResult(world.memberId, owing)
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${world.memberId}`)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Opening the store failed'))
+    })
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(['meta'], 'readwrite')
+      tx.objectStore('meta').put({ key: 'pendingReplay', sections: ['wishlist'] })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Writing the promise failed'))
+    })
+    db.close()
+    // The first route still holds its already-read snapshot (and its note
+    // with it); a fresh render is the one that reads the promise.
+    cleanup()
+    mockResponses(world, () => new Promise<SyncResult>(() => {}))
+    renderWithProviders(<HomeRoute />)
+
+    // The events column reads on from the store — the calendar owes
+    // nothing — while the note stays unpainted.
+    const rows = await screen.findAllByRole('link', { name: /День рождения Люды/ })
+    expect(rows.length).toBeGreaterThan(0)
     expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
   })
 

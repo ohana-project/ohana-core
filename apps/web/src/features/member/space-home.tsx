@@ -125,17 +125,25 @@ export function SpaceHomeScreen() {
   // aside paints (issue #66): a calendar event whose title carries a
   // birthday word and begins a member's name, within the month ahead —
   // the reader's own birthday is nobody's errand to run, and an archived
-  // member's is no errand at all. A partial calendar can only leave the
-  // note unpainted, never paint one the events do not carry.
+  // member's is no errand at all. The note is an errand over the
+  // wishlists, so it waits for that section to exist and be claimable:
+  // a link into a hidden section is broken guidance, and while the
+  // wishlist's replay is owed the ideas line would count a fraction. A
+  // partial calendar, as on the overview, can only leave the note
+  // unpainted, never paint one the events do not carry.
+  const wishlistClaimable = visibility.wishlist && sectionDownloaded(snapshot.data, 'wishlist')
   const others = profiles.filter(
     (profile) => profile.id !== me.member.id && profile.archivedAt === undefined,
   )
   const birthdays = nearBirthdays(snapshot.data?.events ?? [], others, now)
-  const notedBirthday = [...birthdays.values()].reduce<undefined | NearBirthday>(
-    (nearest, birthday) =>
-      nearest === undefined || birthday.daysUntil < nearest.daysUntil ? birthday : nearest,
-    undefined,
-  )
+  const notedBirthday =
+    calendarReady && wishlistClaimable
+      ? [...birthdays.values()].reduce<undefined | NearBirthday>(
+          (nearest, birthday) =>
+            nearest === undefined || birthday.daysUntil < nearest.daysUntil ? birthday : nearest,
+          undefined,
+        )
+      : undefined
   const notedWishes =
     notedBirthday === undefined
       ? 0
@@ -249,11 +257,10 @@ export function SpaceHomeScreen() {
                 )}
                 {/* The note rides the events column like the prototype's
                     `.venue-note`, its 10px margin over the column's 12px
-                    gap. It waits for the calendar to be claimable: while a
-                    replay is owed the column already says nothing is
-                    downloaded, and a note painted beside it would half
-                    contradict that. */}
-                {calendarReady && notedBirthday !== undefined && (
+                    gap. The birthday derivation above has already held it
+                    back while a replay is owed or the wishlists are
+                    hidden. */}
+                {notedBirthday !== undefined && (
                   <BirthdayNote
                     birthday={notedBirthday}
                     openCount={notedWishes}
