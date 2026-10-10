@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import type { StoredMemberProfile } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
-import { formatDayLong, parseDateOnly } from '@/lib/calendar-dates.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -19,9 +18,9 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
-import { NoteBlock } from '@/ui/note-block.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
+import { BirthdayNote } from './birthday-note.tsx'
 import { useWishlistData } from './use-wishlist.ts'
 import {
   authorName,
@@ -199,7 +198,6 @@ export function WishlistsScreen() {
             {notedBirthday !== undefined && (
               <BirthdayNote birthday={notedBirthday} openCount={notedWishes} locale={locale} />
             )}
-
             {/* The surprise rule, the prototype's padded card with the
                 18px accent icon. */}
             <Card variant="padded">
@@ -234,39 +232,6 @@ export function WishlistsScreen() {
         </div>
       )}
     </WishlistShell>
-  )
-}
-
-/** The aside's birthday note: the event as its creator titled it, the
- *  date, the days left, and the ideas already waiting in the list. */
-function BirthdayNote({
-  birthday,
-  openCount,
-  locale,
-}: {
-  birthday: NearBirthday
-  openCount: number
-  locale: Locale
-}) {
-  const { t } = useTranslation()
-  const day = parseDateOnly(birthday.dayKey)
-  return (
-    <NoteBlock icon="cake">
-      {day !== undefined && (
-        <p>
-          {birthday.daysUntil === 0
-            ? t('wishlist.birthdayNoteToday', { title: birthday.occurrence.title })
-            : t('wishlist.birthdayNote', {
-                title: birthday.occurrence.title,
-                date: formatDayLong(day, locale),
-                count: birthday.daysUntil,
-              })}
-        </p>
-      )}
-      <p className={day !== undefined ? 'mt-1' : undefined}>
-        {t('wishlist.birthdayNoteIdeas', { count: openCount })}
-      </p>
-    </NoteBlock>
   )
 }
 
