@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +8,7 @@ import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
+import { FakeUploadRequest } from '@/testing/fake-upload.ts'
 import { JournalEditorScreen } from './journal-editor-screen.tsx'
 
 /** The entry as the wire carries it: photos name what their original is. */
@@ -20,7 +21,15 @@ type WireEntry = StoredJournalEntry & {
  * publish it from here; a published entry keeps its state through the edit
  * and offers no way back to draft. Mutations go to the API; settling
  * triggers the sync instead of patching the store by hand.
+ *
+ * The design parity (issue #71, docs/design/screens/diary-editor.html) is
+ * pinned below in its own block: jsdom has no layout, so the prototype's
+ * geometry lives in the classes — the same pin the shared ActionBar's
+ * test uses — and the clock is pinned to UTC so the saved moment reads
+ * the same everywhere.
  */
+
+process.env.TZ = 'UTC'
 
 vi.mock('@/data/api.ts', () => ({
   api: { GET: vi.fn(), POST: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() },
@@ -45,6 +54,15 @@ const triggerSyncMock = vi.mocked(triggerSync)
 
 const ME = '01900000-0000-7000-8000-000000000001'
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
+
+/**
+ * The desktop pair lives in the top bar; the same primary rides the
+ * phone's action bar, so publish/save queries scope themselves to the
+ * top bar (issue #71).
+ */
+function topBar() {
+  return within(document.querySelector('[data-slot="topbar"]') as HTMLElement)
+}
 
 function draft(overrides?: Partial<WireEntry>): WireEntry {
   return {
@@ -128,7 +146,7 @@ describe('JournalEditorScreen (a new entry)', () => {
 
     await user.type(await screen.findByLabelText('Заголовок'), 'Осенний пикник')
     await user.type(await screen.findByLabelText('Текст записи'), 'Собрались за час.')
-    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await user.click(topBar().getByRole('button', { name: 'Опубликовать' }))
 
     await waitFor(() =>
       expect(apiPost).toHaveBeenCalledWith('/api/v1/journal/entries', {
@@ -176,8 +194,9 @@ describe('JournalEditorScreen (a new entry)', () => {
   it('refuses to submit while the text is blank', async () => {
     seedRegistry()
     renderWithProviders(<JournalEditorScreen />)
-
-    expect(await screen.findByRole('button', { name: 'Опубликовать' })).toBeDisabled()
+    // The top bar exists once the shell's session status settles.
+    await screen.findByLabelText('Заголовок')
+    expect(topBar().getByRole('button', { name: 'Опубликовать' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Сохранить черновик' })).toBeDisabled()
     expect(apiPost).not.toHaveBeenCalled()
     // The editor's first paint is not an accusation: the blank-text error
@@ -224,7 +243,7 @@ describe('JournalEditorScreen (a new entry)', () => {
 
     await user.type(await screen.findByLabelText('Заголовок'), 'Пикник')
     await user.type(await screen.findByLabelText('Текст записи'), 'Собрались за час.')
-    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await user.click(topBar().getByRole('button', { name: 'Опубликовать' }))
 
     // The create landed, the publish refused, and the editor stays on the
     // entry it made instead of pretending nothing happened.
@@ -234,7 +253,7 @@ describe('JournalEditorScreen (a new entry)', () => {
     )
 
     // The retry edits the created entry and publishes it — one draft, ever.
-    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await user.click(topBar().getByRole('button', { name: 'Опубликовать' }))
     await waitFor(() =>
       expect(apiPut).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
         params: { path: { entryId: created.id } },
@@ -269,7 +288,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
 
     await user.clear(screen.getByLabelText('Текст записи'))
     await user.type(screen.getByLabelText('Текст записи'), 'Исправленный текст')
-    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await user.click(topBar().getByRole('button', { name: 'Опубликовать' }))
 
     await waitFor(() =>
       expect(apiPut).toHaveBeenCalledWith('/api/v1/journal/entries/{entryId}', {
@@ -303,9 +322,9 @@ describe('JournalEditorScreen (editing an entry)', () => {
     expect(await screen.findByText('опубликовано')).toBeInTheDocument()
     // No unpublish: the save is the only action for a published entry.
     expect(screen.queryByRole('button', { name: 'Сохранить черновик' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
+    expect(topBar().getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await user.click(topBar().getByRole('button', { name: 'Сохранить' }))
     await waitFor(() => expect(apiPut).toHaveBeenCalled())
     expect(apiPost).not.toHaveBeenCalled()
   })
@@ -375,7 +394,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
 
     const titleField = await screen.findByLabelText('Заголовок')
     expect(titleField).toHaveValue('Черновик')
-    expect(screen.getByRole('button', { name: 'Опубликовать' })).toBeEnabled()
+    expect(topBar().getByRole('button', { name: 'Опубликовать' })).toBeEnabled()
   })
 
   it('says nothing is downloaded while the journal replay has not landed', async () => {
@@ -411,7 +430,7 @@ describe('JournalEditorScreen (editing an entry)', () => {
 
     await user.clear(await screen.findByLabelText('Текст записи'))
     await user.type(screen.getByLabelText('Текст записи'), 'Исправленный текст')
-    await user.click(screen.getByRole('button', { name: 'Опубликовать' }))
+    await user.click(topBar().getByRole('button', { name: 'Опубликовать' }))
 
     expect(
       await screen.findByText('Запись не найдена или ещё не синхронизировалась.'),
@@ -469,34 +488,31 @@ describe('JournalEditorScreen (photos, issue #17)', () => {
     // jsdom has no blob store; the uploads only need a stable fake handle.
     URL.createObjectURL = vi.fn(() => 'blob:pending-photo')
     URL.revokeObjectURL = vi.fn()
+    FakeUploadRequest.instances = []
   })
 
   it('attaches a picked photo to the saved draft through the API', async () => {
     seedRegistry()
     const row = draft()
     await applySyncResult(ME, syncResult([row]))
-    const upload = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ id: '01900000-0000-7000-8000-000000000301', state: 'processing' }),
-        {
-          status: 201,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    )
-    vi.stubGlobal('fetch', upload)
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen entryId={row.id} />)
 
-    const picker = await screen.findByLabelText('Добавить')
+    const picker = await filePicker()
     const file = new File(['jpeg-bytes'], 'photo.jpg', { type: 'image/jpeg' })
     await user.upload(picker, file)
 
     await waitFor(() => {
-      const [url, init] = upload.mock.calls[0] as [string, RequestInit]
-      expect(url).toBe(`/api/v1/journal/entries/${row.id}/images`)
-      expect((init.body as FormData).get('file')).toBeInstanceOf(File)
-      expect((init.headers as Record<string, string>)['x-ohana-member']).toBe(ME)
+      const request = FakeUploadRequest.instances.at(-1)
+      expect(request?.url).toBe(`/api/v1/journal/entries/${row.id}/images`)
+      expect(request?.method).toBe('POST')
+      expect(request?.body?.get('file')).toBeInstanceOf(File)
+      expect(request?.headers['x-ohana-member']).toBe(ME)
+    })
+    FakeUploadRequest.instances.at(-1)?.respond(201, {
+      id: '01900000-0000-7000-8000-000000000301',
+      state: 'processing',
     })
     // The entry with its photo arrives through the sync, as always.
     await waitFor(() => expect(triggerSyncMock).toHaveBeenCalled())
@@ -506,17 +522,18 @@ describe('JournalEditorScreen (photos, issue #17)', () => {
 
   it('refuses a photo while the new entry has no text to hold a draft', async () => {
     seedRegistry()
-    const upload = vi.fn()
-    vi.stubGlobal('fetch', upload)
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen />)
 
-    const picker = await screen.findByLabelText('Добавить')
-    await user.upload(picker, new File(['x'], 'photo.jpg', { type: 'image/jpeg' }))
+    await user.upload(
+      await filePicker(),
+      new File(['x'], 'photo.jpg', { type: 'image/jpeg' }),
+    )
 
     // The field says it and the toast repeats it: no draft holds the photo.
     await screen.findAllByText('Добавьте текст записи')
-    expect(upload).not.toHaveBeenCalled()
+    expect(FakeUploadRequest.instances).toHaveLength(0)
     expect(apiPost).not.toHaveBeenCalled()
   })
 
@@ -529,22 +546,13 @@ describe('JournalEditorScreen (photos, issue #17)', () => {
       }
       throw new Error(`Unexpected POST ${String(path)}`)
     })
-    const upload = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ id: '01900000-0000-7000-8000-000000000302', state: 'processing' }),
-        {
-          status: 201,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    )
-    vi.stubGlobal('fetch', upload)
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen />)
 
     await user.type(await screen.findByLabelText('Текст записи'), 'Собрались за час.')
     await user.upload(
-      await screen.findByLabelText('Добавить'),
+      await filePicker(),
       new File(['x'], 'photo.jpg', { type: 'image/jpeg' }),
     )
 
@@ -554,8 +562,158 @@ describe('JournalEditorScreen (photos, issue #17)', () => {
       }),
     )
     await waitFor(() => {
-      const [url] = upload.mock.calls[0] as [string, RequestInit]
-      expect(url).toBe(`/api/v1/journal/entries/${created.id}/images`)
+      const request = FakeUploadRequest.instances.at(-1)
+      expect(request?.url).toBe(`/api/v1/journal/entries/${created.id}/images`)
     })
+  })
+})
+
+/** The hidden picker input: the attach tile's button is its only
+ *  accessible control (issue #71), so the tests reach the input through it. */
+async function filePicker(): Promise<HTMLInputElement> {
+  const tile = await screen.findByRole('button', { name: 'Добавить' })
+  const input = tile.querySelector('input[type="file"]')
+  expect(input).not.toBeNull()
+  return input as HTMLInputElement
+}
+
+/*
+ * The editor's design parity (issue #71, docs/design/screens/diary-editor.html):
+ * the borderless serif title and the 16px/1.65 body with their sr-only
+ * labels, the rule between them, the save pair riding the top bar on
+ * desktop and the shared action bar on phones, and the photo grid's
+ * prototype geometry. jsdom has no layout, so the prototype's values
+ * live in the classes — the same pin the shared ActionBar's test uses.
+ */
+describe('JournalEditorScreen (design parity, issue #71)', () => {
+  it('writes on the prototype’s borderless fields, their labels kept for assistive technology', async () => {
+    seedRegistry()
+    renderWithProviders(<JournalEditorScreen />)
+
+    // The prototype's .editor-title: the h1 step in the display face —
+    // 24px serif — with no border, box or visible label.
+    const title = await screen.findByLabelText('Заголовок')
+    expect(title).toHaveClass('border-0', 'bg-transparent', 'p-0', 'font-display', 'text-h1')
+    expect(document.querySelector('label[for="journal-entry-title"]')).toHaveClass('sr-only')
+
+    // The rule the prototype draws between the title and the text.
+    expect(document.querySelector('[data-slot="separator"]')).toBeInTheDocument()
+
+    // The prototype's .editor-text: 16px/1.65, no border, no resize.
+    const text = screen.getByLabelText('Текст записи')
+    expect(text).toHaveClass(
+      'border-0',
+      'bg-transparent',
+      'p-0',
+      'text-[16px]',
+      'leading-[1.65]',
+      'min-h-[200px]',
+      'resize-none',
+    )
+    expect(document.querySelector('label[for="journal-entry-text"]')).toHaveClass('sr-only')
+  })
+
+  it('carries the save pair in the top bar on desktop and in the action bar on phones', async () => {
+    seedRegistry()
+    renderWithProviders(<JournalEditorScreen />)
+    await screen.findByLabelText('Заголовок')
+
+    // From 920px up: the prototype's d-only small pair in the top bar.
+    expect(topBar().getByRole('button', { name: 'Сохранить черновик' })).toHaveClass('min-h-9')
+    expect(topBar().getByRole('button', { name: 'Опубликовать' })).toHaveClass('min-h-9')
+    // Below it: the same two in the shared action bar, the primary grown
+    // to the remaining width (the prototype's flex:1), the label the
+    // prototype's bar carries.
+    const bar = document.querySelector('[data-slot="action-bar"]')
+    expect(bar).not.toBeNull()
+    const barPublish = within(bar as HTMLElement).getByRole('button', { name: 'Опубликовать' })
+    expect(barPublish).toHaveClass('flex-1', 'min-w-0')
+    expect(within(bar as HTMLElement).getByRole('button', { name: 'В черновики' })).toHaveClass(
+      'min-h-11',
+    )
+  })
+
+  it('shows the saved moment and the photo/character counts the data fills', async () => {
+    seedRegistry()
+    const existing = draft({ text: 'Черновой текст' })
+    await applySyncResult(ME, syncResult([existing]))
+    renderWithProviders(<JournalEditorScreen entryId={existing.id} />)
+
+    // The stored entry carries its last edit: the prototype's
+    // «СОХРАНЕНО 19:02» over the real updatedAt (pinned to UTC).
+    expect(await screen.findAllByText('Сохранено 14:00')).toHaveLength(2)
+    // The prototype's «ФОТО: 2 · СИМВОЛОВ: 342» line over the live data —
+    // fourteen characters typed, no photos yet.
+    expect(screen.getByText('Фото: 0 · Символов: 14')).toBeInTheDocument()
+  })
+
+  it('a new entry has no saved moment to show and shows none', async () => {
+    seedRegistry()
+    renderWithProviders(<JournalEditorScreen />)
+
+    // Nothing is stored yet: no indicator may pretend otherwise (the
+    // absence is recorded in docs/design/README.md).
+    await screen.findByText('Фото: 0 · Символов: 0')
+    expect(screen.queryByText(/Сохранено/)).not.toBeInTheDocument()
+  })
+
+  it('lays the photos out as the prototype’s four-column grid with its controls', async () => {
+    seedRegistry()
+    const image: StoredJournalEntryImage & { originalType: string } = {
+      id: '01900000-0000-7000-8000-000000000301',
+      state: 'ready',
+      originalType: 'image/jpeg',
+    }
+    const row = draft({ images: [image] })
+    await applySyncResult(ME, syncResult([row]))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(new Blob(['bytes']), { status: 200 })),
+    )
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+    renderWithProviders(<JournalEditorScreen entryId={row.id} />)
+
+    // Four columns at every width (the prototype's inline repeat(4,1fr)
+    // — the build's `tablet:` variant never existed and made no rule),
+    // 8px gaps, and the remove control the prototype's 26px round.
+    const remove = await screen.findByRole('button', { name: 'Убрать фото' })
+    const grid = remove.closest('.grid-cols-4')
+    expect(grid).not.toBeNull()
+    expect(grid).toHaveClass('grid-cols-4', 'gap-2')
+    expect(remove).toHaveClass('size-6.5')
+
+    // The attach tile: dashed 1.5px, the 22px camera icon.
+    const tile = screen.getByRole('button', { name: 'Добавить' })
+    expect(tile).toHaveClass('border-dashed')
+    expect(tile.className).toContain('border-[1.5px]')
+    expect(tile.querySelector('svg')).toHaveClass('size-[22px]')
+  })
+
+  it('rings the upload with its percentage while the bytes travel', async () => {
+    seedRegistry()
+    const row = draft()
+    await applySyncResult(ME, syncResult([row]))
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
+    URL.createObjectURL = vi.fn(() => 'blob:pending')
+    URL.revokeObjectURL = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(<JournalEditorScreen entryId={row.id} />)
+
+    await user.upload(
+      await filePicker(),
+      new File(['jpeg-bytes'], 'photo.jpg', { type: 'image/jpeg' }),
+    )
+    // The placeholder chip shows the ring at its start…
+    expect(await screen.findByText('0%')).toBeInTheDocument()
+    // …and the percentage follows the bytes really sent.
+    FakeUploadRequest.instances.at(-1)?.upload.onprogress?.({
+      lengthComputable: true,
+      loaded: 55,
+      total: 100,
+    })
+    await screen.findByText('55%')
+    // The ring announces itself, not just its picture.
+    expect(screen.getByRole('status', { name: 'Фото загружается…' })).toBeInTheDocument()
   })
 })

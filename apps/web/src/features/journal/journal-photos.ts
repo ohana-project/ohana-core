@@ -54,22 +54,50 @@ export async function fetchEntryImage(
  * upload through the API — the only request in the client that carries a
  * file — and the API answers the photo's own descriptor. The entry with its
  * updated photo list arrives through the sync, the way every change does.
+ *
+ * The request rides XMLHttpRequest, not fetch: the editor's progress ring
+ * (docs/design/screens/diary-editor.html, issue #71) needs the upload's
+ * real percentage, and a request body's bytes in flight are invisible to
+ * fetch. Fractions are reported through `onProgress` as they are sent.
  */
-export async function uploadEntryImage(
+export function uploadEntryImage(
   entryId: string,
   file: File,
+  onProgress?: (fraction: number) => void,
 ): Promise<StoredJournalEntryImage> {
-  const form = new FormData()
-  form.append('file', file)
-  const response = await fetch(`/api/v1/journal/entries/${entryId}/images`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: memberHeader(),
-    body: form,
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', `/api/v1/journal/entries/${entryId}/images`)
+    for (const [name, value] of Object.entries(memberHeader())) {
+      request.setRequestHeader(name, value)
+    }
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total)
+    }
+    const fail = () => {
+      // The transport gave no body to name a code with — the same
+      // "unexpected" a failed fetch produced.
+      reject(new ApiError('unexpected'))
+    }
+    request.onerror = fail
+    request.onabort = fail
+    request.onload = () => {
+      let body: unknown = null
+      try {
+        body = JSON.parse(request.responseText) as unknown
+      } catch {
+        body = null
+      }
+      if (request.status >= 200 && request.status < 300) {
+        resolve(imageFromResponse(body))
+      } else {
+        reject(new ApiError(extractErrorCode(body)))
+      }
+    }
+    const form = new FormData()
+    form.append('file', file)
+    request.send(form)
   })
-  const body: unknown = await response.json().catch(() => null)
-  if (!response.ok) throw new ApiError(extractErrorCode(body))
-  return imageFromResponse(body)
 }
 
 /** Removes one photo; the shorter list arrives through the sync. */

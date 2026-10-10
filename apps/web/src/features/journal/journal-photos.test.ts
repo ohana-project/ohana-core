@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/data/api-error.ts'
 import { forgetFetchedImages, peekFetchedImage } from '@/lib/photo-cache.ts'
+import { FakeUploadRequest } from '@/testing/fake-upload.ts'
 import {
   deleteEntryImage,
   entryImageUrl,
@@ -12,7 +13,8 @@ import {
  * The photos' data access (issue #17): the bytes stream from the authorised
  * API with the active member's header, one fetch per photo per session (the
  * object URL is remembered), and the API's error codes surface as ApiError
- * for the screens to translate.
+ * for the screens to translate. The upload rides XMLHttpRequest so the
+ * editor's ring can show the bytes' real progress (issue #71).
  */
 
 const ME = '01900000-0000-7000-8000-000000000001'
@@ -37,6 +39,7 @@ beforeEach(() => {
   // jsdom has no blob store; the tests only need a stable fake handle.
   URL.createObjectURL = vi.fn(() => `blob:photo-${Math.random()}`)
   URL.revokeObjectURL = vi.fn()
+  FakeUploadRequest.instances = []
 })
 
 afterEach(() => {
@@ -95,22 +98,41 @@ describe('fetchEntryImage', () => {
 
 describe('uploadEntryImage', () => {
   it('posts the file as one multipart upload naming the member', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(fetchResponse({ id: 'image-9', state: 'processing' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
 
     const file = new File(['jpeg-bytes'], 'photo.jpg', { type: 'image/jpeg' })
-    const image = await uploadEntryImage('entry-1', file)
+    const pending = uploadEntryImage('entry-1', file)
+    const request = FakeUploadRequest.instances.at(-1)
+    if (request === undefined) throw new Error('the upload request was never sent')
+    request.respond(201, { id: 'image-9', state: 'processing' })
 
-    expect(image).toEqual({ id: 'image-9', state: 'processing' })
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/api/v1/journal/entries/entry-1/images')
-    expect(init.method).toBe('POST')
-    expect(init.body).toBeInstanceOf(FormData)
-    const form = init.body as FormData
-    expect(form.get('file')).toBeInstanceOf(File)
-    expect((init.headers as Record<string, string>)['x-ohana-member']).toBe(ME)
+    await expect(pending).resolves.toEqual({ id: 'image-9', state: 'processing' })
+    expect(request.method).toBe('POST')
+    expect(request.url).toBe('/api/v1/journal/entries/entry-1/images')
+    expect(request.body).toBeInstanceOf(FormData)
+    expect(request.body?.get('file')).toBeInstanceOf(File)
+    expect(request.headers['x-ohana-member']).toBe(ME)
+  })
+
+  it('reports the bytes’ progress while the upload runs', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
+
+    const fractions: number[] = []
+    const pending = uploadEntryImage(
+      'entry-1',
+      new File(['jpeg-bytes'], 'photo.jpg', { type: 'image/jpeg' }),
+      (fraction) => fractions.push(fraction),
+    )
+    const request = FakeUploadRequest.instances.at(-1)
+    if (request === undefined) throw new Error('the upload request was never sent')
+    request.upload.onprogress?.({ lengthComputable: true, loaded: 40, total: 100 })
+    request.upload.onprogress?.({ lengthComputable: true, loaded: 100, total: 100 })
+    // An event without a known total carries no honest fraction.
+    request.upload.onprogress?.({ lengthComputable: false, loaded: 100, total: 0 })
+    request.respond(201, { id: 'image-9', state: 'ready' })
+
+    await pending
+    expect(fractions).toEqual([0.4, 1])
   })
 
   it('surfaces the refusal codes: the limit, the type, a stranger', async () => {
@@ -121,12 +143,23 @@ describe('uploadEntryImage', () => {
       [404, { error: { code: 'entry_not_found' } }, 'entry_not_found'],
     ]
     for (const [status, body, code] of cases) {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fetchResponse(body, status)))
-      await expect(uploadEntryImage('entry-1', new File(['x'], 'p.jpg'))).rejects.toMatchObject({
-        code,
-      })
+      vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
+      const pending = uploadEntryImage('entry-1', new File(['x'], 'p.jpg'))
+      FakeUploadRequest.instances.at(-1)?.respond(status, body)
+      await expect(pending).rejects.toMatchObject({ code })
     }
     expect.assertions(cases.length)
+  })
+
+  it('answers the unexpected error when the request never leaves', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeUploadRequest)
+
+    const pending = uploadEntryImage('entry-1', new File(['x'], 'p.jpg'))
+    const request = FakeUploadRequest.instances.at(-1)
+    if (request === undefined) throw new Error('the upload request was never sent')
+    request.onerror?.()
+
+    await expect(pending).rejects.toMatchObject({ code: 'unexpected' })
   })
 })
 
