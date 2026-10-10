@@ -6,9 +6,9 @@ import type {
   StoredWish,
 } from '@/data/local-store.ts'
 import {
+  type CalendarOccurrence,
   eventDateKey,
   upcomingEvents,
-  type CalendarOccurrence,
 } from '@/features/calendar/calendar-entries.ts'
 import { formatDateOnly } from '@/lib/calendar-dates.ts'
 

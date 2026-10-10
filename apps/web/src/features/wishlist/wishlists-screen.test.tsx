@@ -379,7 +379,9 @@ describe('WishlistsScreen (the overview)', () => {
     // The note names the event as its creator wrote it and the ideas
     // already in Люда's list; the row's status line shares the countdown,
     // so the assertions scope to the note block.
-    const note = within(container.querySelector('[data-slot="note-block"]')!)
+    const noteBlock = container.querySelector('[data-slot="note-block"]')
+    expect(noteBlock).not.toBeNull()
+    const note = within(noteBlock as HTMLElement)
     expect(note.getByText(/День рождения Люды — /)).toBeInTheDocument()
     expect(note.getByText(/через 21 день/)).toBeInTheDocument()
     expect(note.getByText(/В списке уже 3 идеи/)).toBeInTheDocument()

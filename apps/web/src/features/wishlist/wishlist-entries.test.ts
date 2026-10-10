@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'vitest'
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
 import { formatDateOnly } from '@/lib/calendar-dates.ts'
-import { describe, expect, it } from 'vitest'
 import { BIRTHDAY_SOON_DAYS, nearBirthdays } from './wishlist-entries.ts'
 
 /*

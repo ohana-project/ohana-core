@@ -1,9 +1,9 @@
-import { Link } from '@tanstack/react-router'
 import type { Locale } from '@ohana/i18n'
+import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { formatDayLong, parseDateOnly } from '@/lib/calendar-dates.ts'
 import type { StoredMemberProfile } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
+import { formatDayLong, parseDateOnly } from '@/lib/calendar-dates.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
@@ -24,13 +24,13 @@ import { SectionHeader } from '@/ui/section-header.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { useWishlistData } from './use-wishlist.ts'
 import {
+  type NearBirthday,
   authorName,
   favoritesWithWishes,
   nearBirthdays,
   openWishesOf,
   reservationFor,
   wishesOf,
-  type NearBirthday,
 } from './wishlist-entries.ts'
 import { WishlistShell } from './wishlist-shell.tsx'
 
