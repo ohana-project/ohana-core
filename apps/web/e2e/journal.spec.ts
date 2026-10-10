@@ -672,7 +672,10 @@ test.describe('the journal', () => {
       await page.getByRole('button', { name: 'Новая запись' }).first().click()
       await page.getByLabel('Заголовок').fill('Про Бублика')
       await page.getByLabel('Текст записи').fill('Он съел ещё один носок.')
-      await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+      // Below 920px the editor's save pair rides the action bar (issue
+      // #71): the draft is kept through the bar's «В черновики», the
+      // top-bar pair is not displayed at this width.
+      await page.getByRole('button', { name: 'В черновики' }).click()
       await expect(page).toHaveURL(/\/journal$/)
 
       await page.getByText('Мои черновики').click()
