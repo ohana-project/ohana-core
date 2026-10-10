@@ -447,13 +447,17 @@ export function EntryPhotoEditor({
 
   const onPick = async (files: FileList | null) => {
     if (files === null || files.length === 0) return
+    // The picker's own copy first: the change handler resets the input's
+    // value as soon as we return, and a browser empties its FileList with
+    // it — while the draft below may still be in flight.
+    const picked = Array.from(files)
     // The photos need an entry: an existing one, or one the screen creates
     // for the occasion — null means it could not, and the pick is dropped.
     const ensured: string | null = entryId ?? (await onNeedEntry())
     if (ensured === null) return
     const targetId: string = ensured
     const slotsLeft = MAX_PHOTOS_PER_ENTRY - images.length - pending.length
-    const chosen = Array.from(files).slice(0, Math.max(slotsLeft, 0))
+    const chosen = picked.slice(0, Math.max(slotsLeft, 0))
     if (chosen.length === 0) {
       toast(t('journal.errors.image_limit_reached'), 'danger')
       return

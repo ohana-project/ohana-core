@@ -699,7 +699,7 @@ test.describe('the entry editor, design parity', () => {
     )
     expect(columns.split(' ')).toHaveLength(4)
     expect(await tile.evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('dashed')
-    const tileBorderWidth = await tile.evaluate((el) => {
+    const tileBorderWidth = await tile.evaluate(() => {
       // The utilities sit inside layer blocks, so the walk recurses.
       const widthOf = (rules: CSSRuleList): string | undefined => {
         for (const rule of rules) {
@@ -707,7 +707,7 @@ test.describe('the entry editor, design parity', () => {
             return rule.style.borderWidth
           }
           if ('cssRules' in rule) {
-            const found = widthOf(rule.cssRules)
+            const found = widthOf((rule as CSSLayerBlockRule).cssRules)
             if (found !== undefined) return found
           }
         }
@@ -753,6 +753,40 @@ test.describe('the entry editor, design parity', () => {
     await expect(page).toHaveURL(/\/edit$/)
     await expect(page.getByRole('banner').getByText(/Сохранено \d\d:\d\d/)).toBeVisible()
     await expect(page.getByText('Фото: 0 · Символов: 23')).toBeVisible()
+  })
+
+  test('photos picked on a not-yet-saved entry reach the draft the editor creates', async ({
+    page,
+  }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await expect(page).toHaveURL(/\/journal\/new$/)
+    await page.getByLabel('Текст записи').fill('С фотографией вершины.')
+
+    // The pick on an unsaved entry: the editor creates the draft first,
+    // and the photo — whose FileList the browser emptied the moment the
+    // picker was reset — still lands on it.
+    const uploadPromise = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' && request.url().includes('/images'),
+    )
+    await page.setInputFiles('input[type="file"]', [
+      {
+        name: 'ridge.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      },
+    ])
+    await uploadPromise
+    await expect(page.getByText('1 из 12')).toBeVisible()
   })
 
   test.describe('the editor on a phone (issue #71)', () => {
