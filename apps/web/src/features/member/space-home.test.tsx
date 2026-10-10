@@ -469,6 +469,10 @@ describe('SpaceHomeScreen', () => {
     expect(screen.queryByText('Свежее в дневнике')).not.toBeInTheDocument()
     expect(screen.queryByText('Ближайшие события')).not.toBeInTheDocument()
     expect(screen.queryByText('Участники')).not.toBeInTheDocument()
+    // The notice is the bare empty state (README "Cards") — no card around it.
+    const notice = screen.getByText('Пока нечего читать без сети').closest('[data-slot="empty"]')
+    expect(notice).not.toBeNull()
+    expect(notice?.closest('[data-slot="card"]')).toBeNull()
     await waitFor(() => expect(chipState(container)).toBe('unreachable'))
   })
 
