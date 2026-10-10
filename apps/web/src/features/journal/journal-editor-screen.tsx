@@ -202,11 +202,11 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 moment, and the photo/character counts ride beside it
                 (docs/design/README.md, the journal editor). */}
             {savedTime !== undefined && (
-              <span className="min-w-0 truncate font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
+              <span className="shrink-0 font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
                 {t('journal.savedAt', { time: savedTime })}
               </span>
             )}
-            <span className="min-w-0 truncate font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
+            <span className="shrink-0 font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
               {t('journal.photoCharCounter', { photos: photoCount, chars: charCount })}
             </span>
             {editingDraft && (
