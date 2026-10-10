@@ -931,7 +931,9 @@ function ListsSection() {
               <div className="mt-3 grid aspect-[16/10] place-items-center rounded-md bg-surface-2 text-muted-foreground">
                 <Icon name="image" className="size-8" />
               </div>
-              <p className="mt-3 text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t('designPreview.lists.cardText')}
+              </p>
               <p className="mt-3 text-sm font-medium text-primary">
                 {t('designPreview.lists.cardLink')}
               </p>
@@ -941,7 +943,9 @@ function ListsSection() {
           {/* the sm padded card: 16px on all sides */}
           <Card variant="padded" size="sm">
             <h3 className="text-h3">{t('designPreview.lists.pickTitle')}</h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {t('designPreview.lists.cardText')}
+            </p>
           </Card>
         </div>
       </div>
@@ -1236,7 +1240,9 @@ function LayoutsSection() {
             <Card variant="padded">
               <h3 className="text-h2">{t('designPreview.lists.cardTitle')}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{date}</p>
-              <p className="mt-3 text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t('designPreview.lists.cardText')}
+              </p>
             </Card>
           </div>
           {withActionBar && (
