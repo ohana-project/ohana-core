@@ -258,7 +258,9 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
                 {t('journal.allEntries')}
               </Link>
               {next !== undefined && (
-                <span className="truncate font-mono text-meta tracking-wide text-muted-foreground uppercase">
+                // min-w-0 lets the flex item shrink, so the truncation
+                // holds a long title inside the row at 390px.
+                <span className="min-w-0 truncate font-mono text-meta tracking-wide text-muted-foreground uppercase">
                   {t('journal.nextEntry', {
                     title: next.title ?? entryExcerpt(next.text, 40),
                   })}

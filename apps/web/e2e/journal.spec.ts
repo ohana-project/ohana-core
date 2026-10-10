@@ -616,36 +616,39 @@ test.describe('the journal', () => {
     await expect(page.getByText('0 из 12')).toBeVisible()
   })
 
-  test('the entry holds the prototype at a phone width (issue #70)', async ({ page }) => {
+  test.describe('the entry at a phone width (issue #70)', () => {
     test.use({ viewport: { width: 390, height: 844 } })
-    await mockJournalApi(page)
 
-    await page.goto('/')
-    await page.getByLabel('Код входа').fill(CODE)
-    await page.getByRole('button', { name: 'Войти' }).click()
-    await expect(page).toHaveURL(/\/$/)
+    test('the entry holds the prototype at 390px', async ({ page }) => {
+      await mockJournalApi(page)
 
-    await page.getByRole('button', { name: 'Дневник' }).first().click()
-    await page.getByText('Поход к Чёртову креслу').click()
-    await expect(page).toHaveURL(new RegExp(`/journal/${SEEDED_PUBLISHED.id}`))
+      await page.goto('/')
+      await page.getByLabel('Код входа').fill(CODE)
+      await page.getByRole('button', { name: 'Войти' }).click()
+      await expect(page).toHaveURL(/\/$/)
 
-    // The photo grid is three columns at every width, the prototype's own
-    // grid — no two-column mobile variant.
-    const columns = await page
-      .getByRole('button', { name: 'Фото 1 из 2' })
-      .evaluate((tile) => getComputedStyle(tile.parentElement as Element).gridTemplateColumns)
-    expect(columns.split(' ')).toHaveLength(3)
+      await page.getByRole('button', { name: 'Дневник' }).first().click()
+      await page.getByText('Поход к Чёртову креслу').click()
+      await expect(page).toHaveURL(new RegExp(`/journal/${SEEDED_PUBLISHED.id}`))
 
-    // The entry menu rides the top bar on a phone too — the prototype's
-    // data-topbar-actions carries no d-only here.
-    await page.getByRole('button', { name: 'Меню записи' }).click()
-    await expect(page.getByRole('menuitem', { name: 'Скопировать ссылку' })).toBeVisible()
-    await page.keyboard.press('Escape')
+      // The photo grid is three columns at every width, the prototype's
+      // own grid — no two-column mobile variant.
+      const columns = await page
+        .getByRole('button', { name: 'Фото 1 из 2' })
+        .evaluate((tile) => getComputedStyle(tile.parentElement as Element).gridTemplateColumns)
+      expect(columns.split(' ')).toHaveLength(3)
 
-    // And nothing scrolls horizontally at 390px.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    )
-    expect(overflow).toBeLessThanOrEqual(0)
+      // The entry menu rides the top bar on a phone too — the prototype's
+      // data-topbar-actions carries no d-only here.
+      await page.getByRole('button', { name: 'Меню записи' }).click()
+      await expect(page.getByRole('menuitem', { name: 'Скопировать ссылку' })).toBeVisible()
+      await page.keyboard.press('Escape')
+
+      // And nothing scrolls horizontally at 390px.
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
   })
 })
