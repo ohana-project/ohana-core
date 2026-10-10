@@ -65,6 +65,21 @@ export function entryMonthGroups(feed: StoredJournalEntry[]): EntryMonthGroup[] 
 }
 
 /**
+ * The entry screen's next-entry line (issue #70, docs/design/screens/
+ * diary-entry.html): the published entry the feed reads right after this
+ * one. A draft is not in the feed, so it has no next, and neither has the
+ * feed's last entry.
+ */
+export function nextEntryInFeed(
+  entries: StoredJournalEntry[],
+  entryId: string,
+): StoredJournalEntry | undefined {
+  const feed = journalFeed(entries)
+  const index = feed.findIndex((entry) => entry.id === entryId)
+  return index === -1 ? undefined : feed[index + 1]
+}
+
+/**
  * The author's display name from the synchronised profiles; the id is the
  * entry's only attribution on the wire, and the profiles travel on their
  * own sync entity, so a rename never leaves entries stale.

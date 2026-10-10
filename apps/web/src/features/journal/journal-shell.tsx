@@ -27,12 +27,17 @@ export function JournalShell({
   title,
   backTo,
   width = 'default',
+  actions,
   desktopActions,
   children,
 }: {
   title?: string
   backTo?: string
   width?: 'default' | 'narrow' | 'wide'
+  /** The screen's top-bar actions at every width (the prototype's
+   * `data-topbar-actions` that carry no `d-only`); the entry screen's
+   * overflow menu rides here (issue #70). */
+  actions?: ReactNode
   desktopActions?: ReactNode
   children: ReactNode
 }) {
@@ -75,6 +80,7 @@ export function JournalShell({
       title={title}
       width={width}
       userMenuItems={shell.userMenuItems}
+      actions={visibility.journal === false ? undefined : actions}
       desktopActions={visibility.journal === false ? undefined : desktopActions}
       back={backTo === undefined ? undefined : <ShellBackLink to={backTo} />}
       onSectionClick={shell.onSectionClick}

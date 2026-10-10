@@ -494,10 +494,12 @@ test.describe('the journal', () => {
     await expect(page.getByText('Опубликовано в дневнике пространства')).toBeVisible()
     await expect(page).toHaveURL(/\/journal$/)
 
-    // The author opens their published entry and edits it.
+    // The author opens their published entry and edits it; the edit rides
+    // the top bar's entry menu (issue #70).
     await page.getByText('Пикник').click()
     await expect(page).toHaveURL(/\/journal\/01900000-[^/]+$/)
-    await page.getByRole('button', { name: 'Редактировать' }).click()
+    await page.getByRole('button', { name: 'Меню записи' }).click()
+    await page.getByRole('menuitem', { name: 'Редактировать' }).click()
     await expect(page).toHaveURL(/\/edit$/)
     await expect(page.getByText('опубликовано', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toHaveCount(0)
@@ -575,15 +577,18 @@ test.describe('the journal', () => {
     await expect(page.getByText('Фото ×2')).toBeVisible()
 
     // A tap opens the lightbox; it upgrades to the original and closes.
-    await page
-      .getByRole('button', { name: 'Нажмите на фото, чтобы открыть в оригинальном качестве' })
-      .first()
-      .click()
+    // The tiles are named for their place in the gallery (issue #70).
+    await page.getByRole('button', { name: 'Фото 1 из 2' }).click()
     // The exact caption: the loading line and the gallery hint both name
     // the original, so the substring match would be ambiguous.
     await expect(page.getByText('Оригинал', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Закрыть' }).click()
     await expect(page.getByText('Оригинал', { exact: true })).toHaveCount(0)
+
+    // The footer carries the rule, «Все записи» and — the feed holding
+    // only this entry — no next line (issue #70).
+    await expect(page.getByRole('link', { name: 'Все записи' })).toBeVisible()
+    await expect(page.getByText(/Следующая:/)).toHaveCount(0)
 
     // A photo attaches to a draft: the author writes one and opens it.
     await page.getByRole('button', { name: 'Дневник' }).first().click()
@@ -609,5 +614,41 @@ test.describe('the journal', () => {
     // The chip's cross removes it; the counter follows.
     await page.getByRole('button', { name: 'Убрать фото' }).click()
     await expect(page.getByText('0 из 12')).toBeVisible()
+  })
+
+  test.describe('the entry at a phone width (issue #70)', () => {
+    test.use({ viewport: { width: 390, height: 844 } })
+
+    test('the entry holds the prototype at 390px', async ({ page }) => {
+      await mockJournalApi(page)
+
+      await page.goto('/')
+      await page.getByLabel('Код входа').fill(CODE)
+      await page.getByRole('button', { name: 'Войти' }).click()
+      await expect(page).toHaveURL(/\/$/)
+
+      await page.getByRole('button', { name: 'Дневник' }).first().click()
+      await page.getByText('Поход к Чёртову креслу').click()
+      await expect(page).toHaveURL(new RegExp(`/journal/${SEEDED_PUBLISHED.id}`))
+
+      // The photo grid is three columns at every width, the prototype's
+      // own grid — no two-column mobile variant.
+      const columns = await page
+        .getByRole('button', { name: 'Фото 1 из 2' })
+        .evaluate((tile) => getComputedStyle(tile.parentElement as Element).gridTemplateColumns)
+      expect(columns.split(' ')).toHaveLength(3)
+
+      // The entry menu rides the top bar on a phone too — the prototype's
+      // data-topbar-actions carries no d-only here.
+      await page.getByRole('button', { name: 'Меню записи' }).click()
+      await expect(page.getByRole('menuitem', { name: 'Скопировать ссылку' })).toBeVisible()
+      await page.keyboard.press('Escape')
+
+      // And nothing scrolls horizontally at 390px.
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
   })
 })

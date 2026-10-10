@@ -150,6 +150,16 @@
   backdrop-filter: var(--scrim-backdrop);
 }
 
+/* the lightbox's own deeper scrim (docs/design/screens/diary-entry.html,
+   `.overlay.lightbox`): black 72% under the photo, where the standard
+   scrim would sit behind text; the same blur and flat fallbacks read the
+   shared --scrim-backdrop */
+@utility scrim-lightbox {
+  background: color-mix(in oklch, black 72%, transparent);
+  -webkit-backdrop-filter: var(--scrim-backdrop);
+  backdrop-filter: var(--scrim-backdrop);
+}
+
 /*
  * The FAB is the one element that hovers to a brighter liquid mix,
  * which does not fit a stateless utility; it applies the liquid recipe
