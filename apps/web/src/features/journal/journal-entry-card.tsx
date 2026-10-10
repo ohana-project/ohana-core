@@ -37,7 +37,7 @@ export function EntryCard({
           <Avatar size="meta" hue={hueFromId(entry.authorId)}>
             <AvatarFallback>{monogramOf(author)}</AvatarFallback>
           </Avatar>
-          <span className="text-sm font-semibold">{author}</span>
+          <span className="min-w-0 truncate text-sm font-semibold">{author}</span>
           <span className="min-w-0 truncate font-mono text-meta tracking-wide text-muted-foreground uppercase">
             {count > 0
               ? t('journal.entryMetaWithPhotos', {

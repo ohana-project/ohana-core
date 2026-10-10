@@ -135,9 +135,10 @@ export function EntryPhotoStrip({ entry }: { entry: StoredJournalEntry }) {
 /**
  * One strip photo. The strip sits inside the card's link, so the photos
  * stay plain images (no nested controls) and decorative — the card's text
- * names the entry, the screen's gallery carries the accessible copies.
- * Every state holds the photo's final geometry, so the strip never jumps
- * while the previews stream in.
+ * names the entry, and a processing or failed photo announces itself on
+ * the entry screen's gallery, not from inside the link. Every state holds
+ * the photo's final geometry, so the strip never jumps while the previews
+ * stream in.
  */
 function StripPhoto({
   entryId,
@@ -148,7 +149,6 @@ function StripPhoto({
   image: StoredJournalEntryImage
   single: boolean
 }) {
-  const { t } = useTranslation()
   // The bytes are only asked for once the worker has made them.
   const preview = useEntryImageUrl(entryId, image.id, 'feed', image.state === 'ready')
   const shape = single ? 'aspect-[16/10] w-full flex-none' : 'h-[132px] min-w-0 flex-1'
@@ -156,8 +156,7 @@ function StripPhoto({
     return (
       <div
         className={`grid ${shape} place-items-center overflow-hidden rounded-md bg-muted`}
-        role="status"
-        aria-label={t('journal.photoProcessing')}
+        aria-hidden="true"
       >
         <Spinner className="size-5 text-muted-foreground" />
       </div>
@@ -167,8 +166,7 @@ function StripPhoto({
     return (
       <div
         className={`grid ${shape} place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground`}
-        role="img"
-        aria-label={t('journal.photoFailed')}
+        aria-hidden="true"
       >
         <Icon name="image" className="size-5" />
       </div>

@@ -60,11 +60,9 @@ export function JournalScreen() {
   )
 
   return (
-    <JournalShell
-      title={t('journal.title')}
-      desktopActions={newEntry}
-      width={showAside ? 'wide' : 'default'}
-    >
+    // The prototype's `.content` default width: diary.html carries no
+    // content-wide, unlike the calendar's own screen.
+    <JournalShell title={t('journal.title')} desktopActions={newEntry}>
       {/* The prototype's `.diary-grid`: one column 12px apart on a phone,
           the 1.6fr / 1fr split with the 32px gap from 920px. */}
       <div
