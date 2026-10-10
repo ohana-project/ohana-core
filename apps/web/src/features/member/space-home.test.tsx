@@ -1,5 +1,5 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
-import { screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,22 +35,26 @@ vi.mock('@tanstack/react-router', () => ({
   // The gate redirects through Navigate; the tests decide the session
   // state, so it never renders.
   Navigate: () => null,
-  // The home columns link into the calendar; a stand-in href built from
-  // the params and the search, so the tests can assert where an
-  // occurrence leads (issue #21).
+  // The home columns link into the journal, the calendar and the
+  // wishlists; a stand-in href built from the `to`, the params and the
+  // search, so the tests can assert where a row or a link leads.
   Link: ({
     children,
+    to,
     params,
     search,
   }: {
     children?: React.ReactNode
-    params?: { eventId?: string }
+    to?: string
+    params?: Record<string, string | undefined>
     search?: { date?: string }
-  }) => (
-    <a href={`/calendar/${params?.eventId ?? ''}${search?.date ? `?date=${search.date}` : ''}`}>
-      {children}
-    </a>
-  ),
+  }) => {
+    let href = to ?? ''
+    for (const [key, value] of Object.entries(params ?? {})) {
+      href = href.replace(`$${key}`, value ?? '')
+    }
+    return <a href={`${href}${search?.date ? `?date=${search.date}` : ''}`}>{children}</a>
+  },
 }))
 
 const apiGet = vi.mocked(api.GET)
@@ -213,8 +217,20 @@ describe('SpaceHomeScreen', () => {
       expect(screen.getAllByRole('button', { name: section }).length).toBeGreaterThan(0)
     }
     expect(screen.getByText('Ближайшие события')).toBeInTheDocument()
-    expect(screen.getByText('Участники')).toBeInTheDocument()
-    expect(screen.getByText('Миша')).toBeInTheDocument()
+    // The Members block the earlier build appended is gone: the prototype's
+    // home carries only the two columns (issue #65).
+    expect(screen.queryByText('Участники')).not.toBeInTheDocument()
+    expect(screen.queryByText('Миша')).not.toBeInTheDocument()
+    // Both section headers carry their «see all» link (issue #65).
+    expect(screen.getByRole('link', { name: 'Весь дневник' })).toHaveAttribute('href', '/journal')
+    expect(screen.getByRole('link', { name: 'Весь календарь' })).toHaveAttribute(
+      'href',
+      '/calendar',
+    )
+    // With no entries in the partition the journal column says so.
+    expect(
+      screen.getByText('Здесь появятся записи — походы, обеды, маленькие победы.'),
+    ).toBeInTheDocument()
     // The sync ran on mount, from revision 0, naming its member.
     expect(apiGet).toHaveBeenCalledWith('/api/v1/sync', {
       params: { query: { since: '0' }, header: { 'x-ohana-member': world.memberId } },
@@ -474,7 +490,7 @@ describe('SpaceHomeScreen', () => {
     // The partition read runs beside the identity assembly; both answer
     // from the local store.
     expect(await screen.findByText('Свежее в дневнике')).toBeInTheDocument()
-    expect(screen.getByText('Миша')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Весь дневник' })).toBeInTheDocument()
   })
 
   it('signs out through the user menu and deletes the member’s local data', async () => {
@@ -533,7 +549,7 @@ describe('SpaceHomeScreen', () => {
 
     await screen.findByRole('heading', { name: /Аня Смирнова/ })
     // The session probe and the sync runs settle before the menu opens.
-    await vi.waitFor(() => expect(screen.getByText('Миша')).toBeInTheDocument())
+    await vi.waitFor(() => expect(screen.getByText('Свежее в дневнике')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: 'Меню пользователя' }))
     await user.click(await screen.findByText('Выйти'))
 
@@ -596,5 +612,329 @@ describe('SpaceHomeScreen (a series occurrence in the events column, issue #21)'
         ),
       )
     }
+  })
+})
+
+describe('SpaceHomeScreen (the design-parity columns, issue #65)', () => {
+  // The soon window and the birthday note run from the device's today,
+  // so the clock is pinned: 2026-10-05, a Monday at noon UTC.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-05T12:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const LYUDA = '01900000-0000-7000-8000-0000000000d3'
+  const HIKE = '01900000-0000-7000-8000-000000000101'
+  const COOK = '01900000-0000-7000-8000-000000000102'
+  const OLD = '01900000-0000-7000-8000-000000000103'
+
+  function entry(
+    id: string,
+    overrides?: Partial<{ title: string; state: 'draft' | 'published'; publishedAt: string }>,
+  ) {
+    return {
+      id,
+      authorId: MISHA,
+      title: 'Запись',
+      text: 'Текст записи',
+      state: 'published' as const,
+      publishedAt: '2026-09-21T14:00:00.000Z',
+      images: [],
+      createdAt: '2026-09-21T12:00:00.000Z',
+      updatedAt: '2026-09-21T14:00:00.000Z',
+      ...overrides,
+    }
+  }
+
+  function wish(id: string, received = false) {
+    return {
+      id,
+      authorId: LYUDA,
+      title: `Желание ${id.slice(-2)}`,
+      receivedAt: received ? '2026-09-30T10:00:00.000Z' : undefined,
+      createdAt: '2026-09-26T12:00:00.000Z',
+      updatedAt: '2026-09-26T12:00:00.000Z',
+    }
+  }
+
+  function event(
+    id: string,
+    overrides?: Partial<{
+      title: string
+      allDay: boolean
+      date: string | undefined
+      startsAt: string
+      endsAt: string
+    }>,
+  ) {
+    return {
+      id,
+      creatorId: MISHA,
+      title: 'Событие',
+      allDay: true,
+      date: '2026-10-15',
+      createdAt: '2026-10-01T09:00:00.000Z',
+      updatedAt: '2026-10-01T09:00:00.000Z',
+      ...overrides,
+    }
+  }
+
+  /** The world's sync with Люда added — the note's near birthday names
+   *  her, as the prototype's demo does. */
+  function syncWith(
+    world: World,
+    extra: Array<{ entity: string } & Record<string, unknown>>,
+  ): SyncResult {
+    const sync = syncResultFor(world)
+    sync.changes.push({
+      entity: 'member',
+      member: {
+        id: LYUDA,
+        name: 'Люда',
+        role: 'regular',
+        createdAt: '2026-08-15T10:00:00.000Z',
+      },
+    } as never)
+    sync.changes.push(...(extra as never[]))
+    return sync
+  }
+
+  async function renderSeeded(world: World, sync: SyncResult) {
+    seedRegistry(world)
+    await applySyncResult(world.memberId, sync)
+    mockResponses(world, sync)
+    return renderWithProviders(<HomeRoute />)
+  }
+
+  it('renders the two most recent published entries as entry cards, the draft staying home', async () => {
+    const world = makeWorld()
+    const sync = syncWith(world, [
+      {
+        entity: 'journal_entry',
+        entry: entry(HIKE, {
+          title: 'Поход к Чёртову креслу',
+          publishedAt: '2026-10-02T09:00:00.000Z',
+        }),
+      },
+      {
+        entity: 'journal_entry',
+        entry: entry(COOK, {
+          title: 'Вареники с бабушкой',
+          publishedAt: '2026-09-21T14:00:00.000Z',
+        }),
+      },
+      // An older published entry and a draft stay off the home: the
+      // prototype's column shows the two freshest cards.
+      {
+        entity: 'journal_entry',
+        entry: entry(OLD, { title: 'Старая запись', publishedAt: '2026-09-01T09:00:00.000Z' }),
+      },
+      {
+        entity: 'journal_entry',
+        entry: entry('01900000-0000-7000-8000-000000000104', { title: 'Черновик', state: 'draft' }),
+      },
+    ])
+    await renderSeeded(world, sync)
+
+    expect(await screen.findByText('Свежее в дневнике')).toBeInTheDocument()
+    const hike = screen.getByRole('link', { name: /Поход к Чёртову креслу/ })
+    expect(hike).toHaveAttribute('href', `/journal/${HIKE}`)
+    expect(screen.getByRole('link', { name: /Вареники с бабушкой/ })).toHaveAttribute(
+      'href',
+      `/journal/${COOK}`,
+    )
+    expect(screen.queryByText('Старая запись')).not.toBeInTheDocument()
+    expect(screen.queryByText('Черновик')).not.toBeInTheDocument()
+    // Entries are in, so the column's empty state is not.
+    expect(
+      screen.queryByText('Здесь появятся записи — походы, обеды, маленькие победы.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it("lays the screen out as the prototype's 1.55fr / 1fr grid from 920px", async () => {
+    const world = makeWorld()
+    const { container } = await renderSeeded(world, syncResultFor(world))
+
+    await screen.findByText('Свежее в дневнике')
+    // The prototype's `.home-grid`: a 28px column below 920px, the
+    // 1.55fr / 1fr grid with a 40px gap and the journal first above.
+    const grid = container.querySelector('[class*="grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"]')
+    expect(grid).not.toBeNull()
+    expect(grid?.className).toContain('gap-7')
+    expect(grid?.className).toContain('desktop:gap-10')
+    // The greeting is the display size, the prototype's `.display-xl`.
+    const heading = screen.getByRole('heading', { level: 1, name: /Аня Смирнова/ })
+    expect(heading.className).toContain('text-display')
+  })
+
+  it('marks a near all-day event with the soon pill; the other rows keep the chevron', async () => {
+    const world = makeWorld()
+    const sync = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000201', { title: 'День рождения Люды' }),
+      },
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000202', {
+          title: 'Миша — зубной врач',
+          allDay: false,
+          date: undefined,
+          startsAt: '2026-10-06T11:30:00.000Z',
+          endsAt: '2026-10-06T12:30:00.000Z',
+        }),
+      },
+      // All-day but beyond the soon window: the calendar is a month and
+      // more ahead, the pill is for the near ones.
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000203', {
+          title: 'Далёкий поход',
+          date: '2026-12-20',
+        }),
+      },
+    ])
+    await renderSeeded(world, sync)
+
+    const birthday = await screen.findByRole('link', { name: /День рождения Люды/ })
+    const pill = birthday.querySelector('[data-slot="badge"]')
+    expect(pill).not.toBeNull()
+    expect(pill?.textContent).toBe('скоро')
+    // The timed row keeps the plain trailing chevron.
+    const dentist = screen.getByRole('link', { name: /Миша — зубной врач/ })
+    expect(dentist.querySelector('[data-slot="badge"]')).toBeNull()
+    const far = screen.getByRole('link', { name: /Далёкий поход/ })
+    expect(far.querySelector('[data-slot="badge"]')).toBeNull()
+  })
+
+  it('shows the birthday note for a near birthday and links it to the wishlists', async () => {
+    const world = makeWorld()
+    const sync = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000201', { title: 'День рождения Люды' }),
+      },
+      { entity: 'wishlist_wish', wish: wish('01900000-0000-7000-8000-000000000301') },
+      { entity: 'wishlist_wish', wish: wish('01900000-0000-7000-8000-000000000302') },
+      // A received wish is no longer an idea to give.
+      { entity: 'wishlist_wish', wish: wish('01900000-0000-7000-8000-000000000303', true) },
+    ])
+    await renderSeeded(world, sync)
+
+    // The note names the event as its creator titled it, with the date
+    // and the open ideas really in that member's list.
+    expect(
+      await screen.findByText('День рождения Люды — 15 октября, через 10 дней.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('В списке уже 2 идеи — забронируйте подарок, пока не разобрали.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Открыть вишлисты' })).toHaveAttribute(
+      'href',
+      '/wishlist',
+    )
+  })
+
+  it('keeps quiet while no member birthday is near, saying so about the empty events', async () => {
+    const world = makeWorld()
+    // Only a timed event tomorrow and the reader's own birthday — the
+    // reader's birthday is nobody's errand to run (issue #66's rule).
+    const sync = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000202', {
+          title: 'Ужин у бабушки',
+          allDay: false,
+          date: undefined,
+          startsAt: '2026-10-06T15:00:00.000Z',
+          endsAt: '2026-10-06T18:00:00.000Z',
+        }),
+      },
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000204', { title: 'День рождения Ани' }),
+      },
+    ])
+    await renderSeeded(world, sync)
+
+    expect(await screen.findByRole('link', { name: /Ужин у бабушки/ })).toBeInTheDocument()
+    expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
+  })
+
+  it('drops the birthday note while the wishlists are hidden or owe their replay', async () => {
+    const world = makeWorld()
+    // The note is an errand over the wishlists: with the section hidden
+    // there is nothing its link could open, and while the wishlist owes
+    // its replay the ideas line would count a fraction of the list.
+    const hidden = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000201', { title: 'День рождения Люды' }),
+      },
+    ])
+    hidden.changes = hidden.changes.map((change) =>
+      change.entity === 'space'
+        ? {
+            entity: 'space',
+            space: {
+              ...change.space,
+              sections: { journal: true, calendar: true, wishlist: false },
+            },
+          }
+        : change,
+    )
+    await renderSeeded(world, hidden)
+
+    const birthday = await screen.findByRole('link', { name: /День рождения Люды/ })
+    expect(birthday.querySelector('[data-slot="badge"]')).not.toBeNull()
+    expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
+
+    // The section visible again, but its replay still owed: the store's
+    // promise is written the way the store's own apply writes it, and the
+    // gate's on-mount sync is held open — a run that applied would clear
+    // the promise, and the note would honestly show again.
+    const owing = syncWith(world, [
+      {
+        entity: 'calendar_event',
+        event: event('01900000-0000-7000-8000-000000000201', { title: 'День рождения Люды' }),
+      },
+    ])
+    await applySyncResult(world.memberId, owing)
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`ohana.sync.${world.memberId}`)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error ?? new Error('Opening the store failed'))
+    })
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(['meta'], 'readwrite')
+      tx.objectStore('meta').put({ key: 'pendingReplay', sections: ['wishlist'] })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('Writing the promise failed'))
+    })
+    db.close()
+    // The first route still holds its already-read snapshot (and its note
+    // with it); a fresh render is the one that reads the promise.
+    cleanup()
+    mockResponses(world, () => new Promise<SyncResult>(() => {}))
+    renderWithProviders(<HomeRoute />)
+
+    // The events column reads on from the store — the calendar owes
+    // nothing — while the note stays unpainted.
+    const rows = await screen.findAllByRole('link', { name: /День рождения Люды/ })
+    expect(rows.length).toBeGreaterThan(0)
+    expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
+  })
+
+  it('says the events column is empty when nothing is coming', async () => {
+    const world = makeWorld()
+    await renderSeeded(world, syncResultFor(world))
+
+    expect(
+      await screen.findByText('Здесь появятся события — дни рождения, врачи, ужины.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Открыть вишлисты')).not.toBeInTheDocument()
   })
 })

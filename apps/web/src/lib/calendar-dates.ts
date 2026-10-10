@@ -64,6 +64,18 @@ export function localDateKey(instant: string): string {
 }
 
 /**
+ * The whole days from one `YYYY-MM-DD` day key to another: the keys are
+ * zoneless wall dates, so the difference is whole days by construction.
+ * A malformed key answers NaN — the caller decides what an unplaceable
+ * day is worth.
+ */
+export function daysBetweenDateKeys(fromKey: string, toKey: string): number {
+  const from = Date.parse(`${fromKey}T00:00:00Z`)
+  const to = Date.parse(`${toKey}T00:00:00Z`)
+  return Math.round((to - from) / 86_400_000)
+}
+
+/**
  * The date key `days` away from `key` — the one-day margins the
  * occurrence windows are padded with, so a timed occurrence a zone shift
  * lands on the drawn edge is not lost to the wall-date bounds (issue

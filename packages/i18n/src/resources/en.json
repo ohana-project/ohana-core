@@ -511,7 +511,8 @@
       "eventsSection": "Upcoming events",
       "eventsLink": "The whole calendar",
       "eventsEmpty": "Events will appear here — birthdays, doctors, dinners.",
-      "membersSection": "Members",
+      "soonPill": "Soon",
+      "wishlistsLink": "Open the wishlists",
       "signOut": "Sign out",
       "signOutFailed": "Signing out did not work — check the network and try again."
     }
