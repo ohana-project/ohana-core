@@ -470,9 +470,7 @@ export function EntryPhotoEditor({
       const placeholder = placeholders[index]
       if (file === undefined || placeholder === undefined) continue
       try {
-        await uploadEntryImage(targetId, file, (fraction) =>
-          setProgress(placeholder.key, fraction),
-        )
+        await uploadEntryImage(targetId, file, (fraction) => setProgress(placeholder.key, fraction))
         setPending((current) => current.filter((candidate) => candidate.key !== placeholder.key))
         await triggerSync()
       } catch (cause) {
@@ -539,7 +537,10 @@ export function EntryPhotoEditor({
           </div>
         ))}
         {pending.map((photo) => (
-          <div key={photo.key} className="relative aspect-square overflow-hidden rounded-md bg-muted">
+          <div
+            key={photo.key}
+            className="relative aspect-square overflow-hidden rounded-md bg-muted"
+          >
             <img src={photo.preview} alt="" className="h-full w-full object-cover" />
             {/* the prototype's .chip-prog: the dark plate over the photo
                 with the ring and its percentage while the bytes travel */}

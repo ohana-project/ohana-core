@@ -675,8 +675,9 @@ test.describe('the entry editor, design parity', () => {
     await expect(title).toHaveCSS('font-size', '24px')
     expect(await title.evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Literata')
     expect(await title.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px')
-    expect(await title.locator('xpath=preceding-sibling::label[1]').getAttribute('class'))
-      .toContain('sr-only')
+    expect(
+      await title.locator('xpath=preceding-sibling::label[1]').getAttribute('class'),
+    ).toContain('sr-only')
 
     // The body: 16px over the prototype's 1.65, borderless too.
     const text = page.getByLabel('Текст записи')
@@ -734,9 +735,7 @@ test.describe('the entry editor, design parity', () => {
   test.describe('the editor on a phone (issue #71)', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
-    test('the same pair rides the action bar and the grid holds four columns', async ({
-      page,
-    }) => {
+    test('the same pair rides the action bar and the grid holds four columns', async ({ page }) => {
       await mockJournalApi(page)
 
       await page.goto('/')

@@ -144,7 +144,8 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
   // The saved moment the prototype's «СОХРАНЕНО 19:02» shows: the stored
   // entry's own last edit. A brand-new entry has none — the indicator
   // stays absent rather than pretending (docs/design/README.md).
-  const savedTime = existing !== undefined ? entryTime(existing.updatedAt, i18n.language) : undefined
+  const savedTime =
+    existing !== undefined ? entryTime(existing.updatedAt, i18n.language) : undefined
   // The prototype's «ФОТО: 2 · СИМВОЛОВ: 342» line over the live data.
   const photoCount = existing?.images?.length ?? 0
   const charCount = Array.from(effectiveText).length
@@ -220,7 +221,11 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 {t('journal.saveDraft')}
               </Button>
             )}
-            <Button size="sm" disabled={pending || textBlank} onClick={() => save(primaryNeedsPublish)}>
+            <Button
+              size="sm"
+              disabled={pending || textBlank}
+              onClick={() => save(primaryNeedsPublish)}
+            >
               {pending ? <Spinner className="size-4" /> : <Icon name="send" className="size-4" />}
               {primaryLabel}
             </Button>
@@ -316,9 +321,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 setText(event.target.value)
               }}
               aria-invalid={(textTouched && textBlank) || undefined}
-              aria-describedby={
-                textTouched && textBlank ? 'journal-entry-text-error' : undefined
-              }
+              aria-describedby={textTouched && textBlank ? 'journal-entry-text-error' : undefined}
               className="min-h-[200px] w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-[1.65] placeholder:text-[color-mix(in_oklch,var(--muted)_55%,transparent)] focus-visible:outline-offset-4"
             />
             {textTouched && textBlank ? (

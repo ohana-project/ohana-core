@@ -6,9 +6,9 @@ import { api } from '@/data/api.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage, SyncResult } from '@/data/local-store.ts'
 import { applySyncResult, readMemberSnapshot } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
+import { FakeUploadRequest } from '@/testing/fake-upload.ts'
 import { seedVersionOnePartition } from '@/testing/fixtures.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
-import { FakeUploadRequest } from '@/testing/fake-upload.ts'
 import { JournalEditorScreen } from './journal-editor-screen.tsx'
 
 /** The entry as the wire carries it: photos name what their original is. */
@@ -526,10 +526,7 @@ describe('JournalEditorScreen (photos, issue #17)', () => {
     const user = userEvent.setup()
     renderWithProviders(<JournalEditorScreen />)
 
-    await user.upload(
-      await filePicker(),
-      new File(['x'], 'photo.jpg', { type: 'image/jpeg' }),
-    )
+    await user.upload(await filePicker(), new File(['x'], 'photo.jpg', { type: 'image/jpeg' }))
 
     // The field says it and the toast repeats it: no draft holds the photo.
     await screen.findAllByText('Добавьте текст записи')
@@ -551,10 +548,7 @@ describe('JournalEditorScreen (photos, issue #17)', () => {
     renderWithProviders(<JournalEditorScreen />)
 
     await user.type(await screen.findByLabelText('Текст записи'), 'Собрались за час.')
-    await user.upload(
-      await filePicker(),
-      new File(['x'], 'photo.jpg', { type: 'image/jpeg' }),
-    )
+    await user.upload(await filePicker(), new File(['x'], 'photo.jpg', { type: 'image/jpeg' }))
 
     await waitFor(() =>
       expect(apiPost).toHaveBeenCalledWith('/api/v1/journal/entries', {
