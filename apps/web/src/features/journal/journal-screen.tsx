@@ -44,7 +44,18 @@ export function JournalScreen() {
 
   const feed = journalFeed(entries)
   const drafts = journalDrafts(entries)
-  const visible = feed.slice(0, visibleCount)
+  // The page counts entries, but a month is never split across its label:
+  // the groups come from the whole feed and each takes what the page still
+  // has room for, so a month longer than a page keeps its one label
+  // instead of printing it again above the continuation.
+  let pageRoom = visibleCount
+  const pageGroups = entryMonthGroups(feed)
+    .map((group) => {
+      const entries = group.entries.slice(0, Math.max(pageRoom, 0))
+      pageRoom -= entries.length
+      return { ...group, entries }
+    })
+    .filter((group) => group.entries.length > 0)
   // The corner is there for every downloaded section: the drafts item
   // counts the drafts only when there are any, and the trash item is the
   // way back to whatever was removed (issue #16). While the journal's
@@ -88,7 +99,7 @@ export function JournalScreen() {
                 <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
               </Empty>
             </Card>
-          ) : visible.length === 0 ? (
+          ) : feed.length === 0 ? (
             // The prototype's empty state stands bare (README "Cards"): no
             // card around it, its button below the text.
             <Empty className="py-14">
@@ -106,7 +117,7 @@ export function JournalScreen() {
             </Empty>
           ) : (
             <>
-              {entryMonthGroups(visible).map((group) => (
+              {pageGroups.map((group) => (
                 // The prototype's `.diary-main` is one flex column, so the
                 // month's pieces flow in it with the same 12px gap — a
                 // section that stacked as plain blocks would let the label's
@@ -133,7 +144,7 @@ export function JournalScreen() {
                   ))}
                 </section>
               ))}
-              {feed.length > visible.length && (
+              {feed.length > visibleCount && (
                 <Button
                   variant="secondary"
                   onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}

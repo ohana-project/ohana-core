@@ -359,7 +359,7 @@ describe('JournalScreen (the shared feed)', () => {
     expect(screen.queryByText(/^записи удалятся/)).not.toBeInTheDocument()
   })
 
-  it('pages the feed twenty entries at a time', async () => {
+  it('pages the feed twenty entries at a time, the month label printed once', async () => {
     const nextId = memberCounter()
     const many = Array.from({ length: 25 }, (_, index) =>
       entry({
@@ -379,11 +379,15 @@ describe('JournalScreen (the shared feed)', () => {
 
     expect(await screen.findByText('Запись 25')).toBeInTheDocument()
     expect(screen.queryByText('Запись 5')).not.toBeInTheDocument()
+    // Every entry is September's: the label is the month's, so the page
+    // boundary splits the cards, never the heading.
+    expect(screen.getAllByText('Сентябрь 2026')).toHaveLength(1)
 
     await user.click(screen.getByRole('button', { name: 'Показать ещё' }))
 
     await waitFor(() => expect(screen.getByText('Запись 5')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Показать ещё' })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Сентябрь 2026')).toHaveLength(1)
   })
 
   it('says that nothing is available offline when nothing is downloaded', async () => {
