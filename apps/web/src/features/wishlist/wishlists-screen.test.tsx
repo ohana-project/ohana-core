@@ -401,6 +401,30 @@ describe('WishlistsScreen (the overview)', () => {
     expect(screen.getByText('Мои избранные идеи')).toBeInTheDocument()
   })
 
+  it('never paints the reader their own birthday', async () => {
+    seedRegistry()
+    // Аня's own birthday is near: the note is an errand for the reader,
+    // and their own birthday is nobody's errand to run — no note, no
+    // countdown, though the event is real and near.
+    await applySyncResult(
+      ME,
+      syncResult(
+        [wish()],
+        [
+          {
+            entity: 'calendar_event',
+            event: { ...birthdayEvent(3), title: 'День рождения Ани' },
+          },
+        ],
+      ),
+    )
+    mockQuietSync()
+    renderWithProviders(<WishlistsScreen />)
+
+    await screen.findByText('Правило сюрприза')
+    expect(screen.queryByText(/День рождения Ани/)).not.toBeInTheDocument()
+  })
+
   it("lays the screen out as the prototype's 1.6fr / 1fr grid from 920px", async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([wish()]))

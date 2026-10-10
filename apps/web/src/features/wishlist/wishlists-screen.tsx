@@ -63,10 +63,12 @@ export function WishlistsScreen() {
   const others = profiles.filter(
     (profile) => profile.id !== meId && profile.archivedAt === undefined,
   )
-  // The birthdays read the calendar's events from the same partition; a
+  // The birthdays read the calendar's events from the same partition, for
+  // the members whose lists this screen shows — the note is an errand for
+  // the reader, and their own birthday is nobody's errand to run. A
   // partial calendar (a replay pending) can only leave a note unpainted,
   // never paint one the events do not carry.
-  const birthdays = nearBirthdays(snapshot.data?.events ?? [], profiles, new Date())
+  const birthdays = nearBirthdays(snapshot.data?.events ?? [], others, new Date())
   const notedBirthday = [...birthdays.values()].reduce<undefined | NearBirthday>(
     (nearest, birthday) =>
       nearest === undefined || birthday.daysUntil < nearest.daysUntil ? birthday : nearest,
@@ -153,7 +155,7 @@ export function WishlistsScreen() {
               action={
                 // The prototype's trailing mono meta, muted like .meta —
                 // not the accent link the section header carries elsewhere.
-                <span className="font-normal text-meta text-muted-foreground uppercase">
+                <span className="font-mono font-normal text-meta text-muted-foreground uppercase">
                   {t('wishlist.listsCount', { count: others.length })}
                 </span>
               }
@@ -170,24 +172,30 @@ export function WishlistsScreen() {
               </Card>
             ) : (
               <Card variant="list">
-                {others.map((profile) => (
-                  <MemberWishlistRow
-                    key={profile.id}
-                    profile={profile}
-                    openCount={openWishesOf(wishes, profile.id).length}
-                    reservedCount={
-                      openWishesOf(wishes, profile.id).filter(
-                        (memberWish) => reservationFor(reservations, memberWish.id) !== undefined,
-                      ).length
-                    }
-                    birthday={birthdays.get(profile.id)}
-                  />
-                ))}
+                {others.map((profile) => {
+                  const memberOpen = openWishesOf(wishes, profile.id)
+                  return (
+                    <MemberWishlistRow
+                      key={profile.id}
+                      profile={profile}
+                      openCount={memberOpen.length}
+                      reservedCount={
+                        memberOpen.filter(
+                          (memberWish) => reservationFor(reservations, memberWish.id) !== undefined,
+                        ).length
+                      }
+                      birthday={birthdays.get(profile.id)}
+                    />
+                  )
+                })}
               </Card>
             )}
           </div>
 
-          <aside className="flex min-w-0 flex-col gap-4 desktop:sticky desktop:top-[calc(var(--topbar-h)+24px)]">
+          <aside
+            aria-label={t('wishlist.asideLabel')}
+            className="flex min-w-0 flex-col gap-4 desktop:sticky desktop:top-[calc(var(--topbar-h)+24px)]"
+          >
             {notedBirthday !== undefined && (
               <BirthdayNote birthday={notedBirthday} openCount={notedWishes} locale={locale} />
             )}

@@ -324,6 +324,7 @@
     "openCount": "{count, plural, one {# wish} other {# wishes}}",
     "receivedCount": "{count, plural, one {# already given} other {# already given}}",
     "listsCount": "{count, plural, one {# list} other {# lists}}",
+    "asideLabel": "Notes and favorites",
     "favoritesNav": "Favorites",
     "favoritesRowTitle": "My saved ideas",
     "reservedCount": "{count, plural, one {# wish reserved} other {# wishes reserved}}",

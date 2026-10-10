@@ -324,6 +324,7 @@
     "openCount": "{count, plural, one {# желание} few {# желания} many {# желаний} other {# желаний}}",
     "receivedCount": "{count, plural, one {# уже подарили} few {# уже подарили} many {# уже подарили} other {# уже подарили}}",
     "listsCount": "{count, plural, one {# список} few {# списка} many {# списков} other {# списков}}",
+    "asideLabel": "Заметки и избранное",
     "favoritesNav": "Избранное",
     "favoritesRowTitle": "Мои избранные идеи",
     "reservedCount": "{count, plural, one {# желание забронировано} few {# желания забронированы} many {# желаний забронировано} other {# желаний забронировано}}",
