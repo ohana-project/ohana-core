@@ -133,6 +133,69 @@ describe('JournalDraftsScreen', () => {
     expect(screen.getAllByRole('button', { name: 'Действия с черновиком' })).toHaveLength(2)
   })
 
+  it('gives every draft its own list card led by the 38px tile (issue #72)', async () => {
+    seedRegistry()
+    await applySyncResult(
+      ME,
+      syncResult([
+        draft({
+          id: '01900000-0000-7000-8000-000000000201',
+          updatedAt: '2026-09-20T10:00:00.000Z',
+          title: 'Старый черновик',
+        }),
+        draft(),
+      ]),
+    )
+    const { container } = renderWithProviders(<JournalDraftsScreen />)
+
+    await screen.findByText('Осенний пикник')
+    // One card per row, in the prototype's 12px stack (drafts.html).
+    const firstCard = screen.getByText('Осенний пикник').closest('[data-slot="card"]')
+    const secondCard = screen.getByText('Старый черновик').closest('[data-slot="card"]')
+    expect(firstCard).not.toBeNull()
+    expect(secondCard).not.toBeNull()
+    expect(firstCard).not.toBe(secondCard)
+    expect(container.querySelectorAll('[data-slot="card"][data-variant="list"]')).toHaveLength(2)
+    // The row leads with the 38px tinted tile (the opt-in `icon` media).
+    const tile = firstCard?.querySelector('[data-slot="item-media"]')
+    expect(tile).toHaveAttribute('data-variant', 'icon')
+    // The row body links to the editor (the prototype's `a.body`).
+    const bodyLink = screen.getByText('Осенний пикник').closest('a')
+    expect(bodyLink).not.toBeNull()
+    expect(bodyLink?.getAttribute('href')).toContain('edit')
+    // The overflow button is the 36px `icon-sm` round (.btn-icon.btn-sm).
+    const trigger = screen.getAllByRole('button', { name: 'Действия с черновиком' })[0]
+    expect(trigger).toHaveClass('size-9')
+  })
+
+  it('names the number of photos in the row sub line (issue #72)', async () => {
+    seedRegistry()
+    await applySyncResult(
+      ME,
+      syncResult([
+        draft({
+          images: [
+            {
+              id: '01900000-0000-7000-8000-000000000301',
+              state: 'ready',
+              originalType: 'image/jpeg',
+            },
+            {
+              id: '01900000-0000-7000-8000-000000000302',
+              state: 'ready',
+              originalType: 'image/jpeg',
+            },
+          ],
+        }),
+      ]),
+    )
+    renderWithProviders(<JournalDraftsScreen />)
+
+    await screen.findByText('Осенний пикник')
+    // The prototype's sub: «правки … · 2 фото загружено».
+    expect(screen.getByText(/2 фото загружено/)).toBeInTheDocument()
+  })
+
   it('publishes a draft through the API and triggers the sync', async () => {
     seedRegistry()
     await applySyncResult(ME, syncResult([draft()]))
@@ -270,6 +333,44 @@ describe('JournalDraftsScreen', () => {
 
     expect(await screen.findByText('Черновиков нет')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Новая запись' })).toBeInTheDocument()
+  })
+
+  it('stands the empty state bare, its button without an icon, and hides the lock note with the list (issue #72)', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([]))
+    renderWithProviders(<JournalDraftsScreen />)
+
+    await screen.findByText('Черновиков нет')
+    // The prototype's `.empty` stands on its own — no card around it.
+    const empty = document.querySelector('[data-slot="empty"]')
+    expect(empty).not.toBeNull()
+    expect(empty?.closest('[data-slot="card"]')).toBeNull()
+    // The 64px plate carries the 28px glyph (the default empty media).
+    const media = empty?.querySelector('[data-slot="empty-icon"]')
+    expect(media).toHaveAttribute('data-variant', 'default')
+    // The prototype's «Новая запись» button carries no icon.
+    const button = screen.getByRole('button', { name: 'Новая запись' })
+    expect(button.querySelector('svg')).toBeNull()
+    // The lock note rides the list (drafts.html keeps it inside it).
+    expect(screen.queryByText(/Черновики хранятся/)).not.toBeInTheDocument()
+  })
+
+  it('sets the display heading and the «Черновики» top bar, and shows the lock note with the list (issue #72)', async () => {
+    seedRegistry()
+    await applySyncResult(ME, syncResult([draft()]))
+    renderWithProviders(<JournalDraftsScreen />)
+
+    await screen.findByText('Осенний пикник')
+    // The prototype's h1 is `.display.display-xl` — the display size.
+    expect(screen.getByRole('heading', { level: 1, name: 'Мои черновики' })).toHaveClass(
+      'text-display',
+    )
+    // The top bar carries the prototype's data-title, not the h1.
+    const topbar = document.querySelector('[data-slot="topbar"]')
+    expect(topbar).toHaveTextContent('Черновики')
+    expect(topbar).not.toHaveTextContent('Мои черновики')
+    // The lock note belongs to the list.
+    expect(screen.getByText(/Черновики хранятся/)).toBeInTheDocument()
   })
 
   it('says that nothing is downloaded instead of claiming there are no drafts', async () => {
