@@ -286,6 +286,9 @@ describe('JournalEntryScreen', () => {
     expect(
       screen.getByText('Возможно, она удалена или ещё не успела синхронизироваться.'),
     ).toBeInTheDocument()
+    // And the top bar carries no menu: share and copy would hand out the
+    // address of an entry the partition says is not there.
+    expect(screen.queryByRole('button', { name: 'Меню записи' })).not.toBeInTheDocument()
   })
 
   it('says nothing is downloaded while the journal replay has not landed', async () => {

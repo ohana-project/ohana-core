@@ -292,7 +292,7 @@ function PhotoLightbox({
         <DialogPrimitive.Backdrop className="scrim-lightbox fixed inset-0 isolate z-50 transition-opacity duration-(--t-base) ease-(--ease) data-starting-style:opacity-0 data-ending-style:opacity-0" />
         <DialogPrimitive.Popup
           aria-label={caption}
-          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4 outline-none"
+          className="fixed inset-0 z-50 flex flex-col overflow-y-auto p-4 outline-none"
           initialFocus={true}
           finalFocus={finalFocusRef}
           onClick={(event) => {
@@ -302,7 +302,12 @@ function PhotoLightbox({
             if (event.target === event.currentTarget) onClose()
           }}
         >
-          <figure className="m-0 w-full max-w-[min(92vw,1080px)]">
+          {/* the prototype's .lightbox-fig: max-width min(92vw, 1080px),
+              the img capped to 80dvh; the auto margins centre the figure
+              when there is room and fall to zero when a short viewport —
+              a landscape phone with the download button — must scroll
+              the content instead of clipping its top */}
+          <figure className="my-auto w-full max-w-[min(92vw,1080px)]">
             {shown === undefined ? (
               <div className="grid h-[60dvh] place-items-center">
                 <Spinner className="size-8 text-white/80" />
@@ -325,18 +330,18 @@ function PhotoLightbox({
                 <span className="shrink-0">{t('journal.viewerOriginalCaption')}</span>
               )}
             </figcaption>
+            {!renderable && (
+              <button
+                type="button"
+                className="mt-3 flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+                disabled={downloading}
+                onClick={() => void downloadOriginal()}
+              >
+                {downloading && <Spinner className="size-4" />}
+                {t('journal.downloadOriginal')}
+              </button>
+            )}
           </figure>
-          {!renderable && (
-            <button
-              type="button"
-              className="mt-3 flex items-center gap-2 rounded-lg border border-white/30 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
-              disabled={downloading}
-              onClick={() => void downloadOriginal()}
-            >
-              {downloading && <Spinner className="size-4" />}
-              {t('journal.downloadOriginal')}
-            </button>
-          )}
           <DialogPrimitive.Close
             render={
               <button

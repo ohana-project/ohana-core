@@ -171,7 +171,9 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
       title={t('journal.entryTitle')}
       backTo="/journal"
       width="narrow"
-      actions={entryMenu}
+      // No menu while the entry is not on the device: share and copy would
+      // hand out the address of an entry the partition says is not there.
+      actions={entry === undefined ? undefined : entryMenu}
     >
       {snapshot.isPending ? (
         <div className="grid place-items-center py-10">
