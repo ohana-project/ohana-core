@@ -5,7 +5,6 @@ import { ShellBackLink } from '@/features/member/shell-back-link.tsx'
 import { useMemberShell } from '@/features/member/use-member-shell.ts'
 import { ALL_SECTIONS_VISIBLE } from '@/features/member/use-nav-sections.ts'
 import { useSyncedSpace } from '@/features/member/use-synced-space.ts'
-import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
@@ -53,15 +52,14 @@ export function WishlistShell({
   const visibility = snapshot.data?.space?.sections ?? ALL_SECTIONS_VISIBLE
   const screen =
     visibility.wishlist === false ? (
-      <Card>
-        <Empty>
-          <EmptyMedia>
-            <Icon name="eye-off" />
-          </EmptyMedia>
-          <EmptyTitle>{t('wishlist.errors.section_hidden')}</EmptyTitle>
-          <EmptyDescription>{t('wishlist.hiddenHint')}</EmptyDescription>
-        </Empty>
-      </Card>
+      // The empty state stands bare (README "Cards") — no card around it.
+      <Empty>
+        <EmptyMedia>
+          <Icon name="eye-off" />
+        </EmptyMedia>
+        <EmptyTitle>{t('wishlist.errors.section_hidden')}</EmptyTitle>
+        <EmptyDescription>{t('wishlist.hiddenHint')}</EmptyDescription>
+      </Empty>
     ) : (
       children
     )

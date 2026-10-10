@@ -49,15 +49,14 @@ export function WishlistFavoritesScreen() {
       ) : !downloaded ? (
         // A device with nothing downloaded says so instead of counting the
         // rows it happens to hold (ADR-0014, architecture.md web rules).
-        <Card className="mt-5">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="cloud-off" />
-            </EmptyMedia>
-            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-          </Empty>
-        </Card>
+        // The empty state stands bare (README "Cards") — no card around it.
+        <Empty>
+          <EmptyMedia>
+            <Icon name="cloud-off" />
+          </EmptyMedia>
+          <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+          <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+        </Empty>
       ) : (
         <div className="flex flex-col pt-5">
           <header className="mb-4.5">

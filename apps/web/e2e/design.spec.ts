@@ -402,7 +402,7 @@ test.describe('type scale survives class merging', () => {
   })
 })
 
-test.describe('card forms and list rows (issue #58)', () => {
+test.describe('card forms and list rows (issue #58, the default removed with #81)', () => {
   test('the padded and list card forms carry the prototype values', async ({ page }) => {
     await openDesign(page)
     const padding = (el: Element) => {
@@ -418,9 +418,12 @@ test.describe('card forms and list rows (issue #58)', () => {
     await expect(list).toBeVisible()
     expect(await list.evaluate(padding)).toEqual(['0px', '0px', '0px', '0px'])
     expect(await list.evaluate((el) => getComputedStyle(el).overflow)).toBe('hidden')
-    // the default card is still beside them, unchanged
-    const def = page.locator('[data-slot="card"][data-variant="default"]').first()
-    await expect(def).toBeVisible()
+    // the old default form is gone: every card on the page is padded or list
+    expect(await page.locator('[data-slot="card"][data-variant="default"]').count()).toBe(0)
+    // the sm padded card takes the prototype's 16px
+    const sm = page.locator('[data-slot="card"][data-variant="padded"][data-size="sm"]').first()
+    await expect(sm).toBeVisible()
+    expect(await sm.evaluate(padding)).toEqual(['16px', '16px', '16px', '16px'])
   })
 
   test('list rows offer every height the prototypes use', async ({ page }) => {

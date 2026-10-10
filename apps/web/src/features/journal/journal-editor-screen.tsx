@@ -7,7 +7,6 @@ import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { ActionBar } from '@/ui/action-bar.tsx'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Button } from '@/ui/button.tsx'
-import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
 import { FieldError } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
@@ -241,30 +240,27 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
         ) : entryId !== undefined && existing === undefined ? (
           !downloaded ? (
             // Nothing is downloaded: the entry may exist, this device
-            // cannot say (ADR-0002).
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="cloud-off" />
-                </EmptyMedia>
-                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-                <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-              </Empty>
-            </Card>
+            // cannot say (ADR-0002). The empty state stands bare
+            // (README "Cards") — no card around it.
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+            </Empty>
           ) : (
             <p className="text-sm text-muted-foreground">{t('journal.errors.entry_not_found')}</p>
           )
         ) : existing !== undefined && !mine ? (
           // The author edits in any state; everyone else is refused before
           // typing into a form the API would turn away.
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="lock" />
-              </EmptyMedia>
-              <EmptyTitle>{t('journal.errors.author_required')}</EmptyTitle>
-            </Empty>
-          </Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="lock" />
+            </EmptyMedia>
+            <EmptyTitle>{t('journal.errors.author_required')}</EmptyTitle>
+          </Empty>
         ) : (
           <>
             {/* the prototype's author row: the avatar, the «Аня публикует

@@ -14,14 +14,7 @@ import { AvatarStack } from '@/ui/avatar-stack.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Banner } from '@/ui/banner.tsx'
 import { Button } from '@/ui/button.tsx'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/ui/card.tsx'
+import { Card } from '@/ui/card.tsx'
 import { CodeDisplay } from '@/ui/code-display.tsx'
 import { CountBadge } from '@/ui/count-badge.tsx'
 import {
@@ -925,37 +918,34 @@ function ListsSection() {
 
         <div className="flex flex-col gap-6">
           <a href="#lists" className="block rounded-lg">
-            <Card hoverable>
-              <CardHeader>
-                <CardTitle>{t('designPreview.lists.cardTitle')}</CardTitle>
-                <CardDescription>
-                  {t('designPreview.lists.cardMeta', {
-                    date,
-                    author: t('designPreview.lists.misha'),
-                  })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-3 grid aspect-[16/10] place-items-center rounded-md bg-surface-2 text-muted-foreground">
-                  <Icon name="image" className="size-8" />
-                </div>
-                <p className="text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>
-              </CardContent>
-              <CardFooter>
-                <span className="text-sm font-medium text-primary">
-                  {t('designPreview.lists.cardLink')}
-                </span>
-              </CardFooter>
+            {/* the link card: the padded form under one anchor, the
+                `.card-link` lift through `hoverable` (README "Cards") */}
+            <Card variant="padded" hoverable>
+              <h3 className="text-h2">{t('designPreview.lists.cardTitle')}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('designPreview.lists.cardMeta', {
+                  date,
+                  author: t('designPreview.lists.misha'),
+                })}
+              </p>
+              <div className="mt-3 grid aspect-[16/10] place-items-center rounded-md bg-surface-2 text-muted-foreground">
+                <Icon name="image" className="size-8" />
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t('designPreview.lists.cardText')}
+              </p>
+              <p className="mt-3 text-sm font-medium text-primary">
+                {t('designPreview.lists.cardLink')}
+              </p>
             </Card>
           </a>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>{t('designPreview.lists.pickTitle')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>
-            </CardContent>
+          {/* the sm padded card: 16px on all sides */}
+          <Card variant="padded" size="sm">
+            <h3 className="text-h3">{t('designPreview.lists.pickTitle')}</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {t('designPreview.lists.cardText')}
+            </p>
           </Card>
         </div>
       </div>
@@ -1247,14 +1237,12 @@ function LayoutsSection() {
                 </Item>
               </ItemGroup>
             </div>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('designPreview.lists.cardTitle')}</CardTitle>
-                <CardDescription>{date}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{t('designPreview.lists.cardText')}</p>
-              </CardContent>
+            <Card variant="padded">
+              <h3 className="text-h2">{t('designPreview.lists.cardTitle')}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{date}</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t('designPreview.lists.cardText')}
+              </p>
             </Card>
           </div>
           {withActionBar && (

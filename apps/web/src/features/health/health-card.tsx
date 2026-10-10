@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card'
+import { Card } from '@/ui/card'
 import { type ApiHealthReport, useApiHealth } from './use-api-health.ts'
 
 const healthChecks: readonly (keyof ApiHealthReport['checks'])[] = ['database', 'storage']
@@ -31,12 +31,12 @@ export function HealthCard() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{t('health.title')}</CardTitle>
-        <CardDescription>{t('health.description')}</CardDescription>
-      </CardHeader>
-      <CardContent>{body}</CardContent>
+    // The padded card takes plain children — the content sets its own
+    // rhythm (README "Cards").
+    <Card variant="padded" className="w-full max-w-sm">
+      <h3 className="text-h3">{t('health.title')}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{t('health.description')}</p>
+      <div className="mt-3">{body}</div>
     </Card>
   )
 }

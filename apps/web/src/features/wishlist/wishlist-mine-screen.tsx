@@ -5,7 +5,6 @@ import type { StoredWish } from '@/data/local-store.ts'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { cn } from '@/lib/cn'
 import { Button } from '@/ui/button.tsx'
-import { Card } from '@/ui/card.tsx'
 import {
   Dialog,
   DialogContent,
@@ -79,15 +78,14 @@ export function WishlistMineScreen() {
           <Spinner className="size-6" />
         </div>
       ) : !downloaded ? (
-        <Card className="mt-5">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="cloud-off" />
-            </EmptyMedia>
-            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-          </Empty>
-        </Card>
+        // The empty state stands bare (README "Cards") — no card around it.
+        <Empty>
+          <EmptyMedia>
+            <Icon name="cloud-off" />
+          </EmptyMedia>
+          <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+          <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+        </Empty>
       ) : (
         // The prototype's column: the header's 14px under it, the note's
         // 18px, the list's 12px between rows, the footer's 18px — the

@@ -145,15 +145,18 @@ export function NotificationsScreen() {
         </header>
 
         {isIos ? (
-          <Card className="flex flex-col gap-1">
-            <p className="text-sm font-medium">{t('notifications.settings.iosTitle')}</p>
-            <p className="text-sm text-muted-foreground">{t('notifications.settings.iosText')}</p>
+          // The padded card: the content sets its own rhythm (README "Cards").
+          <Card variant="padded">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">{t('notifications.settings.iosTitle')}</p>
+              <p className="text-sm text-muted-foreground">{t('notifications.settings.iosText')}</p>
+            </div>
           </Card>
         ) : null}
 
         <section>
           <SectionHeader title={t('notifications.settings.deviceSection')} />
-          <Card className="py-0">
+          <Card variant="list">
             <ItemGroup>
               <Item size="lg">
                 <ItemMedia variant="icon" tone="primary">

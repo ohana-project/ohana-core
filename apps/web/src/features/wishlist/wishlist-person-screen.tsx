@@ -6,7 +6,6 @@ import { getActiveMemberId } from '@/data/session-registry.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Button } from '@/ui/button.tsx'
-import { Card } from '@/ui/card.tsx'
 import {
   Dialog,
   DialogContent,
@@ -144,25 +143,22 @@ export function WishlistPersonScreen({ memberId }: { memberId: string }) {
         // fraction left by an owed replay — says so, instead of reading the
         // absent profile as a missing member or counting the rows it
         // happens to hold (ADR-0014, architecture.md web rules).
-        <Card className="mt-5">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="cloud-off" />
-            </EmptyMedia>
-            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-          </Empty>
-        </Card>
+        // The empty state stands bare (README "Cards") — no card around it.
+        <Empty>
+          <EmptyMedia>
+            <Icon name="cloud-off" />
+          </EmptyMedia>
+          <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+          <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+        </Empty>
       ) : profile === undefined ? (
-        <Card className="mt-5">
-          <Empty>
-            <EmptyMedia>
-              <Icon name="users" />
-            </EmptyMedia>
-            <EmptyTitle>{t('wishlist.memberMissingTitle')}</EmptyTitle>
-            <EmptyDescription>{t('wishlist.memberMissingText')}</EmptyDescription>
-          </Empty>
-        </Card>
+        <Empty>
+          <EmptyMedia>
+            <Icon name="users" />
+          </EmptyMedia>
+          <EmptyTitle>{t('wishlist.memberMissingTitle')}</EmptyTitle>
+          <EmptyDescription>{t('wishlist.memberMissingText')}</EmptyDescription>
+        </Empty>
       ) : (
         // The prototype's column (issue #67): the member's header, the
         // surprise note, the wishes, and the mono footer line — the

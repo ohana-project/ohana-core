@@ -61,19 +61,18 @@ function greetingKey(hour: number): keyof typeof greetings {
 
 /** The nothing-downloaded answer of a column whose section cannot be
  *  claimed: a partition without a cursor has nothing at all, and a
- *  replay promise (ADR-0014) leaves only a fraction of the section. */
+ *  replay promise (ADR-0014) leaves only a fraction of the section.
+ *  The empty state stands bare (README "Cards") — no card around it. */
 function NothingDownloaded() {
   const { t } = useTranslation()
   return (
-    <Card>
-      <Empty>
-        <EmptyMedia>
-          <Icon name="cloud-off" />
-        </EmptyMedia>
-        <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-        <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-      </Empty>
-    </Card>
+    <Empty>
+      <EmptyMedia>
+        <Icon name="cloud-off" />
+      </EmptyMedia>
+      <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+      <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+    </Empty>
   )
 }
 
@@ -201,14 +200,12 @@ export function SpaceHomeScreen() {
                 {!journalReady ? (
                   <NothingDownloaded />
                 ) : recentEntries.length === 0 ? (
-                  <Card>
-                    <Empty>
-                      <EmptyMedia>
-                        <Icon name="book" />
-                      </EmptyMedia>
-                      <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
-                    </Empty>
-                  </Card>
+                  <Empty>
+                    <EmptyMedia>
+                      <Icon name="book" />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('member.home.journalEmpty')}</EmptyTitle>
+                  </Empty>
                 ) : (
                   recentEntries.map((entry) => (
                     <EntryCard
@@ -238,14 +235,12 @@ export function SpaceHomeScreen() {
                 {!calendarReady ? (
                   <NothingDownloaded />
                 ) : upcoming.length === 0 ? (
-                  <Card>
-                    <Empty>
-                      <EmptyMedia>
-                        <Icon name="calendar" />
-                      </EmptyMedia>
-                      <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
-                    </Empty>
-                  </Card>
+                  <Empty>
+                    <EmptyMedia>
+                      <Icon name="calendar" />
+                    </EmptyMedia>
+                    <EmptyTitle>{t('member.home.eventsEmpty')}</EmptyTitle>
+                  </Empty>
                 ) : (
                   <Card variant="list">
                     <ItemGroup>

@@ -324,46 +324,39 @@ export function EventEditorScreen({
         ) : eventId !== undefined && existing === undefined ? (
           !downloaded ? (
             // Nothing is downloaded: the event may exist, this device
-            // cannot say (ADR-0002).
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="cloud-off" />
-                </EmptyMedia>
-                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-              </Empty>
-            </Card>
+            // cannot say (ADR-0002). The empty state stands bare
+            // (README "Cards") — no card around it.
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+            </Empty>
           ) : (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="calendar" />
-                </EmptyMedia>
-                <EmptyTitle>{t('calendar.errors.event_not_found')}</EmptyTitle>
-              </Empty>
-            </Card>
-          )
-        ) : missingOccurrence ? (
-          <Card>
             <Empty>
               <EmptyMedia>
                 <Icon name="calendar" />
               </EmptyMedia>
-              <EmptyTitle>{t('calendar.errors.occurrence_not_found')}</EmptyTitle>
+              <EmptyTitle>{t('calendar.errors.event_not_found')}</EmptyTitle>
             </Empty>
-          </Card>
+          )
+        ) : missingOccurrence ? (
+          <Empty>
+            <EmptyMedia>
+              <Icon name="calendar" />
+            </EmptyMedia>
+            <EmptyTitle>{t('calendar.errors.occurrence_not_found')}</EmptyTitle>
+          </Empty>
         ) : !editable ? (
           // Only the creator — or an owner — edits an event (issue #20);
           // everyone else is refused before typing into a form the API
           // would turn away.
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="lock" />
-              </EmptyMedia>
-              <EmptyTitle>{t('calendar.errors.creator_required')}</EmptyTitle>
-            </Empty>
-          </Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="lock" />
+            </EmptyMedia>
+            <EmptyTitle>{t('calendar.errors.creator_required')}</EmptyTitle>
+          </Empty>
         ) : (
           <>
             {existing !== undefined && (

@@ -90,15 +90,14 @@ export function JournalScreen() {
               <Spinner className="size-6" />
             </div>
           ) : !downloaded ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="cloud-off" />
-                </EmptyMedia>
-                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-                <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-              </Empty>
-            </Card>
+            // The empty state stands bare (README "Cards"): no card around it.
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+            </Empty>
           ) : feed.length === 0 ? (
             // The prototype's empty state stands bare (README "Cards"): no
             // card around it, its button below the text.
