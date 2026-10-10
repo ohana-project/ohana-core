@@ -560,6 +560,144 @@ test.describe('the journal', () => {
     await expect(page.getByText('Черновик под нож')).toBeVisible()
   })
 
+  test('the drafts and trash screens hold their prototypes (issue #72)', async ({ page }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await expect(page).toHaveURL(/\/$/)
+
+    // A draft to show, and a second one to lose.
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await expect(page).toHaveURL(/\/journal$/)
+    for (const [title, text] of [
+      ['Про Бублика', 'Он съел ещё один носок.'],
+      ['Черновик под нож', 'Его удалю, а потом верну.'],
+    ]) {
+      await page.getByRole('button', { name: 'Новая запись' }).first().click()
+      await page.getByLabel('Заголовок').fill(title)
+      await page.getByLabel('Текст записи').fill(text)
+      await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+      await expect(page).toHaveURL(/\/journal$/)
+    }
+
+    await page.getByText('Мои черновики').click()
+    await expect(page).toHaveURL(/\/journal\/drafts$/)
+
+    // The top bar names the screen short — «Черновики», the prototype's
+    // data-title — while the heading keeps its full words.
+    await expect(page.locator('[data-slot="topbar"]')).toContainText('Черновики')
+    await expect(page.getByRole('heading', { name: 'Мои черновики' })).toBeVisible()
+
+    // One card per draft (the prototype's stack of .card.list), each led
+    // by the 38px tile, the overflow trigger the 36px round.
+    const listCards = page.locator('[data-slot="card"][data-variant="list"]')
+    await expect(listCards).toHaveCount(2)
+    const rowCard = listCards.filter({ hasText: 'Про Бублика' })
+    await expect(rowCard).toHaveCount(1)
+    const media = rowCard.locator('[data-slot="item-media"]')
+    await expect(media).toHaveAttribute('data-variant', 'icon')
+    await expect(media).toHaveCSS('width', '38px')
+    await expect(rowCard.getByRole('button', { name: 'Действия с черновиком' })).toHaveCSS(
+      'width',
+      '36px',
+    )
+
+    // The row body opens the editor, and the lock note rides the list.
+    await rowCard.locator('a[href$="/edit"]').click()
+    await expect(page).toHaveURL(/\/journal\/.*\/edit$/)
+    await page.goBack()
+    await expect(page).toHaveURL(/\/journal\/drafts$/)
+    await expect(page.getByText(/Черновики хранятся/)).toBeVisible()
+
+    // The list empties — one draft trashed from its menu, the other
+    // published — into the bare empty state, its «Новая запись» without
+    // an icon, the lock note gone with the list.
+    const doomedCard = listCards.filter({ hasText: 'Черновик под нож' })
+    await doomedCard.getByRole('button', { name: 'Действия с черновиком' }).click()
+    await page.getByRole('menuitem', { name: 'Удалить черновик' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Удалить' }).click()
+    await expect(page.getByText(/исчезнет окончательно 31 октября/)).toBeVisible()
+    await expect(listCards).toHaveCount(1)
+    await page.getByRole('button', { name: 'Действия с черновиком' }).click()
+    await page.getByRole('menuitem', { name: 'Опубликовать сейчас' }).click()
+    await expect(page.getByText('Опубликовано в дневнике пространства')).toBeVisible()
+    await expect(listCards).toHaveCount(0)
+    await expect(page.getByText('Черновиков нет')).toBeVisible()
+    const emptyCard = page
+      .getByText('Черновиков нет')
+      .locator('xpath=ancestor::*[@data-slot="card"]')
+    await expect(emptyCard).toHaveCount(0)
+    const newEntry = page.getByRole('button', { name: 'Новая запись' })
+    await expect(newEntry).toBeVisible()
+    await expect(newEntry.locator('svg')).toHaveCount(0)
+    await expect(page.getByText(/Черновики хранятся/)).toHaveCount(0)
+
+    // The trash: one card per row, the banner closing the stack with the
+    // prototype's 16px under it.
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await expect(page).toHaveURL(/\/journal$/)
+    await page.getByText('Корзина').click()
+    await expect(page).toHaveURL(/\/journal\/trash$/)
+    await expect(listCards).toHaveCount(1)
+    const banner = page.locator('[data-slot="banner"]')
+    await expect(banner).toContainText('Восстановить запись можно в один шаг')
+    await expect(banner).toHaveCSS('margin-bottom', '16px')
+
+    // The restore fades the row out; the list closes over it into the
+    // bare empty state.
+    await page.getByRole('button', { name: 'Восстановить' }).click()
+    await expect(page.getByText('Восстановлено — запись снова в дневнике')).toBeVisible()
+    await expect(page.getByText('Корзина пуста')).toBeVisible()
+    const trashEmptyCard = page
+      .getByText('Корзина пуста')
+      .locator('xpath=ancestor::*[@data-slot="card"]')
+    await expect(trashEmptyCard).toHaveCount(0)
+    await expect(banner).toHaveCount(0)
+  })
+
+  test.describe('the drafts and trash at a phone width (issue #72)', () => {
+    test.use({ viewport: { width: 390, height: 844 } })
+
+    test('the drafts and trash hold the prototypes at 390px', async ({ page }) => {
+      await mockJournalApi(page)
+
+      await page.goto('/')
+      await page.getByLabel('Код входа').fill(CODE)
+      await page.getByRole('button', { name: 'Войти' }).click()
+      await expect(page).toHaveURL(/\/$/)
+
+      await page.getByRole('button', { name: 'Дневник' }).first().click()
+      await page.getByRole('button', { name: 'Новая запись' }).first().click()
+      await page.getByLabel('Заголовок').fill('Про Бублика')
+      await page.getByLabel('Текст записи').fill('Он съел ещё один носок.')
+      await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+      await expect(page).toHaveURL(/\/journal$/)
+
+      await page.getByText('Мои черновики').click()
+      await expect(page).toHaveURL(/\/journal\/drafts$/)
+      await expect(page.getByText('Про Бублика')).toBeVisible()
+      // The row's overflow menu opens on the phone and nothing scrolls
+      // horizontally at the prototype's width.
+      await page.getByRole('button', { name: 'Действия с черновиком' }).click()
+      await expect(page.getByRole('menuitem', { name: 'Опубликовать сейчас' })).toBeVisible()
+      await page.keyboard.press('Escape')
+      const draftsOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(draftsOverflow).toBeLessThanOrEqual(0)
+
+      await page.getByRole('button', { name: 'Дневник' }).first().click()
+      await page.getByText('Корзина').click()
+      await expect(page).toHaveURL(/\/journal\/trash$/)
+      const trashOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(trashOverflow).toBeLessThanOrEqual(0)
+    })
+  })
+
   test('photos ride the entry: the gallery opens them, the editor attaches and removes', async ({
     page,
   }) => {

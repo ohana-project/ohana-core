@@ -8,9 +8,10 @@ import type {
 import {
   type CalendarOccurrence,
   eventDateKey,
+  SOON_WINDOW_DAYS,
   upcomingEvents,
 } from '@/features/calendar/calendar-entries.ts'
-import { formatDateOnly } from '@/lib/calendar-dates.ts'
+import { daysBetweenDateKeys, formatDateOnly } from '@/lib/calendar-dates.ts'
 
 /*
  * The wishlist's read-side derivation (issue #18): pure selection over the
@@ -156,8 +157,9 @@ export function reservationFor(
  */
 
 /** How far ahead the overview looks for birthdays: a month of lead time
- *  to pick a gift and reserve it quietly. */
-export const BIRTHDAY_SOON_DAYS = 30
+ *  to pick a gift and reserve it quietly — the product's one «скоро»
+ *  window (SOON_WINDOW_DAYS), which the home's event pill shares. */
+export const BIRTHDAY_SOON_DAYS = SOON_WINDOW_DAYS
 
 const BIRTHDAY_TITLE_WORDS = ['день рождения', 'birthday'] as const
 
@@ -191,14 +193,6 @@ function titleNamesMember(title: string, name: string): boolean {
   return words.some((word) => word.startsWith(stem))
 }
 
-/** The device-local days from one day key to the other: the keys are
- *  zoneless wall dates, so the difference is whole days by construction. */
-function daysBetweenKeys(fromKey: string, toKey: string): number {
-  const from = Date.parse(`${fromKey}T00:00:00Z`)
-  const to = Date.parse(`${toKey}T00:00:00Z`)
-  return Math.round((to - from) / 86_400_000)
-}
-
 /**
  * Each active member's nearest birthday inside the month ahead, by member
  * id: a calendar event whose title carries a birthday word and begins the
@@ -220,7 +214,7 @@ export function nearBirthdays(
   for (const occurrence of upcomingEvents(events, now)) {
     const dayKey = eventDateKey(occurrence)
     if (dayKey === undefined) continue
-    const daysUntil = daysBetweenKeys(todayKey, dayKey)
+    const daysUntil = daysBetweenDateKeys(todayKey, dayKey)
     // A day key the wall calendar cannot place (a malformed stored date
     // parses to NaN) or one already passing is no birthday ahead.
     if (!(daysUntil >= 0) || daysUntil > BIRTHDAY_SOON_DAYS) continue

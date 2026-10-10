@@ -237,11 +237,13 @@
     "draftsLatest": "Last edited: “{title}”",
     "draftsHint": "Drafts are visible only to you. Publish one and the whole family sees it.",
     "draftsTitle": "My drafts",
+    "draftsTopBarTitle": "Drafts",
     "draftsSubtitle": "Only you see them. Publish one and the whole family sees it.",
     "draftsEmptyTitle": "No drafts",
     "draftsEmptyText": "Start an entry and save it — it will wait here for publication.",
     "draftsPrivacyNote": "Drafts live on your device and on the server — the family sees none of them until publication.",
     "draftEditedAt": "edited {moment}",
+    "draftPhotos": "{count, plural, one {# photo uploaded} other {# photos uploaded}}",
     "continueEditing": "Continue",
     "publish": "Publish",
     "publishNow": "Publish now",
@@ -513,7 +515,8 @@
       "eventsSection": "Upcoming events",
       "eventsLink": "The whole calendar",
       "eventsEmpty": "Events will appear here — birthdays, doctors, dinners.",
-      "membersSection": "Members",
+      "soonPill": "Soon",
+      "wishlistsLink": "Open the wishlists",
       "signOut": "Sign out",
       "signOutFailed": "Signing out did not work — check the network and try again."
     }

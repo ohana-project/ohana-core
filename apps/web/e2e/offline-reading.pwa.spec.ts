@@ -109,9 +109,11 @@ test('the space opens offline from the data the sync brought', async ({ page, co
 
   await page.goto('/')
   // The first sync runs from revision 0 and lands: the home renders the
-  // space and its members from the local store.
+  // space from the local store — its sections and, through the shell, its
+  // members (issue #65 removed the home's own members block; the member
+  // data rides the shell's count line).
   await expect(page.getByRole('heading', { name: /Аня Смирнова/ })).toBeVisible()
-  await expect(page.getByText('Миша')).toBeVisible()
+  await expect(page.getByText('2 участника · вы владелец')).toBeVisible()
   await expect(page.locator('[data-slot="sync-status"]').first()).toHaveAttribute(
     'data-state',
     'synced',
@@ -135,7 +137,9 @@ test('the space opens offline from the data the sync brought', async ({ page, co
   // the sidebar's switcher and the home's top-bar title both carry the
   // space name since issue #62
   await expect(page.getByText('Наша семья').first()).toBeVisible()
-  await expect(page.getByText('Миша')).toBeVisible()
+  // the members ride the shell's count line since issue #65 removed the
+  // home's own members block
+  await expect(page.getByText('2 участника · вы владелец')).toBeVisible()
   await expect(page.getByText('Свежее в дневнике')).toBeVisible()
   await expect(page.locator('[data-slot="sync-status"]').first()).toHaveAttribute(
     'data-state',

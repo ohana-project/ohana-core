@@ -230,10 +230,10 @@ test.describe('member sign-in by access code', () => {
     await expect(page.getByText('Свежее в дневнике')).toBeVisible()
     await expect(page.getByText('Ближайшие события')).toBeVisible()
 
-    // The members of the space are visible with their roles.
-    await expect(page.getByText('Участники')).toBeVisible()
-    await expect(page.getByText('anya@example.com')).toBeVisible()
-    await expect(page.getByText('Дима')).toBeVisible()
+    // The partition's members reach the screen through the shell's count
+    // line: issue #65 removed the home's own members block, and the home
+    // follows the prototype's two columns.
+    await expect(page.getByText('2 участника · вы владелец')).toBeVisible()
   })
 
   test('a member that is already onboarded goes straight home', async ({ page }) => {

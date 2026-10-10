@@ -1,5 +1,11 @@
 import type { StoredCalendarEvent, StoredMemberProfile } from '@/data/local-store.ts'
-import { formatDateOnly, localDateKey, shiftDateKey } from '@/lib/calendar-dates.ts'
+import {
+  daysBetweenDateKeys,
+  formatDateOnly,
+  localDateKey,
+  shiftDateKey,
+  todayDateOnly,
+} from '@/lib/calendar-dates.ts'
 import { expandEvent, isRecurring } from './recurrence.ts'
 
 /*
@@ -59,6 +65,27 @@ export function calendarOccurrences(
 /** How far ahead the agenda looks (issue #21): a repeating series is
  *  unbounded, so the agenda asks for a season, not for ever. */
 export const AGENDA_WINDOW_DAYS = 60
+
+/**
+ * How far ahead the home's «скоро» pill reaches (issue #65): the month of
+ * lead time the wishlists overview's birthday window keeps (issue #66) —
+ * the prototype's demo birthday sits three weeks inside it. One product
+ * window behind both «скоро» marks.
+ */
+export const SOON_WINDOW_DAYS = 30
+
+/**
+ * The device-local whole days from `now`'s day to an occurrence's day: 0
+ * for today, negative for a day already passing. Undefined when the
+ * occurrence names no day a wall calendar can place — such a day is
+ * neither near nor far, and no «скоро» can ride on it.
+ */
+export function daysUntilOccurrence(occurrence: CalendarOccurrence, now: Date): number | undefined {
+  const key = eventDateKey(occurrence)
+  if (key === undefined) return undefined
+  const days = daysBetweenDateKeys(formatDateOnly(todayDateOnly(now)), key)
+  return Number.isNaN(days) ? undefined : days
+}
 
 /**
  * Where an occurrence row leads: its series' event screen at the
