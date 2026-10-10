@@ -1,9 +1,8 @@
+import type { Locale } from '@ohana/i18n'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { StoredJournalEntry } from '@/data/local-store.ts'
-import { hueFromId, monogramOf } from '@/lib/monogram.ts'
-import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
+import { formatMonthTitle } from '@/lib/calendar-dates.ts'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { CountBadge } from '@/ui/count-badge.tsx'
@@ -17,21 +16,22 @@ import {
   authorName,
   entryDay,
   entryExcerpt,
-  entryTimestamp,
+  entryMonthGroups,
   journalDrafts,
   journalFeed,
 } from './journal-entries.ts'
-import { EntryPhotoStrip } from './journal-photos.tsx'
+import { EntryCard } from './journal-entry-card.tsx'
 import { JournalShell } from './journal-shell.tsx'
-import { useJournalData } from './use-journal.ts'
+import { useJournalData, useTrash } from './use-journal.ts'
 
 /*
  * The shared journal feed (docs/design/screens/diary.html): the space's
- * published entries, newest first, every row naming its author, paginated
- * for reading. The feed answers from the member's synchronised partition
- * (issue #14), so it reads the same online and offline (ADR-0002); the
- * page size mirrors the API's feed contract (issue #15). Beside it, the
- * member's own corner: the drafts only they see.
+ * published entries, newest first, grouped under the prototype's sticky
+ * month labels, every row naming its author, paginated for reading. The
+ * feed answers from the member's synchronised partition (issue #14), so
+ * it reads the same online and offline (ADR-0002); the page size mirrors
+ * the API's feed contract (issue #15). Beside it, the member's own
+ * corner: the drafts only they see.
  */
 
 const PAGE_SIZE = 20
@@ -44,7 +44,18 @@ export function JournalScreen() {
 
   const feed = journalFeed(entries)
   const drafts = journalDrafts(entries)
-  const visible = feed.slice(0, visibleCount)
+  // The page counts entries, but a month is never split across its label:
+  // the groups come from the whole feed and each takes what the page still
+  // has room for, so a month longer than a page keeps its one label
+  // instead of printing it again above the continuation.
+  let pageRoom = visibleCount
+  const pageGroups = entryMonthGroups(feed)
+    .map((group) => {
+      const entries = group.entries.slice(0, Math.max(pageRoom, 0))
+      pageRoom -= entries.length
+      return { ...group, entries }
+    })
+    .filter((group) => group.entries.length > 0)
   // The corner is there for every downloaded section: the drafts item
   // counts the drafts only when there are any, and the trash item is the
   // way back to whatever was removed (issue #16). While the journal's
@@ -60,17 +71,20 @@ export function JournalScreen() {
   )
 
   return (
-    <JournalShell
-      title={t('journal.title')}
-      desktopActions={newEntry}
-      width={showAside ? 'wide' : 'default'}
-    >
+    // The prototype's `.content` default width: diary.html carries no
+    // content-wide, unlike the calendar's own screen.
+    <JournalShell title={t('journal.title')} desktopActions={newEntry}>
+      {/* The prototype's `.diary-grid`: one column 12px apart on a phone,
+          the 1.6fr / 1fr split with the 32px gap from 920px. */}
       <div
         className={
-          showAside ? 'grid gap-8 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:items-start' : 'pt-6'
+          showAside
+            ? 'grid gap-3 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:gap-8 desktop:items-start'
+            : 'pt-6'
         }
       >
-        <div className="flex min-w-0 flex-col gap-4">
+        {/* The prototype's `.diary-main`: the feed's 12px column. */}
+        <div className="flex min-w-0 flex-col gap-3">
           {snapshot.isPending ? (
             <div className="grid place-items-center py-10">
               <Spinner className="size-6" />
@@ -85,33 +99,52 @@ export function JournalScreen() {
                 <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
               </Empty>
             </Card>
-          ) : visible.length === 0 ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="book" />
-                </EmptyMedia>
-                <EmptyTitle>{t('journal.feedEmptyTitle')}</EmptyTitle>
-                <EmptyDescription>{t('journal.feedEmptyText')}</EmptyDescription>
-                <EmptyContent>
-                  <Button onClick={() => void navigate({ to: '/journal/new' })}>
-                    <Icon name="plus" />
-                    {t('journal.writeFirst')}
-                  </Button>
-                </EmptyContent>
-              </Empty>
-            </Card>
+          ) : feed.length === 0 ? (
+            // The prototype's empty state stands bare (README "Cards"): no
+            // card around it, its button below the text.
+            <Empty className="py-14">
+              <EmptyMedia>
+                <Icon name="book" />
+              </EmptyMedia>
+              <EmptyTitle>{t('journal.feedEmptyTitle')}</EmptyTitle>
+              <EmptyDescription>{t('journal.feedEmptyText')}</EmptyDescription>
+              <EmptyContent>
+                <Button onClick={() => void navigate({ to: '/journal/new' })}>
+                  <Icon name="plus" />
+                  {t('journal.writeFirst')}
+                </Button>
+              </EmptyContent>
+            </Empty>
           ) : (
             <>
-              {visible.map((entry) => (
-                <FeedCard
-                  key={entry.id}
-                  entry={entry}
-                  author={authorName(entry.authorId, profiles, t('journal.authorUnknown'))}
-                  locale={i18n.language}
-                />
+              {pageGroups.map((group) => (
+                // The prototype's `.diary-main` is one flex column, so the
+                // month's pieces flow in it with the same 12px gap — a
+                // section that stacked as plain blocks would let the label's
+                // negative margin collapse and overlap its first card.
+                <section
+                  key={`${group.year}-${group.month}`}
+                  className="flex min-w-0 flex-col gap-3"
+                >
+                  {/* The prototype's `.month-label`: sticky under the top
+                      bar, mono 12px, a trailing hairline; the negative
+                      margins cancel the column's 12px gap, the padding
+                      gives the label its own space. */}
+                  <p className="sticky top-[var(--topbar-h)] z-5 -my-3 flex items-center gap-3 bg-background pt-[22px] pb-2.5 font-mono text-[12px] tracking-[0.08em] text-muted-foreground uppercase">
+                    {formatMonthTitle(group.year, group.month, i18n.language as Locale)}
+                    <span aria-hidden="true" className="flex-1 border-t border-border" />
+                  </p>
+                  {group.entries.map((entry) => (
+                    <EntryCard
+                      key={entry.id}
+                      entry={entry}
+                      author={authorName(entry.authorId, profiles, t('journal.authorUnknown'))}
+                      locale={i18n.language}
+                    />
+                  ))}
+                </section>
               ))}
-              {feed.length > visible.length && (
+              {feed.length > visibleCount && (
                 <Button
                   variant="secondary"
                   onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
@@ -124,12 +157,14 @@ export function JournalScreen() {
         </div>
 
         {showAside && (
-          <aside className="flex flex-col gap-3 desktop:sticky desktop:top-20">
-            <SectionHeader title={t('journal.onlyForYou')} />
-            <Card className="py-0">
+          <aside className="flex min-w-0 flex-col gap-3 desktop:sticky desktop:top-[calc(var(--topbar-h)+24px)]">
+            <SectionHeader title={t('journal.onlyForYou')} className="my-1.5" />
+            {/* The prototype's `.card.list`: rows flush, the corners clip
+                them; the rows at the prototype's inline 60px (`md`). */}
+            <Card variant="list">
               <ItemGroup>
                 {drafts.length > 0 && (
-                  <Item size="lg" render={<Link to="/journal/drafts" />}>
+                  <Item size="md" render={<Link to="/journal/drafts" />}>
                     <ItemMedia variant="icon">
                       <Icon name="file-text" />
                     </ItemMedia>
@@ -146,19 +181,11 @@ export function JournalScreen() {
                     <Icon name="chevron-right" className="text-muted-foreground" />
                   </Item>
                 )}
-                <Item size="lg" render={<Link to="/journal/trash" />}>
-                  <ItemMedia variant="icon" tone="danger">
-                    <Icon name="trash" />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{t('journal.myTrash')}</ItemTitle>
-                    <ItemDescription>{t('journal.trashHint')}</ItemDescription>
-                  </ItemContent>
-                  <Icon name="chevron-right" className="text-muted-foreground" />
-                </Item>
+                <TrashRow />
               </ItemGroup>
             </Card>
-            <p className="px-1 text-meta text-muted-foreground">{t('journal.draftsHint')}</p>
+            {/* The prototype's note: the sm size (13.5px), inset 4px. */}
+            <p className="px-1 text-sm text-muted-foreground">{t('journal.draftsHint')}</p>
           </aside>
         )}
       </div>
@@ -171,37 +198,47 @@ export function JournalScreen() {
   )
 }
 
-function FeedCard({
-  entry,
-  author,
-  locale,
-}: {
-  entry: StoredJournalEntry
-  author: string
-  locale: string
-}) {
-  const title = entry.title ?? entryExcerpt(entry.text, 60)
+/*
+ * The corner's trash row (docs/design/screens/diary.html). The trash is
+ * online-only data (issue #16) — a trashed entry has left every device's
+ * synchronised partition — so the count badge and the dated line are the
+ * server's answer, never a local claim: until the trash list has answered
+ * (or where it cannot) the row keeps to what is always true, the generic
+ * hint. The date is the earliest one, the prototype's «записи удалятся
+ * окончательно …» line.
+ */
+function TrashRow() {
+  const { t, i18n } = useTranslation()
+  const trash = useTrash()
+  const rows = trash.data?.entries
+  const purgeAt =
+    rows === undefined
+      ? undefined
+      : rows
+          .map((row) => row.purgeAt)
+          .filter((date): date is string => date !== undefined)
+          .sort()
+          .at(0)
   return (
-    <Link to="/journal/$entryId" params={{ entryId: entry.id }} className="block">
-      <Card hoverable>
-        <div className="flex items-center gap-2.5">
-          <Avatar size="sm" hue={hueFromId(entry.authorId)}>
-            <AvatarFallback>{monogramOf(author)}</AvatarFallback>
-          </Avatar>
-          <div className="flex min-w-0 flex-col">
-            <span className="text-sm font-semibold">{author}</span>
-            <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
-              {entryDay(entryTimestamp(entry), locale)}
-            </span>
-          </div>
-        </div>
-        <h3 className="text-h2">{title}</h3>
-        <p className="line-clamp-3 text-sm text-muted-foreground">{entryExcerpt(entry.text)}</p>
-        {/* The card's photo strip (docs/design/screens/diary.html): the
-            worker's previews, cached by the service worker as they are
-            viewed — never the originals (issue #17). */}
-        <EntryPhotoStrip entry={entry} />
-      </Card>
-    </Link>
+    <Item size="md" render={<Link to="/journal/trash" />}>
+      <ItemMedia variant="icon" tone="danger">
+        <Icon name="trash" />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          {t('journal.myTrash')}{' '}
+          {rows !== undefined && rows.length > 0 && <CountBadge>{rows.length}</CountBadge>}
+        </ItemTitle>
+        <ItemDescription>
+          {purgeAt !== undefined
+            ? t('journal.trashPurgeHint', {
+                count: rows?.length ?? 0,
+                date: entryDay(purgeAt, i18n.language),
+              })
+            : t('journal.trashHint')}
+        </ItemDescription>
+      </ItemContent>
+      <Icon name="chevron-right" className="text-muted-foreground" />
+    </Item>
   )
 }
