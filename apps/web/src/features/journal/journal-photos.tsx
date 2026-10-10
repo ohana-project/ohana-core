@@ -462,8 +462,10 @@ export function EntryPhotoEditor({
       toast(t('journal.errors.image_limit_reached'), 'danger')
       return
     }
-    const placeholders = chosen.map((file) => ({
-      key: `${file.name}:${file.size}:${Date.now()}`,
+    // The key carries the pick's index: two identical files in one pick
+    // would otherwise share a name, a size and this very millisecond.
+    const placeholders = chosen.map((file, fileIndex) => ({
+      key: `${file.name}:${file.size}:${Date.now()}:${fileIndex}`,
       preview: URL.createObjectURL(file),
       progress: 0,
     }))
@@ -599,7 +601,7 @@ function UploadOverlay({ fraction, label }: { fraction: number; label: string })
     <div
       role="status"
       aria-label={label}
-      className="absolute inset-0 grid place-items-center bg-black/45"
+      className="pointer-events-none absolute inset-0 grid place-items-center bg-black/45"
     >
       <div
         className="size-[46px] rounded-full [-webkit-mask:radial-gradient(farthest-side,transparent_calc(100%_-_3.5px),black_calc(100%_-_3px))][mask:radial-gradient(farthest-side,transparent_calc(100%_-_3.5px),black_calc(100%_-_3px))][background:conic-gradient(white_calc(var(--p)*1%),color-mix(in_oklch,white_28%,transparent)_0)]"
