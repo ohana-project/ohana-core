@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import type { StoredCalendarEvent } from '@/data/local-store.ts'
+import { BIRTHDAY_SOON_DAYS } from '@/features/wishlist/wishlist-entries.ts'
 import {
   AGENDA_WINDOW_DAYS,
   calendarOccurrences,
+  daysUntilOccurrence,
   eventDateKey,
   eventsByDate,
+  SOON_WINDOW_DAYS,
   upcomingEvents,
 } from './calendar-entries.ts'
 
@@ -181,5 +184,33 @@ describe('the agenda’s season bound holds for timed series too (review round t
     expect(keys.every((key) => key <= '2026-12-04')).toBe(true)
     expect(keys).toContain('2026-12-04')
     expect(keys).not.toContain('2026-12-05')
+  })
+})
+
+describe('the soon window the home’s pill reads (issue #65)', () => {
+  test('the window is the wishlists overview’s month of lead time', () => {
+    // One product window behind both «скоро» marks: the home's pill and
+    // the wishlists overview's birthday pill cannot drift apart.
+    expect(SOON_WINDOW_DAYS).toBe(30)
+    expect(BIRTHDAY_SOON_DAYS).toBe(SOON_WINDOW_DAYS)
+  })
+
+  test('daysUntilOccurrence counts whole device-local days from now', () => {
+    // NOW is 2026-10-05 at noon UTC; the device is UTC, so the all-day
+    // keys read plainly.
+    expect(daysUntilOccurrence(stored({ date: '2026-10-05' }), NOW)).toBe(0)
+    expect(daysUntilOccurrence(stored({ date: '2026-10-15' }), NOW)).toBe(10)
+    expect(daysUntilOccurrence(stored({ date: '2026-10-04' }), NOW)).toBe(-1)
+    // A timed event counts from the day its start falls on, wherever the
+    // hour sits.
+    expect(
+      daysUntilOccurrence(
+        stored({ allDay: false, date: undefined, startsAt: '2026-10-07T21:00:00.000Z' }),
+        NOW,
+      ),
+    ).toBe(2)
+    // An event no wall calendar can place has no days-until at all.
+    expect(daysUntilOccurrence(stored({ date: '2026-13-40' }), NOW)).toBeUndefined()
+    expect(daysUntilOccurrence(stored({ allDay: false, date: undefined }), NOW)).toBeUndefined()
   })
 })
