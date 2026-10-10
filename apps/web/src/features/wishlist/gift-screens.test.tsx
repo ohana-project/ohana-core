@@ -371,7 +371,9 @@ describe('the wishlists overview favorites card (issue #19)', () => {
     mockQuietSync()
     renderWithProviders(<WishlistsScreen />)
 
-    expect(await screen.findByText('Избранные идеи')).toBeInTheDocument()
+    // The row title the prototype carries (issue #66): «Мои избранные
+    // идеи», led by the bare accent heart.
+    expect(await screen.findByText('Мои избранные идеи')).toBeInTheDocument()
     expect(screen.getByText('1 идея · видно только вам')).toBeInTheDocument()
   })
 })
