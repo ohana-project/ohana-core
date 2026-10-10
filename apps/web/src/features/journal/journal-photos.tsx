@@ -1,6 +1,6 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { useQuery } from '@tanstack/react-query'
-import { type RefObject, useRef, useState } from 'react'
+import { type CSSProperties, type RefObject, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError, extractErrorCode } from '@/data/api-error.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage } from '@/data/local-store.ts'
@@ -407,16 +407,19 @@ function PhotoLightbox({
  * saved entry asks the screen for one first — the editor creates the draft,
  * the way its publish-after-create already does (issue #15). Uploads go
  * through the API; the entry with its longer photo list comes back through
- * the sync, never through a hand-patched cache.
+ * the sync, never through a hand-patched cache. The upload's real progress
+ * rides the ring on the placeholder chip (issue #71).
  */
 
 /** How many photos one entry may carry — the API enforces the same bound. */
 export const MAX_PHOTOS_PER_ENTRY = 12
 
 interface PendingPhoto {
-  /** The picker's own object URL, shown greyed while the upload runs. */
+  /** The picker's own object URL, shown under the ring while uploading. */
   key: string
   preview: string
+  /** The share of the bytes the request has sent so far, 0–1. */
+  progress: number
 }
 
 export function EntryPhotoEditor({
@@ -436,22 +439,35 @@ export function EntryPhotoEditor({
   const [pending, setPending] = useState<PendingPhoto[]>([])
   const [removing, setRemoving] = useState<string[]>([])
 
+  const setProgress = (key: string, progress: number) => {
+    setPending((current) =>
+      current.map((photo) => (photo.key === key ? { ...photo, progress } : photo)),
+    )
+  }
+
   const onPick = async (files: FileList | null) => {
     if (files === null || files.length === 0) return
+    // The picker's own copy first: the change handler resets the input's
+    // value as soon as we return, and a browser empties its FileList with
+    // it — while the draft below may still be in flight.
+    const picked = Array.from(files)
     // The photos need an entry: an existing one, or one the screen creates
     // for the occasion — null means it could not, and the pick is dropped.
     const ensured: string | null = entryId ?? (await onNeedEntry())
     if (ensured === null) return
     const targetId: string = ensured
     const slotsLeft = MAX_PHOTOS_PER_ENTRY - images.length - pending.length
-    const chosen = Array.from(files).slice(0, Math.max(slotsLeft, 0))
+    const chosen = picked.slice(0, Math.max(slotsLeft, 0))
     if (chosen.length === 0) {
       toast(t('journal.errors.image_limit_reached'), 'danger')
       return
     }
-    const placeholders = chosen.map((file) => ({
-      key: `${file.name}:${file.size}:${Date.now()}`,
+    // The key carries the pick's index: two identical files in one pick
+    // would otherwise share a name, a size and this very millisecond.
+    const placeholders = chosen.map((file, fileIndex) => ({
+      key: `${file.name}:${file.size}:${Date.now()}:${fileIndex}`,
       preview: URL.createObjectURL(file),
+      progress: 0,
     }))
     setPending((current) => [...current, ...placeholders])
 
@@ -460,7 +476,7 @@ export function EntryPhotoEditor({
       const placeholder = placeholders[index]
       if (file === undefined || placeholder === undefined) continue
       try {
-        await uploadEntryImage(targetId, file)
+        await uploadEntryImage(targetId, file, (fraction) => setProgress(placeholder.key, fraction))
         setPending((current) => current.filter((candidate) => candidate.key !== placeholder.key))
         await triggerSync()
       } catch (cause) {
@@ -492,6 +508,8 @@ export function EntryPhotoEditor({
   return (
     <div>
       <div className="mb-2.5 flex items-center justify-between">
+        {/* the prototype's own h2 size on the section (diary-editor.html:
+            an h2 at its 16px) — the serif face comes with the element */}
         <h2 className="text-[16px] font-semibold">{t('journal.photosTitle')}</h2>
         <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
           {t('journal.photoCounter', {
@@ -500,11 +518,15 @@ export function EntryPhotoEditor({
           })}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2 tablet:grid-cols-4">
+      {/* the prototype's .photo-grid at the editor's own override: four
+          columns at every width, 8px gaps, 14px above (the build's old
+          `tablet:` variant was never a breakpoint of this app and made
+          no rule at all — issue #71's "no undefined breakpoint variants") */}
+      <div className="mt-3.5 grid grid-cols-4 gap-2">
         {images.map((image) => (
           <div key={image.id} className="relative">
             {removing.includes(image.id) ? (
-              <div className="grid aspect-square place-items-center rounded-lg bg-muted">
+              <div className="grid aspect-square place-items-center rounded-md bg-muted">
                 <Spinner className="size-5 text-muted-foreground" />
               </div>
             ) : entryId !== undefined ? (
@@ -516,37 +538,44 @@ export function EntryPhotoEditor({
             ) : (
               // Photos only exist on a saved entry; a chip without an
               // entry to fetch from has nothing to show.
-              <div className="aspect-square w-full rounded-lg bg-muted" />
+              <div className="aspect-square w-full rounded-md bg-muted" />
             )}
           </div>
         ))}
-        {pending.map((placeholder) => (
-          <div key={placeholder.key} className="relative">
-            <img
-              src={placeholder.preview}
-              alt=""
-              className="aspect-square w-full rounded-lg object-cover opacity-60"
-            />
-            <div className="absolute inset-0 grid place-items-center">
-              <Spinner className="size-5" />
-            </div>
+        {pending.map((photo) => (
+          <div
+            key={photo.key}
+            className="relative aspect-square overflow-hidden rounded-md bg-muted"
+          >
+            <img src={photo.preview} alt="" className="h-full w-full object-cover" />
+            {/* the prototype's .chip-prog: the dark plate over the photo
+                with the ring and its percentage while the bytes travel */}
+            <UploadOverlay fraction={photo.progress} label={t('journal.photoUploading')} />
           </div>
         ))}
         {(images.length + pending.length < MAX_PHOTOS_PER_ENTRY || entryId === undefined) && (
+          // the prototype's .attach-tile: dashed 1.5px, accent on hover,
+          // the 22px camera; a real button carries the keyboard the
+          // prototype's script re-implemented on a label
           <button
             type="button"
-            className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed text-sm text-muted-foreground hover:bg-muted"
+            className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border-[1.5px] border-dashed border-[color-mix(in_oklch,var(--fg)_25%,var(--border))] text-meta text-muted-foreground transition-colors duration-(--t-fast) ease-(--ease) hover:border-primary hover:bg-primary-soft hover:text-primary"
             onClick={() => inputRef.current?.click()}
           >
-            <Icon name="camera" className="size-5" />
+            <Icon name="camera" className="size-[22px]" />
             {t('journal.addPhoto')}
+            {/* The picker itself stays out of the accessibility tree: the
+                button is the one control named «Добавить» — a labelled
+                input inside it would announce the name twice and stay a
+                second, invisible tab stop. */}
             <input
               ref={inputRef}
               type="file"
               accept="image/*"
               multiple
               className="sr-only"
-              aria-label={t('journal.addPhoto')}
+              aria-hidden="true"
+              tabIndex={-1}
               onChange={(event) => {
                 void onPick(event.target.files)
                 event.target.value = ''
@@ -556,6 +585,31 @@ export function EntryPhotoEditor({
         )}
       </div>
       <p className="mt-2.5 text-sm text-muted-foreground">{t('journal.photosHint')}</p>
+    </div>
+  )
+}
+
+/**
+ * The prototype's `.chip-prog` and `.chip-ring`: a dark plate over the
+ * uploading photo, the conic ring of the progress over its white 28%
+ * track cut to the prototype's 3.5px band, and the mono percentage over
+ * the centre.
+ */
+function UploadOverlay({ fraction, label }: { fraction: number; label: string }) {
+  const percent = Math.min(100, Math.max(0, Math.round(fraction * 100)))
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      className="pointer-events-none absolute inset-0 grid place-items-center bg-black/45"
+    >
+      <div
+        className="size-[46px] rounded-full [-webkit-mask:radial-gradient(farthest-side,transparent_calc(100%_-_3.5px),black_calc(100%_-_3px))][mask:radial-gradient(farthest-side,transparent_calc(100%_-_3.5px),black_calc(100%_-_3px))][background:conic-gradient(white_calc(var(--p)*1%),color-mix(in_oklch,white_28%,transparent)_0)]"
+        style={{ '--p': percent } as CSSProperties}
+      />
+      <span className="col-start-1 row-start-1 font-mono text-meta font-medium text-white">
+        {percent}%
+      </span>
     </div>
   )
 }
@@ -571,28 +625,32 @@ function EditorChip({
 }) {
   const { t } = useTranslation()
   const preview = useEntryImageUrl(entryId, image.id, 'feed', image.state === 'ready')
-  if (image.state !== 'ready' || preview.data === undefined) {
-    return (
-      <div className="grid aspect-square w-full place-items-center rounded-lg bg-muted">
-        {image.state === 'processing' ? (
-          <Spinner className="size-5 text-muted-foreground" />
-        ) : (
-          <Icon name="image" className="size-5 text-muted-foreground" />
-        )}
-      </div>
-    )
-  }
   return (
-    <div className="relative">
-      <img src={preview.data} alt="" className="aspect-square w-full rounded-lg object-cover" />
-      <button
-        type="button"
-        className="absolute end-1.5 top-1.5 grid size-7 place-items-center rounded-full bg-black/55 text-white"
-        onClick={onRemove}
-        aria-label={t('journal.removePhoto')}
-      >
-        <Icon name="x" />
-      </button>
+    // the prototype's .photo-chip: square, the medium radius, the photo
+    // filling it through the clip
+    <div className="relative aspect-square overflow-hidden rounded-md bg-muted">
+      {image.state !== 'ready' || preview.data === undefined ? (
+        <div className="grid h-full w-full place-items-center">
+          {image.state === 'processing' ? (
+            <Spinner className="size-5 text-muted-foreground" />
+          ) : (
+            <Icon name="image" className="size-5 text-muted-foreground" />
+          )}
+        </div>
+      ) : (
+        <img src={preview.data} alt="" className="h-full w-full object-cover" />
+      )}
+      {image.state === 'ready' && preview.data !== undefined && (
+        // the prototype's .chip-remove: the 26px round on the corner
+        <button
+          type="button"
+          className="absolute top-1.5 end-1.5 grid size-6.5 place-items-center rounded-full bg-black/55 text-white"
+          onClick={onRemove}
+          aria-label={t('journal.removePhoto')}
+        >
+          <Icon name="x" className="size-3.5" />
+        </button>
+      )}
     </div>
   )
 }

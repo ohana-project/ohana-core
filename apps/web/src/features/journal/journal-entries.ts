@@ -112,6 +112,13 @@ export function entryMoment(iso: string, locale: string): string {
   return formatted.toLocaleLowerCase(locale)
 }
 
+/** The editor's saved-moment line: "19:02" (docs/design/screens/diary-editor.html). */
+export function entryTime(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(
+    new Date(iso),
+  )
+}
+
 /** The first lines of an entry for the feed's excerpt. */
 export function entryExcerpt(text: string, limit = 160): string {
   const singleSpaced = text.replace(/\s+/g, ' ').trim()

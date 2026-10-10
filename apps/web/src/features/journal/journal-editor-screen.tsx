@@ -4,18 +4,17 @@ import { useTranslation } from 'react-i18next'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
+import { ActionBar } from '@/ui/action-bar.tsx'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
-import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/ui/empty.tsx'
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field.tsx'
+import { FieldError } from '@/ui/field.tsx'
 import { Icon } from '@/ui/icon.tsx'
-import { Input } from '@/ui/input.tsx'
+import { Separator } from '@/ui/separator.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
-import { Textarea } from '@/ui/textarea.tsx'
 import { toast } from '@/ui/toast.tsx'
-import { entryById } from './journal-entries.ts'
+import { entryById, entryTime } from './journal-entries.ts'
 import { EntryPhotoEditor } from './journal-photos.tsx'
 import { JournalShell } from './journal-shell.tsx'
 import {
@@ -34,9 +33,15 @@ import {
  * #15), and a published entry keeps its state through the edit. The
  * mutations go to the API; the screens read back through the sync, so the
  * editor returns to the feed instead of patching any cache by hand.
+ *
+ * The page is the prototype's (issue #71): the borderless serif title and
+ * the 16px/1.65 body with their labels kept for assistive technology, the
+ * rule between them, the photo grid with its dashed attach tile — and the
+ * save pair riding the top bar from 920px up and the shared action bar
+ * below it, instead of buttons inline in the content.
  */
 export function JournalEditorScreen({ entryId }: { entryId?: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const session = useMemberSessionStatus()
   const { snapshot, entries, downloaded } = useJournalData()
@@ -131,6 +136,19 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
   }
 
   const editingDraft = existing === undefined || existing.state === 'draft'
+  // The primary's word: a draft publishes, a published entry just saves —
+  // the state has no way back to draft (CONTEXT.md, published entry).
+  const primaryLabel = existing?.state === 'published' ? t('journal.save') : t('journal.publish')
+  const primaryNeedsPublish = existing?.state !== 'published'
+
+  // The saved moment the prototype's «СОХРАНЕНО 19:02» shows: the stored
+  // entry's own last edit. A brand-new entry has none — the indicator
+  // stays absent rather than pretending (docs/design/README.md).
+  const savedTime =
+    existing !== undefined ? entryTime(existing.updatedAt, i18n.language) : undefined
+  // The prototype's «ФОТО: 2 · СИМВОЛОВ: 342» line over the live data.
+  const photoCount = existing?.images?.length ?? 0
+  const charCount = Array.from(effectiveText).length
 
   // The photos attach to an entry (issue #17): on a pick from a not-yet-
   // saved entry, the draft is created first — the same move the editor's
@@ -161,13 +179,61 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
     })
   }
 
+  // The form (and with it the two action carriers) mounts only where the
+  // member can actually edit: none of the loading, offline, not-found and
+  // refused states carries a save.
+  const formReady =
+    !(entryId !== undefined && snapshot.isPending) &&
+    !(entryId !== undefined && existing === undefined) &&
+    !(existing !== undefined && !mine)
+
   return (
     <JournalShell
       title={existing === undefined ? t('journal.editorNewTitle') : t('journal.editorEditTitle')}
       backTo="/journal"
       width="narrow"
+      desktopActions={
+        formReady ? (
+          <>
+            {/* the prototype's top-bar template (diary-editor.html): the
+                meta line, then the small pair. The «ЧЕРНОВИК
+                АВТОСОХРАНЁН» the prototype names is an autosave the app
+                does not have — the line reads the stored edit's own
+                moment, and the photo/character counts ride beside it
+                (docs/design/README.md, the journal editor). */}
+            {savedTime !== undefined && (
+              <span className="shrink-0 font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
+                {t('journal.savedAt', { time: savedTime })}
+              </span>
+            )}
+            <span className="shrink-0 font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
+              {t('journal.photoCharCounter', { photos: photoCount, chars: charCount })}
+            </span>
+            {editingDraft && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={pending || textBlank}
+                onClick={() => save(false)}
+              >
+                {/* the prototype's 16px glyphs on the top-bar pair */}
+                <Icon name="file-text" className="size-4" />
+                {t('journal.saveDraft')}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              disabled={pending || textBlank}
+              onClick={() => save(primaryNeedsPublish)}
+            >
+              {pending ? <Spinner className="size-4" /> : <Icon name="send" className="size-4" />}
+              {primaryLabel}
+            </Button>
+          </>
+        ) : undefined
+      }
     >
-      <div className="flex flex-col gap-5 pt-6 pb-8">
+      <div className="flex flex-col gap-4 pt-6.5">
         {entryId !== undefined && snapshot.isPending ? (
           <div className="grid place-items-center py-10">
             <Spinner className="size-6" />
@@ -201,11 +267,15 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
           </Card>
         ) : (
           <>
-            <div className="flex items-center gap-3">
+            {/* the prototype's author row: the avatar, the «Аня публикует
+                в …» line, the day — the status word where the prototype's
+                «СЕГОДНЯ» stands, an entry being edited already having its
+                state said */}
+            <div className="flex items-start gap-3">
               <Avatar hue={hueFromId(activeId ?? '')}>
                 <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
               </Avatar>
-              <div className="flex min-w-0 flex-col">
+              <div className="flex min-w-0 flex-col pt-1.5">
                 <span className="text-sm font-semibold">
                   {t('journal.publishingAs', {
                     name: displayName,
@@ -213,69 +283,50 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                   })}
                 </span>
                 <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
-                  {editingDraft ? t('journal.editorDraftBadge') : t('journal.editorPublishedBadge')}
+                  {existing === undefined
+                    ? t('journal.editorToday')
+                    : existing.state === 'draft'
+                      ? t('journal.editorDraftBadge')
+                      : t('journal.editorPublishedBadge')}
                 </span>
               </div>
-              {existing?.state === 'draft' && (
-                <Badge variant="warn">{t('journal.draftBadge')}</Badge>
-              )}
             </div>
 
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="journal-entry-title">{t('journal.titleField')}</FieldLabel>
-                <Input
-                  id="journal-entry-title"
-                  value={effectiveTitle}
-                  maxLength={ENTRY_TITLE_MAX_LENGTH}
-                  placeholder={t('journal.editorTitlePlaceholder')}
-                  onChange={(event) => setTitle(event.target.value)}
-                />
-              </Field>
-              <Field data-invalid={(textTouched && textBlank) || undefined}>
-                <FieldLabel htmlFor="journal-entry-text">{t('journal.textField')}</FieldLabel>
-                <Textarea
-                  id="journal-entry-text"
-                  value={effectiveText}
-                  rows={10}
-                  maxLength={ENTRY_TEXT_MAX_LENGTH}
-                  placeholder={t('journal.editorTextPlaceholder')}
-                  onChange={(event) => {
-                    setTextTouched(true)
-                    setText(event.target.value)
-                  }}
-                  aria-describedby={
-                    textTouched && textBlank ? 'journal-entry-text-error' : undefined
-                  }
-                  aria-invalid={(textTouched && textBlank) || undefined}
-                />
-                {textTouched && textBlank ? (
-                  <FieldError id="journal-entry-text-error">{t('journal.textRequired')}</FieldError>
-                ) : (
-                  <FieldDescription>{t('journal.textFieldHint')}</FieldDescription>
-                )}
-              </Field>
-            </FieldGroup>
-
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {editingDraft && (
-                <Button
-                  variant="secondary"
-                  disabled={pending || textBlank}
-                  onClick={() => save(false)}
-                >
-                  <Icon name="file-text" />
-                  {t('journal.saveDraft')}
-                </Button>
-              )}
-              <Button
-                disabled={pending || textBlank}
-                onClick={() => save(existing?.state !== 'published')}
-              >
-                {pending ? <Spinner /> : <Icon name="send" />}
-                {existing?.state === 'published' ? t('journal.save') : t('journal.publish')}
-              </Button>
-            </div>
+            {/* the prototype's fields: the borderless 24px serif title and
+                the 16px/1.65 body, labels kept for assistive technology */}
+            <label className="sr-only" htmlFor="journal-entry-title">
+              {t('journal.titleField')}
+            </label>
+            <input
+              id="journal-entry-title"
+              type="text"
+              value={effectiveTitle}
+              maxLength={ENTRY_TITLE_MAX_LENGTH}
+              placeholder={t('journal.editorTitlePlaceholder')}
+              onChange={(event) => setTitle(event.target.value)}
+              className="w-full border-0 bg-transparent p-0 font-display text-h1 placeholder:text-[color-mix(in_oklch,var(--muted)_55%,transparent)] focus-visible:outline-offset-4"
+            />
+            {/* the prototype's rule between the title and the text */}
+            <Separator />
+            <label className="sr-only" htmlFor="journal-entry-text">
+              {t('journal.textField')}
+            </label>
+            <textarea
+              id="journal-entry-text"
+              value={effectiveText}
+              maxLength={ENTRY_TEXT_MAX_LENGTH}
+              placeholder={t('journal.editorTextPlaceholder')}
+              onChange={(event) => {
+                setTextTouched(true)
+                setText(event.target.value)
+              }}
+              aria-invalid={(textTouched && textBlank) || undefined}
+              aria-describedby={textTouched && textBlank ? 'journal-entry-text-error' : undefined}
+              className="min-h-[200px] w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-[1.65] placeholder:text-[color-mix(in_oklch,var(--muted)_55%,transparent)] focus-visible:outline-offset-4"
+            />
+            {textTouched && textBlank ? (
+              <FieldError id="journal-entry-text-error">{t('journal.textRequired')}</FieldError>
+            ) : null}
 
             {/* The photos (docs/design/screens/diary-editor.html): chips,
                 the add tile, and the «N из 12» counter. The author edits
@@ -286,6 +337,37 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
               images={existing?.images ?? []}
               onNeedEntry={ensureEntryForPhotos}
             />
+
+            {/* The prototype's `.editor-bar` (issue #61): the same pair
+                below 920px, fixed above the tab bar; the member layout
+                reserves its room while it is up. The bar's meta carries
+                the saved moment where the prototype's does, going sr-only
+                below 420px the way the sync chip's text does. */}
+            <ActionBar>
+              {savedTime !== undefined && (
+                <span className="min-w-0 grow truncate font-mono text-[13px] tracking-wide text-muted-foreground uppercase [@media(max-width:419.98px)]:sr-only">
+                  {t('journal.savedAt', { time: savedTime })}
+                </span>
+              )}
+              {editingDraft && (
+                <Button
+                  variant="secondary"
+                  className="min-w-0 px-3"
+                  disabled={pending || textBlank}
+                  onClick={() => save(false)}
+                >
+                  {t('journal.toDrafts')}
+                </Button>
+              )}
+              <Button
+                className="min-w-0 flex-1 px-4.5"
+                disabled={pending || textBlank}
+                onClick={() => save(primaryNeedsPublish)}
+              >
+                {pending ? <Spinner className="size-4" /> : null}
+                {primaryLabel}
+              </Button>
+            </ActionBar>
           </>
         )}
       </div>

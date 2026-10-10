@@ -672,7 +672,10 @@ test.describe('the journal', () => {
       await page.getByRole('button', { name: 'Новая запись' }).first().click()
       await page.getByLabel('Заголовок').fill('Про Бублика')
       await page.getByLabel('Текст записи').fill('Он съел ещё один носок.')
-      await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+      // Below 920px the editor's save pair rides the action bar (issue
+      // #71): the draft is kept through the bar's «В черновики», the
+      // top-bar pair is not displayed at this width.
+      await page.getByRole('button', { name: 'В черновики' }).click()
       await expect(page).toHaveURL(/\/journal$/)
 
       await page.getByText('Мои черновики').click()
@@ -787,6 +790,181 @@ test.describe('the journal', () => {
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       )
       expect(overflow).toBeLessThanOrEqual(0)
+    })
+  })
+})
+
+// The editor's design parity (issue #71, docs/design/screens/diary-editor.html):
+// the borderless serif title and the 16px/1.65 body with the rule between
+// them, the save pair riding the top bar on desktop and the shared action
+// bar on a phone, and the photo grid's four columns with the dashed attach
+// tile — the values read off the prototype stylesheet.
+test.describe('the entry editor, design parity', () => {
+  test('the fields, the rule, and the desktop pair match the prototype', async ({ page }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await expect(page).toHaveURL(/\/journal\/new$/)
+
+    // The title: the h1 step in the display face at its 24px, no border,
+    // no visible label — the label stays for assistive technology.
+    const title = page.getByLabel('Заголовок')
+    await expect(title).toHaveCSS('font-size', '24px')
+    expect(await title.evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Literata')
+    expect(await title.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px')
+    expect(
+      await title.locator('xpath=preceding-sibling::label[1]').getAttribute('class'),
+    ).toContain('sr-only')
+
+    // The body: 16px over the prototype's 1.65, borderless too.
+    const text = page.getByLabel('Текст записи')
+    await expect(text).toHaveCSS('font-size', '16px')
+    await expect(text).toHaveCSS('line-height', '26.4px')
+    expect(await text.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('0px')
+
+    // The rule the prototype draws between the title and the text.
+    await expect(page.locator('main [data-slot="separator"]').first()).toBeVisible()
+
+    // The photo grid: four columns at every width (the prototype's own
+    // inline repeat(4,1fr)), the attach tile dashed at 1.5px — the width
+    // read off the shipped stylesheet, since a used 1.5px border snaps
+    // to whole pixels at this display's density.
+    await page.getByLabel('Текст записи').fill('Собрались за час.')
+    const tile = page.getByRole('button', { name: 'Добавить' })
+    const columns = await tile.evaluate(
+      (el) => getComputedStyle(el.parentElement as Element).gridTemplateColumns,
+    )
+    expect(columns.split(' ')).toHaveLength(4)
+    expect(await tile.evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('dashed')
+    const tileBorderWidth = await tile.evaluate(() => {
+      // The utilities sit inside layer blocks, so the walk recurses.
+      const widthOf = (rules: CSSRuleList): string | undefined => {
+        for (const rule of rules) {
+          if (rule instanceof CSSStyleRule && rule.selectorText.includes('border-\\[1\\.5px\\]')) {
+            return rule.style.borderWidth
+          }
+          if ('cssRules' in rule) {
+            const found = widthOf((rule as CSSLayerBlockRule).cssRules)
+            if (found !== undefined) return found
+          }
+        }
+        return undefined
+      }
+      for (const sheet of document.styleSheets) {
+        const found = widthOf(sheet.cssRules)
+        if (found !== undefined) return found
+      }
+      return undefined
+    })
+    expect(tileBorderWidth).toBe('1.5px')
+
+    // From 920px up the pair sits in the top bar; the phone bar is hidden.
+    await expect(page.locator('[data-slot="action-bar"]')).toBeHidden()
+    await page.getByRole('button', { name: 'Сохранить черновик' }).click()
+    await expect(page).toHaveURL(/\/journal$/)
+  })
+
+  test('the saved moment and the counts ride the top bar once the entry exists', async ({
+    page,
+  }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await page.getByLabel('Заголовок').fill('Про Бублика')
+    await page.getByLabel('Текст записи').fill('Он съел ещё один носок.')
+    await page.getByRole('button', { name: 'Опубликовать' }).click()
+    await expect(page.getByText('Опубликовано в дневнике пространства')).toBeVisible()
+    await expect(page).toHaveURL(/\/journal$/)
+
+    // Reopen the stored entry: the prototype's «СОХРАНЕНО 19:02» line
+    // reads the entry's own last edit in the top bar, and the
+    // photo/character counts ride beside it (23 characters, no photos);
+    // the bar's own copy of the moment stays hidden at this width.
+    await page.getByText('Про Бублика').click()
+    await page.getByRole('button', { name: 'Меню записи' }).click()
+    await page.getByRole('menuitem', { name: 'Редактировать' }).click()
+    await expect(page).toHaveURL(/\/edit$/)
+    await expect(page.getByRole('banner').getByText(/Сохранено \d\d:\d\d/)).toBeVisible()
+    await expect(page.getByText('Фото: 0 · Символов: 23')).toBeVisible()
+  })
+
+  test('photos picked on a not-yet-saved entry reach the draft the editor creates', async ({
+    page,
+  }) => {
+    await mockJournalApi(page)
+
+    await page.goto('/')
+    await page.getByLabel('Код входа').fill(CODE)
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('button', { name: 'Дневник' }).first().click()
+    await page.getByRole('button', { name: 'Новая запись' }).first().click()
+    await expect(page).toHaveURL(/\/journal\/new$/)
+    await page.getByLabel('Текст записи').fill('С фотографией вершины.')
+
+    // The pick on an unsaved entry: the editor creates the draft first,
+    // and the photo — whose FileList the browser emptied the moment the
+    // picker was reset — still lands on it.
+    const uploadPromise = page.waitForRequest(
+      (request) => request.method() === 'POST' && request.url().includes('/images'),
+    )
+    await page.setInputFiles('input[type="file"]', [
+      {
+        name: 'ridge.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      },
+    ])
+    await uploadPromise
+    await expect(page.getByText('1 из 12')).toBeVisible()
+  })
+
+  test.describe('the editor on a phone (issue #71)', () => {
+    test.use({ viewport: { width: 390, height: 844 } })
+
+    test('the same pair rides the action bar and the grid holds four columns', async ({ page }) => {
+      await mockJournalApi(page)
+
+      await page.goto('/')
+      await page.getByLabel('Код входа').fill(CODE)
+      await page.getByRole('button', { name: 'Войти' }).click()
+      await page.getByRole('button', { name: 'Дневник' }).first().click()
+      await page.getByRole('button', { name: 'Новая запись' }).first().click()
+      await expect(page).toHaveURL(/\/journal\/new$/)
+      await page.getByLabel('Текст записи').fill('Собрались за час.')
+
+      // Below 920px the pair lives in the shared action bar — the
+      // prototype's «В черновики» and «Опубликовать» — and the top-bar
+      // pair is not displayed.
+      const bar = page.locator('[data-slot="action-bar"]')
+      await expect(bar.getByRole('button', { name: 'В черновики' })).toBeVisible()
+      await expect(bar.getByRole('button', { name: 'Опубликовать' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Сохранить черновик' })).toBeHidden()
+
+      // Four columns on the phone too, and no horizontal scroll.
+      const tile = page.getByRole('button', { name: 'Добавить' })
+      const columns = await tile.evaluate(
+        (el) => getComputedStyle(el.parentElement as Element).gridTemplateColumns,
+      )
+      expect(columns.split(' ')).toHaveLength(4)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+
+      // The bar's publish reaches the API the same way the top bar's does.
+      await bar.getByRole('button', { name: 'Опубликовать' }).click()
+      await expect(page.getByText('Опубликовано в дневнике пространства')).toBeVisible()
     })
   })
 })
