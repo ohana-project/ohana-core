@@ -7,6 +7,7 @@ import {
   type StoredMemberSession,
 } from '@/data/session-registry.ts'
 import { orderedActiveMembers } from '@/features/member/member-order.ts'
+import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { syncedSnapshotKey } from '@/features/member/use-synced-space.ts'
 import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import type { MemberMark } from '@/ui/shell.ts'
@@ -39,6 +40,11 @@ export function useDeviceSpaces(): DeviceSpace[] {
   const { t } = useTranslation()
   const sessions = listStoredSessions()
   const activeMemberId = getActiveMemberId()
+  // The active member's role is the probe's word — the same source the
+  // sidebar's count line reads (use-member-shell.ts), so the sheet's open
+  // row and the line above it answer "am I the owner" with one word. The
+  // other rows have no probe: their partition's own row is all there is.
+  const { me } = useMemberSessionStatus()
   // One snapshot query per retained sign-in, keyed exactly like the
   // synced-space read: the sync engine's invalidations flow to these rows
   // for free, and a cache the active member's screens already hold is
@@ -77,13 +83,15 @@ export function useDeviceSpaces(): DeviceSpace[] {
       hue: hueFromId(profile.id),
     }))
 
-    // The count line is what the row's own partition has downloaded. Its
-    // owner note reads the space's own row for this member — the synced
-    // truth, the same source the shell's owner badges read; after a role
-    // change it may trail the probe until the sync catches up, as
+    // The count line is what the row's own partition has downloaded. The
+    // owner note follows the probe on the active row (above); after a role
+    // change the other rows may trail until their sync catches up, as
     // documented in use-member-shell.ts.
     const downloaded = snapshot?.revision !== undefined
-    const ownRole = snapshot?.members.find((profile) => profile.id === session.memberId)?.role
+    const ownRole =
+      session.memberId === me?.member.id
+        ? me.member.role
+        : snapshot?.members.find((profile) => profile.id === session.memberId)?.role
     const membersLabel = downloaded
       ? t('layout.spaceSub', {
           count: stacked.length,

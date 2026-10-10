@@ -23,8 +23,14 @@ const navigate = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,
-  Link: (props: { to: string; children?: React.ReactNode }) => (
-    <a href={props.to}>{props.children}</a>
+  Link: (props: {
+    to: string
+    children?: React.ReactNode
+    onClick?: (event: { preventDefault: () => void }) => void
+  }) => (
+    <a href={props.to} onClick={props.onClick}>
+      {props.children}
+    </a>
   ),
   Navigate: () => null,
 }))
@@ -181,6 +187,20 @@ describe('SpacesSheet', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('following «Войти по коду» closes the sheet, not only unmounts it', async () => {
+    // The open state is module store state and outlives the gate's
+    // unmount; the link's press must close it, or the next member screen
+    // mounts with a sheet no one opened.
+    seedRegistry()
+    const user = userEvent.setup()
+    renderWithProviders(<SpacesSheet />)
+    act(() => openSpacesSheet())
+
+    await user.click(screen.getByRole('link', { name: 'Войти по коду' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('signs the active member out behind the prototype’s confirmation', async () => {
     seedRegistry()
     vi.mocked(api.DELETE).mockResolvedValue({
@@ -222,6 +242,7 @@ describe('SpacesSheet', () => {
         screen.queryByRole('button', { name: 'Переключиться на «Наша семья»' }),
       ).not.toBeInTheDocument(),
     )
+    expect(navigate).toHaveBeenCalledWith({ to: '/' })
     expect(screen.getByText('Вы вышли из «Наша семья»')).toBeVisible()
   })
 

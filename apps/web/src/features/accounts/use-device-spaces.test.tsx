@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { api } from '@/data/api.ts'
 import { applySyncResult, type SyncResult } from '@/data/local-store.ts'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { useDeviceSpaces } from './use-device-spaces.ts'
@@ -130,9 +131,9 @@ describe('useDeviceSpaces', () => {
     expect(dacha.querySelector('[data-testid=synced]')).toHaveTextContent('never')
   })
 
-  it('the count line’s owner note follows the row’s own partition, not the probe', async () => {
-    // The active member here is a regular one; the partition agrees. The
-    // line must never claim ownership the space does not.
+  it('a regular viewer’s line carries no owner note', async () => {
+    // The probe (offline, from the partition's own row) and the partition
+    // agree: Аня is regular here, the line must not dress her as owner.
     seedRegistry()
     await applySyncResult(
       ANYA,
@@ -147,6 +148,47 @@ describe('useDeviceSpaces', () => {
       expect(
         screen.getByTestId('Наша семья').querySelector('[data-testid=label]'),
       ).toHaveTextContent(/^2 участника$/),
+    )
+  })
+
+  it('the active row’s owner note follows the probe, like the sidebar’s line', async () => {
+    // The probe says owner while the downloaded partition still says
+    // regular: the sheet's open row and the sidebar's line answer "am I
+    // the owner" with one word (use-member-shell.ts), so the note stays.
+    seedRegistry()
+    vi.mocked(api.GET).mockImplementation(async (path: never) => {
+      if (path === '/api/v1/me') {
+        return {
+          data: {
+            member: {
+              id: ANYA,
+              name: 'Аня',
+              displayName: 'Аня Смирнова',
+              role: 'owner',
+              createdAt: '2026-08-12T10:00:00.000Z',
+            },
+            space: { id: FAMILY_ID, name: 'Наша семья' },
+            needsOnboarding: false,
+          },
+          error: undefined,
+          response: new Response(null, { status: 200 }),
+        }
+      }
+      throw new Error(`Unexpected GET ${String(path)}`)
+    })
+    await applySyncResult(
+      ANYA,
+      syncResultWith([
+        member(DIMA, 'Дима', 'owner', '2026-08-12T10:00:00.000Z'),
+        member(ANYA, 'Аня', 'regular', '2026-08-13T10:00:00.000Z'),
+      ]),
+    )
+    renderWithProviders(<Probe />)
+
+    await vi.waitFor(() =>
+      expect(
+        screen.getByTestId('Наша семья').querySelector('[data-testid=label]'),
+      ).toHaveTextContent('2 участника · вы владелец'),
     )
   })
 

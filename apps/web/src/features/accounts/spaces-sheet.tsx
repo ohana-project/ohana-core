@@ -97,6 +97,10 @@ export function SpacesSheet() {
         setSignOutOpen(false)
         setSpacesSheetOpen(false)
         toast(t('accounts.signedOut', { space: active.session.spaceName }))
+        // Leaving is also leaving the screen: the route may be a deep one
+        // of the departed member's space, and the next sign-in must not
+        // inherit it — the same reason the switch navigates home.
+        void navigate({ to: '/' })
       },
       onError: () => toast(t('accounts.signOutFailed'), 'danger'),
     })
@@ -147,7 +151,10 @@ export function SpacesSheet() {
           </ItemGroup>
         </Card>
         <div className="flex flex-col gap-2">
-          <Button variant="secondary" render={<Link to="/signin" />}>
+          {/* Following the code screen out of the sheet closes it: the open
+              state outlives the gate's unmount, and a sheet found open on
+              return would be no one's gesture. */}
+          <Button variant="secondary" render={<Link to="/signin" onClick={closeSpacesSheet} />}>
             <Icon name="plus" />
             {t('accounts.enterByCode')}
           </Button>
