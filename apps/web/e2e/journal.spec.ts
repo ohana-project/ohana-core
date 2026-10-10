@@ -700,12 +700,22 @@ test.describe('the entry editor, design parity', () => {
     expect(columns.split(' ')).toHaveLength(4)
     expect(await tile.evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('dashed')
     const tileBorderWidth = await tile.evaluate((el) => {
-      for (const sheet of document.styleSheets) {
-        for (const rule of sheet.cssRules) {
+      // The utilities sit inside layer blocks, so the walk recurses.
+      const widthOf = (rules: CSSRuleList): string | undefined => {
+        for (const rule of rules) {
           if (rule instanceof CSSStyleRule && rule.selectorText.includes('border-\\[1\\.5px\\]')) {
             return rule.style.borderWidth
           }
+          if ('cssRules' in rule) {
+            const found = widthOf(rule.cssRules)
+            if (found !== undefined) return found
+          }
         }
+        return undefined
+      }
+      for (const sheet of document.styleSheets) {
+        const found = widthOf(sheet.cssRules)
+        if (found !== undefined) return found
       }
       return undefined
     })
