@@ -69,16 +69,15 @@ export function JournalDraftsScreen() {
 
         {snapshot.isPending ? null : !downloaded ? (
           // Nothing is downloaded: "no drafts" would be a claim the device
-          // cannot make (ADR-0002).
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="cloud-off" />
-              </EmptyMedia>
-              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-            </Empty>
-          </Card>
+          // cannot make (ADR-0002). The empty state stands bare (README
+          // "Cards") — no card around it.
+          <Empty>
+            <EmptyMedia>
+              <Icon name="cloud-off" />
+            </EmptyMedia>
+            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+          </Empty>
         ) : drafts.length === 0 ? (
           // The prototype's empty state stands bare, its «Новая запись»
           // secondary below the text without an icon (issue #72).

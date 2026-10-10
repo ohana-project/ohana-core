@@ -140,15 +140,14 @@ export function CalendarScreen() {
               // A device with nothing downloaded says so for the whole
               // section: drawing a month of dots from a fraction of the
               // calendar would be a claim the device cannot make (ADR-0014).
-              <Card>
-                <Empty>
-                  <EmptyMedia>
-                    <Icon name="cloud-off" />
-                  </EmptyMedia>
-                  <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-                  <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-                </Empty>
-              </Card>
+              // The empty state stands bare (README "Cards") — no card around it.
+              <Empty>
+                <EmptyMedia>
+                  <Icon name="cloud-off" />
+                </EmptyMedia>
+                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+                <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+              </Empty>
             ) : (
               <>
                 {/* The prototype's `.cal-card`: 16px all around. */}

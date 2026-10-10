@@ -248,16 +248,15 @@ export function AccountsScreen() {
           ) : sessions.isError ? (
             <ErrorState onRetry={() => void sessions.refetch()} />
           ) : sessions.data.length === 0 ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="phone" />
-                </EmptyMedia>
-                <EmptyTitle>{t('accounts.devices.empty')}</EmptyTitle>
-              </Empty>
-            </Card>
+            // The empty state stands bare (README "Cards") — no card around it.
+            <Empty>
+              <EmptyMedia>
+                <Icon name="phone" />
+              </EmptyMedia>
+              <EmptyTitle>{t('accounts.devices.empty')}</EmptyTitle>
+            </Empty>
           ) : (
-            <Card className="py-0">
+            <Card variant="list">
               <ItemGroup>
                 {sessions.data.map((row) => (
                   <Item key={row.id} size="lg">

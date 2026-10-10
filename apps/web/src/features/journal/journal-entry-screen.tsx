@@ -8,7 +8,6 @@ import { hueFromId, monogramOf } from '@/lib/monogram.ts'
 import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button, buttonVariants } from '@/ui/button.tsx'
-import { Card } from '@/ui/card.tsx'
 import {
   Dialog,
   DialogContent,
@@ -183,25 +182,22 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
         // A missing entry waits for the replay while one is owed — "no such
         // entry" would be a claim the device cannot make (ADR-0014).
         !downloaded ? (
-          <Card className="mt-6">
-            <Empty>
-              <EmptyMedia>
-                <Icon name="cloud-off" />
-              </EmptyMedia>
-              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-            </Empty>
-          </Card>
+          // The empty state stands bare (README "Cards") — no card around it.
+          <Empty>
+            <EmptyMedia>
+              <Icon name="cloud-off" />
+            </EmptyMedia>
+            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+          </Empty>
         ) : (
-          <Card className="mt-6">
-            <Empty>
-              <EmptyMedia>
-                <Icon name="file-text" />
-              </EmptyMedia>
-              <EmptyTitle>{t('journal.entryMissingTitle')}</EmptyTitle>
-              <EmptyDescription>{t('journal.entryMissingText')}</EmptyDescription>
-            </Empty>
-          </Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="file-text" />
+            </EmptyMedia>
+            <EmptyTitle>{t('journal.entryMissingTitle')}</EmptyTitle>
+            <EmptyDescription>{t('journal.entryMissingText')}</EmptyDescription>
+          </Empty>
         )
       ) : (
         <article className="flex flex-col pt-7">

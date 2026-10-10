@@ -211,44 +211,37 @@ export function EventScreen({
           </div>
         ) : event === undefined ? (
           !downloaded ? (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="cloud-off" />
-                </EmptyMedia>
-                <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-                <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-              </Empty>
-            </Card>
+            // The empty state stands bare (README "Cards") — no card around it.
+            <Empty>
+              <EmptyMedia>
+                <Icon name="cloud-off" />
+              </EmptyMedia>
+              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+            </Empty>
           ) : (
-            <Card>
-              <Empty>
-                <EmptyMedia>
-                  <Icon name="calendar" />
-                </EmptyMedia>
-                <EmptyTitle>{t('calendar.errors.event_not_found')}</EmptyTitle>
-              </Empty>
-            </Card>
+            <Empty>
+              <EmptyMedia>
+                <Icon name="calendar" />
+              </EmptyMedia>
+              <EmptyTitle>{t('calendar.errors.event_not_found')}</EmptyTitle>
+            </Empty>
           )
         ) : cancelledHere ? (
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="calendar" />
-              </EmptyMedia>
-              <EmptyTitle>{t('calendar.occurrenceCancelledTitle')}</EmptyTitle>
-              <EmptyDescription>{t('calendar.occurrenceCancelledText')}</EmptyDescription>
-            </Empty>
-          </Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="calendar" />
+            </EmptyMedia>
+            <EmptyTitle>{t('calendar.occurrenceCancelledTitle')}</EmptyTitle>
+            <EmptyDescription>{t('calendar.occurrenceCancelledText')}</EmptyDescription>
+          </Empty>
         ) : shown === undefined ? (
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="calendar" />
-              </EmptyMedia>
-              <EmptyTitle>{t('calendar.errors.occurrence_not_found')}</EmptyTitle>
-            </Empty>
-          </Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="calendar" />
+            </EmptyMedia>
+            <EmptyTitle>{t('calendar.errors.occurrence_not_found')}</EmptyTitle>
+          </Empty>
         ) : (
           <EventDetails
             event={shown}

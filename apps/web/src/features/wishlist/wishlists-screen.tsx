@@ -98,17 +98,16 @@ export function WishlistsScreen() {
       ) : !downloaded ? (
         // A device with nothing downloaded says so for the whole section:
         // counting the own list, or the members it happens to hold, would
-        // be a claim the device cannot make (ADR-0014).
+        // be a claim the device cannot make (ADR-0014). The empty state
+        // stands bare (README "Cards") — no card around it.
         <div className="pt-5">
-          <Card>
-            <Empty>
-              <EmptyMedia>
-                <Icon name="cloud-off" />
-              </EmptyMedia>
-              <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
-              <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
-            </Empty>
-          </Card>
+          <Empty>
+            <EmptyMedia>
+              <Icon name="cloud-off" />
+            </EmptyMedia>
+            <EmptyTitle>{t('sync.nothingOffline')}</EmptyTitle>
+            <EmptyDescription>{t('sync.nothingOfflineHint')}</EmptyDescription>
+          </Empty>
         </div>
       ) : (
         // The prototype's .diary-grid: the columns stacked below 920px,
@@ -160,15 +159,14 @@ export function WishlistsScreen() {
               }
             />
             {others.length === 0 ? (
-              <Card>
-                <Empty>
-                  <EmptyMedia>
-                    <Icon name="users" />
-                  </EmptyMedia>
-                  <EmptyTitle>{t('wishlist.noMembersTitle')}</EmptyTitle>
-                  <EmptyDescription>{t('wishlist.noMembersText')}</EmptyDescription>
-                </Empty>
-              </Card>
+              // The empty state stands bare (README "Cards") — no card around it.
+              <Empty>
+                <EmptyMedia>
+                  <Icon name="users" />
+                </EmptyMedia>
+                <EmptyTitle>{t('wishlist.noMembersTitle')}</EmptyTitle>
+                <EmptyDescription>{t('wishlist.noMembersText')}</EmptyDescription>
+              </Empty>
             ) : (
               <Card variant="list">
                 {others.map((profile) => {

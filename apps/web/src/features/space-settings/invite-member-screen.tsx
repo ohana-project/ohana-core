@@ -161,15 +161,14 @@ export function InviteMemberScreen() {
             // The member exists but the code never arrived: retry issuance —
             // resubmitting the whole form would create a duplicate member.
             // No prototype covers this step (docs/design/README.md).
+            // The empty state stands bare (README "Cards") — no card around it.
             <>
-              <Card>
-                <Empty>
-                  <EmptyMedia>
-                    <Icon name="alert" />
-                  </EmptyMedia>
-                  <EmptyTitle>{formError ?? t('space.errors.unexpected')}</EmptyTitle>
-                </Empty>
-              </Card>
+              <Empty>
+                <EmptyMedia>
+                  <Icon name="alert" />
+                </EmptyMedia>
+                <EmptyTitle>{formError ?? t('space.errors.unexpected')}</EmptyTitle>
+              </Empty>
               <div className="mt-4.5 flex flex-col gap-2.5">
                 <Button onClick={() => issue(provisioned.memberId)} disabled={issueCode.isPending}>
                   <Icon name="repeat" />
