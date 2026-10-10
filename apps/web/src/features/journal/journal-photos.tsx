@@ -110,36 +110,77 @@ function PhotoTile({
   )
 }
 
-/** A feed card's photo strip: up to three previews, the counter for the rest. */
+/**
+ * A feed card's photo strip (docs/design/screens/diary.html, issue #69):
+ * full width, 132px tall, 8px gaps, the prototype's medium radius — and a
+ * lone photo at 16:10 instead of a sliver. At most three previews: the
+ * prototype's demo never exceeds three, the meta row carries the count,
+ * and the rest wait on the entry screen's gallery.
+ */
 export function EntryPhotoStrip({ entry }: { entry: StoredJournalEntry }) {
-  const { t } = useTranslation()
   const images = entry.images ?? []
   if (images.length === 0) return null
+  const shown = images.slice(0, 3)
   return (
-    <div className="flex items-center gap-1.5">
-      {images.slice(0, 3).map((image) => (
-        <StripThumb key={image.id} entryId={entry.id} image={image} />
+    // The prototype's `.photo-strip` under `.entry-card`: margin-top 12px,
+    // gap 8px, the images `flex: 1; min-width: 0`.
+    <div className="mt-3 flex gap-2">
+      {shown.map((image) => (
+        <StripPhoto key={image.id} entryId={entry.id} image={image} single={shown.length === 1} />
       ))}
-      {images.length > 3 && (
-        <span className="font-mono text-meta tracking-wide text-muted-foreground">
-          {t('journal.photosPill', { count: images.length })}
-        </span>
-      )}
     </div>
   )
 }
 
-function StripThumb({ entryId, image }: { entryId: string; image: StoredJournalEntryImage }) {
+/**
+ * One strip photo. The strip sits inside the card's link, so the photos
+ * stay plain images (no nested controls) and decorative — the card's text
+ * names the entry, and a processing or failed photo announces itself on
+ * the entry screen's gallery, not from inside the link. Every state holds
+ * the photo's final geometry, so the strip never jumps while the previews
+ * stream in.
+ */
+function StripPhoto({
+  entryId,
+  image,
+  single,
+}: {
+  entryId: string
+  image: StoredJournalEntryImage
+  single: boolean
+}) {
+  // The bytes are only asked for once the worker has made them.
   const preview = useEntryImageUrl(entryId, image.id, 'feed', image.state === 'ready')
-  if (image.state !== 'ready' || preview.data === undefined) {
-    return <div className="size-14 shrink-0 rounded-md bg-muted" aria-hidden="true" />
+  const shape = single ? 'aspect-[16/10] w-full flex-none' : 'h-[132px] min-w-0 flex-1'
+  if (image.state === 'processing') {
+    return (
+      <div
+        className={`grid ${shape} place-items-center overflow-hidden rounded-md bg-muted`}
+        aria-hidden="true"
+      >
+        <Spinner className="size-5 text-muted-foreground" />
+      </div>
+    )
+  }
+  if (image.state === 'failed' || preview.isError) {
+    return (
+      <div
+        className={`grid ${shape} place-items-center overflow-hidden rounded-md bg-muted text-muted-foreground`}
+        aria-hidden="true"
+      >
+        <Icon name="image" className="size-5" />
+      </div>
+    )
+  }
+  if (preview.data === undefined) {
+    return <div className={`${shape} rounded-md bg-muted`} aria-hidden="true" />
   }
   return (
     <img
       src={preview.data}
       alt=""
       loading="lazy"
-      className="size-14 shrink-0 rounded-md object-cover"
+      className={`${shape} self-start overflow-hidden rounded-md object-cover`}
     />
   )
 }
