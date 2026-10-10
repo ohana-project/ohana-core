@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { openSpacesSheet } from '@/features/accounts/spaces-sheet.tsx'
+import { orderedActiveMembers } from '@/features/member/member-order.ts'
 import { useMemberSessionStatus } from '@/features/member/use-member-session.ts'
 import { useNavSections } from '@/features/member/use-nav-sections.ts'
 import { useSectionNav } from '@/features/member/use-section-nav.ts'
@@ -17,7 +19,10 @@ import type { ShellSection, ShellSyncState, ShellUserMenuItem, SpaceSummary } fr
  * and the section nav. Every member area — the home, the journal, the
  * calendar, the wishlist, the space settings — hands the same shapes to
  * the layout, so the top bar and the sidebar look the same everywhere and
- * no area passes an empty monogram list.
+ * no area passes an empty monogram list. The switcher's opener rides the
+ * same shape (issue #64): the prototype's shell opens its account sheet
+ * from one place (`data-menu="tpl-account"` on the top bar, the sidebar
+ * and the menu item), so every screen opens the same sheet.
  */
 
 export interface MemberShellData {
@@ -27,6 +32,8 @@ export interface MemberShellData {
   sections: ShellSection[]
   sync: ShellSyncState | null
   userMenuItems: ShellUserMenuItem[]
+  /** Opens the «Пространства» sheet; the layout wires it to the switchers. */
+  onSpaceClick: () => void
   onSectionClick: (id: string) => void
 }
 
@@ -40,27 +47,11 @@ export function useMemberShell(): MemberShellData {
   const onSectionClick = useSectionNav()
 
   const me = session.me
-  // The monograms are the space's, not the viewer's: the active members,
-  // the owner leading, then the elders by creation — exactly the order
-  // the prototype's shell builder stamps into the switcher (ohana.js,
-  // `SPACES[0].marks`); the stack itself shows at most two, the display's
-  // own cap. An archived member has left the space (issue #23) and takes
-  // no seat. The store reads rows in key order, so the order is decided
-  // here, not by the storage.
-  const activeMembers = (snapshot.data?.members ?? [])
-    .filter((profile) => profile.archivedAt === undefined)
-    .sort((a, b) => {
-      if ((a.role === 'owner') !== (b.role === 'owner')) return a.role === 'owner' ? -1 : 1
-      // ISO timestamps and UUIDs order by code unit; a locale collation
-      // would only add a table lookup between equal forms.
-      return a.createdAt === b.createdAt
-        ? a.id < b.id
-          ? -1
-          : 1
-        : a.createdAt < b.createdAt
-          ? -1
-          : 1
-    })
+  // The monograms are the space's, not the viewer's: the active members
+  // in the stack's order — exactly the order the prototype's shell
+  // builder stamps into the switcher (ohana.js, `SPACES[0].marks`) — and
+  // the stack itself shows at most two, the display's own cap.
+  const activeMembers = orderedActiveMembers(snapshot.data?.members ?? [])
   const marked = activeMembers.length > 0 ? activeMembers : me ? [me.member] : []
   const marks = marked.map((profile) => ({
     id: profile.id,
@@ -96,6 +87,7 @@ export function useMemberShell(): MemberShellData {
     sections,
     sync,
     userMenuItems,
+    onSpaceClick: openSpacesSheet,
     onSectionClick,
   }
 }

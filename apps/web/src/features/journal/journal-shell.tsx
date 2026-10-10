@@ -77,6 +77,7 @@ export function JournalShell({
       userMenuItems={shell.userMenuItems}
       desktopActions={visibility.journal === false ? undefined : desktopActions}
       back={backTo === undefined ? undefined : <ShellBackLink to={backTo} />}
+      onSpaceClick={shell.onSpaceClick}
       onSectionClick={shell.onSectionClick}
     >
       {screen}

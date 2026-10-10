@@ -10,6 +10,11 @@ import { OnboardingScreen } from './onboarding-screen.tsx'
 vi.mock('@tanstack/react-router', () => ({
   Navigate: (props: { to: string }) => <a href={props.to}>navigate</a>,
   useNavigate: () => async () => {},
+  // The gate carries the Spaces sheet (issue #64), whose «Войти по коду»
+  // is a Link; a plain anchor stands in for the router's.
+  Link: (props: { to: string; children?: React.ReactNode }) => (
+    <a href={props.to}>{props.children}</a>
+  ),
 }))
 
 vi.mock('@/data/api.ts', () => ({
