@@ -32,6 +32,38 @@ export function entryById(
   return entries.find((entry) => entry.id === entryId)
 }
 
+/** One sticky month label's group of the feed (docs/design/screens/diary.html). */
+export interface EntryMonthGroup {
+  /** The month's number, 1–12, what the label formatter takes. */
+  month: number
+  year: number
+  entries: StoredJournalEntry[]
+}
+
+/**
+ * The feed under its month labels (issue #69): the prototype groups the
+ * diary by the month each entry was shared. The month is the shown
+ * moment's — the same clock `entryDay` formats the card's meta line
+ * with — so a label never claims a day its cards do not show. The feed
+ * arrives newest first, so the groups come out the same way and one
+ * group per month follows from contiguity alone.
+ */
+export function entryMonthGroups(feed: StoredJournalEntry[]): EntryMonthGroup[] {
+  const groups: EntryMonthGroup[] = []
+  for (const entry of feed) {
+    const date = new Date(entryTimestamp(entry))
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+    const last = groups.at(-1)
+    if (last === undefined || last.year !== year || last.month !== month) {
+      groups.push({ year, month, entries: [entry] })
+    } else {
+      last.entries.push(entry)
+    }
+  }
+  return groups
+}
+
 /**
  * The author's display name from the synchronised profiles; the id is the
  * entry's only attribution on the wire, and the profiles travel on their
