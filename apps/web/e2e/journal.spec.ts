@@ -689,7 +689,9 @@ test.describe('the entry editor, design parity', () => {
     await expect(page.locator('main [data-slot="separator"]').first()).toBeVisible()
 
     // The photo grid: four columns at every width (the prototype's own
-    // inline repeat(4,1fr)), the attach tile dashed at 1.5px.
+    // inline repeat(4,1fr)), the attach tile dashed at 1.5px — the width
+    // read off the shipped stylesheet, since a used 1.5px border snaps
+    // to whole pixels at this display's density.
     await page.getByLabel('Текст записи').fill('Собрались за час.')
     const tile = page.getByRole('button', { name: 'Добавить' })
     const columns = await tile.evaluate(
@@ -697,7 +699,17 @@ test.describe('the entry editor, design parity', () => {
     )
     expect(columns.split(' ')).toHaveLength(4)
     expect(await tile.evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('dashed')
-    expect(await tile.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe('1.5px')
+    const tileBorderWidth = await tile.evaluate((el) => {
+      for (const sheet of document.styleSheets) {
+        for (const rule of sheet.cssRules) {
+          if (rule instanceof CSSStyleRule && rule.selectorText.includes('border-\\[1\\.5px\\]')) {
+            return rule.style.borderWidth
+          }
+        }
+      }
+      return undefined
+    })
+    expect(tileBorderWidth).toBe('1.5px')
 
     // From 920px up the pair sits in the top bar; the phone bar is hidden.
     await expect(page.locator('[data-slot="action-bar"]')).toBeHidden()
@@ -722,13 +734,14 @@ test.describe('the entry editor, design parity', () => {
     await expect(page).toHaveURL(/\/journal$/)
 
     // Reopen the stored entry: the prototype's «СОХРАНЕНО 19:02» line
-    // reads the entry's own last edit, and the photo/character counts
-    // ride beside it (23 characters typed, no photos).
+    // reads the entry's own last edit in the top bar, and the
+    // photo/character counts ride beside it (23 characters, no photos);
+    // the bar's own copy of the moment stays hidden at this width.
     await page.getByText('Про Бублика').click()
     await page.getByRole('button', { name: 'Меню записи' }).click()
     await page.getByRole('menuitem', { name: 'Редактировать' }).click()
     await expect(page).toHaveURL(/\/edit$/)
-    await expect(page.getByText(/Сохранено \d\d:\d\d/)).toBeVisible()
+    await expect(page.getByRole('banner').getByText(/Сохранено \d\d:\d\d/)).toBeVisible()
     await expect(page.getByText('Фото: 0 · Символов: 23')).toBeVisible()
   })
 
