@@ -24,9 +24,9 @@ import { SectionHeader } from '@/ui/section-header.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { useWishlistData } from './use-wishlist.ts'
 import {
-  type NearBirthday,
   authorName,
   favoritesWithWishes,
+  type NearBirthday,
   nearBirthdays,
   openWishesOf,
   reservationFor,
