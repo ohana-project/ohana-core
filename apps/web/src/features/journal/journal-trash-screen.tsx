@@ -35,7 +35,9 @@ import { journalErrorMessage, useRestoreEntry, useTrash } from './use-journal.ts
  * the 12px stack, the banner closing it, the empty state bare.
  */
 
-/** The prototype's exit (trash.html): a 250ms fade, the row removed at 260ms. */
+/** How long a restored row stays mounted for its exit: the prototype
+ * removes the fading row at 260ms (trash.html); the fade itself rides the
+ * base motion token on the card below. */
 const RESTORE_FADE_MS = 260
 
 /** A restored row held in place while its fade runs (see `ghosts`). */
