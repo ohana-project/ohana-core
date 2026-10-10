@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { ApiError, extractErrorCode } from '@/data/api-error.ts'
 import type { StoredJournalEntry, StoredJournalEntryImage } from '@/data/local-store.ts'
 import { triggerSync } from '@/data/sync-engine.ts'
-import { Icon } from '@/ui/icon.tsx'
 import { DialogPortal } from '@/ui/dialog.tsx'
+import { Icon } from '@/ui/icon.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
+import { entryDay, entryTimestamp } from './journal-entries.ts'
 import {
   deleteEntryImage,
   entryImageUrl,
@@ -16,7 +17,6 @@ import {
   memberHeader,
   uploadEntryImage,
 } from './journal-photos.ts'
-import { entryDay, entryTimestamp } from './journal-entries.ts'
 import { journalErrorMessage } from './use-journal.ts'
 
 /*
