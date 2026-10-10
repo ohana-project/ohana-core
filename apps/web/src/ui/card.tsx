@@ -41,7 +41,7 @@ function Card({
       data-size={size}
       data-hoverable={hoverable || undefined}
       className={cn(
-        'group/card flex flex-col overflow-hidden rounded-lg border border-border bg-card text-body text-card-foreground shadow-1 [--card-spacing:--spacing(5)] data-[size=sm]:[--card-spacing:--spacing(4)] *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg',
+        'flex flex-col overflow-hidden rounded-lg border border-border bg-card text-body text-card-foreground shadow-1 [--card-spacing:--spacing(5)] data-[size=sm]:[--card-spacing:--spacing(4)] *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg',
         variant === 'padded' && 'p-(--card-spacing)',
         // A list card's rows sit flush with the corners, so a row's own
         // :focus-visible ring — drawn outside the element — is clipped by
