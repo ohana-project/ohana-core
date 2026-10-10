@@ -144,13 +144,11 @@ async function mockMemberApi(page: Page) {
   })
 }
 
-async function openAccountsFromMenu(page: Page) {
-  await page.getByRole('button', { name: 'Меню пользователя' }).click()
-  // The menu item is «Сменить пространство» (issue #63); the space
-  // settings entry shares the words «пространств…», so the name narrows
-  // to the full item.
-  await page.getByRole('menuitem', { name: 'Сменить пространство' }).click()
-  await expect(page).toHaveURL(/\/accounts$/)
+async function openAccountsScreen(page: Page) {
+  // The switchers open the Spaces sheet in place (issue #64); the screen
+  // itself is the sheet's full-page sibling, reached by its address.
+  await page.goto('/accounts')
+  await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
 }
 
 test.describe('several sign-ins on one device', () => {
@@ -166,11 +164,9 @@ test.describe('several sign-ins on one device', () => {
     await expect(page.getByText('Наша семья').first()).toBeVisible()
 
     // The accounts screen lists the one retained sign-in.
-    await openAccountsFromMenu(page)
+    await openAccountsScreen(page)
     await expect(page.getByRole('heading', { name: 'Пространства' })).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Войти как Аня Смирнова в «Наша семья»' }),
-    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Переключиться на «Наша семья»' })).toBeVisible()
     await expect(page.getByText('сейчас')).toBeVisible()
 
     // Adding a sign-in by code brings the second space in without
@@ -183,12 +179,10 @@ test.describe('several sign-ins on one device', () => {
     await expect(page.getByText('Аня и родители').first()).toBeVisible()
 
     // Both retained sign-ins are listed; the new one is active.
-    await openAccountsFromMenu(page)
+    await openAccountsScreen(page)
+    await expect(page.getByRole('button', { name: 'Переключиться на «Наша семья»' })).toBeVisible()
     await expect(
-      page.getByRole('button', { name: 'Войти как Аня Смирнова в «Наша семья»' }),
-    ).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Войти как Аня в «Аня и родители»' }),
+      page.getByRole('button', { name: 'Переключиться на «Аня и родители»' }),
     ).toBeVisible()
     await expect(page.getByText('сейчас')).toBeVisible()
 
@@ -199,12 +193,12 @@ test.describe('several sign-ins on one device', () => {
     await expect(page.getByText('Chrome на Windows')).toHaveCount(0)
 
     // Switching back to «Наша семья» makes its home the active screen.
-    await page.getByRole('button', { name: 'Войти как Аня Смирнова в «Наша семья»' }).click()
+    await page.getByRole('button', { name: 'Переключиться на «Наша семья»' }).click()
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByText('Наша семья').first()).toBeVisible()
 
     // The device review shows the retained sessions of the active member.
-    await openAccountsFromMenu(page)
+    await openAccountsScreen(page)
     await expect(page.getByText('Chrome на Windows')).toBeVisible()
     await expect(page.getByText('Safari на iPhone')).toBeVisible()
     await expect(page.getByText('это устройство')).toBeVisible()
@@ -221,7 +215,7 @@ test.describe('several sign-ins on one device', () => {
     await expect(page).toHaveURL(/\/$/)
 
     // The second sign-in joins the first on the same device.
-    await openAccountsFromMenu(page)
+    await openAccountsScreen(page)
     await page.getByRole('link', { name: 'Добавить вход по коду' }).click()
     await expect(page).toHaveURL(/\/signin$/)
     await page.getByLabel('Код входа').fill(DACHA_CODE)
@@ -229,10 +223,10 @@ test.describe('several sign-ins on one device', () => {
     await expect(page).toHaveURL(/\/$/)
 
     // Back into «Наша семья» through the switcher, then review its devices.
-    await openAccountsFromMenu(page)
-    await page.getByRole('button', { name: 'Войти как Аня Смирнова в «Наша семья»' }).click()
+    await openAccountsScreen(page)
+    await page.getByRole('button', { name: 'Переключиться на «Наша семья»' }).click()
     await expect(page).toHaveURL(/\/$/)
-    await openAccountsFromMenu(page)
+    await openAccountsScreen(page)
 
     // Revoking the phone's session goes through a confirmation.
     await page.getByRole('button', { name: 'Завершить сессию' }).nth(1).click()
@@ -251,6 +245,21 @@ test.describe('several sign-ins on one device', () => {
 
   test('renders the accounts screen in English (en)', async ({ page }) => {
     await mockMemberApi(page)
+    // The probe must answer for the seeded member: mockMemberApi refuses
+    // everyone, and a refused session removes its sign-in from the device
+    // for real (the probe's 401 path), leaving the screen no rows to
+    // translate.
+    await page.route(ME, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          member: { ...FAMILY_ANYA, createdAt: '2026-08-12T10:00:00.000Z' },
+          space: FAMILY_ANYA.space,
+          needsOnboarding: false,
+        }),
+      }),
+    )
     await page.addInitScript(() => {
       window.localStorage.setItem('ohana.locale', 'en')
       window.localStorage.setItem(
@@ -271,9 +280,7 @@ test.describe('several sign-ins on one device', () => {
 
     await expect(page.getByRole('heading', { name: 'Spaces' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Add a sign-in by code' })).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Switch to Аня Смирнова in “Наша семья”' }),
-    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Switch to “Наша семья”' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   })
 })

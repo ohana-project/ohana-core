@@ -123,9 +123,7 @@ test.describe('theme toggle', () => {
     }
   })
 
-  test('the user menu switches the theme in place and opens the accounts screen', async ({
-    page,
-  }) => {
+  test('the user menu switches the theme in place and opens the Spaces sheet', async ({ page }) => {
     await mockMemberApi(page)
     // The seed travels as the init script's argument: the callback runs in
     // the page, where the spec's own constants do not exist.
@@ -167,7 +165,10 @@ test.describe('theme toggle', () => {
 
     await page.getByRole('button', { name: 'Меню пользователя' }).click()
     await page.getByRole('menuitem', { name: 'Сменить пространство' }).click()
-    await expect(page).toHaveURL(/\/accounts$/)
+    // The «Пространства» sheet opens in place (issue #64): the same
+    // address, the sheet over the screen.
+    expect(page.url()).toMatch(/\/$/)
+    await expect(page.getByRole('heading', { name: 'Пространства', level: 2 })).toBeVisible()
   })
 
   test('the administrative bar ends with a 36px round toggle', async ({ page }) => {
