@@ -1,8 +1,10 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
 import { applySyncResult, type SyncResult } from '@/data/local-store.ts'
+import { closeSpacesSheet, SpacesSheet } from '@/features/accounts/spaces-sheet.tsx'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { useMemberShell } from './use-member-shell.ts'
 
@@ -23,6 +25,11 @@ const navigate = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,
+  // The sheet the probe mounts renders a Link to the code screen; a plain
+  // anchor stands in for the router's (issue #64).
+  Link: (props: { to: string; children?: React.ReactNode }) => (
+    <a href={props.to}>{props.children}</a>
+  ),
 }))
 
 const SPACE_ID = '01900000-0000-7000-8000-00000000000a'
@@ -125,6 +132,12 @@ function Probe() {
       <span data-testid="sections">{shell.sections.map((section) => section.id).join(',')}</span>
       <span data-testid="sync">{shell.sync?.state ?? 'none'}</span>
       <span data-testid="menu">{shell.userMenuItems.map((item) => item.id).join(',')}</span>
+      {/* The layout wires the switchers to this; the probe gives the press
+          somewhere to land (issue #64). */}
+      <button type="button" data-testid="space-click" onClick={shell.onSpaceClick}>
+        switcher
+      </button>
+      <SpacesSheet />
     </div>
   )
 }
@@ -140,6 +153,9 @@ afterEach(async () => {
   for (const name of names) {
     if (name.name !== undefined) globalThis.indexedDB.deleteDatabase(name.name)
   }
+  // The sheet's open state is module-level store state; the next test's
+  // render starts from it closed.
+  closeSpacesSheet()
 })
 
 describe('useMemberShell', () => {
@@ -277,5 +293,25 @@ describe('useMemberShell', () => {
     expect(screen.getByTestId('sync')).toHaveTextContent('none')
     expect(screen.getByTestId('menu')).toHaveTextContent('members')
     expect(screen.getByTestId('menu')).toHaveTextContent('sign-out')
+  })
+
+  it('the switcher opens the Spaces sheet (issue #64)', async () => {
+    seedRegistry()
+    mockMe('owner')
+    await applySyncResult(
+      ANYA,
+      syncResultWith([member(ANYA, 'Аня', 'owner'), member(DIMA, 'Дима', 'regular')]),
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<Probe />)
+
+    // The probe renders only once the shell's data has settled.
+    await screen.findByTestId('marks')
+    expect(
+      screen.queryByRole('heading', { name: 'Пространства', level: 2 }),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('space-click'))
+
+    expect(await screen.findByRole('heading', { name: 'Пространства', level: 2 })).toBeVisible()
   })
 })

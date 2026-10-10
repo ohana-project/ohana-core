@@ -77,6 +77,7 @@ export function CalendarShell({
       userMenuItems={shell.userMenuItems}
       desktopActions={visibility.calendar === false ? undefined : desktopActions}
       back={backTo === undefined ? undefined : <ShellBackLink to={backTo} />}
+      onSpaceClick={shell.onSpaceClick}
       onSectionClick={shell.onSectionClick}
     >
       {screen}

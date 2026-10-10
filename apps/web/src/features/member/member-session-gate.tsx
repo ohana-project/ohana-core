@@ -1,5 +1,6 @@
 import { Navigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { SpacesSheet } from '@/features/accounts/spaces-sheet.tsx'
 import {
   useMemberSessionStatus,
   useMemberSyncActive,
@@ -17,6 +18,9 @@ import { Spinner } from '@/ui/spinner.tsx'
  * would tear the sync down and start it again mid-flight. Every member
  * route mounts this gate, so entering a member area is what brings the
  * partition up to date; mutations trigger their own syncs besides this.
+ * The gate also mounts the «Пространства» sheet once (issue #64): the
+ * prototype's shell opens its account sheet from the switchers and the
+ * user menu, and every member route sits behind this gate.
  */
 export function MemberSessionGate({
   require,
@@ -38,5 +42,10 @@ export function MemberSessionGate({
     )
   }
   if (session.status !== require) return <Navigate to={redirectTo} replace />
-  return <>{children}</>
+  return (
+    <>
+      {children}
+      {require === 'signed-in' && <SpacesSheet />}
+    </>
+  )
 }

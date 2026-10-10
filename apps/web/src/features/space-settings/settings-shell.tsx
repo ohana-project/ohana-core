@@ -50,6 +50,7 @@ export function SettingsShell({
       userMenuItems={shell.userMenuItems}
       desktopActions={desktopActions}
       back={<ShellBackLink to={backTo} />}
+      onSpaceClick={shell.onSpaceClick}
       onSectionClick={shell.onSectionClick}
     >
       {children}

@@ -80,12 +80,41 @@ describe('AccountsScreen', () => {
     seedRegistry()
     renderWithProviders(<AccountsScreen />)
 
-    expect(screen.getByRole('heading', { name: 'Пространства' })).toBeInTheDocument()
-    expect(screen.getByText('Аня Смирнова')).toBeInTheDocument()
-    expect(screen.getByText('Наша семья')).toBeInTheDocument()
-    expect(screen.getByText('Аня и родители')).toBeInTheDocument()
+    // The rows name the space (accounts.html), not the member; without a
+    // downloaded partition the subtitle names the signed-in member.
+    const familyRow = screen.getByRole('button', { name: 'Переключиться на «Наша семья»' })
+    const dachaRow = screen.getByRole('button', { name: 'Переключиться на «Аня и родители»' })
+    expect(familyRow).toHaveTextContent('Наша семья')
+    expect(familyRow).toHaveTextContent('Аня Смирнова')
+    expect(dachaRow).toHaveTextContent('Аня и родители')
+    // The prototype's 68px rows carry the space's avatar stack.
+    expect(familyRow).toHaveClass('min-h-17')
+    expect(familyRow.querySelector('[data-slot="avatar-stack"]')).not.toBeNull()
     // Only the active sign-in carries the pill.
     expect(screen.getAllByText('сейчас')).toHaveLength(1)
+    expect(familyRow).toHaveAttribute('aria-current', 'true')
+    expect(dachaRow).not.toHaveAttribute('aria-current')
+    // Nothing has synced under the test's empty storage: the rows trail
+    // the chevron, not a sync time.
+    expect(familyRow.querySelector('[data-slot="item-actions"]')).toHaveTextContent('')
+  })
+
+  it('opens with the prototype’s header row, heading and 460px column', async () => {
+    seedRegistry()
+    renderWithProviders(<AccountsScreen />)
+
+    // The header row: the back button on the left, the centred lockup, the
+    // 44px spacer on the right.
+    expect(screen.getByRole('link', { name: 'Назад в приложение' })).toBeInTheDocument()
+    expect(screen.getByText('Ohana')).toBeInTheDocument()
+    // The column is the prototype's own 460px (the frame's widest).
+    const column = screen.getByRole('heading', { name: 'Пространства' }).parentElement
+    expect(column).toHaveClass('max-w-[460px]')
+    // The heading is the display size, the description counts the sign-ins.
+    expect(screen.getByRole('heading', { name: 'Пространства' })).toHaveClass('text-display')
+    expect(
+      screen.getByText('На этом устройстве вы входите в 2 семьи. Данные каждой — раздельны.'),
+    ).toBeInTheDocument()
   })
 
   it('switches the active member when another retained sign-in is clicked', async () => {

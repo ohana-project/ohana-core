@@ -78,6 +78,7 @@ export function SpaceHomeScreen() {
       activeId="home"
       sync={shell.sync}
       userMenuItems={shell.userMenuItems}
+      onSpaceClick={shell.onSpaceClick}
       onSectionClick={shell.onSectionClick}
     >
       <div className="flex flex-col gap-6 pt-6">

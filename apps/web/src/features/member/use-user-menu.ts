@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/app/theme.tsx'
+import { openSpacesSheet } from '@/features/accounts/spaces-sheet.tsx'
 import { useMemberSessionStatus, useMemberSignOut } from '@/features/member/use-member-session.ts'
 import type { ShellUserMenuItem } from '@/ui/shell.ts'
 import { toast } from '@/ui/toast.tsx'
@@ -11,10 +12,10 @@ import { toast } from '@/ui/toast.tsx'
  * "Layout"; issue #63): the member's destinations, then the prototype's
  * pair — «Тема», whose icon follows the current theme and whose press
  * switches it without leaving the app, and «Сменить пространство», which
- * opens the accounts screen until the Spaces sheet ticket lands — then
- * the way out, with the prototype's hairlines between the three groups.
- * One builder for the shells, so every screen reaches the others the way
- * the home does.
+ * opens the «Пространства» sheet like the prototype's own menu item
+ * (issue #64) — then the way out, with the prototype's hairlines between
+ * the three groups. One builder for the shells, so every screen reaches
+ * the others the way the home does.
  */
 export function useMemberUserMenu(): ShellUserMenuItem[] {
   const { t } = useTranslation()
@@ -63,12 +64,13 @@ export function useMemberUserMenu(): ShellUserMenuItem[] {
         separatorBefore: true,
         onSelect: () => setTheme(dark ? 'light' : 'dark'),
       },
-      // The Spaces sheet is another ticket; the accounts screen stands in.
+      // The sheet is mounted by the member gate; the menu opens it like
+      // the prototype's `data-menu="tpl-account"` item (issue #64).
       {
         id: 'switch-space',
         label: t('layout.switchSpace'),
         icon: 'repeat',
-        onSelect: () => void navigate({ to: '/accounts' }),
+        onSelect: () => openSpacesSheet(),
       },
       {
         id: 'sign-out',

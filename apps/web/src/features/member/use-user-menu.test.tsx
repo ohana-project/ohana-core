@@ -1,7 +1,9 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/data/api.ts'
+import { closeSpacesSheet, SpacesSheet } from '@/features/accounts/spaces-sheet.tsx'
 import { renderWithProviders } from '@/testing/render.tsx'
 import { useMemberUserMenu } from './use-user-menu.ts'
 
@@ -9,8 +11,8 @@ import { useMemberUserMenu } from './use-user-menu.ts'
  * The user menu every member shell carries (issue #63): the member's
  * destinations first, then the prototype's pair — «Тема», whose icon
  * follows the current theme and whose press switches it in place, and
- * «Сменить пространство», which opens the accounts screen until the
- * Spaces sheet lands — then the way out. The prototype's separators
+ * «Сменить пространство», which opens the «Пространства» sheet
+ * (issue #64) — then the way out. The prototype's separators
  * divide the three groups.
  */
 
@@ -22,6 +24,11 @@ const navigate = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,
+  // The sheet the probe mounts renders a Link to the code screen; a plain
+  // anchor stands in for the router's (issue #64).
+  Link: (props: { to: string; children?: React.ReactNode }) => (
+    <a href={props.to}>{props.children}</a>
+  ),
 }))
 
 const ANYA = {
@@ -35,21 +42,26 @@ const ANYA = {
 function Probe() {
   const items = useMemberUserMenu()
   return (
-    <ul>
-      {items.map((item) => (
-        <li key={item.id}>
-          {/* The shells wire the item's onSelect to the menu row; the probe
-              does the same, so the presses land on the hook's callbacks. */}
-          <button type="button" data-testid={`menu-${item.id}`} onClick={item.onSelect}>
-            {item.label}
-            {item.danger ? ' danger' : ''}
-            {item.separatorBefore ? ' |—' : ''}
-          </button>
-          <span data-testid={`icon-${item.id}`}>{item.icon}</span>
-          {item.ariaLabel && <span data-testid={`aria-${item.id}`}>{item.ariaLabel}</span>}
-        </li>
-      ))}
-    </ul>
+    <div>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {/* The shells wire the item's onSelect to the menu row; the probe
+                does the same, so the presses land on the hook's callbacks. */}
+            <button type="button" data-testid={`menu-${item.id}`} onClick={item.onSelect}>
+              {item.label}
+              {item.danger ? ' danger' : ''}
+              {item.separatorBefore ? ' |—' : ''}
+            </button>
+            <span data-testid={`icon-${item.id}`}>{item.icon}</span>
+            {item.ariaLabel && <span data-testid={`aria-${item.id}`}>{item.ariaLabel}</span>}
+          </li>
+        ))}
+      </ul>
+      {/* The sheet rides the gate in the app; the probe mounts it so the
+          menu item's press has somewhere to land. */}
+      <SpacesSheet />
+    </div>
   )
 }
 
@@ -85,6 +97,8 @@ function seedSignedIn(role: 'owner' | 'regular' = 'owner') {
 
 afterEach(() => {
   window.localStorage.clear()
+  window.indexedDB = new IDBFactory()
+  closeSpacesSheet()
   navigate.mockClear()
   vi.clearAllMocks()
 })
@@ -144,7 +158,7 @@ describe('useMemberUserMenu', () => {
     expect(screen.getByTestId('aria-theme').textContent).toBe('Светлая тема')
   })
 
-  it('«Сменить пространство» opens the accounts screen', async () => {
+  it('«Сменить пространство» opens the Spaces sheet', async () => {
     const user = userEvent.setup()
     seedSignedIn('owner')
     renderWithProviders(<Probe />)
@@ -152,7 +166,10 @@ describe('useMemberUserMenu', () => {
     await screen.findByText('Участники')
     await user.click(screen.getByTestId('menu-switch-space'))
 
-    expect(navigate).toHaveBeenCalledWith({ to: '/accounts' })
+    // The sheet opens in place (issue #64); the accounts screen is no
+    // longer the item's target.
+    expect(await screen.findByRole('heading', { name: 'Пространства', level: 2 })).toBeVisible()
+    expect(navigate).not.toHaveBeenCalled()
   })
 
   it('the theme icon follows a stored dark choice', async () => {

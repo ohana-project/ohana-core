@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { AuthLayout } from '@/app/layouts/auth-layout.tsx'
 import { ApiError } from '@/data/api-error.ts'
 import { getActiveMemberId, listStoredSessions } from '@/data/session-registry.ts'
+import { useDeviceSpaces } from '@/features/accounts/use-device-spaces.ts'
 import {
   type MemberSessionRow,
   memberSessionsQueryKey,
@@ -16,8 +17,8 @@ import {
   useMemberSignOut,
   useSwitchMember,
 } from '@/features/member/use-member-session.ts'
-import { hueFromId, monogramOf } from '@/lib/monogram.ts'
-import { Avatar, AvatarFallback } from '@/ui/avatar.tsx'
+import { Avatar } from '@/ui/avatar.tsx'
+import { AvatarStack } from '@/ui/avatar-stack.tsx'
 import { Badge } from '@/ui/badge.tsx'
 import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
@@ -41,16 +42,21 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/ui/item.tsx'
+import { Logo } from '@/ui/logo.tsx'
 import { SectionHeader } from '@/ui/section-header.tsx'
 import { Spinner } from '@/ui/spinner.tsx'
 import { toast } from '@/ui/toast.tsx'
 
 /*
- * The accounts screen (docs/design/screens/accounts.html, issue #10): the
- * retained sign-ins of this device, switching between them (ADR-0005: a
- * client-side choice between independent sessions), the active member's
- * device review with revocation, and the way out. Sign-in and sign-out
- * remove only that member's local data.
+ * The accounts screen (docs/design/screens/accounts.html, issue #64): one
+ * row per retained sign-in, naming the space — the row's stack and count
+ * line read the same hook the Spaces sheet reads —, the «сейчас» pill and
+ * the sync time on the active one, then the way in by code and the way
+ * out. The header row carries the back button, the centred lockup and a
+ * 44px spacer, inside the prototype's own 460px column. Below the list
+ * lives the device review (issue #10) the prototype does not draw: the
+ * decision to keep it is recorded in docs/design/README.md. Sign-in and
+ * sign-out remove only that member's local data.
  */
 
 function revokeSessionErrorMessage(error: unknown, translate: (key: string) => string): string {
@@ -72,6 +78,9 @@ export function AccountsScreen() {
   const [activeId, setActiveId] = useState(getActiveMemberId())
   const retained = listStoredSessions()
   const active = retained.find((entry) => entry.memberId === activeId)
+  // The rows read the same hook the Spaces sheet reads, so the two can
+  // never disagree on a stack, a count line or the active mark.
+  const spaces = useDeviceSpaces()
 
   // The review and the way out are pinned to this screen's active member,
   // not to whichever member is active in the registry by request time.
@@ -89,6 +98,12 @@ export function AccountsScreen() {
   const usedFormatter = new Intl.DateTimeFormat(i18n.language, {
     day: 'numeric',
     month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  // The active row's trailing «синхр. 14:32» (accounts.html): the
+  // partition's own last successful sync, hour and minute.
+  const syncedFormatter = new Intl.DateTimeFormat(i18n.language, {
     hour: '2-digit',
     minute: '2-digit',
   })
@@ -134,61 +149,75 @@ export function AccountsScreen() {
   }
 
   return (
-    <AuthLayout footer={t('accounts.footer')}>
-      <Link
-        to="/"
-        aria-label={t('accounts.back')}
-        className="mb-4 inline-flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <Icon name="chevron-left" className="size-5" />
-      </Link>
-      <h1 className="text-display-lg">{t('accounts.title')}</h1>
-      <p className="mt-1.5 mb-5 text-body text-muted-foreground">{t('accounts.description')}</p>
+    <AuthLayout footer={t('accounts.footer')} columnWidth={460} logo={false}>
+      {/* The prototype's header row: the back button, the centred lockup
+          and its 44px spacer — the equal flanks keep the lockup centred. */}
+      <div className="mb-[22px] flex items-center justify-between gap-3">
+        <Button
+          variant="secondary"
+          size="icon"
+          render={<Link to="/" aria-label={t('accounts.back')} />}
+        >
+          <Icon name="chevron-left" />
+        </Button>
+        <Logo />
+        <span className="size-11" aria-hidden="true" />
+      </div>
+      <h1 className="text-display">{t('accounts.title')}</h1>
+      <p className="mt-1.5 mb-[22px] text-body text-muted-foreground">
+        {t('accounts.description', { count: retained.length })}
+      </p>
 
-      <Card className="py-0">
+      <Card variant="list">
         <ItemGroup>
-          {retained.map((entry) => {
-            const displayName = entry.displayName ?? entry.name
-            const isActive = entry.memberId === activeId
+          {spaces.map((space) => {
+            const displayName = space.session.displayName ?? space.session.name
             return (
               <Item
-                key={entry.memberId}
-                size="lg"
+                key={space.session.memberId}
+                size="xl"
                 render={
                   <button
                     type="button"
                     onClick={() => {
-                      switchTo(entry.memberId)
+                      switchTo(space.session.memberId)
                       // Switching means entering that space: the gate at /
                       // renders its home for the now-active member.
                       void navigate({ to: '/' })
                     }}
-                    aria-current={isActive ? 'true' : undefined}
-                    aria-label={t('accounts.switchTo', {
-                      name: displayName,
-                      space: entry.spaceName,
-                    })}
+                    aria-current={space.active ? 'true' : undefined}
+                    aria-label={t('accounts.switchToSpace', { space: space.session.spaceName })}
                   />
                 }
               >
-                <ItemMedia>
-                  <Avatar size="sm" hue={hueFromId(entry.memberId)}>
-                    <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
-                  </Avatar>
-                </ItemMedia>
+                <AvatarStack>
+                  {space.marks.slice(0, 3).map((mark) => (
+                    <Avatar key={mark.id} size="sm" hue={mark.hue}>
+                      {mark.initials}
+                    </Avatar>
+                  ))}
+                </AvatarStack>
                 <ItemContent>
                   <ItemTitle>
-                    {displayName}
-                    {isActive ? (
+                    {space.session.spaceName}
+                    {space.active ? (
                       <Badge variant="ok" className="ml-2 align-middle">
                         {t('accounts.activePill')}
                       </Badge>
                     ) : null}
                   </ItemTitle>
-                  <ItemDescription>{entry.spaceName}</ItemDescription>
+                  <ItemDescription>{space.membersLabel ?? displayName}</ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Icon name="chevron-right" className="text-muted-foreground" />
+                  {space.active && space.syncedAt !== undefined ? (
+                    <span className="font-mono text-meta tabular-nums">
+                      {t('accounts.syncedTrailing', {
+                        time: syncedFormatter.format(new Date(space.syncedAt)),
+                      })}
+                    </span>
+                  ) : (
+                    <Icon name="chevron-right" />
+                  )}
                 </ItemActions>
               </Item>
             )
@@ -196,8 +225,8 @@ export function AccountsScreen() {
         </ItemGroup>
       </Card>
 
-      <div className="mt-5 flex flex-col gap-2.5">
-        <Button variant="secondary" size="lg" render={<Link to="/signin" />}>
+      <div className="mt-[18px] flex flex-col gap-2.5">
+        <Button variant="secondary" size="lg" className="w-auto" render={<Link to="/signin" />}>
           <Icon name="plus" />
           {t('accounts.addByCode')}
         </Button>
