@@ -201,7 +201,7 @@ export function AccountsScreen() {
                   <ItemTitle>
                     {space.session.spaceName}
                     {space.active ? (
-                      <Badge variant="ok" className="ml-2 align-middle">
+                      <Badge variant="ok" className="align-middle">
                         {t('accounts.activePill')}
                       </Badge>
                     ) : null}

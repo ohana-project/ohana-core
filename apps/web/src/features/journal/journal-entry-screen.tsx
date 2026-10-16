@@ -209,7 +209,7 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
               </Avatar>
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="text-sm font-semibold">{author}</span>
-                <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
+                <span className="font-mono text-meta text-muted-foreground uppercase">
                   {entryMoment(entryTimestamp(entry), i18n.language)}
                 </span>
               </div>
@@ -256,7 +256,7 @@ export function JournalEntryScreen({ entryId }: { entryId: string }) {
               {next !== undefined && (
                 // min-w-0 lets the flex item shrink, so the truncation
                 // holds a long title inside the row at 390px.
-                <span className="min-w-0 truncate font-mono text-meta tracking-wide text-muted-foreground uppercase">
+                <span className="min-w-0 truncate font-mono text-meta text-muted-foreground uppercase">
                   {t('journal.nextEntry', {
                     title: next.title ?? entryExcerpt(next.text, 40),
                   })}

@@ -223,7 +223,7 @@ export function EntryPhotoGallery({ entry }: { entry: StoredJournalEntry }) {
           />
         ))}
       </div>
-      <p className="mt-2.5 font-mono text-meta tracking-wide text-muted-foreground uppercase">
+      <p className="mt-2.5 font-mono text-meta text-muted-foreground uppercase">
         {t('journal.openOriginalHint')}
       </p>
       {open !== undefined && (
@@ -511,7 +511,7 @@ export function EntryPhotoEditor({
         {/* the prototype's own h2 size on the section (diary-editor.html:
             an h2 at its 16px) — the serif face comes with the element */}
         <h2 className="text-[16px] font-semibold">{t('journal.photosTitle')}</h2>
-        <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
+        <span className="font-mono text-meta text-muted-foreground uppercase">
           {t('journal.photoCounter', {
             count: images.length + pending.length,
             max: MAX_PHOTOS_PER_ENTRY,
@@ -584,7 +584,7 @@ export function EntryPhotoEditor({
           </button>
         )}
       </div>
-      <p className="mt-2.5 text-sm text-muted-foreground">{t('journal.photosHint')}</p>
+      <p className="mt-2.5 text-meta text-muted-foreground">{t('journal.photosHint')}</p>
     </div>
   )
 }

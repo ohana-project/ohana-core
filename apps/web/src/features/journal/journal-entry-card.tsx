@@ -38,7 +38,7 @@ export function EntryCard({
             <AvatarFallback>{monogramOf(author)}</AvatarFallback>
           </Avatar>
           <span className="min-w-0 truncate text-sm font-semibold">{author}</span>
-          <span className="min-w-0 truncate font-mono text-meta tracking-wide text-muted-foreground uppercase">
+          <span className="min-w-0 truncate font-mono text-meta text-muted-foreground uppercase">
             {count > 0
               ? t('journal.entryMetaWithPhotos', {
                   day: entryDay(entryTimestamp(entry), locale),

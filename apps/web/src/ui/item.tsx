@@ -164,7 +164,7 @@ function ItemTitle({ className, ...props }: React.ComponentProps<'div'>) {
         // clipped column — under `truncate`'s nowrap the fit-content
         // floors at the longest word and would otherwise reach into the
         // trailing content (issue #80).
-        'flex w-fit max-w-full items-center gap-2 truncate text-body leading-snug font-medium',
+        'flex w-fit max-w-full items-center gap-2 truncate text-body font-medium',
         className,
       )}
       {...props}
@@ -184,7 +184,7 @@ function ItemDescription({
     <p
       data-slot="item-description"
       className={cn(
-        'text-left text-sm leading-normal font-normal text-muted-foreground [&>a]:underline [&>a]:underline-offset-3 [&>a:hover]:text-primary',
+        'text-left text-sm font-normal text-muted-foreground [&>a]:underline [&>a]:underline-offset-3 [&>a:hover]:text-primary',
         singleLine ? 'truncate' : 'line-clamp-2',
         className,
       )}

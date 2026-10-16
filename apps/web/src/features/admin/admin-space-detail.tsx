@@ -947,7 +947,6 @@ function AccessCodesSection({
         title={t('admin.codes.title')}
         action={
           <Button size="sm" onClick={() => setIssueOpen(true)} disabled={members.length === 0}>
-            <Icon name="plus" />
             {t('admin.codes.issue')}
           </Button>
         }
@@ -1188,7 +1187,7 @@ function IssueCodeDialog({
             </DialogHeader>
             <CodeDisplay code={issued.code} copy="none" />
             {/* The prototype's centred meta line under the code. */}
-            <p className="text-center font-mono text-meta text-muted-foreground uppercase">
+            <p className="-mt-1.5 mb-0.5 text-center font-mono text-meta text-muted-foreground uppercase">
               {t('admin.codes.meta')}
             </p>
             {/* The prototype's two equal buttons: the labelled copy beside

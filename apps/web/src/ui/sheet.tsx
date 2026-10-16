@@ -63,7 +63,7 @@ function SheetContent({ className, children, ...props }: SheetPrimitive.Popup.Pr
         <div
           aria-hidden="true"
           data-slot="sheet-grabber"
-          className="mx-auto mb-3.5 mt-1.5 h-1 w-10 shrink-0 rounded-full bg-foreground/20 desktop:hidden"
+          className="mx-auto mb-3.5 mt-1.5 h-1 w-10 shrink-0 rounded-full bg-[color-mix(in_oklch,var(--fg)_22%,transparent)] desktop:hidden"
         />
         {/* shrink-0: the wrapper keeps its content height, so the
             popup's bottom padding follows the last child and the popup

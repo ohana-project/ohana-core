@@ -128,8 +128,8 @@ export function MemberCardScreen({ memberId }: { memberId: string }) {
     // The top bar carries the area's name («Участник»), like the
     // prototype's `data-title`; the h1 keeps the member's own.
     <SettingsShell title={t('space.card.topBarTitle')} backTo="/members">
-      <div className="flex flex-col gap-7 pt-5">
-        <header className="flex items-center gap-3.5">
+      <div className="flex flex-col gap-6 pt-5">
+        <header className="-mb-2.5 flex items-center gap-3.5">
           <Avatar size="lg" hue={hueFromId(profile.id)}>
             <AvatarFallback>{monogramOf(displayName)}</AvatarFallback>
           </Avatar>
@@ -424,7 +424,7 @@ function OwnerSections({
                       ) : null}
                       {showDisconnect ? (
                         <Button
-                          variant="secondary"
+                          variant="ghost"
                           size="sm"
                           className="text-destructive"
                           onClick={() => setConfirmDisconnect(true)}
@@ -555,7 +555,7 @@ function OwnerSections({
                   <DialogDescription>{t('space.card.shownOnce')}</DialogDescription>
                 </DialogHeader>
                 <CodeDisplay code={issued} />
-                <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                <p className="text-center font-mono text-meta text-muted-foreground uppercase">
                   {t('space.invite.expiresMeta')}
                 </p>
                 <DialogFooter>
@@ -763,7 +763,7 @@ function ArchivedOwnerSections({
   return (
     <>
       <Card variant="list">
-        <Item>
+        <Item className="py-4">
           <ItemContent>
             <ItemTitle>
               {archivedAt === undefined
@@ -793,7 +793,7 @@ function ArchivedOwnerSections({
           <Button size="lg" onClick={() => setConfirmRestore(true)}>
             {t('space.card.restoreButton')}
           </Button>
-          <p className="mt-2.5 px-1 text-center text-sm text-muted-foreground">
+          <p className="mt-0.5 px-1 text-center text-meta text-muted-foreground">
             {t('space.card.restoreHint', { name: displayName })}
           </p>
         </section>
@@ -860,7 +860,7 @@ function ArchivedOwnerSections({
               <DialogDescription>{t('space.card.shownOnce')}</DialogDescription>
             </DialogHeader>
             <CodeDisplay code={issued} />
-            <p className="text-center font-mono text-xs tracking-wide text-muted-foreground uppercase">
+            <p className="text-center font-mono text-meta text-muted-foreground uppercase">
               {t('space.invite.expiresMeta')}
             </p>
             <DialogFooter>

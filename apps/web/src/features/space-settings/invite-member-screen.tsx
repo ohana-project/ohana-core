@@ -148,8 +148,8 @@ export function InviteMemberScreen() {
       <SettingsShell title={t('space.invite.shortTitle')} backTo="/members">
         <div className="flex flex-col pt-8">
           <header className="mb-6 flex flex-col items-center text-center">
-            <span className="mb-3.5 grid size-16 place-items-center rounded-2xl bg-primary-soft text-primary">
-              <Icon name="users" className="size-7" />
+            <span className="mb-3.5 grid size-16 place-items-center rounded-[20px] bg-primary-soft text-primary">
+              <Icon name="users" className="size-[30px]" />
             </span>
             <h1 className="text-display-lg">{t('space.invite.codeTitle')}</h1>
             <p className="mt-1.5 text-body text-muted-foreground">

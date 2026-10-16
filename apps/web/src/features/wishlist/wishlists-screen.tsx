@@ -114,7 +114,7 @@ export function WishlistsScreen() {
         // the 1.6fr / 1fr split with a 32px gap above.
         <div className="flex flex-col gap-3 pt-5 desktop:grid desktop:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] desktop:items-start desktop:gap-8">
           <div className="flex min-w-0 flex-col gap-3">
-            <header className="mb-1.5">
+            <header className="mb-[18px]">
               <h1 className="text-display-lg">{t('wishlist.title')}</h1>
               <p className="mt-1 text-body text-muted-foreground">{t('wishlist.subtitle')}</p>
             </header>

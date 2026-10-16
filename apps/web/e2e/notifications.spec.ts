@@ -271,7 +271,7 @@ test('a member enables reminders on this device and flips the details opt-in', a
   // The device starts unsubscribed; the enable action is the user gesture
   // the browser asks for.
   await expect(page.getByText('Напоминания на этом устройстве')).toBeVisible()
-  await page.getByRole('button', { name: 'Включить' }).click()
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
 
   // The subscription lands with its keys and the neutral default.
   await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
@@ -281,7 +281,10 @@ test('a member enables reminders on this device and flips the details opt-in', a
     keys: { p256dh: 'p256dh-e2e', auth: 'auth-e2e' },
     notifyDetails: false,
   })
-  await expect(page.getByText('Включено')).toBeVisible()
+  // The switch carries the subscribed state: checked.
+  await expect(
+    page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }),
+  ).toBeChecked()
 
   // The device's own opt-in: details on this device only.
   await page.getByRole('switch', { name: 'Показывать подробности события' }).click()
@@ -296,7 +299,7 @@ test('a browser subscription still held elsewhere is not unsubscribed', async ({
 
   await signIn(page)
   await page.goto('/notifications')
-  await page.getByRole('button', { name: 'Включить' }).click()
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
   await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
 
   // The device goes for this member; the physical subscription stays —
@@ -305,8 +308,10 @@ test('a browser subscription still held elsewhere is not unsubscribed', async ({
   await expect(page.getByText('Напоминания отключены на этом устройстве')).toBeVisible()
   expect(mock.deletedEndpoints).toEqual([ENDPOINT])
   expect(await page.evaluate(() => window.__push?.unsubscribeCalls)).toBe(0)
-  // The member's own row is gone: the switches read off again.
-  await expect(page.getByRole('button', { name: 'Включить' })).toBeVisible()
+  // The member's own row is gone: the switch reads off again.
+  await expect(
+    page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }),
+  ).not.toBeChecked()
 })
 
 test('enabling twice subscribes the browser once', async ({ page }) => {
@@ -315,7 +320,7 @@ test('enabling twice subscribes the browser once', async ({ page }) => {
 
   await signIn(page)
   await page.goto('/notifications')
-  await page.getByRole('button', { name: 'Включить' }).click()
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
   await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
 
   // Off, then on again: the browser's physical subscription already
@@ -323,7 +328,7 @@ test('enabling twice subscribes the browser once', async ({ page }) => {
   mock.releaseBrowserSubscription = false
   await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
   await expect(page.getByText('Напоминания отключены на этом устройстве')).toBeVisible()
-  await page.getByRole('button', { name: 'Включить' }).click()
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
   // The switch follows the member's row, not the first toast still on
   // screen: checked again means the second registration has settled.
   await expect(
@@ -351,7 +356,7 @@ test('signing out releases the device, and a failed release still signs out', as
 
   await signIn(page)
   await page.goto('/notifications')
-  await page.getByRole('button', { name: 'Включить' }).click()
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
   await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
   requestOrder.length = 0
 
@@ -371,7 +376,7 @@ test('signing out releases the device, and a failed release still signs out', as
   })
   await signIn(page)
   await page.goto('/notifications')
-  await page.getByRole('button', { name: 'Включить' }).click()
+  await page.getByRole('switch', { name: 'Включить напоминания на этом устройстве' }).click()
   await expect(page.getByText('Напоминания включены на этом устройстве')).toBeVisible()
   await page.getByRole('button', { name: 'Меню пользователя' }).click()
   await page.getByRole('menuitem', { name: 'Выйти' }).click()

@@ -65,7 +65,7 @@ export function JournalScreen() {
 
   const newEntry = (
     <Button size="sm" onClick={() => void navigate({ to: '/journal/new' })}>
-      <Icon name="plus" />
+      <Icon name="plus" className="size-4" />
       {t('journal.newEntry')}
     </Button>
   )
@@ -79,8 +79,8 @@ export function JournalScreen() {
       <div
         className={
           showAside
-            ? 'grid gap-3 pt-6 desktop:grid-cols-[1.6fr_1fr] desktop:gap-8 desktop:items-start'
-            : 'pt-6'
+            ? 'grid gap-3 pt-(--pad) desktop:grid-cols-[1.6fr_1fr] desktop:gap-8 desktop:items-start'
+            : 'pt-(--pad)'
         }
       >
         {/* The prototype's `.diary-main`: the feed's 12px column. */}

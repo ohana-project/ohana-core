@@ -83,7 +83,7 @@ export function JournalTrashScreen() {
 
   return (
     <JournalShell title={t('journal.trashTitle')} backTo="/journal" width="narrow">
-      <div className="flex flex-col gap-3 pt-6">
+      <div className="flex flex-col gap-3 pt-6.5">
         <header className="mb-1.5">
           <h1 className="text-display">{t('journal.trashTitle')}</h1>
           <p className="mt-1.5 text-muted-foreground">{t('journal.trashSubtitle')}</p>

@@ -113,7 +113,7 @@ export function SpacesSheet() {
           <SheetTitle>{t('accounts.title')}</SheetTitle>
           <SheetDescription>{t('accounts.sheetSubtitle')}</SheetDescription>
         </SheetHeader>
-        <Card variant="list">
+        <Card variant="list" className="-mb-0.5">
           <ItemGroup>
             {spaces.map((space) => (
               <Item

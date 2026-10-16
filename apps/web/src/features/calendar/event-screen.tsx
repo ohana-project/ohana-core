@@ -509,7 +509,7 @@ function EventDetails({
       {/* The prototype's head: the uppercase date, the display title, the
           time and zone line under it. */}
       <header className="mb-[18px]">
-        <p className="mb-1.5 font-mono text-meta tracking-wide text-muted-foreground uppercase">
+        <p className="mb-1.5 font-mono text-meta text-muted-foreground uppercase">
           {eventDateLine(event, locale)}
         </p>
         <h1 className="text-display">{event.title}</h1>
@@ -588,7 +588,7 @@ function EventDetails({
       </Card>
 
       {/* The created-by line, the prototype's mono meta under the card. */}
-      <p className="mt-3.5 px-1 font-mono text-meta tracking-wide text-muted-foreground uppercase">
+      <p className="mt-3.5 px-1 font-mono text-meta text-muted-foreground uppercase">
         {createdLine(series, profiles, t, locale)}
       </p>
 

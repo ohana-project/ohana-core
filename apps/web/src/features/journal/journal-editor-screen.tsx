@@ -201,11 +201,11 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 moment, and the photo/character counts ride beside it
                 (docs/design/README.md, the journal editor). */}
             {savedTime !== undefined && (
-              <span className="shrink-0 font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
+              <span className="mr-1.5 shrink-0 font-mono text-[13px] text-muted-foreground uppercase">
                 {t('journal.savedAt', { time: savedTime })}
               </span>
             )}
-            <span className="shrink-0 font-mono text-[13px] tracking-wide text-muted-foreground uppercase">
+            <span className="mr-1.5 shrink-0 font-mono text-[13px] text-muted-foreground uppercase">
               {t('journal.photoCharCounter', { photos: photoCount, chars: charCount })}
             </span>
             {editingDraft && (
@@ -278,7 +278,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                     space: session.me?.space.name ?? '',
                   })}
                 </span>
-                <span className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
+                <span className="font-mono text-meta text-muted-foreground uppercase">
                   {existing === undefined
                     ? t('journal.editorToday')
                     : existing.state === 'draft'
@@ -341,7 +341,7 @@ export function JournalEditorScreen({ entryId }: { entryId?: string }) {
                 below 420px the way the sync chip's text does. */}
             <ActionBar>
               {savedTime !== undefined && (
-                <span className="min-w-0 grow truncate font-mono text-[13px] tracking-wide text-muted-foreground uppercase [@media(max-width:419.98px)]:sr-only">
+                <span className="min-w-0 grow truncate font-mono text-[13px] text-muted-foreground uppercase [@media(max-width:419.98px)]:sr-only">
                   {t('journal.savedAt', { time: savedTime })}
                 </span>
               )}
