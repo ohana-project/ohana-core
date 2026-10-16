@@ -217,7 +217,12 @@ export function SpaceSettingsScreen() {
                     <FieldDescription>{t('space.settings.timezoneHint')}</FieldDescription>
                   </Field>
                 </section>
-                <Button type="submit" size="lg" disabled={!dirty || updateTimezone.isPending}>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="-mt-2.5"
+                  disabled={!dirty || updateTimezone.isPending}
+                >
                   {t('space.settings.save')}
                 </Button>
               </form>

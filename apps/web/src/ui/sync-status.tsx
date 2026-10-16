@@ -65,8 +65,8 @@ export function SyncStatus({
       data-state={state}
       data-size={size}
       className={cn(
-        'inline-flex min-h-8 items-center gap-[7px] text-sm text-muted-foreground',
-        size === 'lg' && 'gap-2',
+        'inline-flex min-h-8 items-center gap-[7px] text-[13px] text-muted-foreground',
+        size === 'lg' && 'text-[14px]',
         current.label,
         className,
       )}

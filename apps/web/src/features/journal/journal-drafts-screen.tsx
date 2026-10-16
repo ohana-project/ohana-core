@@ -61,7 +61,7 @@ export function JournalDraftsScreen() {
     // The prototype's data-title names the screen short — «Черновики» —
     // where the content heading keeps its full words (issue #72).
     <JournalShell title={t('journal.draftsTopBarTitle')} backTo="/journal" width="narrow">
-      <div className="flex flex-col gap-3 pt-6">
+      <div className="flex flex-col gap-3 pt-6.5">
         <header className="mb-1.5">
           <h1 className="text-display">{t('journal.draftsTitle')}</h1>
           <p className="mt-1.5 text-muted-foreground">{t('journal.draftsSubtitle')}</p>

@@ -22,7 +22,7 @@ function Select({
       <select
         data-slot="select-input"
         className={cn(
-          'min-h-[46px] w-full min-w-0 appearance-none rounded-md border border-input bg-card px-3.5 py-[11px] pr-9 text-body outline-none transition-[border-color,box-shadow] duration-(--t-fast) ease-(--ease) hover:border-[color-mix(in_oklch,var(--fg)_24%,var(--border))] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-primary-soft focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-surface-2 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/15',
+          'min-h-[46px] w-full min-w-0 appearance-none rounded-md border border-input bg-card px-3.5 py-[11px] pr-9 text-body outline-none transition-[border-color,box-shadow] duration-(--t-fast) ease-(--ease) hover:border-[color-mix(in_oklch,var(--fg)_24%,var(--border))] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-primary-soft focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-surface-2 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/14',
           size === 'sm' && 'min-h-10 px-3 py-2 pr-8',
         )}
         {...props}

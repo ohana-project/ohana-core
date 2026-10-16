@@ -118,10 +118,7 @@ export function WishlistMineScreen() {
               <EmptyTitle>{t('wishlist.mineEmptyTitle')}</EmptyTitle>
               <EmptyDescription>{t('wishlist.mineEmptyText')}</EmptyDescription>
               <EmptyContent>
-                <Button onClick={() => setEditingId('new')}>
-                  <Icon name="plus" />
-                  {t('wishlist.addWish')}
-                </Button>
+                <Button onClick={() => setEditingId('new')}>{t('wishlist.addWish')}</Button>
               </EmptyContent>
             </Empty>
           ) : (
@@ -311,7 +308,7 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
           <SheetDescription>{t('wishlist.editorSubtitle')}</SheetDescription>
         </SheetHeader>
         {/* biome-ignore lint/a11y/noStaticElementInteractions: the prototype's keydown handler on the sheet's body — Enter from any field saves; the fields are the interactive elements the key lands on */}
-        <div className="flex flex-col gap-4" onKeyDown={sheetKeyDown}>
+        <div className="flex flex-col gap-3.5" onKeyDown={sheetKeyDown}>
           <Field data-invalid={(attempted && titleBlank) || undefined}>
             <FieldLabel htmlFor="wish-title">{t('wishlist.titleField')}</FieldLabel>
             <Input
@@ -363,7 +360,9 @@ function WishEditorSheet({ wish, onClose }: { wish: StoredWish | undefined; onCl
                 {/* The prototype sets no small size on the title — it rides
                     the sheet's body size; only its hint line is small. */}
                 <span className="font-medium">{t('wishlist.receivedSwitch')}</span>
-                <span className="text-sm text-muted-foreground">{t('wishlist.receivedHint')}</span>
+                <span className="mt-0.5 text-sm text-muted-foreground">
+                  {t('wishlist.receivedHint')}
+                </span>
               </span>
               <Switch
                 checked={received}

@@ -23,8 +23,7 @@ const buttonVariants = cva(
         secondary:
           'border-border bg-card text-foreground shadow-1 hover:border-[color-mix(in_oklch,var(--fg)_30%,var(--border))] aria-expanded:border-[color-mix(in_oklch,var(--fg)_30%,var(--border))]',
         ghost: 'text-foreground hover:bg-accent aria-expanded:bg-accent',
-        destructive:
-          'bg-(--danger-tint) text-destructive hover:bg-(--danger-tint-hover) focus-visible:border-destructive/40',
+        destructive: 'bg-(--danger-tint) text-destructive hover:bg-(--danger-tint-hover)',
         link: 'rounded-sm text-primary hover:underline hover:underline-offset-3',
       },
       size: {

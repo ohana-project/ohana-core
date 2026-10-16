@@ -33,7 +33,7 @@ export function BirthdayNote({
   return (
     <NoteBlock icon={icon} className={className}>
       {day !== undefined && (
-        <p>
+        <p className="font-semibold">
           {birthday.daysUntil === 0
             ? t('wishlist.birthdayNoteToday', { title: birthday.occurrence.title })
             : t('wishlist.birthdayNote', {
@@ -43,7 +43,7 @@ export function BirthdayNote({
               })}
         </p>
       )}
-      <p className={day !== undefined ? 'mt-1' : undefined}>
+      <p className={day !== undefined ? 'mt-0.5' : undefined}>
         {t('wishlist.birthdayNoteIdeas', { count: openCount })}
       </p>
       {link !== undefined && (

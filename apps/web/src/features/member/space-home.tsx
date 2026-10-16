@@ -161,11 +161,9 @@ export function SpaceHomeScreen() {
       onSpaceClick={shell.onSpaceClick}
       onSectionClick={shell.onSectionClick}
     >
-      <div className="flex flex-col pt-6">
+      <div className="flex flex-col pt-(--pad)">
         <header>
-          <p className="font-mono text-meta tracking-wide text-muted-foreground uppercase">
-            {dateLabel}
-          </p>
+          <p className="font-mono text-meta text-muted-foreground uppercase">{dateLabel}</p>
           {/* The prototype's `.display-xl`: the type scale's display size. */}
           <h1 className="mt-1.5 text-display">
             {t(greetings[greetingKey(now.getHours())], { name: displayName })}

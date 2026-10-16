@@ -203,7 +203,7 @@ export function CreateSpaceSheet({
           <SheetTitle>{t('admin.spaces.newTitle')}</SheetTitle>
           <SheetDescription>{t('admin.spaces.newDescription')}</SheetDescription>
         </SheetHeader>
-        <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+        <form onSubmit={submit} noValidate className="flex flex-col gap-4.5">
           <Field data-invalid={nameError !== undefined || undefined}>
             <FieldLabel htmlFor="new-space-name">{t('admin.spaces.nameLabel')}</FieldLabel>
             <Input

@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getActiveMemberId } from '@/data/session-registry.ts'
 import { SettingsShell } from '@/features/space-settings/settings-shell.tsx'
-import { Badge } from '@/ui/badge.tsx'
-import { Button } from '@/ui/button.tsx'
 import { Card } from '@/ui/card.tsx'
+import { Icon } from '@/ui/icon.tsx'
 import {
   Item,
   ItemActions,
@@ -136,7 +135,7 @@ export function NotificationsScreen() {
 
   return (
     <SettingsShell title={t('notifications.settings.title')}>
-      <div className="flex flex-col gap-6 pt-6">
+      <div className="flex flex-col gap-6.5 pt-5">
         <header>
           <h1 className="text-display-lg">{t('notifications.settings.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -155,22 +154,12 @@ export function NotificationsScreen() {
         ) : null}
 
         <section>
-          <SectionHeader title={t('notifications.settings.deviceSection')} />
+          <SectionHeader level={3} title={t('notifications.settings.deviceSection')} />
           <Card variant="list">
             <ItemGroup>
-              <Item size="lg">
-                <ItemMedia variant="icon" tone="primary">
-                  <Switch
-                    checked={subscribed}
-                    onCheckedChange={toggleSubscription}
-                    disabled={
-                      registrar === undefined ||
-                      notification === undefined ||
-                      busy ||
-                      !browser.settled
-                    }
-                    aria-label={t('notifications.settings.enableSwitch')}
-                  />
+              <Item size="md">
+                <ItemMedia>
+                  <Icon name="bell" />
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>
@@ -188,36 +177,39 @@ export function NotificationsScreen() {
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  {subscribed ? (
-                    <Badge>{t('notifications.settings.onBadge')}</Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      disabled={registrar === undefined || notification === undefined || busy}
-                      onClick={() => toggleSubscription(true)}
-                    >
-                      {t('notifications.settings.enableButton')}
-                    </Button>
-                  )}
+                  <Switch
+                    checked={subscribed}
+                    onCheckedChange={toggleSubscription}
+                    disabled={
+                      registrar === undefined ||
+                      notification === undefined ||
+                      busy ||
+                      !browser.settled
+                    }
+                    aria-label={t('notifications.settings.enableSwitch')}
+                  />
                 </ItemActions>
               </Item>
-              <Item size="lg">
-                <ItemMedia variant="icon" tone="primary">
+              <Item size="md">
+                <ItemMedia>
+                  <Icon name="eye" />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{t('notifications.settings.detailsTitle')}</ItemTitle>
+                  <ItemDescription>{t('notifications.settings.detailsText')}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
                   <Switch
                     checked={notifyDetails}
                     onCheckedChange={toggleDetails}
                     disabled={!subscribed || setDetails.isPending}
                     aria-label={t('notifications.settings.detailsSwitch')}
                   />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>{t('notifications.settings.detailsTitle')}</ItemTitle>
-                  <ItemDescription>{t('notifications.settings.detailsText')}</ItemDescription>
-                </ItemContent>
+                </ItemActions>
               </Item>
             </ItemGroup>
           </Card>
-          <p className="mt-2.5 px-1 text-sm text-muted-foreground">
+          <p className="mt-2.5 px-1 text-meta text-muted-foreground">
             {t('notifications.settings.neutralHint')}
           </p>
         </section>

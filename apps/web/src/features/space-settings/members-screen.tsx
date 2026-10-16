@@ -57,8 +57,8 @@ export function MembersScreen() {
         ) : undefined
       }
     >
-      <div className="flex flex-col gap-7 pt-5">
-        <header className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-col gap-6.5 pt-5">
+        <header className="-mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-display-lg">{t('space.members.title')}</h1>
             {session.me !== undefined ? (
@@ -199,7 +199,7 @@ export function MembersScreen() {
                     })}
                   </ItemGroup>
                 </Card>
-                <p className="mt-2.5 px-1 text-sm text-muted-foreground">
+                <p className="mt-2.5 px-1 text-meta text-muted-foreground">
                   {t('space.members.archivedHint')}
                 </p>
               </section>
